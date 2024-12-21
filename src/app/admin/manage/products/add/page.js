@@ -1,9 +1,8 @@
-// app/admin/manage/products/add/page.jsx
+// /app/admin/manage/products/add/page.jsx
 
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Box,
   Typography,
@@ -20,21 +19,24 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
   Skeleton,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import slugify from 'slugify';
 import ImageUpload from '@/components/utils/ImageUpload';
+import CategorySelector from '@/components/layout/CategorySelector';
 
 const AddProductPage = () => {
-  const searchParams = useSearchParams();
-  const variantId = searchParams.get('variantId');
-  const router = useRouter();
+  // State for selected category and variant
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedVariantId, setSelectedVariantId] = useState('');
 
   const [specificCategoryVariant, setSpecificCategoryVariant] = useState(null);
   const [specificCategory, setSpecificCategory] = useState(null);
   const [skuSerial, setSkuSerial] = useState(1);
 
+  // Form fields
   const [name, setName] = useState('');
   const [pageSlug, setPageSlug] = useState('');
   const [title, setTitle] = useState('');
@@ -42,7 +44,7 @@ const AddProductPage = () => {
   const [price, setPrice] = useState(0);
   const [displayOrder, setDisplayOrder] = useState(0);
 
-  // Fields not shown in UI but managed internally
+  // Hidden fields
   const [hiddenFields, setHiddenFields] = useState({
     category: '',
     subCategory: '',
@@ -62,11 +64,11 @@ const AddProductPage = () => {
   const [successAlert, setSuccessAlert] = useState(false);
   const [errorAlert, setErrorAlert] = useState('');
 
-  // State for Dialog to create a new tag
+  // Dialog for adding a new tag
   const [openDialog, setOpenDialog] = useState(false);
   const [newTag, setNewTag] = useState('');
 
-  // Function to fetch unique main tags
+  // Fetch unique main tags
   const fetchUniqueMainTags = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/manage/product/get/unique-tags');
@@ -81,13 +83,9 @@ const AddProductPage = () => {
     }
   }, []);
 
-  // Function to fetch specific category variant and category
+  // Fetch specific category and variant data
   const fetchSpecificCategoryData = useCallback(async () => {
-    if (!variantId) {
-      alert('No variant selected.');
-      router.push('/admin/manage/products/add/specific-categories');
-      return;
-    }
+    if (!selectedVariantId) return;
 
     // Reset form fields when variantId changes
     setName('');
@@ -113,7 +111,7 @@ const AddProductPage = () => {
     try {
       // Fetch specific category variant details
       const resVariant = await fetch(
-        `/api/admin/manage/product/get/get-specific-category-variant/${variantId}`
+        `/api/admin/manage/product/get/get-specific-category-variant/${selectedVariantId}`
       );
       if (!resVariant.ok) {
         throw new Error('Failed to fetch specific category variant.');
@@ -141,9 +139,9 @@ const AddProductPage = () => {
       console.error('Error fetching variant or category:', err.message);
       alert('Error fetching variant or category details.');
     }
-  }, [variantId, router]);
+  }, [selectedVariantId]);
 
-  // Function to fetch the latest product and prefill fields
+  // Fetch the latest product to determine SKU serial
   const fetchLatestProduct = useCallback(async () => {
     if (specificCategoryVariant) {
       try {
@@ -199,8 +197,10 @@ const AddProductPage = () => {
 
   // Fetch specific category data when variantId changes
   useEffect(() => {
-    fetchSpecificCategoryData();
-  }, [fetchSpecificCategoryData]);
+    if (selectedVariantId) {
+      fetchSpecificCategoryData();
+    }
+  }, [selectedVariantId, fetchSpecificCategoryData]);
 
   // Fetch latest product when specificCategoryVariant changes or after resetting
   useEffect(() => {
@@ -395,6 +395,33 @@ const AddProductPage = () => {
     handleCloseDialog();
   };
 
+  // Handlers for ProductSelector
+  const handleCategoryChange = (categoryId) => {
+    setSelectedCategoryId(categoryId);
+    setSelectedVariantId('');
+    setSpecificCategoryVariant(null);
+    setSpecificCategory(null);
+  };
+
+  const handleVariantChange = (variantId) => {
+    setSelectedVariantId(variantId);
+  };
+
+  // Render the form only if a variant is selected
+  if (!selectedVariantId) {
+    return (
+      <Box p={4}>
+        <Typography variant="h4" gutterBottom>
+          Add New Product
+        </Typography>
+        <CategorySelector
+          onCategoryChange={handleCategoryChange}
+          onVariantChange={handleVariantChange}
+        />
+      </Box>
+    );
+  }
+
   if (!specificCategoryVariant || !specificCategory) {
     return (
       <Box p={4} maxWidth="900px" margin="0 auto">
@@ -566,7 +593,7 @@ const AddProductPage = () => {
               onClick={handleFormSubmit}
               disabled={loading}
               size="large"
-              startIcon={loading && <Skeleton variant="circular" width={24} height={24} />}
+              startIcon={loading && <CircularProgress size={24} />}
             >
               {loading ? 'Adding...' : 'Add Product'}
             </Button>

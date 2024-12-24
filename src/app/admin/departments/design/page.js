@@ -4,6 +4,7 @@ import React from 'react';
 export default function Design() {
   const optionsWithLinks = [
     { text: 'Add designs', link: '/admin/manage/products/add' },
+    { text: 'Edit designs', link: '/admin/manage/products/edit' },
     { text: 'Orders List', link: '/admin/manage/orders/order-list' },
     { text: 'Product Based Sales Analysis', link: '/admin/manage/data-analysis/sales/product-based' },
   ];

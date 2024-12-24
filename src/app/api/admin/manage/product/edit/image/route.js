@@ -4,8 +4,9 @@ import { connectToDatabase } from '@/lib/db';
 import Product from '@/models/Product';
 import { NextResponse } from 'next/server';
 import { getPresignedUrl } from '@/lib/aws';
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client } from '@aws-sdk/client-s3';
 
+// Initialize the S3 client
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
@@ -16,62 +17,124 @@ const s3 = new S3Client({
 
 export async function PUT(request) {
   try {
-    const { productId, newImageFile } = await request.json();
+    // Parse the incoming JSON request
+    const { productId, newImageFile, type } = await request.json();
 
-    if (!productId || !newImageFile) {
+    // Validate the request data
+    if (
+      !productId ||
+      !newImageFile ||
+      !newImageFile.relativePath ||
+      !newImageFile.type ||
+      !newImageFile.data ||
+      !type ||
+      !['main', 'design'].includes(type)
+    ) {
       return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
 
+    // Connect to the database
     await connectToDatabase();
 
+    // Find the product by ID
     const product = await Product.findById(productId);
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    const oldImageUrl = product.designTemplate.imageUrl;
-    const oldImageKey = oldImageUrl.split(`https://${process.env.AWS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`)[1];
+    // Extract the relative path for the new image
+    const relativeImagePath = newImageFile.relativePath.startsWith('/')
+      ? newImageFile.relativePath.slice(1)
+      : newImageFile.relativePath;
 
-    // Generate presigned URL for new image upload
-    const newImagePath = newImageFile.fullPath; // Expected to be provided
-    const { presignedUrl: uploadUrl, url: newImageUrl } = await getPresignedUrl(newImagePath, newImageFile.type, 'putObject');
+    if (type === 'main') {
+      // Replace main image
+      const imageIndex = product.images.findIndex(
+        (img) => img.replace(/^\//, '') === relativeImagePath
+      );
+      if (imageIndex === -1) {
+        return NextResponse.json(
+          { error: 'The specified image path does not exist in the product images.' },
+          { status: 400 }
+        );
+      }
 
-    // Upload new image to S3
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': newImageFile.type,
-      },
-      body: Buffer.from(newImageFile.data, 'base64'), // Assuming base64 encoded
-    });
+      // Generate a presigned URL for uploading the image
+      const { presignedUrl: uploadUrl } = await getPresignedUrl(
+        relativeImagePath,
+        newImageFile.type,
+        'putObject'
+      );
 
-    if (!uploadResponse.ok) {
-      throw new Error('Failed to upload new image to S3');
+      // Upload the new image to S3 using the presigned URL
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': newImageFile.type,
+        },
+        body: Buffer.from(newImageFile.data, 'base64'), // Assuming base64 encoded without data URL prefix
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload new image to S3');
+      }
+
+      // No need to update the image URL since the path remains the same
+    } else if (type === 'design') {
+      // Replace design template image
+      const currentDesignImagePath = product.designTemplate.imageUrl.startsWith('/')
+        ? product.designTemplate.imageUrl.slice(1)
+        : product.designTemplate.imageUrl;
+
+      if (currentDesignImagePath !== relativeImagePath) {
+        return NextResponse.json(
+          { error: 'The specified image path does not match the design template image.' },
+          { status: 400 }
+        );
+      }
+
+      // Generate a presigned URL for uploading the design template image
+      const { presignedUrl: uploadUrl } = await getPresignedUrl(
+        relativeImagePath,
+        newImageFile.type,
+        'putObject'
+      );
+
+      // Upload the new design template image to S3 using the presigned URL
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': newImageFile.type,
+        },
+        body: Buffer.from(newImageFile.data, 'base64'), // Assuming base64 encoded without data URL prefix
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload new design template image to S3');
+      }
+
+      // No need to update the designTemplate.imageUrl since the path remains the same
     }
 
-    // Delete old image from S3
-    const deleteParams = {
-      Bucket: process.env.AWS_BUCKET,
-      Key: oldImageKey,
-    };
-    const deleteCommand = new DeleteObjectCommand(deleteParams);
-    await s3.send(deleteCommand);
-
-    // Update product's image URL
-    product.designTemplate.imageUrl = newImageUrl;
-
-    // Update the images array if needed (assuming first image is being replaced)
-    if (product.images && product.images.length > 0) {
-      product.images[0] = newImageUrl;
-    } else {
-      product.images.push(newImageUrl);
-    }
-
+    // Save the updated product (if any changes were made)
     await product.save();
 
-    return NextResponse.json({ message: 'Product image updated successfully', product }, { status: 200 });
+    // Append a timestamp to the image URLs to bust the cache
+    const updatedProduct = product.toObject();
+    updatedProduct.images = updatedProduct.images.map((img) => `${img}?t=${Date.now()}`);
+    if (updatedProduct.designTemplate && updatedProduct.designTemplate.imageUrl) {
+      updatedProduct.designTemplate.imageUrl = `${updatedProduct.designTemplate.imageUrl}?t=${Date.now()}`;
+    }
+
+    return NextResponse.json(
+      { message: 'Product image updated successfully', product: updatedProduct },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error updating product image:', error.message);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }

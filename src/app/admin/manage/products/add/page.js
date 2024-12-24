@@ -26,6 +26,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import slugify from 'slugify';
 import ImageUpload from '@/components/utils/ImageUpload';
 import CategorySelector from '@/components/layout/CategorySelector';
+import VariantNameConflictDialog from '@/components/page-sections/common/VariantNameConflictDialog';
+import { toTitleCase } from '@/lib/utils/generalFunctions';
 
 const AddProductPage = () => {
   // State for selected category and variant
@@ -68,6 +70,10 @@ const AddProductPage = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [newTag, setNewTag] = useState('');
 
+  // Dialog for uniqueness conflicts
+  const [openConflictDialog, setOpenConflictDialog] = useState(false);
+  const [conflictingProducts, setConflictingProducts] = useState([]);
+
   // Fetch unique main tags
   const fetchUniqueMainTags = useCallback(async () => {
     try {
@@ -107,6 +113,8 @@ const AddProductPage = () => {
     setProductionTemplateImage(null);
     setSkuSerial(1);
     setErrorAlert('');
+    setConflictingProducts([]);
+    setOpenConflictDialog(false);
 
     try {
       // Fetch specific category variant details
@@ -195,6 +203,12 @@ const AddProductPage = () => {
     fetchUniqueMainTags();
   }, [fetchUniqueMainTags]);
 
+  // Handle selection changes from CategorySelector
+  const handleSelectionChange = ({ category, variant }) => {
+    setSelectedCategoryId(category);
+    setSelectedVariantId(variant);
+  };
+
   // Fetch specific category data when variantId changes
   useEffect(() => {
     if (selectedVariantId) {
@@ -210,12 +224,15 @@ const AddProductPage = () => {
   // Update Title and Page Slug based on Name and Specific Category
   useEffect(() => {
     if (specificCategory && name && specificCategoryVariant) {
-      const constructedTitle = `${name} ${
+      // Convert name to title case
+      const titleCaseName = toTitleCase(name);
+      const constructedTitle = `${titleCaseName} ${
         specificCategory.name.endsWith('s')
           ? specificCategory.name.slice(0, -1)
           : specificCategory.name
       }`;
-      setTitle(constructedTitle);
+      const titleCaseTitle = toTitleCase(constructedTitle);
+      setTitle(titleCaseTitle);
 
       const slugifiedName = slugify(name, { lower: true, strict: true });
       const generatedSlug = `${specificCategoryVariant.pageSlug}/${slugifiedName}`;
@@ -232,6 +249,39 @@ const AddProductPage = () => {
     setLoading(true);
 
     try {
+      // Convert name and title to title case
+      const titleCaseName = toTitleCase(name);
+      const titleCaseTitle = toTitleCase(title);
+
+      // Perform uniqueness check
+      const uniquenessRes = await fetch('/api/admin/manage/product/check-unique', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          variantId: selectedVariantId,
+          name: titleCaseName,
+          title: titleCaseTitle,
+        }),
+      });
+
+      if (!uniquenessRes.ok) {
+        const errorData = await uniquenessRes.json();
+        throw new Error(errorData.error || 'Failed to check uniqueness');
+      }
+
+      const uniquenessData = await uniquenessRes.json();
+
+      if (uniquenessData.conflict) {
+        // Show the conflict dialog with conflicting products
+        setConflictingProducts(uniquenessData.conflictingProducts);
+        setOpenConflictDialog(true);
+        setLoading(false);
+        return;
+      }
+
+      // Proceed to add the product
       // Construct SKU
       const sku = `${specificCategoryVariant.variantCode}${skuSerial}`;
 
@@ -300,14 +350,14 @@ const AddProductPage = () => {
       // Construct Design Template Object
       const designTemplateObj = {
         designCode: sku,
-        imageUrl: designTemplateUrl,
+        imageUrl: designTemplatePath,
       };
 
       // Prepare dynamic fields based on reference product
       const productData = {
-        name,
+        name: titleCaseName,
         pageSlug,
-        title,
+        title: titleCaseTitle,
         mainTags: [mainTag],
         price,
         displayOrder,
@@ -316,7 +366,7 @@ const AddProductPage = () => {
         ...hiddenFields,
         sku,
         designTemplate: designTemplateObj,
-        images: [`${productImageUrl}`],
+        images: [`/${imagePath}`],
       };
 
       // Send data to API
@@ -395,18 +445,6 @@ const AddProductPage = () => {
     handleCloseDialog();
   };
 
-  // Handlers for ProductSelector
-  const handleCategoryChange = (categoryId) => {
-    setSelectedCategoryId(categoryId);
-    setSelectedVariantId('');
-    setSpecificCategoryVariant(null);
-    setSpecificCategory(null);
-  };
-
-  const handleVariantChange = (variantId) => {
-    setSelectedVariantId(variantId);
-  };
-
   // Render the form only if a variant is selected
   if (!selectedVariantId) {
     return (
@@ -414,10 +452,7 @@ const AddProductPage = () => {
         <Typography variant="h4" gutterBottom>
           Add New Product
         </Typography>
-        <CategorySelector
-          onCategoryChange={handleCategoryChange}
-          onVariantChange={handleVariantChange}
-        />
+        <CategorySelector onSelectionChange={handleSelectionChange} />
       </Box>
     );
   }
@@ -644,9 +679,19 @@ const AddProductPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button onClick={handleAddNewTag}>Add</Button>
+          <Button onClick={handleAddNewTag} disabled={newTag.trim() === ''}>
+            Add
+          </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Dialog for Uniqueness Conflicts */}
+      <VariantNameConflictDialog
+        open={openConflictDialog}
+        onClose={() => setOpenConflictDialog(false)}
+        conflictingProducts={conflictingProducts}
+        cloudfrontBaseUrl={process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}
+      />
     </Box>
   );
 };

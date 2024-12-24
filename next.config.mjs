@@ -8,6 +8,10 @@ const nextConfig = {
           },
           {
             protocol: 'https',
+            hostname: 'd3efr8i3xj2spn.cloudfront.net',
+          },
+          {
+            protocol: 'https',
             hostname: 'maddy-assets.s3.ap-south-1.amazonaws.com',
           }
         ],

@@ -9,6 +9,7 @@ export async function PUT(request) {
     const { productId, available } = await request.json();
 
     if (!productId || typeof available !== 'boolean') {
+      console.error('Invalid request data:', { productId, available });
       return NextResponse.json({ error: 'Invalid request data' }, {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -24,12 +25,14 @@ export async function PUT(request) {
     ).lean();
 
     if (!product) {
+      console.error('Product not found:', { productId });
       return NextResponse.json({ error: 'Product not found' }, {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
+    console.log('Product availability updated successfully:', { productId, available });
     return NextResponse.json({ message: 'Product availability updated', product }, {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

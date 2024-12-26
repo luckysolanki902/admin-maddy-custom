@@ -1,6 +1,15 @@
 // /models/Product.js
 const mongoose = require('mongoose');
 
+function toTitleCase(str) {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 const ProductSchema = new mongoose.Schema(
   {
     name: {
@@ -8,6 +17,7 @@ const ProductSchema = new mongoose.Schema(
       required: true,
       maxlength: 200,
       index: true,
+      set: toTitleCase, 
     },
     images: [
       {
@@ -18,6 +28,7 @@ const ProductSchema = new mongoose.Schema(
       type: String,
       required: true,
       maxlength: 200,
+      set: toTitleCase, 
     },
     mainTags: [
       {
@@ -124,6 +135,18 @@ ProductSchema.index(
     name: 'TextIndex',
   }
 );
+
+// Compound Unique Indexes for (Variant + Name) and (Variant + Title)
+ProductSchema.index(
+  { specificCategoryVariant: 1, name: 1 },
+  { unique: true, name: 'VariantNameUnique', collation: { locale: 'en', strength: 2 } }
+);
+ProductSchema.index(
+  { specificCategoryVariant: 1, title: 1 },
+  { unique: true, name: 'VariantTitleUnique', collation: { locale: 'en', strength: 2 } }
+);
+
+
 
 
 

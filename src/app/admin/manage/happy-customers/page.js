@@ -1,4 +1,4 @@
-// app/admin/manage/happycustomers/page.jsx
+// app/admin/manage/happy-customers/page.jsx
 
 'use client';
 

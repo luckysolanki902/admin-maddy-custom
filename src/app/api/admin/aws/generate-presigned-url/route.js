@@ -1,4 +1,4 @@
-// app/api/admin/aws/generate-presigned-url/route.js
+// app/api/admin/aws/generate-presigned-url/route.js (for add product page)
 
 import { NextResponse } from 'next/server';
 import { getPresignedUrl } from '@/lib/aws';

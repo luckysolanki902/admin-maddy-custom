@@ -6,6 +6,8 @@ import Product from '@/models/Product';
 import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
 import SpecificCategory from '@/models/SpecificCategory';
 import { ObjectId } from 'mongodb';
+import slugify from 'slugify';
+import { toTitleCase } from '@/lib/utils/generalFunctions';
 
 export async function POST(req) {
   await connectToDatabase();
@@ -87,16 +89,37 @@ export async function POST(req) {
       return NextResponse.json({ error: 'SKU already exists.' }, { status: 400 });
     }
 
-    // Construct Title
-    const constructedTitle = `${name} ${
+    // Check for uniqueness: specificCategoryVariant + name and + title
+    const existingByName = await Product.findOne({
+      specificCategoryVariant: specificCategoryVariant,
+      name: name,
+    }).collation({ locale: 'en', strength: 2 }).lean();
+
+    if (existingByName) {
+      return NextResponse.json({ error: `A product with the name '${name}' already exists for this variant.` }, { status: 400 });
+    }
+
+    const existingByTitle = await Product.findOne({
+      specificCategoryVariant: specificCategoryVariant,
+      title: title,
+    }).collation({ locale: 'en', strength: 2 }).lean();
+
+    if (existingByTitle) {
+      return NextResponse.json({ error: `A product with the title '${title}' already exists for this variant.` }, { status: 400 });
+    }
+
+    // Convert name and title to title case
+    const titleCaseName = toTitleCase(name);
+    const constructedTitle = `${titleCaseName} ${
       specificCategoryDoc.name.endsWith('s') ? specificCategoryDoc.name.slice(0, -1) : specificCategoryDoc.name
     }`;
+    const titleCaseTitle = toTitleCase(constructedTitle);
 
     // Create a new product
     const newProduct = new Product({
-      name,
+      name: titleCaseName,
       images: images.map((image) => (image.startsWith('/') ? image : `/${image}`)),
-      title: constructedTitle,
+      title: titleCaseTitle,
       mainTags,
       price,
       displayOrder,
@@ -119,6 +142,16 @@ export async function POST(req) {
     return NextResponse.json(newProduct, { status: 201 });
   } catch (error) {
     console.error('Error adding product:', error.message);
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const duplicatedField = Object.keys(error.keyValue)[0];
+      return NextResponse.json({ error: `Duplicate value for field '${duplicatedField}'.` }, { status: 400 });
+    }
     return NextResponse.json({ error: 'Error adding product.' }, { status: 500 });
   }
+}
+
+// Utility function to escape regex special characters
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

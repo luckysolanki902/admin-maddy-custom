@@ -1,9 +1,8 @@
-// app/admin/manage/products/add/page.jsx
+// /app/admin/manage/products/add/page.jsx
 
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Box,
   Typography,
@@ -20,21 +19,26 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
   Skeleton,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import slugify from 'slugify';
 import ImageUpload from '@/components/utils/ImageUpload';
+import CategorySelector from '@/components/layout/CategorySelector';
+import VariantNameConflictDialog from '@/components/page-sections/common/VariantNameConflictDialog';
+import { toTitleCase } from '@/lib/utils/generalFunctions';
 
 const AddProductPage = () => {
-  const searchParams = useSearchParams();
-  const variantId = searchParams.get('variantId');
-  const router = useRouter();
+  // State for selected category and variant
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedVariantId, setSelectedVariantId] = useState('');
 
   const [specificCategoryVariant, setSpecificCategoryVariant] = useState(null);
   const [specificCategory, setSpecificCategory] = useState(null);
   const [skuSerial, setSkuSerial] = useState(1);
 
+  // Form fields
   const [name, setName] = useState('');
   const [pageSlug, setPageSlug] = useState('');
   const [title, setTitle] = useState('');
@@ -42,7 +46,7 @@ const AddProductPage = () => {
   const [price, setPrice] = useState(0);
   const [displayOrder, setDisplayOrder] = useState(0);
 
-  // Fields not shown in UI but managed internally
+  // Hidden fields
   const [hiddenFields, setHiddenFields] = useState({
     category: '',
     subCategory: '',
@@ -62,11 +66,15 @@ const AddProductPage = () => {
   const [successAlert, setSuccessAlert] = useState(false);
   const [errorAlert, setErrorAlert] = useState('');
 
-  // State for Dialog to create a new tag
+  // Dialog for adding a new tag
   const [openDialog, setOpenDialog] = useState(false);
   const [newTag, setNewTag] = useState('');
 
-  // Function to fetch unique main tags
+  // Dialog for uniqueness conflicts
+  const [openConflictDialog, setOpenConflictDialog] = useState(false);
+  const [conflictingProducts, setConflictingProducts] = useState([]);
+
+  // Fetch unique main tags
   const fetchUniqueMainTags = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/manage/product/get/unique-tags');
@@ -81,13 +89,9 @@ const AddProductPage = () => {
     }
   }, []);
 
-  // Function to fetch specific category variant and category
+  // Fetch specific category and variant data
   const fetchSpecificCategoryData = useCallback(async () => {
-    if (!variantId) {
-      alert('No variant selected.');
-      router.push('/admin/manage/products/add/specific-categories');
-      return;
-    }
+    if (!selectedVariantId) return;
 
     // Reset form fields when variantId changes
     setName('');
@@ -109,11 +113,13 @@ const AddProductPage = () => {
     setProductionTemplateImage(null);
     setSkuSerial(1);
     setErrorAlert('');
+    setConflictingProducts([]);
+    setOpenConflictDialog(false);
 
     try {
       // Fetch specific category variant details
       const resVariant = await fetch(
-        `/api/admin/manage/product/get/get-specific-category-variant/${variantId}`
+        `/api/admin/manage/product/get/get-specific-category-variant/${selectedVariantId}`
       );
       if (!resVariant.ok) {
         throw new Error('Failed to fetch specific category variant.');
@@ -141,9 +147,9 @@ const AddProductPage = () => {
       console.error('Error fetching variant or category:', err.message);
       alert('Error fetching variant or category details.');
     }
-  }, [variantId, router]);
+  }, [selectedVariantId]);
 
-  // Function to fetch the latest product and prefill fields
+  // Fetch the latest product to determine SKU serial
   const fetchLatestProduct = useCallback(async () => {
     if (specificCategoryVariant) {
       try {
@@ -197,10 +203,18 @@ const AddProductPage = () => {
     fetchUniqueMainTags();
   }, [fetchUniqueMainTags]);
 
+  // Handle selection changes from CategorySelector
+  const handleSelectionChange = ({ category, variant }) => {
+    setSelectedCategoryId(category);
+    setSelectedVariantId(variant);
+  };
+
   // Fetch specific category data when variantId changes
   useEffect(() => {
-    fetchSpecificCategoryData();
-  }, [fetchSpecificCategoryData]);
+    if (selectedVariantId) {
+      fetchSpecificCategoryData();
+    }
+  }, [selectedVariantId, fetchSpecificCategoryData]);
 
   // Fetch latest product when specificCategoryVariant changes or after resetting
   useEffect(() => {
@@ -210,12 +224,15 @@ const AddProductPage = () => {
   // Update Title and Page Slug based on Name and Specific Category
   useEffect(() => {
     if (specificCategory && name && specificCategoryVariant) {
-      const constructedTitle = `${name} ${
+      // Convert name to title case
+      const titleCaseName = toTitleCase(name);
+      const constructedTitle = `${titleCaseName} ${
         specificCategory.name.endsWith('s')
           ? specificCategory.name.slice(0, -1)
           : specificCategory.name
       }`;
-      setTitle(constructedTitle);
+      const titleCaseTitle = toTitleCase(constructedTitle);
+      setTitle(titleCaseTitle);
 
       const slugifiedName = slugify(name, { lower: true, strict: true });
       const generatedSlug = `${specificCategoryVariant.pageSlug}/${slugifiedName}`;
@@ -232,6 +249,39 @@ const AddProductPage = () => {
     setLoading(true);
 
     try {
+      // Convert name and title to title case
+      const titleCaseName = toTitleCase(name);
+      const titleCaseTitle = toTitleCase(title);
+
+      // Perform uniqueness check
+      const uniquenessRes = await fetch('/api/admin/manage/product/check-unique', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          variantId: selectedVariantId,
+          name: titleCaseName,
+          title: titleCaseTitle,
+        }),
+      });
+
+      if (!uniquenessRes.ok) {
+        const errorData = await uniquenessRes.json();
+        throw new Error(errorData.error || 'Failed to check uniqueness');
+      }
+
+      const uniquenessData = await uniquenessRes.json();
+
+      if (uniquenessData.conflict) {
+        // Show the conflict dialog with conflicting products
+        setConflictingProducts(uniquenessData.conflictingProducts);
+        setOpenConflictDialog(true);
+        setLoading(false);
+        return;
+      }
+
+      // Proceed to add the product
       // Construct SKU
       const sku = `${specificCategoryVariant.variantCode}${skuSerial}`;
 
@@ -300,14 +350,14 @@ const AddProductPage = () => {
       // Construct Design Template Object
       const designTemplateObj = {
         designCode: sku,
-        imageUrl: designTemplateUrl,
+        imageUrl: designTemplatePath,
       };
 
       // Prepare dynamic fields based on reference product
       const productData = {
-        name,
+        name: titleCaseName,
         pageSlug,
-        title,
+        title: titleCaseTitle,
         mainTags: [mainTag],
         price,
         displayOrder,
@@ -316,7 +366,7 @@ const AddProductPage = () => {
         ...hiddenFields,
         sku,
         designTemplate: designTemplateObj,
-        images: [`${productImageUrl}`],
+        images: [`/${imagePath}`],
       };
 
       // Send data to API
@@ -394,6 +444,18 @@ const AddProductPage = () => {
     setUniqueMainTags((prevTags) => [...prevTags, newTag]);
     handleCloseDialog();
   };
+
+  // Render the form only if a variant is selected
+  if (!selectedVariantId) {
+    return (
+      <Box p={4}>
+        <Typography variant="h4" gutterBottom>
+          Add New Product
+        </Typography>
+        <CategorySelector onSelectionChange={handleSelectionChange} />
+      </Box>
+    );
+  }
 
   if (!specificCategoryVariant || !specificCategory) {
     return (
@@ -566,7 +628,7 @@ const AddProductPage = () => {
               onClick={handleFormSubmit}
               disabled={loading}
               size="large"
-              startIcon={loading && <Skeleton variant="circular" width={24} height={24} />}
+              startIcon={loading && <CircularProgress size={24} />}
             >
               {loading ? 'Adding...' : 'Add Product'}
             </Button>
@@ -617,9 +679,19 @@ const AddProductPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button onClick={handleAddNewTag}>Add</Button>
+          <Button onClick={handleAddNewTag} disabled={newTag.trim() === ''}>
+            Add
+          </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Dialog for Uniqueness Conflicts */}
+      <VariantNameConflictDialog
+        open={openConflictDialog}
+        onClose={() => setOpenConflictDialog(false)}
+        conflictingProducts={conflictingProducts}
+        cloudfrontBaseUrl={process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}
+      />
     </Box>
   );
 };

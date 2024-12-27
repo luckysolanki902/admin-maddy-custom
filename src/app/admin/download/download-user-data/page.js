@@ -53,7 +53,7 @@ const DownloadCustomersData = () => {
         { label: 'First Name', value: 'firstName' },
         { label: 'Last Name', value: 'lastName' },
         // { label: 'City', value: 'city' },
-        { label: 'Purchase Count', value: 'purchaseCount' },
+        { label: 'Orders Count', value: 'purchaseCount' },
         { label: 'Item Purchase Counts', value: 'itemPurchaseCounts' },
         { label: 'Total Amount Spent', value: 'totalAmountSpent' },
         { label: 'UTM Source', value: 'utmSource' },
@@ -569,7 +569,7 @@ const DownloadCustomersData = () => {
                 </Accordion>
 
                 {/* Tags Input */}
-                <Accordion>
+                {/* <Accordion>
                     <AccordionSummary
                         expandIcon={<ExpandMoreIcon />}
                         aria-controls="tags-input-content"
@@ -588,7 +588,7 @@ const DownloadCustomersData = () => {
                             helperText="Separate multiple tags with commas"
                         />
                     </AccordionDetails>
-                </Accordion>
+                </Accordion> */}
 
                 {/* Download Button */}
                 <Box textAlign="center" sx={{ marginTop: 4 }}>

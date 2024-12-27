@@ -335,6 +335,7 @@ const CouponPage = () => {
                                 <TableCell>Value</TableCell>
                                 <TableCell>Valid From</TableCell>
                                 <TableCell>Valid Until</TableCell>
+                                <TableCell>Minimum Purchase</TableCell>
                                 {/* <TableCell>Max Uses</TableCell> */}
                                 <TableCell>Show as Card</TableCell>
                                 <TableCell>Active</TableCell>
@@ -354,7 +355,7 @@ const CouponPage = () => {
                                     </TableCell>
                                     <TableCell>{format(new Date(coupon.validFrom), 'yyyy-MM-dd')}</TableCell>
                                     <TableCell>{format(new Date(coupon.validUntil), 'yyyy-MM-dd')}</TableCell>
-                                    {/* <TableCell>{coupon.maxUses}</TableCell> */}
+                                    <TableCell>₹ {coupon.minimumPurchasePrice}</TableCell>
                                     <TableCell>
                                         <Checkbox checked={coupon.showAsCard} disabled />
                                     </TableCell>
@@ -479,7 +480,7 @@ const CouponPage = () => {
                         />
 
                         {/* Minimum Purchase Price */}
-                        {/* <TextField
+                        <TextField
                             name="minimumPurchasePrice"
                             label="Minimum Purchase Price (₹)"
                             type="number"
@@ -488,7 +489,7 @@ const CouponPage = () => {
                             onChange={handleInputChange}
                             fullWidth
                             inputProps={{ min: 0 }}
-                        /> */}
+                        />
 
                         {/* Valid From */}
                         <TextField

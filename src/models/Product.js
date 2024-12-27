@@ -28,17 +28,22 @@ const ProductSchema = new mongoose.Schema(
       type: String,
       required: true,
       maxlength: 200,
-      set: toTitleCase, 
     },
     mainTags: [
       {
         type: String,
+        lowercase: true,
+        trim: true,
+        index: true,
       },
     ],
     pageSlug: {
       type: String,
       required: true,
       unique: true,
+      index: true,
+      lowercase: true,
+      trim: true,
     },
     category: {
       type: String,
@@ -77,6 +82,7 @@ const ProductSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
+      index: true,
     },
     designTemplate:{
       designCode: {

@@ -1,4 +1,4 @@
-// /models/Coupon.js
+// models/Coupon.js
 
 const mongoose = require('mongoose');
 
@@ -17,6 +17,12 @@ const CouponSchema = new mongoose.Schema(
       uppercase: true,
       maxlength: 20,
     },
+    captions: [
+      {
+        type: String,
+        maxlength: 200,
+      },
+    ],
     // Description of the coupon
     description: {
       type: String,
@@ -58,6 +64,12 @@ const CouponSchema = new mongoose.Schema(
     validUntil: {
       type: Date,
       required: true,
+      validate: {
+        validator: function (value) {
+          return value > this.validFrom;
+        },
+        message: 'validUntil must be after validFrom',
+      },
     },
     // Indicates if the coupon is currently active
     isActive: {
@@ -67,6 +79,5 @@ const CouponSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 
 module.exports = mongoose.models.Coupon || mongoose.model('Coupon', CouponSchema);

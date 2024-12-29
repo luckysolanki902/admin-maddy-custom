@@ -7,6 +7,8 @@ import Image from 'next/image';
 import StarIcon from '@mui/icons-material/Star';
 
 const ProductCard = ({ product }) => {
+    console.log(product)
+    const imageBaseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL;
   return (
     <Card 
       sx={{ 
@@ -24,11 +26,11 @@ const ProductCard = ({ product }) => {
         height: '100%',
       }}
     >
-      <Link href={`/${product.pageSlug}`} passHref>
+      <Link href={`https://www.maddycustom.com/shop/${product.pageSlug}`} passHref>
         <CardActionArea sx={{ flexGrow: 1 }}>
           <Box sx={{ position: 'relative', height: 200, overflow: 'hidden' }}>
             <Image
-              src={product.images[0] || '/placeholder.png'}
+              src={`${imageBaseUrl}${product.images[0]}` || '/placeholder.png'}
               alt={product.name}
               layout="fill"
               objectFit="cover"

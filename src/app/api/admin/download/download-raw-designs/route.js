@@ -9,7 +9,7 @@ import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
 import JSZip from 'jszip';
 import dayjs from 'dayjs';
 import jwt from 'jsonwebtoken';
-import path from 'path'; // Import path for handling file extensions
+import path from 'path';
 
 const AWS = require('aws-sdk');
 

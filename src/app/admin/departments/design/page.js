@@ -7,6 +7,7 @@ export default function Design() {
     { text: 'Edit designs', link: '/admin/manage/products/edit' },
     { text: 'Orders List', link: '/admin/manage/orders/order-list' },
     { text: 'Product Based Sales Analysis', link: '/admin/manage/data-analysis/sales/product-based' },
+    { text: 'Design Search', link: '/admin/manage/orders/sku-search' },
   ];
 
   return (

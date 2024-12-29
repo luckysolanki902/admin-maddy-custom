@@ -5,6 +5,7 @@ export default function Production() {
   const optionsWithLinks = [
     { text: 'Download Templates', link: '/admin/download/download-production-templates' },
     { text: 'Orders List', link: '/admin/manage/orders/order-list' },
+    { text: 'Design Search', link: '/admin/manage/orders/sku-search' },
   ];
 
   return (

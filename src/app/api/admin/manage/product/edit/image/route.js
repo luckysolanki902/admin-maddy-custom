@@ -15,6 +15,14 @@ const s3 = new S3Client({
   },
 });
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '15mb',
+    },
+  },
+};
+
 export async function PUT(request) {
   try {
     // Parse the incoming JSON request

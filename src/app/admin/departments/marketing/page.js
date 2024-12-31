@@ -5,6 +5,7 @@ export default function Marketing() {
   const optionsWithLinks = [
     { text: 'Manage Coupons', link: '/admin/manage/coupons' },
     { text: 'Download User Data', link: '/admin/download/download-user-data' },
+    { text: 'Orders List', link: '/admin/manage/orders/order-list' },
     { text: 'Product Based Sales Analysis', link: '/admin/manage/data-analysis/sales/product-based' },
   ];
 

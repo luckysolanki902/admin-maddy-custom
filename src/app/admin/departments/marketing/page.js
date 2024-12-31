@@ -8,6 +8,7 @@ export default function Marketing() {
     { text: 'Orders List', link: '/admin/manage/orders/order-list' },
     { text: 'Product Based Sales Analysis', link: '/admin/manage/data-analysis/sales/product-based' },
   ];
+  
 
   return (
     <DepartmentHomePage

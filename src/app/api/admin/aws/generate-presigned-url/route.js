@@ -6,7 +6,7 @@ import { getPresignedUrl } from '@/lib/aws';
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '100mb',
+      sizeLimit: '15mb',
     },
   },
 };
@@ -14,7 +14,6 @@ export const config = {
 export async function POST(request) {
   try {
     const { fullPath, fileType } = await request.json();
-
     if (!fullPath || !fileType) {
       return NextResponse.json(
         { message: 'Missing required parameters: fullPath and fileType' },
@@ -23,7 +22,6 @@ export async function POST(request) {
     }
 
     const { presignedUrl, url } = await getPresignedUrl(fullPath, fileType);
-
     return NextResponse.json({ presignedUrl, url }, { status: 200 });
   } catch (error) {
     console.error('Error generating presigned URL:', error);

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import styles from './styles/happycustomers.module.css';
 // import EditCustomerDialog from '';
 import EditCustomerDialog from '@/components/page-sections/EditCustomerDialog';
+import { Button, CircularProgress } from '@mui/material';
 
 export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noHeading }) {
   const baseImageUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL;
@@ -12,6 +13,7 @@ export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noH
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false); // New state for deletion
   const [deleteError, setDeleteError] = useState(null); // New state for deletion errors
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     async function fetchHappyCustomers() {
@@ -42,6 +44,7 @@ export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noH
 
   const handleSave = async (updatedCustomer) => {
     try {
+      setIsLoading(true);
       const response = await fetch(`/api/admin/manage/happycustomers`, {
         method: 'PATCH',
         headers: {
@@ -69,6 +72,8 @@ export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noH
       }
     } catch (error) {
       console.error('Error updating customer:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -81,10 +86,11 @@ export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noH
     const confirmDelete = confirm("Are you sure you want to delete this placement?");
     if (!confirmDelete) return;
 
-    setIsDeleting(true);
-    setDeleteError(null);
+
 
     try {
+      setIsDeleting(true);
+      setDeleteError(null);
       const response = await fetch(`/api/admin/manage/happycustomers`, {
         method: 'DELETE',
         headers: {
@@ -111,7 +117,7 @@ export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noH
       console.error('Error deleting placement:', error);
       setDeleteError('An unexpected error occurred.');
     } finally {
-      setIsDeleting(false);
+      setIsLoading(false);
     }
   };
 
@@ -120,7 +126,9 @@ export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noH
   return (
     <div className={`${styles.main}`}>
       <div className={styles.slider}>
-        {happyCustomers.map((customer) => (
+        {happyCustomers.map((customer) =>{
+          if(customer.name === 'newyear') console.log(customer)
+        return   (
           <div className={styles.slide} key={customer._id}>
             <Image
               src={`${baseImageUrl}/${customer.photo}`}
@@ -132,26 +140,36 @@ export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noH
             <div className={styles.details}>
               <div className={styles.circle}>{customer.globalDisplayOrder}</div>
               <span className={styles.name}>{customer.name}</span>
-              <button onClick={() => handleEditClick(customer)} className={styles.editButton}>
-                Edit
-              </button>
             </div>
-
+            {/* Edit Button */}
+            <Button
+              fullWidth
+              variant='contained'
+              color='primary'
+              onClick={() => handleEditClick(customer)} >
+              {isLoading ? <CircularProgress size={20} /> : 'Edit'}
+            </Button>
             {/* Delete Placement Button */}
-            <button
+            <Button
+              fullWidth
+
+              variant="contained"
+              color="error"
+              sx={{ marginTop: '10px' }}
               onClick={() => handleDeletePlacement(customer._id)}
               className={styles.deleteButton}
               disabled={isDeleting} // Disable button while deleting
             >
-              {isDeleting ? 'Deleting...' : 'Delete Placement'}
-            </button>
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
             {deleteError && (
               <div className={styles.errorMessage}>
                 {deleteError}
               </div>
             )}
           </div>
-        ))}
+        )}
+        )}
       </div>
 
       {/* Edit Customer Dialog */}

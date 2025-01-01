@@ -88,7 +88,6 @@ const HappyCustomersPage = () => {
       }
 
       const { presignedUrl, url } = await res.json();
-
       // Upload the file directly to S3 using the presigned URL
       const uploadRes = await fetch(presignedUrl, {
         method: 'PUT',
@@ -102,7 +101,7 @@ const HappyCustomersPage = () => {
         throw new Error('Failed to upload photo to S3');
       }
 
-      return url;
+      return fullPath;
     } catch (error) {
       console.error('Error uploading photo:', error.message);
       throw new Error('Photo upload failed');

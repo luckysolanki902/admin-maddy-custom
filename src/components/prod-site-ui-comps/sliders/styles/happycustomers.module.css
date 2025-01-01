@@ -18,8 +18,11 @@
 }
 
 .slide {
+    display: flex;
+    flex-direction: column;
     width: 100%;
     height: auto;
+    gap: 0.5rem;
 }
 
 .image {

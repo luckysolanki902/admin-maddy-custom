@@ -1,4 +1,4 @@
-// app/api/admin/aws/generate-presigned-url/route.js (for add product page)
+// app/api/admin/aws/generate-presigned-url/route.js
 
 import { NextResponse } from 'next/server';
 import { getPresignedUrl } from '@/lib/aws';
@@ -6,7 +6,7 @@ import { getPresignedUrl } from '@/lib/aws';
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '15mb',
+      sizeLimit: '15mb', // You can keep this for any additional data
     },
   },
 };
@@ -20,7 +20,6 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
     const { presignedUrl, url } = await getPresignedUrl(fullPath, fileType);
     return NextResponse.json({ presignedUrl, url }, { status: 200 });
   } catch (error) {

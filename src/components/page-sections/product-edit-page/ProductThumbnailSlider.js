@@ -18,13 +18,14 @@ const ProductThumbnailSlider = ({
       bottom={0}
       left={0}
       width="100%"
-      bgcolor="rgba(0,0,0,0.8)"
+      bgcolor="rgb(25, 25, 25)"
       p={2}
       sx={{
         overflowX: 'auto',
         display: 'flex',
         gap: '16px',
         alignItems: 'center',
+        zIndex:"9"
       }}
     >
       {loadingProducts ? (
@@ -45,14 +46,16 @@ const ProductThumbnailSlider = ({
               sx={{
                 border:
                   selectedProduct && selectedProduct._id === product._id
-                    ? '4px solid #fff'
+                    ? '2px solid #fff'
                     : '2px solid transparent',
                 borderRadius: '4px',
                 cursor: 'pointer',
                 flexShrink: 0,
-                transition: 'border 0.3s',
+                transition: 'all 0.3s  cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                 '&:hover': {
-                  border: '4px solid #fff',
+                  border: '2px solid rgba(255,255,255,0.5)',
+                  transform: 'scale(1.05) translateY(-5px)',
+
                 },
               }}
             >

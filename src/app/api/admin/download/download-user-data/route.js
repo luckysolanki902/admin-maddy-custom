@@ -11,22 +11,18 @@ await connectToDatabase();
 
 export async function GET(req) {
     try {
-        console.log('Received GET request for download-user-data');
         
         // Parse query parameters from the request URL
         const { searchParams } = new URL(req.url);
         const queryParam = searchParams.get('query');
-        console.log('Query Parameter:', queryParam);
         
         if (!queryParam) {
-            console.log('No query parameters provided.');
             return NextResponse.json({ message: 'No query parameters provided.' }, { status: 400 });
         }
 
         const queryObj = JSON.parse(queryParam);
         const { createdAt, items, tags, columns, loyalty } = queryObj;
 
-        console.log('Parsed Query Object:', queryObj);
 
         // Initialize the base aggregation pipeline
         const pipeline = [];
@@ -36,7 +32,6 @@ export async function GET(req) {
 
         // Payment Status is always 'successful'
         matchStage.paymentStatus = { $in: ['allPaid', 'paidPartially'] };
-        console.log('Applied Payment Status Filter:', matchStage.paymentStatus);
 
         // Date Filter
         if (createdAt) {
@@ -47,33 +42,26 @@ export async function GET(req) {
                         $lte: new Date(cond.createdAt.$lte),
                     }
                 }));
-                console.log('Applied Date Conditions:', matchStage.$or);
             }
         }
 
         // Items Filter
         if (items && Array.isArray(items) && items.length > 0) {
-            console.log('Applying Items Filter:', items);
             // Fetch specific category IDs based on item names
             const specificCategories = await SpecificCategory.find({ name: { $in: items } }).select('_id');
             const specificCategoryIds = specificCategories.map(cat => cat._id);
-            console.log('Specific Category IDs:', specificCategoryIds);
 
             if (specificCategoryIds.length > 0) {
                 // Fetch product IDs associated with these categories
                 const productIds = await Product.find({ specificCategory: { $in: specificCategoryIds } }).distinct('_id');
-                console.log('Product IDs Associated with Specific Categories:', productIds);
 
                 if (productIds.length > 0) {
                     matchStage['items.product'] = { $in: productIds };
-                    console.log('Applied Items.Product Filter:', matchStage['items.product']);
                 } else {
-                    console.log('No products found for the specified items.');
                     // If no products match, the pipeline should return no results
                     return NextResponse.json({ message: 'No matching products found for the specified items.' }, { status: 404 });
                 }
             } else {
-                console.log('No specific categories found for the specified items.');
                 // If no specific categories match, the pipeline should return no results
                 return NextResponse.json({ message: 'No matching specific categories found for the specified items.' }, { status: 404 });
             }
@@ -82,7 +70,6 @@ export async function GET(req) {
         // Push the match stage if any filters are applied
         if (Object.keys(matchStage).length > 0) {
             pipeline.push({ $match: matchStage });
-            console.log('Added $match Stage to Pipeline:', JSON.stringify(matchStage, null, 2));
         }
 
         // Lookup to join with User collection
@@ -94,18 +81,15 @@ export async function GET(req) {
                 as: 'user',
             }
         });
-        console.log('Added $lookup Stage to Join Users.');
 
         pipeline.push({
             $unwind: '$user'
         });
-        console.log('Added $unwind Stage for Users.');
 
         // Unwind items to calculate itemPurchaseCounts correctly
         pipeline.push({
             $unwind: '$items'
         });
-        console.log('Added $unwind Stage for Items.');
 
         // Group by User to compute loyalty metrics
         const groupStage = {
@@ -123,28 +107,22 @@ export async function GET(req) {
             specificCategoryIds: { $addToSet: '$items.product' }, // Will be transformed later
         };
 
-        console.log('Group Stage:', groupStage);
 
         pipeline.push({
             $group: groupStage
         });
-        console.log('Added $group Stage to Pipeline.');
 
         // Apply Loyalty Filters in the aggregation pipeline
         const havingConditions = [];
         if (loyalty) {
-            console.log('Applying Loyalty Filters:', loyalty);
             if (loyalty.minAmountSpent) {
                 havingConditions.push({ totalAmountSpent: { $gte: loyalty.minAmountSpent } });
-                console.log('Applied minAmountSpent:', loyalty.minAmountSpent);
             }
             if (loyalty.minNumberOfOrders) {
                 havingConditions.push({ purchaseCount: { $gte: loyalty.minNumberOfOrders } });
-                console.log('Applied minNumberOfOrders:', loyalty.minNumberOfOrders);
             }
             if (loyalty.minItemsCount) {
                 havingConditions.push({ itemPurchaseCounts: { $gte: loyalty.minItemsCount } });
-                console.log('Applied minItemsCount:', loyalty.minItemsCount);
             }
         }
 
@@ -154,7 +132,6 @@ export async function GET(req) {
                     $and: havingConditions
                 }
             });
-            console.log('Added $match Stage for Loyalty Conditions:', JSON.stringify({ $and: havingConditions }, null, 2));
         }
 
         // Lookup Specific Categories based on product IDs
@@ -166,7 +143,6 @@ export async function GET(req) {
                 as: 'specificCategories',
             }
         });
-        console.log('Added $lookup Stage to Join Specific Categories.');
 
         // Add Specific Category Names as comma-separated string
         pipeline.push({
@@ -186,7 +162,6 @@ export async function GET(req) {
                 }
             }
         });
-        console.log('Added $addFields Stage to Concatenate Specific Category Names.');
 
         // Project the required fields based on selected columns
         const projectStage = {};
@@ -240,22 +215,18 @@ export async function GET(req) {
                         break;
                 }
             });
-            console.log('Project Stage with Selected Columns:', projectStage);
         } else {
             // Default columns if none selected
             projectStage['Full Name'] = '$fullName';
             projectStage['Phone Number'] = { $concat: ['91', '$phoneNumber'] };
-            console.log('Project Stage with Default Columns:', projectStage);
         }
 
         pipeline.push({
             $project: projectStage
         });
-        console.log('Added $project Stage to Pipeline.');
 
         // If Tags are provided, filter by tags
         if (tags) {
-            console.log('Applying Tags Filter:', tags);
             // Determine if 'tags' is an array or a string in the database
             // Assuming 'tags' is stored as a string; if it's an array, use $in
             pipeline.push({
@@ -264,26 +235,20 @@ export async function GET(req) {
                     // If tags are stored as an array, use: tags: tags
                 }
             });
-            console.log('Added $match Stage for Tags:', tags);
         }
 
         // Execute the aggregation pipeline
-        console.log('Executing Aggregation Pipeline:', JSON.stringify(pipeline, null, 2));
         const customers = await Order.aggregate(pipeline).exec();
-        console.log(`Aggregation Result Count: ${customers.length}`);
 
         // Handle no matching customers
         if (!customers.length) {
-            console.log('No matching customers found.');
             return NextResponse.json({ message: 'No matching customers found.' }, { status: 404 });
         }
 
         // Convert data to CSV format
         const fields = Object.keys(customers[0]);
-        console.log('CSV Fields:', fields);
         const json2csvParser = new Parser({ fields });
         const csv = json2csvParser.parse(customers);
-        console.log('CSV Generation Successful.');
 
         // Set response headers for CSV download
         return new NextResponse(csv, {

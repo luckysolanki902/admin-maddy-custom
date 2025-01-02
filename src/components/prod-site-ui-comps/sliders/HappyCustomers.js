@@ -127,7 +127,6 @@ export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noH
     <div className={`${styles.main}`}>
       <div className={styles.slider}>
         {happyCustomers.map((customer) =>{
-          if(customer.name === 'newyear') console.log(customer)
         return   (
           <div className={styles.slide} key={customer._id}>
             <Image

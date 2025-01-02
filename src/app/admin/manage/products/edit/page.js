@@ -1,4 +1,4 @@
-// /src/pages/edit-product.js
+// src/pages/edit-product.js
 
 'use client';
 
@@ -155,104 +155,123 @@ const EditProductPage = () => {
     setDesignTemplateImage(product.designTemplate?.imageUrl || '');
   };
 
-  // Handle image editing (selecting and uploading new image)
-  const handleImageEdit = async (type) => {
+  // New function to handle image upload using presigned URLs
+  const handleImageUpload = async (file, type) => {
     if (!selectedProduct) return;
-
+    
+    // Determine the existing image path based on type
     let existingImagePath = '';
     if (type === 'main') {
       existingImagePath = carouselImages[currentImageIndex];
     } else if (type === 'design') {
       existingImagePath = designTemplateImage;
     }
-
+  
     if (!existingImagePath) {
       setErrorAlert('No image available to replace.');
       return;
     }
+  
+    // Define the full path for the new image (remove any leading slashes)
+    const fullPath = existingImagePath.replace(/^\/+/, '');
+  
+    // Request a presigned URL from the server
+    let presignedUrl, url;
+    try {
+      const res = await fetch('/api/admin/aws/generate-presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullPath, fileType: file.type }),
+      });
+  
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to get presigned URL');
+      }
+  
+      const data = await res.json();
+      presignedUrl = data.presignedUrl;
+      url = data.url;
+    } catch (error) {
+      console.error('Error generating presigned URL:', error.message);
+      setErrorAlert(error.message);
+      return;
+    }
+  
+    // Upload the file directly to S3 using the presigned URL
+    try {
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file, // Send the file directly
+      });
+  
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload image to S3');
+      }
+  
+      // Successfully uploaded the image
+      setSuccessAlert(true);
+  
+      // Update the UI immediately by appending a timestamp to bust the cache
+      const cacheBuster = `?t=${Date.now()}`;
+      const updatedUrl = `${url}${cacheBuster}`;
+  
+      if (type === 'main') {
+        // Update the carouselImages array with the new image URL
+        const updatedImages = [...carouselImages];
+        updatedImages[currentImageIndex] = updatedUrl;
+        setCarouselImages(updatedImages);
+      } else if (type === 'design') {
+        // Update the designTemplateImage with the new image URL
+        setDesignTemplateImage(`${url}${cacheBuster}`);
+      }
+    } catch (error) {
+      console.error('Error uploading image to S3:', error.message);
+      setErrorAlert(error.message);
+      return;
+    }
+  };
+  
+
+  // Modify the existing handleImageEdit to use the new upload function
+  const handleImageEdit = async (type) => {
+    if (!selectedProduct) return;
 
     // Open a file picker dialog with appropriate file type restrictions
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = type === 'main' ? 'image/jpeg' : 'image/png'; // Restrict file types
+    input.accept = type === 'main' ? 'image/jpeg,image/png' : 'image/png'; // Allow more types if needed
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
       // Enforce file type restrictions
-      const validType = type === 'main' ? 'image/jpeg' : 'image/png';
-      if (file.type !== validType) {
-        setErrorAlert(`Invalid file type. Please upload a ${type === 'main' ? 'JPG' : 'PNG'} file.`);
+      const validTypes = type === 'main' ? ['image/jpeg', 'image/png'] : ['image/png'];
+      if (!validTypes.includes(file.type)) {
+        setErrorAlert(
+          `Invalid file type. Please upload a ${type === 'main' ? 'JPG or PNG' : 'PNG'
+          } file.`
+        );
         return;
       }
 
-      // Use the existing image path
-      const newImagePath = existingImagePath; // Keep the same relative path
-
-      // Convert file to base64
-      let base64Data;
-      try {
-        base64Data = await fileToBase64(file);
-      } catch (error) {
-        console.error('Error converting file to base64:', error.message);
-        setErrorAlert('Failed to process the image file.');
+      // Optionally, enforce file size limits client-side
+      const maxSizeInBytes = type === 'main' ? 15 * 1024 * 1024 : 10 * 1024 * 1024; // 15MB for main, 10MB for design
+      if (file.size > maxSizeInBytes) {
+        setErrorAlert(
+          `File size exceeds the limit of ${type === 'main' ? '15MB' : '10MB'
+          }. Please choose a smaller file.`
+        );
         return;
       }
 
-      // Update the image via API
-      try {
-        const res = await fetch('/api/admin/manage/product/edit/image', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productId: selectedProduct._id,
-            newImageFile: {
-              relativePath: newImagePath, // Save relative path
-              type: file.type,
-              data: base64Data,
-            },
-            type, // 'main' or 'design'
-          }),
-        });
-
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to update image');
-        }
-
-        const data = await res.json();
-        setSuccessAlert(true);
-
-        // Update selected product with the new image
-        setSelectedProduct(data.product);
-
-        // Update carouselImages or designTemplateImage based on type
-        if (type === 'main') {
-          setCarouselImages(data.product.images || []);
-          // Update currentImageIndex to point to the updated image
-          const updatedIndex = data.product.images.findIndex(
-            (img) => img === newImagePath
-          );
-          setCurrentImageIndex(updatedIndex !== -1 ? updatedIndex : 0);
-        } else if (type === 'design') {
-          setDesignTemplateImage(data.product.designTemplate?.imageUrl || '');
-        }
-      } catch (error) {
-        console.error('Error updating product image:', error.message);
-        setErrorAlert(error.message);
-      }
+      // Proceed to upload the image
+      await handleImageUpload(file, type);
     };
     input.click();
-  };
-
-  // Helper function to convert file to base64
-  const fileToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result.split(',')[1]); // Remove the data URL prefix
-      reader.onerror = (error) => reject(error);
-    });
   };
 
   // Handle Sorting Change
@@ -335,7 +354,6 @@ const EditProductPage = () => {
       }
 
       const uniquenessData = await uniquenessRes.json();
-
       if (uniquenessData.conflict) {
         // Show the conflict dialog with conflicting products
         setConflictingProducts(uniquenessData.conflictingProducts);
@@ -473,7 +491,7 @@ const EditProductPage = () => {
               {/* Design Template Image */}
               <Box>
                 <Typography variant="h6" gutterBottom>
-                   Template
+                  Template
                 </Typography>
                 <DesignTemplateImage
                   imageUrl={designTemplateImage}

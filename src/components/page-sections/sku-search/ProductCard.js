@@ -7,7 +7,6 @@ import Image from 'next/image';
 import StarIcon from '@mui/icons-material/Star';
 
 const ProductCard = ({ product }) => {
-    console.log(product)
     const imageBaseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL;
   return (
     <Card 

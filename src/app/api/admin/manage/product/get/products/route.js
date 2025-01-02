@@ -7,7 +7,6 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     const { category, variant } = await request.json();
-console.log({ category, variant });
     if (!category || !variant) {
       return NextResponse.json({ error: 'Category and Variant are required' }, {
         status: 400,

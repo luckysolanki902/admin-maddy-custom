@@ -32,7 +32,6 @@ export async function PUT(request) {
       });
     }
 
-    console.log('Product availability updated successfully:', { productId, available });
     return NextResponse.json({ message: 'Product availability updated', product }, {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

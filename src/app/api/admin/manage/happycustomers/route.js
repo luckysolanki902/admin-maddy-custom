@@ -95,7 +95,6 @@ export async function DELETE(req) {
 
   try {
     const { customerId, parentSpecificCategoryId } = await req.json();
-    // console.log(customerId,parentSpecificCategoryId)
    
     if (!customerId) {
       return new Response(JSON.stringify({ message: 'Missing customerId or parentSpecificCategoryId' }), {
@@ -120,12 +119,10 @@ export async function DELETE(req) {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });}
-    // console.log(customer.placements, customer.placements.length)
     // Filter out the placement corresponding to the specific category
     const updatedPlacements = customer.placements.filter(
       (placement) => placement.refId.toString() !== parentSpecificCategoryId
     );
-    console.log(customer.placements)
 
     if (updatedPlacements.length === customer.placements.length) {
       return new Response(JSON.stringify({ message: 'Placement not found for the specified category' }), {

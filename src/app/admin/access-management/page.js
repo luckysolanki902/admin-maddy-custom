@@ -1,20 +1,19 @@
-"use client";
-import Link from "next/link";
-import styles from "./AdminPage.module.css"; // Import the new CSS file for the page
+import DepartmentHomePage from '@/components/full-page-comps/DepartmentHomePage';
+import React from 'react';
 
-export default function AdminPage() {
+export default function Marketing() {
+  const optionsWithLinks = [
+    { text: ' Manage User Role', link: "/admin/access-management/userRole" },
+    { text: ' Manage Path Role', link: '/admin/access-management/pathRole' },
+    { text: 'Order-List', link: '/admin/super/orders/order-list' },
+  ];
+  
+
   return (
-    <div className={styles.container}>
-      <h1 className={styles.heading}>Admin Dashboard</h1>
-      
-      <div className={styles.buttonContainer}>
-        <Link href="/admin/access-management/userRole" className={styles.button}>
-          Manage User Role
-        </Link>
-        <Link href="/admin/access-management/pathRole" className={styles.button}>
-          Manage Path Role
-        </Link>
-      </div>
-    </div>
+    <DepartmentHomePage
+      department="Admin"
+      quote="Uniqueness is not an option, it's necessity"
+      options={optionsWithLinks}
+    />
   );
 }

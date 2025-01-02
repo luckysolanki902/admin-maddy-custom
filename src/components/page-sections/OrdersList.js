@@ -5,7 +5,7 @@ import { Box, Typography } from '@mui/material';
 import CustomerCard from '@/components/cards/CustomerCard';
 import Skeleton from '@mui/material/Skeleton';
 
-const OrdersList = ({ orders, loading, expanded, handleChange, totalOrders, totalItems, ITEMS_PER_PAGE }) => {
+const OrdersList = ({ orders, loading, expanded, handleChange, totalOrders, totalItems, ITEMS_PER_PAGE, totalRevenue, totalDiscounts }) => {
   return (
     <Box>
       {loading ? (
@@ -17,7 +17,9 @@ const OrdersList = ({ orders, loading, expanded, handleChange, totalOrders, tota
         />
       ) : (
         <Typography variant="h6" gutterBottom>
-          Total Orders: {totalOrders} | Total Items: {totalItems}
+          Total Orders: {totalOrders.toLocaleString('en-IN')} | Total Items: {totalItems.toLocaleString('en-IN')} 
+          {totalRevenue !== undefined && `| Total Revenue: ₹${totalRevenue.toLocaleString('en-IN')}`}
+          {totalDiscounts !== undefined && ` | Total Discounts: ₹${totalDiscounts.toLocaleString('en-IN')}`}
         </Typography>
       )}
       {loading ? (

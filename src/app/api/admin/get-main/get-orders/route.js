@@ -88,6 +88,34 @@ export async function GET(req) {
     let totalOrders;
     let totalPages;
     let totalItems = 0;
+    let totalRevenue = 0;
+    let totalDiscountAmountGiven = 0;
+
+    // Function to calculate aggregates
+    const calculateAggregates = async (query) => {
+      const aggregationResult = await Order.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: "$totalAmount" },
+            totalDiscountAmountGiven: { $sum: "$totalDiscount" },
+          }
+        }
+      ]);
+
+      if (aggregationResult.length > 0) {
+        return {
+          totalRevenue: aggregationResult[0].totalRevenue,
+          totalDiscountAmountGiven: aggregationResult[0].totalDiscountAmountGiven,
+        };
+      } else {
+        return {
+          totalRevenue: 0,
+          totalDiscountAmountGiven: 0,
+        };
+      }
+    };
 
     // Handle problematic filters if any
     if (problematicFilter) {
@@ -115,6 +143,11 @@ export async function GET(req) {
 
       const problematicQuery = { ...baseQuery, ...problematicCondition };
 
+      // Calculate aggregates
+      const aggregates = await calculateAggregates(problematicQuery);
+      totalRevenue = aggregates.totalRevenue;
+      totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
+
       totalOrders = await Order.countDocuments(problematicQuery);
       totalItems = await Order.aggregate([
         { $match: problematicQuery },
@@ -141,6 +174,12 @@ export async function GET(req) {
       totalPages = Math.ceil(totalOrders / limit);
     } else {
       // Fetch orders without problematic filters
+
+      // Calculate aggregates
+      const aggregates = await calculateAggregates(baseQuery);
+      totalRevenue = aggregates.totalRevenue;
+      totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
+
       totalOrders = await Order.countDocuments(baseQuery);
       totalItems = await Order.aggregate([
         { $match: baseQuery },
@@ -175,6 +214,8 @@ export async function GET(req) {
         totalPages,
         currentPage: page,
         totalItems, // Include totalItems in the response
+        totalRevenue, // Include totalRevenue in the response
+        totalDiscountAmountGiven, // Include totalDiscountAmountGiven in the response
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );

@@ -18,7 +18,7 @@ const OrdersList = ({ orders, loading, expanded, handleChange, totalOrders, tota
       ) : (
         <Typography variant="h6" gutterBottom>
           Total Orders: {totalOrders.toLocaleString('en-IN')} | Total Items: {totalItems.toLocaleString('en-IN')} 
-          {totalRevenue !== undefined && `| Total Revenue: ₹${totalRevenue.toLocaleString('en-IN')}`}
+          {totalRevenue !== undefined && `| Gross Sales: ₹${totalRevenue.toLocaleString('en-IN')}`}
           {totalDiscounts !== undefined && ` | Total Discounts: ₹${totalDiscounts.toLocaleString('en-IN')}`}
         </Typography>
       )}

@@ -190,6 +190,19 @@ const OrderSchema = new mongoose.Schema(
       index: true, // Index for efficient querying
     },
 
+    // Extrafields like bike model:
+    extraFields: {
+      type: Map,
+      of: mongoose.Schema.Types.Mixed, // Allows both String and Number
+      default: {},
+    },
+
+    customFields: {
+      croppedImage: {
+        type: String
+      }
+    },
+
     // Utm details
     utmDetails: {
       source: {

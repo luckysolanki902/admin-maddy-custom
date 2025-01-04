@@ -1,34 +1,45 @@
 // /components/page-sections/OrdersList.js
 
-import React from 'react';
-import { Box, Typography } from '@mui/material';
+import React, { memo } from 'react';
+import { Box, Typography, Divider } from '@mui/material';
 import CustomerCard from '@/components/cards/CustomerCard';
 import Skeleton from '@mui/material/Skeleton';
 
-const OrdersList = ({ orders, loading, expanded, handleChange, totalOrders, totalItems, ITEMS_PER_PAGE, totalRevenue, totalDiscounts }) => {
+const OrdersList = ({
+  orders,
+  loading,
+  expanded,
+  handleChange,
+  totalOrders,
+  totalItems,
+  ITEMS_PER_PAGE,
+  totalRevenue,
+  totalDiscounts,
+  isAdmin,
+}) => {
   return (
     <Box>
-      {loading ? (
-        <Skeleton
-          variant="text"
-          width={350}
-          height={70}
-          sx={{ marginBottom: '0.5rem' }}
-        />
-      ) : (
-        <Typography variant="h6" gutterBottom>
-          Total Orders: {totalOrders.toLocaleString('en-IN')} | Total Items: {totalItems.toLocaleString('en-IN')} 
-          {totalRevenue !== undefined && `| Gross Sales: ₹${totalRevenue.toLocaleString('en-IN')}`}
-          {totalDiscounts !== undefined && ` | Total Discounts: ₹${totalDiscounts.toLocaleString('en-IN')}`}
-        </Typography>
+      {/* Summary Section */}
+      {!loading && (
+        <Box sx={{ marginBottom: '1rem' }}>
+          <Typography variant="h6" sx={{ color: 'white' }}>
+            Total Orders: {totalOrders.toLocaleString('en-IN')} | Total Items: {totalItems.toLocaleString('en-IN')}
+            {isAdmin && totalRevenue !== undefined && ` | Gross Sales: ₹${totalRevenue.toLocaleString('en-IN')}`}
+            {isAdmin && totalDiscounts !== undefined && ` | Total Discounts: ₹${totalDiscounts.toLocaleString('en-IN')}`}
+          </Typography>
+          <Divider sx={{ backgroundColor: '#3E3E3E', marginY: '0.5rem' }} />
+        </Box>
       )}
+
+      {/* Loading State */}
       {loading ? (
-        // Display Skeletons while loading
         Array.from(new Array(ITEMS_PER_PAGE)).map((_, index) => (
-          <Skeleton key={index} variant="rectangular" height={80} sx={{ marginBottom: '1rem' }} />
+          <Skeleton key={index} variant="rectangular" height={100} sx={{ marginBottom: '1rem', borderRadius: '8px' }} />
         ))
       ) : orders.length === 0 ? (
-        <Typography variant="body1">No orders found.</Typography>
+        <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+          No orders found.
+        </Typography>
       ) : (
         orders.map(order => (
           <CustomerCard
@@ -36,6 +47,7 @@ const OrdersList = ({ orders, loading, expanded, handleChange, totalOrders, tota
             order={order}
             expanded={expanded}
             handleChange={handleChange}
+            isAdmin={isAdmin}
           />
         ))
       )}
@@ -43,4 +55,4 @@ const OrdersList = ({ orders, loading, expanded, handleChange, totalOrders, tota
   );
 };
 
-export default OrdersList;
+export default memo(OrdersList);

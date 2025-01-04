@@ -1,12 +1,14 @@
-// /app/api/manage/getcustomers/route.js
+// /app/api/admin/get-main/get-orders/route.js
+
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import dayjs from 'dayjs';
-import SpecificCategory from '@/models/SpecificCategory';
-import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
-import Product from '@/models/Product';
-import User from '@/models/User';
-import ModeOfPayment from '@/models/ModeOfPayment';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+// Extend dayjs with plugins
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export async function GET(req) {
   try {
@@ -23,56 +25,18 @@ export async function GET(req) {
     const problematicFilter = searchParams.get('problematicFilter') || '';
     const shiprocketFilter = searchParams.get('shiprocketFilter') || '';
     const paymentStatusFilter = searchParams.get('paymentStatusFilter') || '';
+    const utmSource = searchParams.get('utmSource') || '';
+    const utmMedium = searchParams.get('utmMedium') || '';
+    const utmCampaign = searchParams.get('utmCampaign') || '';
+    const utmTerm = searchParams.get('utmTerm') || '';
+    const utmContent = searchParams.get('utmContent') || '';
 
     const skip = (page - 1) * limit;
 
-    // Base query to filter paymentStatus
-    const baseQuery = {
-      paymentStatus: { $nin: ['pending', 'failed'] }, // Include only payment statuses which are not 'pending' or 'failed' by default
-    };
+    // Base query
+    let baseQuery = {};
 
-    // Apply date range filter if provided
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-        baseQuery.createdAt = { $gte: start, $lte: end };
-      }
-    }
-
-    // Apply search filters
-    if (searchInput && searchField) {
-      const orderSearchQuery = {};
-
-      if (searchField === 'name') {
-        orderSearchQuery['address.receiverName'] = { $regex: new RegExp(searchInput, 'i') };
-      } else if (searchField === 'phoneNumber') {
-        orderSearchQuery['address.receiverPhoneNumber'] = { $regex: new RegExp(searchInput, 'i') };
-      } else if (searchField === 'orderId') {
-        if (searchInput.match(/^[0-9a-fA-F]{24}$/)) { // Validate ObjectId
-          orderSearchQuery['_id'] = searchInput;
-        } else {
-          // If invalid ObjectId, return no results
-          orderSearchQuery['_id'] = null;
-        }
-      }
-
-      // Merge search query with base query
-      Object.assign(baseQuery, orderSearchQuery);
-    }
-
-    // Apply additional filters
-    // Shiprocket Delivery Status Filters
-    if (shiprocketFilter) {
-      if (shiprocketFilter === 'pending') {
-        baseQuery.deliveryStatus = 'pending';
-      } else if (shiprocketFilter === 'orderCreated') {
-        baseQuery.deliveryStatus = 'orderCreated';
-      }
-      // Other options can be added here
-    }
-
-    // Payment Status Filters
+    // Apply paymentStatus filter
     if (paymentStatusFilter) {
       if (paymentStatusFilter === 'successful') {
         baseQuery.paymentStatus = { $in: ['paidPartially', 'allPaid'] };
@@ -81,15 +45,85 @@ export async function GET(req) {
       } else if (paymentStatusFilter === 'failed') {
         baseQuery.paymentStatus = 'failed';
       }
-      // Future options can be added here if needed
+    } else {
+      // Default to excluding 'pending' and 'failed' statuses
+      baseQuery.paymentStatus = { $nin: ['pending', 'failed'] };
     }
 
-    let orders;
-    let totalOrders;
-    let totalPages;
-    let totalItems = 0;
-    let totalRevenue = 0;
-    let totalDiscountAmountGiven = 0;
+    // Apply date range filter
+    if (startDate && endDate) {
+      const start = dayjs(startDate).toDate();
+      const end = dayjs(endDate).toDate();
+      baseQuery.createdAt = { $gte: start, $lte: end };
+    }
+
+    // Apply search filters
+    if (searchInput && searchField) {
+      if (searchField === 'name') {
+        baseQuery['address.receiverName'] = { $regex: new RegExp(searchInput, 'i') };
+      } else if (searchField === 'phoneNumber') {
+        baseQuery['address.receiverPhoneNumber'] = { $regex: new RegExp(searchInput, 'i') };
+      } else if (searchField === 'orderId') {
+        if (searchInput.match(/^[0-9a-fA-F]{24}$/)) { // Validate ObjectId
+          baseQuery['_id'] = searchInput;
+        } else {
+          // If invalid ObjectId, set to null to return no results
+          baseQuery['_id'] = null;
+        }
+      }
+    }
+
+    // Apply Shiprocket Delivery Status Filters
+    if (shiprocketFilter) {
+      if (shiprocketFilter === 'pending') {
+        baseQuery.deliveryStatus = 'pending';
+      } else if (shiprocketFilter === 'orderCreated') {
+        baseQuery.deliveryStatus = 'orderCreated';
+      }
+      // Add more statuses if needed
+    }
+
+    // Apply UTM Filters
+    // Initialize an array to hold UTM conditions
+    let utmConditions = [];
+
+    if (utmSource) {
+      if (utmSource.toLowerCase() === 'direct') {
+        // Include orders where:
+        // - utmDetails.source is 'direct'
+        // - utmDetails.source is '' or null
+        // - utmDetails field does not exist
+        utmConditions.push({
+          $or: [
+            { 'utmDetails.source': 'direct' },
+            { 'utmDetails.source': '' },
+            { 'utmDetails.source': null },
+            { 'utmDetails': { $exists: false } },
+          ]
+        });
+      } else {
+        // For other sources, match exactly
+        utmConditions.push({ 'utmDetails.source': utmSource });
+      }
+    }
+
+    if (utmMedium) {
+      utmConditions.push({ 'utmDetails.medium': utmMedium });
+    }
+    if (utmCampaign) {
+      utmConditions.push({ 'utmDetails.campaign': utmCampaign });
+    }
+    if (utmTerm) {
+      utmConditions.push({ 'utmDetails.term': utmTerm });
+    }
+    if (utmContent) {
+      utmConditions.push({ 'utmDetails.content': utmContent });
+    }
+
+    if (utmConditions.length > 0) {
+      // Combine all UTM conditions using $and
+      baseQuery.$and = baseQuery.$and ? baseQuery.$and.concat(utmConditions) : utmConditions;
+    }
 
     // Function to calculate aggregates
     const calculateAggregates = async (query) => {
@@ -117,7 +151,7 @@ export async function GET(req) {
       }
     };
 
-    // Handle problematic filters if any
+    // Handle problematic filters
     if (problematicFilter) {
       let problematicCondition = {};
 
@@ -145,18 +179,22 @@ export async function GET(req) {
 
       // Calculate aggregates
       const aggregates = await calculateAggregates(problematicQuery);
-      totalRevenue = aggregates.totalRevenue;
-      totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
+      const totalRevenue = aggregates.totalRevenue;
+      const totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
 
-      totalOrders = await Order.countDocuments(problematicQuery);
-      totalItems = await Order.aggregate([
+      // Count total orders
+      const totalOrders = await Order.countDocuments(problematicQuery);
+
+      // Count total items
+      const totalItemsAggregation = await Order.aggregate([
         { $match: problematicQuery },
         { $unwind: "$items" },
         { $group: { _id: null, total: { $sum: "$items.quantity" } } }
       ]);
-      totalItems = totalItems[0] ? totalItems[0].total : 0;
+      const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
 
-      orders = await Order.find(problematicQuery)
+      // Fetch orders with population
+      const orders = await Order.find(problematicQuery)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -169,26 +207,44 @@ export async function GET(req) {
             model: 'SpecificCategoryVariant',
           },
         })
-        .populate('paymentDetails.mode'); // Populate payment mode
+        .populate('paymentDetails.mode');
 
-      totalPages = Math.ceil(totalOrders / limit);
+      const totalPages = Math.ceil(totalOrders / limit);
+
+      // Respond with data
+      return new Response(
+        JSON.stringify({
+          orders,
+          totalOrders,
+          totalPages,
+          currentPage: page,
+          totalItems,
+          totalRevenue,
+          totalDiscountAmountGiven,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
     } else {
-      // Fetch orders without problematic filters
+      // No problematic filter, proceed with base query
 
       // Calculate aggregates
       const aggregates = await calculateAggregates(baseQuery);
-      totalRevenue = aggregates.totalRevenue;
-      totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
+      const totalRevenue = aggregates.totalRevenue;
+      const totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
 
-      totalOrders = await Order.countDocuments(baseQuery);
-      totalItems = await Order.aggregate([
+      // Count total orders
+      const totalOrders = await Order.countDocuments(baseQuery);
+
+      // Count total items
+      const totalItemsAggregation = await Order.aggregate([
         { $match: baseQuery },
         { $unwind: "$items" },
         { $group: { _id: null, total: { $sum: "$items.quantity" } } }
       ]);
-      totalItems = totalItems[0] ? totalItems[0].total : 0;
+      const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
 
-      orders = await Order.find(baseQuery)
+      // Fetch orders with population
+      const orders = await Order.find(baseQuery)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -201,26 +257,26 @@ export async function GET(req) {
             model: 'SpecificCategoryVariant',
           },
         })
-        .populate('paymentDetails.mode'); // Populate payment mode
+        .populate('paymentDetails.mode');
 
-      totalPages = Math.ceil(totalOrders / limit);
+      const totalPages = Math.ceil(totalOrders / limit);
+
+      // Respond with data
+      return new Response(
+        JSON.stringify({
+          orders,
+          totalOrders,
+          totalPages,
+          currentPage: page,
+          totalItems,
+          totalRevenue,
+          totalDiscountAmountGiven,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
     }
-
-    // Respond with fetched data
-    return new Response(
-      JSON.stringify({
-        orders,
-        totalOrders,
-        totalPages,
-        currentPage: page,
-        totalItems, // Include totalItems in the response
-        totalRevenue, // Include totalRevenue in the response
-        totalDiscountAmountGiven, // Include totalDiscountAmountGiven in the response
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
   } catch (error) {
-    console.error("Error in getcustomers API:", error);
+    console.error("Error in get-orders API:", error);
     return new Response(
       JSON.stringify({ message: 'Internal Server Error' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }

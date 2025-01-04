@@ -5,6 +5,11 @@ import Order from '@/models/Order';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import SpecificCategory from '@/models/SpecificCategory';
+import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
+import Product from '@/models/Product';
+import User from '@/models/User';
+import ModeOfPayment from '@/models/ModeOfPayment';
 
 // Extend dayjs with plugins
 dayjs.extend(utc);

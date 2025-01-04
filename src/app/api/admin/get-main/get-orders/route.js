@@ -139,6 +139,7 @@ export async function GET(req) {
             _id: null,
             totalRevenue: { $sum: "$totalAmount" },
             totalDiscountAmountGiven: { $sum: "$totalDiscount" },
+            oldestOrderDate: { $min: "$createdAt" }, // Calculate the oldest order date
           }
         }
       ]);
@@ -147,11 +148,13 @@ export async function GET(req) {
         return {
           totalRevenue: aggregationResult[0].totalRevenue,
           totalDiscountAmountGiven: aggregationResult[0].totalDiscountAmountGiven,
+          oldestOrderDate: aggregationResult[0].oldestOrderDate, // Include the oldest order date
         };
       } else {
         return {
           totalRevenue: 0,
           totalDiscountAmountGiven: 0,
+          oldestOrderDate: null, // Handle cases with no orders
         };
       }
     };
@@ -186,6 +189,7 @@ export async function GET(req) {
       const aggregates = await calculateAggregates(problematicQuery);
       const totalRevenue = aggregates.totalRevenue;
       const totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
+      const oldestOrderDate = aggregates.oldestOrderDate; // Extract the oldest order date
 
       // Count total orders
       const totalOrders = await Order.countDocuments(problematicQuery);
@@ -216,6 +220,9 @@ export async function GET(req) {
 
       const totalPages = Math.ceil(totalOrders / limit);
 
+      // Optionally format the oldestOrderDate
+      const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
+
       // Respond with data
       return new Response(
         JSON.stringify({
@@ -226,6 +233,7 @@ export async function GET(req) {
           totalItems,
           totalRevenue,
           totalDiscountAmountGiven,
+          oldestOrderDate: formattedOldestOrderDate, // Include the oldest order date in the response
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
@@ -236,6 +244,7 @@ export async function GET(req) {
       const aggregates = await calculateAggregates(baseQuery);
       const totalRevenue = aggregates.totalRevenue;
       const totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
+      const oldestOrderDate = aggregates.oldestOrderDate; // Extract the oldest order date
 
       // Count total orders
       const totalOrders = await Order.countDocuments(baseQuery);
@@ -266,6 +275,9 @@ export async function GET(req) {
 
       const totalPages = Math.ceil(totalOrders / limit);
 
+      // Optionally format the oldestOrderDate
+      const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
+
       // Respond with data
       return new Response(
         JSON.stringify({
@@ -276,6 +288,7 @@ export async function GET(req) {
           totalItems,
           totalRevenue,
           totalDiscountAmountGiven,
+          oldestOrderDate: oldestOrderDate, // Include the oldest order date in the response
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );

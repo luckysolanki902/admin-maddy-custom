@@ -46,6 +46,7 @@ const OrderListFull = ({ isAdmin }) => {
     totalItems: 0,
     totalRevenue: 0,
     totalDiscounts: 0,
+    oldestOrderDate: null,
   });
 
   const [loading, setLoading] = useState(true);
@@ -184,6 +185,7 @@ const OrderListFull = ({ isAdmin }) => {
           totalItems: data.totalItems,
           totalRevenue: isAdmin ? data.totalRevenue : 0,
           totalDiscounts: isAdmin ? data.totalDiscountAmountGiven : 0,
+          oldestOrderDate: data.oldestOrderDate,
         });
       } else {
         console.error("Error fetching orders:", data.message);
@@ -572,7 +574,7 @@ const OrderListFull = ({ isAdmin }) => {
         )}
         {activeTag === 'all' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            All Orders
+            All Orders ( From {orderData.oldestOrderDate ? dayjs(orderData.oldestOrderDate).format('MMMM D, YYYY, dddd') : 'N/A'} after MaddyCustom@2.0.0)
           </Typography>
         )}
       </Box>

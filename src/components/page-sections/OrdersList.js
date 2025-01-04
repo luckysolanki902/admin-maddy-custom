@@ -20,7 +20,7 @@ const OrdersList = ({
   return (
     <Box>
       {/* Summary Section */}
-      {!loading && (
+      {!loading ? (
         <Box sx={{ marginBottom: '1rem' }}>
           <Typography variant="h6" sx={{ color: 'white' }}>
             Total Orders: {totalOrders.toLocaleString('en-IN')} | Total Items: {totalItems.toLocaleString('en-IN')}
@@ -29,6 +29,8 @@ const OrdersList = ({
           </Typography>
           <Divider sx={{ backgroundColor: '#3E3E3E', marginY: '0.5rem' }} />
         </Box>
+      ) : (
+        <Skeleton variant="rectangular" height={50} sx={{ marginBottom: '1rem', borderRadius: '8px' }} />
       )}
 
       {/* Loading State */}

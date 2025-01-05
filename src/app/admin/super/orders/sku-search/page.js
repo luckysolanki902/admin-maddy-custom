@@ -6,7 +6,7 @@ import Skeleton from '@mui/material/Skeleton';
 
 import debounce from 'lodash.debounce';
 import axios from 'axios';
-import ProductCard from '@/components/admin/manage/orders/sku-search/ProductCard';
+import ProductCard from '@/components/page-sections/sku-search/ProductCard';
 
 const SKUSearchPage = () => {
   const [sku, setSku] = useState('');

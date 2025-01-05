@@ -21,7 +21,7 @@ const ProductCard = ({ product }) => {
   const productImage =
     product.images && product.images.length > 0
       ? `${imageBaseUrl}${product.images[0]}`
-      : '/placeholder.png';
+      : '/images/dark-circular-logo.png';
 
   // Handle opening the modal and pushing a new state
   const handleOpen = () => {

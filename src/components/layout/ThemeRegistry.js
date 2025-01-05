@@ -1,13 +1,19 @@
-// components/ThemeRegistry.js
-"use client";
+'use client';
+import { lightTheme, darkTheme } from '@/styles/theme';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import { useMediaQuery } from '@mui/material';
 
-import { ThemeProvider } from "@mui/material/styles";
-import darkTheme from "@/styles/theme";
 
-export default function ThemeRegistry({ children }) {
+const ThemeRegistry = ({ children }) => {
+  const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
+  const theme = prefersDarkMode ? darkTheme : lightTheme;
+
   return (
-    <ThemeProvider theme={darkTheme}>
+    <ThemeProvider theme={theme}>
+      <CssBaseline /> {/* This ensures MUI's baseline styles are applied */}
       {children}
     </ThemeProvider>
   );
-}
+};
+
+export default ThemeRegistry;

@@ -1,11 +1,12 @@
-// /app/admin/manage/orders/sku-search/page.js
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, TextField, Grid, CircularProgress, Typography, Pagination } from '@mui/material';
+import { Container, TextField, Grid, Typography, Pagination, Box } from '@mui/material';
+import Skeleton from '@mui/material/Skeleton';
+
 import debounce from 'lodash.debounce';
 import axios from 'axios';
-import ProductCard from '@/components/page-sections/sku-search/ProductCard';
+import ProductCard from '@/components/admin/manage/orders/sku-search/ProductCard';
 
 const SKUSearchPage = () => {
   const [sku, setSku] = useState('');
@@ -65,6 +66,19 @@ const SKUSearchPage = () => {
     fetchProducts(sku, value);
   };
 
+  // Generate skeletons based on expected number of products
+  const renderSkeletons = () => {
+    const skeletonArray = Array.from(new Array(12));
+    return skeletonArray.map((_, index) => (
+      <Grid item key={index} xs={12} sm={6} md={4} lg={3}>
+        <Skeleton variant="rectangular" height={200} />
+        <Skeleton variant="text" />
+        <Skeleton variant="text" width="60%" />
+        <Skeleton variant="circular" width={40} height={40} />
+      </Grid>
+    ));
+  };
+
   return (
     <Container sx={{ paddingY: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
@@ -79,33 +93,38 @@ const SKUSearchPage = () => {
         placeholder="Enter complete or partial SKU"
         sx={{ marginBottom: 4 }}
       />
-      {loading ? (
-        <Grid container justifyContent="center">
-          <CircularProgress />
-        </Grid>
-      ) : error ? (
-        <Typography color="error">{error}</Typography>
-      ) : products.length === 0 && sku.trim() !== '' ? (
-        <Typography>No products found for SKU {sku}.</Typography>
-      ) : (
-        <Grid container spacing={4}>
-          {products.map((product) => (
-            <Grid item key={product._id} xs={12} sm={6} md={4} lg={3}>
-              <ProductCard product={product} />
-            </Grid>
-          ))}
-        </Grid>
+      {error && (
+        <Typography color="error" sx={{ marginBottom: 2 }}>
+          {error}
+        </Typography>
       )}
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <Grid container justifyContent="center" sx={{ marginTop: 4 }}>
-          <Pagination
-            count={totalPages}
-            page={page}
-            onChange={handlePageChange}
-            color="primary"
-          />
+      {loading ? (
+        <Grid container spacing={4}>
+          {renderSkeletons()}
         </Grid>
+      ) : products.length === 0 && sku.trim() !== '' ? (
+        <Typography>{`No products found for SKU ${sku}`}.</Typography>
+      ) : (
+        <>
+          <Grid container spacing={4}>
+            {products.map((product) => (
+              <Grid item key={product._id} xs={12} sm={6} md={4} lg={3}>
+                <ProductCard product={product} />
+              </Grid>
+            ))}
+          </Grid>
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <Grid container justifyContent="center" sx={{ marginTop: 4 }}>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={handlePageChange}
+                color="primary"
+              />
+            </Grid>
+          )}
+        </>
       )}
     </Container>
   );

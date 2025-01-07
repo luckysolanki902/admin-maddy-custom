@@ -378,9 +378,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   variant="body2"
                   sx={{ fontSize: '0.85rem', color: 'text.secondary' }}
                 >
-                  Amount Paid: 
+                  Amount Paid Online:
                   <span style={{ marginLeft: '1rem', color: '#34C759', fontWeight: '500' }}>
-                    ₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{order.amountPaidOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </Typography>
               </Grid>

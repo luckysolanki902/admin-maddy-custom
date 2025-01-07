@@ -150,9 +150,9 @@ export async function GET(req) {
 
     /**
      * Function to calculate aggregates based on the query
-     * Corrected Formulas:
-     * - grossSales = sum(totalAmount + totalDiscount)
-     * - revenue = sum(totalAmount)
+     * Updated Formulas:
+     * - grossSales = sum(itemsTotal)
+     * - revenue = sum(totalAmount) // Includes extra charges
      * - aov = revenue / count
      * - discountRate = (sum(totalDiscount) / grossSales) * 100
      */
@@ -162,8 +162,9 @@ export async function GET(req) {
         {
           $group: {
             _id: null,
-            sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (net revenue)
+            sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue)
             sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
+            sumItemsTotal: { $sum: "$itemsTotal" }, // Sum of itemsTotal (Gross Sales)
             oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
             count: { $sum: 1 }, // Total number of orders
           }
@@ -171,9 +172,16 @@ export async function GET(req) {
       ]);
 
       if (aggregationResult.length > 0) {
-        const { sumTotalAmount, sumTotalDiscount, oldestOrderDate, count } = aggregationResult[0];
-        const grossSales = sumTotalAmount + sumTotalDiscount;
-        const revenue = sumTotalAmount; // Net revenue
+        const {
+          sumTotalAmount,
+          sumTotalDiscount,
+          sumItemsTotal,
+          oldestOrderDate,
+          count,
+        } = aggregationResult[0];
+
+        const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal
+        const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
         const aov = count > 0 ? revenue / count : 0;
         const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
 

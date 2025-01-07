@@ -2,7 +2,6 @@ import React from 'react';
 import { Box, Chip, Stack } from '@mui/material';
 
 const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
-  console.log('DateRangeChips - Active Tag:', activeTag); // Debugging
 
   return (
     <Box
@@ -19,7 +18,6 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
         <Chip
           label="Today"
           onClick={() => {
-            console.log('Today chip clicked'); // Debugging
             applyDateRange(0);
           }}
           variant={activeTag === 'today' ? 'filled' : 'outlined'}
@@ -29,7 +27,6 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
         <Chip
           label="Yesterday"
           onClick={() => {
-            console.log('Yesterday chip clicked'); // Debugging
             applyDateRange(1);
           }}
           variant={activeTag === 'yesterday' ? 'filled' : 'outlined'}
@@ -39,7 +36,6 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
         <Chip
           label="Last 7 Days"
           onClick={() => {
-            console.log('Last 7 Days chip clicked'); // Debugging
             applyDateRange(6);
           }}
           variant={activeTag === 'last7days' ? 'filled' : 'outlined'}
@@ -49,7 +45,6 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
         <Chip
           label="Last 30 Days"
           onClick={() => {
-            console.log('Last 30 Days chip clicked'); // Debugging
             applyDateRange(29);
           }}
           variant={activeTag === 'last30days' ? 'filled' : 'outlined'}
@@ -59,7 +54,6 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
         <Chip
           label="All"
           onClick={() => {
-            console.log('All chip clicked'); // Debugging
             handleAllTagClick();
           }}
           variant={activeTag === 'all' ? 'filled' : 'outlined'}
@@ -69,7 +63,6 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
         <Chip
           label="Custom Day"
           onClick={() => {
-            console.log('Custom Day chip clicked'); // Debugging
             applyDateRange('customDay');
           }}
           variant={activeTag === 'custom' ? 'filled' : 'outlined'}
@@ -79,7 +72,6 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
         <Chip
           label="Custom Range"
           onClick={() => {
-            console.log('Custom Range chip clicked'); // Debugging
             applyDateRange('customRange');
           }}
           variant={activeTag === 'customRange' ? 'filled' : 'outlined'}

@@ -316,13 +316,7 @@ export const getDimensionsAndWeight = async (items) => {
       }
     });
 
-    const totalBoxCount = openBoxes.length;
-
-    // Log a line about the box usage
-    
-    // console.log(
-    //   `${totalBoxCount} boxes: ${usedBoxNames.join(', ')} are required.`
-    // );
+    const totalBoxCount = openBoxes.length;    
 
     // 12) Return the final data
     return {

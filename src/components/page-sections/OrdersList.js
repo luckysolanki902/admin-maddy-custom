@@ -82,11 +82,11 @@ const OrdersList = ({
   expanded = null,
   handleChange = () => {},
   totalOrders = 0,
-  totalItems = 0,
-  ITEMS_PER_PAGE = 30,
-  totalRevenue = 0,
-  totalDiscountAmountGiven = 0,
+  grossSales = 0,
   revenue = 0,
+  ITEMS_PER_PAGE = 30,
+  totalItems = 0,
+  sumTotalDiscount = 0,
   aov = 0,
   discountRate = 0,
   isAdmin = false,
@@ -134,7 +134,7 @@ const OrdersList = ({
       isVisible: true,
     },
     isAdmin && {
-      label: `Gross Sales: ₹${totalRevenue.toLocaleString('en-IN')}`,
+      label: `Gross Sales: ₹${grossSales.toLocaleString('en-IN')}`,
       icon: (
         <CurrencyRupeeIcon
           sx={{
@@ -160,7 +160,7 @@ const OrdersList = ({
       isVisible: true,
     },
     {
-      label: `Discounts: ₹${totalDiscountAmountGiven.toLocaleString('en-IN')}`,
+      label: `Discounts: ₹${sumTotalDiscount.toLocaleString('en-IN')}`,
       icon: (
         <DiscountIcon
           sx={{

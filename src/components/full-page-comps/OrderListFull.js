@@ -200,9 +200,9 @@ const OrderListFull = ({ isAdmin }) => {
           currentPage: data.currentPage || 1,
           totalItems: data.totalItems || 0,
           totalRevenue: isAdmin ? (data.grossSales || 0) : 0,
-          totalDiscountAmountGiven: isAdmin ? (data.sumTotalDiscount || 0) : 0,
+          totalDiscountAmountGiven: data.sumTotalDiscount || 0,
           revenue: isAdmin ? (data.revenue || 0) : 0,
-          aov: isAdmin ? (data.aov || 0) : 0,
+          aov:data.aov || 0,
           discountRate: isAdmin ? (data.discountRate || 0) : 0,
           oldestOrderDate: data.oldestOrderDate || null,
         });

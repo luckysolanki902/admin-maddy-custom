@@ -273,7 +273,7 @@ const OrderListFull = ({ isAdmin }) => {
           totalPages: data.totalPages || 1,
           totalItems: data.totalItems || 0,
           grossSales: isAdmin ? (data.grossSales || 0) : 0,
-          sumTotalDiscount: isAdmin ? (data.sumTotalDiscount || 0) : 0,
+          sumTotalDiscount:data.sumTotalDiscount || 0,
           revenue: isAdmin ? (data.revenue || 0) : 0,
           aov: data.aov || 0,
           discountRate: isAdmin ? (data.discountRate || 0) : 0,

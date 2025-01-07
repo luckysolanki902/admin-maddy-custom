@@ -1,9 +1,9 @@
-// /components/page-sections/DateRangeChips.js
-
 import React from 'react';
 import { Box, Chip, Stack } from '@mui/material';
 
-const DateRangeChips = ({ activeTag, applyDateRange, handleTagRemove, handleAllTagClick }) => {
+const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
+  console.log('DateRangeChips - Active Tag:', activeTag); // Debugging
+
   return (
     <Box
       sx={{
@@ -18,53 +18,73 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleTagRemove, handleAllT
         {/* Existing Chips */}
         <Chip
           label="Today"
-          onClick={() => applyDateRange(0)}
+          onClick={() => {
+            console.log('Today chip clicked'); // Debugging
+            applyDateRange(0);
+          }}
           variant={activeTag === 'today' ? 'filled' : 'outlined'}
           color={activeTag === 'today' ? 'primary' : 'default'}
-          onDelete={activeTag === 'today' ? () => handleTagRemove('today') : undefined}
+          // Removed onDelete to prevent accidental state changes
         />
         <Chip
           label="Yesterday"
-          onClick={() => applyDateRange(1)}
+          onClick={() => {
+            console.log('Yesterday chip clicked'); // Debugging
+            applyDateRange(1);
+          }}
           variant={activeTag === 'yesterday' ? 'filled' : 'outlined'}
           color={activeTag === 'yesterday' ? 'primary' : 'default'}
-          onDelete={activeTag === 'yesterday' ? () => handleTagRemove('yesterday') : undefined}
+          // Removed onDelete
         />
         <Chip
           label="Last 7 Days"
-          onClick={() => applyDateRange(6)}
+          onClick={() => {
+            console.log('Last 7 Days chip clicked'); // Debugging
+            applyDateRange(6);
+          }}
           variant={activeTag === 'last7days' ? 'filled' : 'outlined'}
           color={activeTag === 'last7days' ? 'primary' : 'default'}
-          onDelete={activeTag === 'last7days' ? () => handleTagRemove('last7days') : undefined}
+          // Removed onDelete
         />
         <Chip
           label="Last 30 Days"
-          onClick={() => applyDateRange(29)}
+          onClick={() => {
+            console.log('Last 30 Days chip clicked'); // Debugging
+            applyDateRange(29);
+          }}
           variant={activeTag === 'last30days' ? 'filled' : 'outlined'}
           color={activeTag === 'last30days' ? 'primary' : 'default'}
-          onDelete={activeTag === 'last30days' ? () => handleTagRemove('last30days') : undefined}
+          // Removed onDelete
         />
         <Chip
           label="All"
-          onClick={handleAllTagClick}
+          onClick={() => {
+            console.log('All chip clicked'); // Debugging
+            handleAllTagClick();
+          }}
           variant={activeTag === 'all' ? 'filled' : 'outlined'}
           color={activeTag === 'all' ? 'primary' : 'default'}
-          onDelete={activeTag === 'all' ? () => handleTagRemove('all') : undefined}
+          // Removed onDelete to make "All" chip non-deletable
         />
         <Chip
           label="Custom Day"
-          onClick={() => applyDateRange('customDay')}
+          onClick={() => {
+            console.log('Custom Day chip clicked'); // Debugging
+            applyDateRange('customDay');
+          }}
           variant={activeTag === 'custom' ? 'filled' : 'outlined'}
           color={activeTag === 'custom' ? 'primary' : 'default'}
-          onDelete={activeTag === 'custom' ? () => handleTagRemove('custom') : undefined}
+          // Removed onDelete
         />
-        {/* New Custom Range Chip */}
         <Chip
           label="Custom Range"
-          onClick={() => applyDateRange('customRange')}
+          onClick={() => {
+            console.log('Custom Range chip clicked'); // Debugging
+            applyDateRange('customRange');
+          }}
           variant={activeTag === 'customRange' ? 'filled' : 'outlined'}
           color={activeTag === 'customRange' ? 'primary' : 'default'}
-          onDelete={activeTag === 'customRange' ? () => handleTagRemove('customRange') : undefined}
+          // Removed onDelete
         />
       </Stack>
     </Box>

@@ -1,8 +1,6 @@
-// /components/page-sections/OrderListFull.js
-
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Container,
   TextField,
@@ -18,18 +16,16 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogContentText,
   DialogActions,
   Skeleton,
+  IconButton,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
-import SyncIcon from '@mui/icons-material/Sync';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
-import debounce from 'lodash.debounce';
 import OrdersList from '@/components/page-sections/OrdersList';
 import DateRangeChips from '@/components/page-sections/DateRangeChips';
 import FiltersDrawer from '@/components/page-sections/FiltersDrawer';
@@ -44,8 +40,11 @@ const OrderListFull = ({ isAdmin }) => {
     totalOrders: 0,
     totalPages: 1,
     totalItems: 0,
-    totalRevenue: 0,
-    totalDiscounts: 0,
+    totalRevenue: 0,             // grossSales from API
+    totalDiscountAmountGiven: 0, // sumTotalDiscount from API
+    revenue: 0,
+    aov: 0,
+    discountRate: 0,
     oldestOrderDate: null,
   });
 
@@ -54,23 +53,23 @@ const OrderListFull = ({ isAdmin }) => {
   const [searchInput, setSearchInput] = useState('');
   const [searchField, setSearchField] = useState('orderId');
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeTag, setActiveTag] = useState('today');
+  const [activeTag, setActiveTag] = useState('today'); // Default to 'today'
 
-    // state for UTM Filters
-    const [utmOptions, setUtmOptions] = useState({
-        source: [],
-        medium: [],
-        campaign: [],
-        term: [],
-        content: [],
-      });
-      const [selectedUTMFilters, setSelectedUTMFilters] = useState({
-        source: '',
-        medium: '',
-        campaign: '',
-        term: '',
-        content: '',
-      });
+  // State for UTM Filters
+  const [utmOptions, setUtmOptions] = useState({
+    source: [],
+    medium: [],
+    campaign: [],
+    term: [],
+    content: [],
+  });
+  const [selectedUTMFilters, setSelectedUTMFilters] = useState({
+    source: '',
+    medium: '',
+    campaign: '',
+    term: '',
+    content: '',
+  });
 
   // State for problematic orders
   const [selectedProblematicFilter, setSelectedProblematicFilter] = useState('');
@@ -101,9 +100,14 @@ const OrderListFull = ({ isAdmin }) => {
     end: dayjs().endOf('day'),
   });
 
-  // Function to apply date range based on selected tag
+  /**
+   * Function to apply date range based on selected tag
+   * @param {number|string} days - Number of days or custom identifiers
+   */
   const applyDateRange = useCallback((days) => {
     let newStartDate, newEndDate;
+
+    console.log('applyDateRange called with:', days); // Debugging
 
     if (days === 0) {
       // Today
@@ -135,8 +139,13 @@ const OrderListFull = ({ isAdmin }) => {
       setActiveTag('customRange');
       newStartDate = rangeDates.start.startOf('day');
       newEndDate = rangeDates.end.endOf('day');
-    } else {
+    } else if (days === 'all') {
       // All
+      newStartDate = null;
+      newEndDate = null;
+      setActiveTag('all');
+    } else {
+      // Fallback to 'all' if unknown tag
       newStartDate = null;
       newEndDate = null;
       setActiveTag('all');
@@ -151,18 +160,22 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [selectedProblematicFilter, singleDate, rangeDates]);
 
-  // Function to fetch orders
+  /**
+   * Function to fetch orders based on provided start and end dates
+   * @param {Date|null} start - Start date for filtering
+   * @param {Date|null} end - End date for filtering
+   */
   const fetchOrders = useCallback(async (start, end) => {
     setLoading(true);
     const queryParams = [
       `page=${currentPage}`,
       `limit=${ITEMS_PER_PAGE}`,
       `searchInput=${encodeURIComponent(searchInput)}`,
-      `searchField=${searchField}`,
+      `searchField=${encodeURIComponent(searchField)}`,
       start ? `startDate=${encodeURIComponent(start.toISOString())}` : '',
       end ? `endDate=${encodeURIComponent(end.toISOString())}` : '',
-      `shiprocketFilter=${shiprocketFilter}`,
-      `paymentStatusFilter=${paymentStatusFilter}`,
+      `shiprocketFilter=${encodeURIComponent(shiprocketFilter)}`,
+      `paymentStatusFilter=${encodeURIComponent(paymentStatusFilter)}`,
       `utmSource=${encodeURIComponent(selectedUTMFilters.source || '')}`,
       `utmMedium=${encodeURIComponent(selectedUTMFilters.medium || '')}`,
       `utmCampaign=${encodeURIComponent(selectedUTMFilters.campaign || '')}`,
@@ -172,20 +185,26 @@ const OrderListFull = ({ isAdmin }) => {
 
     const queryString = queryParams.join('&');
 
+    console.log('Fetching orders with query:', queryString); // Debugging
+
     try {
       const res = await fetch(`/api/admin/get-main/get-orders?${queryString}`);
       const data = await res.json();
 
       if (res.ok) {
-        console.log(data.totalRevenue,data.totalDiscountAmountGiven);
+        console.log('Orders fetched successfully:', data); // Debugging
         setOrderData({
-          orders: data.orders,
-          totalOrders: data.totalOrders,
-          totalPages: data.totalPages,
-          totalItems: data.totalItems,
-          totalRevenue: isAdmin ? data.totalRevenue : 0,
-          totalDiscounts: isAdmin ? data.totalDiscountAmountGiven : 0,
-          oldestOrderDate: data.oldestOrderDate,
+          orders: data.orders || [],
+          totalOrders: data.totalOrders || 0,
+          totalPages: data.totalPages || 1,
+          currentPage: data.currentPage || 1,
+          totalItems: data.totalItems || 0,
+          totalRevenue: isAdmin ? (data.grossSales || 0) : 0,
+          totalDiscountAmountGiven: isAdmin ? (data.sumTotalDiscount || 0) : 0,
+          revenue: isAdmin ? (data.revenue || 0) : 0,
+          aov: isAdmin ? (data.aov || 0) : 0,
+          discountRate: isAdmin ? (data.discountRate || 0) : 0,
+          oldestOrderDate: data.oldestOrderDate || null,
         });
       } else {
         console.error("Error fetching orders:", data.message);
@@ -209,7 +228,11 @@ const OrderListFull = ({ isAdmin }) => {
     selectedUTMFilters.content,
   ]);
 
-  // Function to fetch problematic orders
+  /**
+   * Function to fetch problematic orders based on selected filters
+   * @param {Date|null} start - Start date for filtering
+   * @param {Date|null} end - End date for filtering
+   */
   const fetchProblematicOrders = useCallback(async (start, end) => {
     if (!selectedProblematicFilter) {
       setProblematicOrderData({
@@ -228,12 +251,12 @@ const OrderListFull = ({ isAdmin }) => {
       `page=${problematicCurrentPage}`,
       `limit=${ITEMS_PER_PAGE}`,
       `searchInput=${encodeURIComponent(searchInput)}`,
-      `searchField=${searchField}`,
+      `searchField=${encodeURIComponent(searchField)}`,
       start ? `startDate=${encodeURIComponent(start.toISOString())}` : '',
       end ? `endDate=${encodeURIComponent(end.toISOString())}` : '',
-      `problematicFilter=${selectedProblematicFilter}`,
-      `shiprocketFilter=${shiprocketFilter}`,
-      `paymentStatusFilter=${paymentStatusFilter}`,
+      `problematicFilter=${encodeURIComponent(selectedProblematicFilter)}`,
+      `shiprocketFilter=${encodeURIComponent(shiprocketFilter)}`,
+      `paymentStatusFilter=${encodeURIComponent(paymentStatusFilter)}`,
       `utmSource=${encodeURIComponent(selectedUTMFilters.source || '')}`,
       `utmMedium=${encodeURIComponent(selectedUTMFilters.medium || '')}`,
       `utmCampaign=${encodeURIComponent(selectedUTMFilters.campaign || '')}`,
@@ -243,16 +266,19 @@ const OrderListFull = ({ isAdmin }) => {
 
     const queryString = queryParams.join('&');
 
+    console.log('Fetching problematic orders with query:', queryString); // Debugging
+
     try {
       const res = await fetch(`/api/admin/get-main/get-orders?${queryString}`);
       const data = await res.json();
 
       if (res.ok) {
+        console.log('Problematic orders fetched successfully:', data); // Debugging
         setProblematicOrderData({
-          orders: data.orders,
-          totalOrders: data.totalOrders,
-          totalPages: data.totalPages,
-          totalItems: data.totalItems,
+          orders: data.orders || [],
+          totalOrders: data.totalOrders || 0,
+          totalPages: data.totalPages || 1,
+          totalItems: data.totalItems || 0,
         });
       } else {
         console.error("Error fetching problematic orders:", data.message);
@@ -276,74 +302,39 @@ const OrderListFull = ({ isAdmin }) => {
     selectedUTMFilters.content,
   ]);
 
-  // Debounced search
-  const debouncedSearch = useMemo(() => debounce((value) => {
-    setSearchInput(value);
-    setCurrentPage(1);
-    setProblematicCurrentPage(1);
-    fetchOrders();
-    if (selectedProblematicFilter) {
-      fetchProblematicOrders();
-    }
-  }, 500), [fetchOrders, fetchProblematicOrders, selectedProblematicFilter]);
-
+  // Handle search input change
   const handleSearchInputChange = (e) => {
     const value = e.target.value;
     setSearchInput(value);
-    if (value === '') {
-      setCurrentPage(1);
-      setProblematicCurrentPage(1);
-      fetchOrders();
-      if (selectedProblematicFilter) {
-        fetchProblematicOrders();
-      }
-    } else {
-      debouncedSearch(value);
-    }
+    // No immediate search; wait for user to press Enter
+    console.log('Search input changed to:', value); // Debugging
   };
 
+  // Handle search field change
   const handleSearchFieldChange = (e) => {
     const value = e.target.value;
     setSearchField(value);
     setSearchInput('');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
-    fetchOrders();
+    fetchOrders(); // Fetch with updated search field
     if (selectedProblematicFilter) {
       fetchProblematicOrders();
     }
+    console.log('Search field changed to:', value); // Debugging
   };
 
   // Handle accordion expansion
   const handleAccordionChange = useCallback((panel) => (event, isExpanded) => {
     setExpanded(isExpanded ? panel : false);
+    console.log(`Accordion ${panel} is now ${isExpanded ? 'expanded' : 'collapsed'}`); // Debugging
   }, []);
 
-  // Handle tag removal
-  const handleTagRemove = useCallback((tag) => {
-    if (tag === activeTag) {
-      setActiveTag('all');
-      setCurrentPage(1);
-      setProblematicCurrentPage(1);
-      setSelectedProblematicFilter('');
-      fetchOrders(null, null);
-      setSingleDate(dayjs().startOf('day'));
-      setRangeDates({
-        start: dayjs().subtract(6, 'day').startOf('day'),
-        end: dayjs().endOf('day'),
-      });
-      // Clear problematic orders
-      setProblematicOrderData({
-        orders: [],
-        totalOrders: 0,
-        totalPages: 1,
-        totalItems: 0,
-      });
-    }
-  }, [activeTag, fetchOrders]);
+  // Removed handleTagRemove as onDelete is no longer used in DateRangeChips
 
   // Handle 'All' tag click
   const handleAllTagClick = useCallback(() => {
+    console.log('handleAllTagClick triggered'); // Debugging
     setActiveTag('all');
     setSearchInput('');
     setCurrentPage(1);
@@ -365,6 +356,7 @@ const OrderListFull = ({ isAdmin }) => {
 
   // Handle date changes
   const handleDateChange = useCallback((type, newValue) => {
+    console.log(`Date change: ${type} =`, newValue); // Debugging
     if (type === 'start') {
       setRangeDates(prev => ({ ...prev, start: newValue }));
     } else if (type === 'end') {
@@ -373,19 +365,22 @@ const OrderListFull = ({ isAdmin }) => {
 
     // If 'customRange' is active, refetch orders
     if (activeTag === 'customRange') {
-      fetchOrders(rangeDates.start.startOf('day'), rangeDates.end.endOf('day'));
+      fetchOrders(newValue ? newValue.startOf('day') : null, newValue ? newValue.endOf('day') : null);
       if (selectedProblematicFilter) {
-        fetchProblematicOrders(rangeDates.start.startOf('day'), rangeDates.end.endOf('day'));
+        fetchProblematicOrders(newValue ? newValue.startOf('day') : null, newValue ? newValue.endOf('day') : null);
       }
     }
-  }, [activeTag, fetchOrders, fetchProblematicOrders, rangeDates, selectedProblematicFilter]);
+  }, [activeTag, fetchOrders, fetchProblematicOrders, selectedProblematicFilter]);
 
-  // Handle filters drawer
+  // Handle filters drawer toggle
   const toggleFiltersDrawer = useCallback((open) => () => {
     setIsFiltersDrawerOpen(open);
+    console.log(`Filters Drawer ${open ? 'opened' : 'closed'}`); // Debugging
   }, []);
 
+  // Apply filters from the drawer
   const applyFilters = useCallback(() => {
+    console.log('Applying filters'); // Debugging
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     fetchOrders();
@@ -397,17 +392,23 @@ const OrderListFull = ({ isAdmin }) => {
 
   // Handle problematic filter changes
   const handleProblematicFilterChange = useCallback((filter) => () => {
+    console.log('Problematic filter changed to:', filter); // Debugging
     setSelectedProblematicFilter(prev => (prev === filter ? '' : filter));
     setProblematicCurrentPage(1);
-  }, []);
+    fetchProblematicOrders();
+  }, [fetchProblematicOrders]);
 
   // Handle problematic pagination
   const handleProblematicPaginationChange = useCallback((event, value) => {
+    console.log('Problematic pagination changed to page:', value); // Debugging
     setProblematicCurrentPage(value);
   }, []);
 
-  // Handle syncing Shiprocket orders
+  /**
+   * Function to handle syncing Shiprocket orders
+   */
   const handleSyncShiprocketOrders = useCallback(async () => {
+    console.log('Starting sync Shiprocket orders'); // Debugging
     setSyncing(true);
     setSyncResult(null);
     setSyncDetails([]);
@@ -428,11 +429,13 @@ const OrderListFull = ({ isAdmin }) => {
       const data = await res.json();
 
       if (res.ok) {
+        console.log('Shiprocket orders synced successfully:', data); // Debugging
         setSyncResult(`Shiprocket Orders Created: ${data.created}, Failed: ${data.failed}`);
         setSyncDetails(data.details || []);
         setOpenSyncDetails(true);
         fetchOrders(); // Refresh orders
       } else {
+        console.error("Error syncing Shiprocket orders:", data.message);
         setSyncResult(`Error: ${data.message}`);
       }
     } catch (error) {
@@ -445,34 +448,34 @@ const OrderListFull = ({ isAdmin }) => {
 
   // Initial fetch and refetch on activeTag change
   useEffect(() => {
-    if (activeTag !== 'custom' && activeTag !== 'customRange') {
-      applyDateRange(activeTag === 'all' ? 'all' : activeTag === 'today' ? 0 : activeTag === 'yesterday' ? 1 : activeTag === 'last7days' ? 6 : 29);
-    } else if (activeTag === 'custom') {
-      applyDateRange('customDay');
-    } else if (activeTag === 'customRange') {
-      applyDateRange('customRange');
-    }
-  }, [applyDateRange, activeTag]);
+    console.log('OrderListFull - Active Tag Changed:', activeTag); // Debugging
 
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      debouncedSearch.cancel();
+    const daysMap = {
+      'today': 0,
+      'yesterday': 1,
+      'last7days': 6,
+      'last30days': 29,
+      'all': 'all',
     };
-  }, [debouncedSearch]);
 
+    const applyDateRangeValue = daysMap.hasOwnProperty(activeTag) ? daysMap[activeTag] : 'all';
+    applyDateRange(applyDateRangeValue);
+
+  }, [applyDateRange, activeTag]);
 
   const [loadingUTMOptions, setLoadingUTMOptions] = useState(false);
 
   // Fetch UTM options when FiltersDrawer opens
   useEffect(() => {
     const fetchUTMOptions = async () => {
+      console.log('Fetching UTM options'); // Debugging
       setLoadingUTMOptions(true);
       try {
         const res = await fetch('/api/admin/get-main/get-utm-fields');
         const data = await res.json();
         if (res.ok) {
           setUtmOptions(data);
+          console.log('UTM options fetched:', data); // Debugging
         } else {
           console.error("Error fetching UTM fields:", data.message);
         }
@@ -490,6 +493,7 @@ const OrderListFull = ({ isAdmin }) => {
 
   // Handle UTM filter changes
   const handleUTMFilterChange = useCallback((field) => (event) => {
+    console.log(`UTM Filter ${field} changed to:`, event.target.value); // Debugging
     setSelectedUTMFilters(prev => ({
       ...prev,
       [field]: event.target.value,
@@ -498,6 +502,7 @@ const OrderListFull = ({ isAdmin }) => {
 
   // Handle Reset Filters
   const handleResetFilters = useCallback(() => {
+    console.log('Resetting filters'); // Debugging
     setShiprocketFilter('');
     setPaymentStatusFilter('');
     setSelectedUTMFilters({
@@ -532,11 +537,11 @@ const OrderListFull = ({ isAdmin }) => {
         Orders Dashboard
       </Typography>
 
+
       {/* Date Range Chips */}
       <DateRangeChips
         activeTag={activeTag}
         applyDateRange={applyDateRange}
-        handleTagRemove={handleTagRemove}
         handleAllTagClick={handleAllTagClick}
       />
 
@@ -559,22 +564,22 @@ const OrderListFull = ({ isAdmin }) => {
         )}
         {activeTag === 'yesterday' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Orders for yesterday ({singleDate.subtract(1, 'day').format('MMMM D, YYYY, dddd')})
+            Orders for yesterday ({dayjs().subtract(1, 'day').format('MMMM D, YYYY, dddd')})
           </Typography>
         )}
         {activeTag === 'last7days' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Orders from last 7 days ({singleDate.subtract(6, 'day').format('MMMM D, YYYY, dddd')} to {singleDate.format('MMMM D, YYYY, dddd')})
+            Orders from last 7 days ({dayjs().subtract(6, 'day').format('MMMM D, YYYY, dddd')} to {dayjs().format('MMMM D, YYYY, dddd')})
           </Typography>
         )}
         {activeTag === 'last30days' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Orders from last 30 days ({singleDate.subtract(29, 'day').format('MMMM D, YYYY, dddd')} to {singleDate.format('MMMM D, YYYY, dddd')})
+            Orders from last 30 days ({dayjs().subtract(29, 'day').format('MMMM D, YYYY, dddd')} to {dayjs().format('MMMM D, YYYY, dddd')})
           </Typography>
         )}
         {activeTag === 'all' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            All Orders ( From {orderData.oldestOrderDate ? dayjs(orderData.oldestOrderDate).format('MMMM D, YYYY, dddd') : 'N/A'} after MaddyCustom@2.0.0)
+            All Orders ( From {orderData.oldestOrderDate ? dayjs(orderData.oldestOrderDate).format('MMMM D, YYYY, dddd') : 'N/A'})
           </Typography>
         )}
       </Box>
@@ -589,40 +594,62 @@ const OrderListFull = ({ isAdmin }) => {
         gap="1rem"
       >
         {/* Search Fields */}
-        <Box display="flex" alignItems="center" gap="10px" flexGrow={1}>
+        <Box
+          display={{ xs: 'flex', md: 'flex' }}
+          flexDirection={{ xs: 'column', md: 'row' }}
+          alignItems={{ xs: 'stretch', md: 'center' }}
+          gap={{ xs: '1rem', md: '10px' }}
+          flexGrow={1}
+          width={{ xs: '100%', md: 'auto' }}
+        >
           <TextField
             select
-            label='Search by'
+            label="Search by"
             value={searchField}
             onChange={handleSearchFieldChange}
-            size='small'
-            sx={{ minWidth: '150px' }}
+            size="small"
+            sx={{ minWidth: { xs: '100%', md: '150px' } }}
           >
-            <MenuItem value='orderId'>Order ID</MenuItem>
-            <MenuItem value='name'>Name</MenuItem>
-            <MenuItem value='phoneNumber'>Mobile</MenuItem>
+            <MenuItem value="orderId">Order ID</MenuItem>
+            <MenuItem value="name">Name</MenuItem>
+            <MenuItem value="phoneNumber">Mobile</MenuItem>
           </TextField>
+
           <TextField
-            variant='outlined'
-            size='small'
-            placeholder='Search'
+            variant="outlined"
+            size="small"
+            placeholder="Search"
             value={searchInput}
             onChange={handleSearchInputChange}
-            sx={{ minWidth: '200px' }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                console.log('Enter key pressed in search input'); // Debugging
+                setCurrentPage(1);
+                setProblematicCurrentPage(1);
+                fetchOrders();
+                if (selectedProblematicFilter) {
+                  fetchProblematicOrders();
+                }
+              }
+            }}
+            sx={{ minWidth: { xs: '100%', md: '200px' } }}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
                   {searchInput && (
-                    <CloseIcon
-                      style={{ cursor: 'pointer' }}
+                    <IconButton
+                      size="small"
                       onClick={() => {
+                        console.log('Search close icon clicked'); // Debugging
                         setSearchInput('');
                         setCurrentPage(1);
                         setProblematicCurrentPage(1);
-                        setActiveTag('all');
+                        // Removed setActiveTag('all'); to prevent overriding
                         handleResetFilters();
                       }}
-                    />
+                    >
+                      <CloseIcon />
+                    </IconButton>
                   )}
                 </InputAdornment>
               ),
@@ -635,6 +662,7 @@ const OrderListFull = ({ isAdmin }) => {
           />
         </Box>
 
+
         {/* Date Picker(s) */}
         <Box display="flex" alignItems="center" gap="10px">
           <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -642,7 +670,11 @@ const OrderListFull = ({ isAdmin }) => {
               <DatePicker
                 label="Select Date"
                 value={singleDate}
-                onChange={(newValue) => setSingleDate(newValue)}
+                onChange={(newValue) => {
+                  console.log('Custom Day date selected:', newValue); // Debugging
+                  setSingleDate(newValue);
+                  applyDateRange('customDay');
+                }}
                 renderInput={(params) => <TextField {...params} size='small' />}
               />
             ) : activeTag === 'customRange' ? (
@@ -650,13 +682,19 @@ const OrderListFull = ({ isAdmin }) => {
                 <DatePicker
                   label="Start Date"
                   value={rangeDates.start}
-                  onChange={(newValue) => handleDateChange('start', newValue)}
+                  onChange={(newValue) => {
+                    console.log('Custom Range start date selected:', newValue); // Debugging
+                    handleDateChange('start', newValue);
+                  }}
                   renderInput={(params) => <TextField {...params} size='small' />}
                 />
                 <DatePicker
                   label="End Date"
                   value={rangeDates.end}
-                  onChange={(newValue) => handleDateChange('end', newValue)}
+                  onChange={(newValue) => {
+                    console.log('Custom Range end date selected:', newValue); // Debugging
+                    handleDateChange('end', newValue);
+                  }}
                   renderInput={(params) => <TextField {...params} size='small' />}
                 />
               </>
@@ -705,8 +743,11 @@ const OrderListFull = ({ isAdmin }) => {
         handleChange={handleAccordionChange}
         totalOrders={orderData.totalOrders}
         totalRevenue={orderData.totalRevenue}
+        revenue={orderData.revenue}
+        totalDiscountAmountGiven={orderData.totalDiscountAmountGiven}
+        aov={orderData.aov}
+        discountRate={orderData.discountRate}
         totalItems={orderData.totalItems}
-        totalDiscounts={orderData.totalDiscounts}
         ITEMS_PER_PAGE={ITEMS_PER_PAGE}
         isAdmin={isAdmin}
       />
@@ -716,7 +757,10 @@ const OrderListFull = ({ isAdmin }) => {
         <Pagination
           count={orderData.totalPages}
           page={currentPage}
-          onChange={(event, value) => setCurrentPage(value)}
+          onChange={(event, value) => {
+            console.log('Main pagination changed to page:', value); // Debugging
+            setCurrentPage(value);
+          }}
           variant="outlined"
           shape="rounded"
           sx={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}
@@ -726,6 +770,9 @@ const OrderListFull = ({ isAdmin }) => {
       {/* Problematic Orders Section */}
       {selectedProblematicFilter && (
         <Box sx={{ marginTop: '2rem' }}>
+          <Typography variant="h6" gutterBottom sx={{ color: 'white' }}>
+            Problematic Orders
+          </Typography>
           <Typography variant="subtitle1" gutterBottom sx={{ color: 'white' }}>
             Total Problematic Orders: {problematicOrderData.totalOrders} | Total Items: {problematicOrderData.totalItems}
           </Typography>

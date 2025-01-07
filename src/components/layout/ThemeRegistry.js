@@ -5,8 +5,8 @@ import { useMediaQuery } from '@mui/material';
 
 
 const ThemeRegistry = ({ children }) => {
-  const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
-  const theme = prefersDarkMode ? darkTheme : lightTheme;
+  const prefersLightMode = useMediaQuery('(prefers-color-scheme: light)');
+  const theme = prefersLightMode ? lightTheme : darkTheme;
 
   return (
     <ThemeProvider theme={theme}>

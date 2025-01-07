@@ -15,12 +15,34 @@ import ModeOfPayment from '@/models/ModeOfPayment';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+/**
+ * GET /api/admin/get-main/get-orders
+ * 
+ * Fetches orders based on various filters and calculates summary metrics.
+ * 
+ * Query Parameters:
+ * - page: Number (default: 1)
+ * - limit: Number (max: 30, default: 30)
+ * - searchInput: String
+ * - searchField: String ('orderId', 'name', 'phoneNumber')
+ * - startDate: ISO String
+ * - endDate: ISO String
+ * - problematicFilter: String ('paymentNotVerified', 'shiprocketNotCreated', 'both')
+ * - shiprocketFilter: String ('pending', 'orderCreated', etc.)
+ * - paymentStatusFilter: String ('successful', 'pending', 'failed')
+ * - utmSource: String
+ * - utmMedium: String
+ * - utmCampaign: String
+ * - utmTerm: String
+ * - utmContent: String
+ */
+
 export async function GET(req) {
   try {
     await connectToDatabase();
-    const { searchParams } = new URL(req.url);
 
-    // Extract query parameters
+    const { searchParams } = new URL(req.url);
+    // Extract query parameters with defaults
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = Math.min(parseInt(searchParams.get('limit') || '30', 10), 30);
     const searchInput = searchParams.get('searchInput') || '';
@@ -38,7 +60,7 @@ export async function GET(req) {
 
     const skip = (page - 1) * limit;
 
-    // Base query
+    // Base query initialization
     let baseQuery = {};
 
     // Apply paymentStatus filter
@@ -80,12 +102,8 @@ export async function GET(req) {
 
     // Apply Shiprocket Delivery Status Filters
     if (shiprocketFilter) {
-      if (shiprocketFilter === 'pending') {
-        baseQuery.deliveryStatus = 'pending';
-      } else if (shiprocketFilter === 'orderCreated') {
-        baseQuery.deliveryStatus = 'orderCreated';
-      }
-      // Add more statuses if needed
+      // Example statuses: 'pending', 'orderCreated', etc.
+      baseQuery.deliveryStatus = shiprocketFilter;
     }
 
     // Apply UTM Filters
@@ -107,22 +125,22 @@ export async function GET(req) {
           ]
         });
       } else {
-        // For other sources, match exactly
-        utmConditions.push({ 'utmDetails.source': utmSource });
+        // For other sources, match exactly (case-insensitive)
+        utmConditions.push({ 'utmDetails.source': { $regex: new RegExp(`^${utmSource}$`, 'i') } });
       }
     }
 
     if (utmMedium) {
-      utmConditions.push({ 'utmDetails.medium': utmMedium });
+      utmConditions.push({ 'utmDetails.medium': { $regex: new RegExp(`^${utmMedium}$`, 'i') } });
     }
     if (utmCampaign) {
-      utmConditions.push({ 'utmDetails.campaign': utmCampaign });
+      utmConditions.push({ 'utmDetails.campaign': { $regex: new RegExp(`^${utmCampaign}$`, 'i') } });
     }
     if (utmTerm) {
-      utmConditions.push({ 'utmDetails.term': utmTerm });
+      utmConditions.push({ 'utmDetails.term': { $regex: new RegExp(`^${utmTerm}$`, 'i') } });
     }
     if (utmContent) {
-      utmConditions.push({ 'utmDetails.content': utmContent });
+      utmConditions.push({ 'utmDetails.content': { $regex: new RegExp(`^${utmContent}$`, 'i') } });
     }
 
     if (utmConditions.length > 0) {
@@ -130,33 +148,120 @@ export async function GET(req) {
       baseQuery.$and = baseQuery.$and ? baseQuery.$and.concat(utmConditions) : utmConditions;
     }
 
-    // Function to calculate aggregates
+    /**
+     * Function to calculate aggregates based on the query
+     * Corrected Formulas:
+     * - grossSales = sum(totalAmount + totalDiscount)
+     * - revenue = sum(totalAmount)
+     * - aov = revenue / count
+     * - discountRate = (sum(totalDiscount) / grossSales) * 100
+     */
     const calculateAggregates = async (query) => {
       const aggregationResult = await Order.aggregate([
         { $match: query },
         {
           $group: {
             _id: null,
-            totalRevenue: { $sum: "$totalAmount" },
-            totalDiscountAmountGiven: { $sum: "$totalDiscount" },
-            oldestOrderDate: { $min: "$createdAt" }, // Calculate the oldest order date
+            sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (net revenue)
+            sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
+            oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
+            count: { $sum: 1 }, // Total number of orders
           }
         }
       ]);
 
       if (aggregationResult.length > 0) {
+        const { sumTotalAmount, sumTotalDiscount, oldestOrderDate, count } = aggregationResult[0];
+        const grossSales = sumTotalAmount + sumTotalDiscount;
+        const revenue = sumTotalAmount; // Net revenue
+        const aov = count > 0 ? revenue / count : 0;
+        const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
+
         return {
-          totalRevenue: aggregationResult[0].totalRevenue,
-          totalDiscountAmountGiven: aggregationResult[0].totalDiscountAmountGiven,
-          oldestOrderDate: aggregationResult[0].oldestOrderDate, // Include the oldest order date
+          grossSales,
+          revenue,
+          sumTotalAmount,
+          sumTotalDiscount,
+          aov,
+          discountRate,
+          oldestOrderDate,
+          count,
         };
       } else {
         return {
-          totalRevenue: 0,
-          totalDiscountAmountGiven: 0,
-          oldestOrderDate: null, // Handle cases with no orders
+          grossSales: 0,
+          revenue: 0,
+          sumTotalAmount: 0,
+          sumTotalDiscount: 0,
+          aov: 0,
+          discountRate: 0,
+          oldestOrderDate: null,
+          count: 0,
         };
       }
+    };
+
+    /**
+     * Function to fetch orders based on a query with pagination and population
+     */
+    const fetchOrders = async (query, pageNumber = page, limitNumber = limit) => {
+      // Calculate aggregates
+      const aggregates = await calculateAggregates(query);
+      const {
+        grossSales,
+        revenue,
+        sumTotalAmount,
+        sumTotalDiscount,
+        aov,
+        discountRate,
+        oldestOrderDate,
+        count: totalOrders,
+      } = aggregates;
+
+      // Calculate totalPages
+      const totalPages = Math.ceil(totalOrders / limitNumber);
+
+      // Count total items
+      const totalItemsAggregation = await Order.aggregate([
+        { $match: query },
+        { $unwind: "$items" },
+        { $group: { _id: null, total: { $sum: "$items.quantity" } } }
+      ]);
+      const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
+
+      // Fetch orders with pagination and population
+      const orders = await Order.find(query)
+        .sort({ createdAt: -1 })
+        .skip((pageNumber - 1) * limitNumber)
+        .limit(limitNumber)
+        .populate('user')
+        .populate({
+          path: 'items.product',
+          model: 'Product',
+          populate: {
+            path: 'specificCategoryVariant',
+            model: 'SpecificCategoryVariant',
+          },
+        })
+        .populate('paymentDetails.mode');
+
+      // Optionally format the oldestOrderDate
+      const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
+
+      return {
+        orders,
+        totalOrders,
+        totalPages,
+        currentPage: pageNumber,
+        totalItems,
+        grossSales,
+        revenue,
+        sumTotalAmount,
+        sumTotalDiscount,
+        aov,
+        discountRate,
+        oldestOrderDate: formattedOldestOrderDate,
+      };
     };
 
     // Handle problematic filters
@@ -183,16 +288,24 @@ export async function GET(req) {
           );
       }
 
+      // Combine baseQuery with problematicCondition
       const problematicQuery = { ...baseQuery, ...problematicCondition };
 
-      // Calculate aggregates
-      const aggregates = await calculateAggregates(problematicQuery);
-      const totalRevenue = aggregates.totalRevenue;
-      const totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
-      const oldestOrderDate = aggregates.oldestOrderDate; // Extract the oldest order date
+      // Fetch aggregates and orders for problematic queries
+      const problematicAggregates = await calculateAggregates(problematicQuery);
+      const {
+        grossSales,
+        revenue,
+        sumTotalAmount,
+        sumTotalDiscount,
+        aov,
+        discountRate,
+        oldestOrderDate,
+        count: totalOrders,
+      } = problematicAggregates;
 
-      // Count total orders
-      const totalOrders = await Order.countDocuments(problematicQuery);
+      // Calculate totalPages
+      const totalPages = Math.ceil(totalOrders / limit);
 
       // Count total items
       const totalItemsAggregation = await Order.aggregate([
@@ -202,7 +315,7 @@ export async function GET(req) {
       ]);
       const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
 
-      // Fetch orders with population
+      // Fetch problematic orders with pagination and population
       const orders = await Order.find(problematicQuery)
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -218,8 +331,6 @@ export async function GET(req) {
         })
         .populate('paymentDetails.mode');
 
-      const totalPages = Math.ceil(totalOrders / limit);
-
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
@@ -231,23 +342,34 @@ export async function GET(req) {
           totalPages,
           currentPage: page,
           totalItems,
-          totalRevenue,
-          totalDiscountAmountGiven,
-          oldestOrderDate: formattedOldestOrderDate, // Include the oldest order date in the response
+          grossSales,
+          revenue,
+          sumTotalAmount,
+          sumTotalDiscount,
+          aov,
+          discountRate,
+          oldestOrderDate: formattedOldestOrderDate,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     } else {
       // No problematic filter, proceed with base query
 
-      // Calculate aggregates
-      const aggregates = await calculateAggregates(baseQuery);
-      const totalRevenue = aggregates.totalRevenue;
-      const totalDiscountAmountGiven = aggregates.totalDiscountAmountGiven;
-      const oldestOrderDate = aggregates.oldestOrderDate; // Extract the oldest order date
+      // Fetch aggregates and orders for base query
+      const baseAggregates = await calculateAggregates(baseQuery);
+      const {
+        grossSales,
+        revenue,
+        sumTotalAmount,
+        sumTotalDiscount,
+        aov,
+        discountRate,
+        oldestOrderDate,
+        count: totalOrders,
+      } = baseAggregates;
 
-      // Count total orders
-      const totalOrders = await Order.countDocuments(baseQuery);
+      // Calculate totalPages
+      const totalPages = Math.ceil(totalOrders / limit);
 
       // Count total items
       const totalItemsAggregation = await Order.aggregate([
@@ -257,7 +379,7 @@ export async function GET(req) {
       ]);
       const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
 
-      // Fetch orders with population
+      // Fetch orders with pagination and population
       const orders = await Order.find(baseQuery)
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -273,8 +395,6 @@ export async function GET(req) {
         })
         .populate('paymentDetails.mode');
 
-      const totalPages = Math.ceil(totalOrders / limit);
-
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
@@ -286,9 +406,13 @@ export async function GET(req) {
           totalPages,
           currentPage: page,
           totalItems,
-          totalRevenue,
-          totalDiscountAmountGiven,
-          oldestOrderDate: oldestOrderDate, // Include the oldest order date in the response
+          grossSales,
+          revenue,
+          sumTotalAmount,
+          sumTotalDiscount,
+          aov,
+          discountRate,
+          oldestOrderDate: formattedOldestOrderDate,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );

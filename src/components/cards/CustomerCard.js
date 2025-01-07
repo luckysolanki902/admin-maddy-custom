@@ -380,7 +380,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 >
                   Amount Paid Online:
                   <span style={{ marginLeft: '1rem', color: '#34C759', fontWeight: '500' }}>
-                    ₹{order.amountPaidOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{order.paymentDetails?.amountPaidOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </Typography>
               </Grid>
@@ -445,7 +445,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                       primary={charge.chargesName || 'N/A'}
                       secondary={
                         <Typography component="span" variant="body2" color="text.secondary">
-                          ₹{charge.chargesAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          ₹{charge.chargesAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </Typography>
                       }
                       primaryTypographyProps={{ color: 'white' }}

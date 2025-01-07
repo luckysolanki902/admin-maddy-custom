@@ -94,7 +94,7 @@ const OrdersList = ({
   // Define chip data with detailed tooltips and formulas
   const chipData = [
     {
-      label: `Orders: ${totalOrders.toLocaleString('en-IN')}`,
+      label: `Orders: ${totalOrders?.toLocaleString('en-IN')}`,
       icon: (
         <ShoppingCartIcon
           sx={{ color: neutralDarkColors.orders.icon, marginRight: '0.5rem' }}
@@ -114,7 +114,7 @@ const OrdersList = ({
       isVisible: true,
     },
     {
-      label: `Items: ${totalItems.toLocaleString('en-IN')}`,
+      label: `Items: ${totalItems?.toLocaleString('en-IN')}`,
       icon: (
         <InventoryIcon
           sx={{ color: neutralDarkColors.items.icon, marginRight: '0.5rem' }}
@@ -134,7 +134,7 @@ const OrdersList = ({
       isVisible: true,
     },
     isAdmin && {
-      label: `Gross Sales: ₹${grossSales.toLocaleString('en-IN')}`,
+      label: `Gross Sales: ₹${grossSales?.toLocaleString('en-IN')}`,
       icon: (
         <CurrencyRupeeIcon
           sx={{
@@ -160,7 +160,7 @@ const OrdersList = ({
       isVisible: true,
     },
     {
-      label: `Discounts: ₹${sumTotalDiscount.toLocaleString('en-IN')}`,
+      label: `Discounts: ₹${sumTotalDiscount?.toLocaleString('en-IN')}`,
       icon: (
         <DiscountIcon
           sx={{
@@ -186,7 +186,7 @@ const OrdersList = ({
       isVisible: true,
     },
     isAdmin && {
-      label: `Revenue: ₹${revenue.toLocaleString('en-IN')}`,
+      label: `Revenue: ₹${revenue?.toLocaleString('en-IN')}`,
       icon: (
         <AttachMoneyIcon
           sx={{
@@ -212,7 +212,7 @@ const OrdersList = ({
       isVisible: true,
     },
     {
-      label: `AOV: ₹${aov.toLocaleString('en-IN', {
+      label: `AOV: ₹${aov?.toLocaleString('en-IN', {
         minimumFractionDigits: 2,
       })}`,
       icon: (

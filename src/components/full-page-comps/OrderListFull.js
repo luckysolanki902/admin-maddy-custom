@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Container,
   TextField,
@@ -34,6 +34,14 @@ import CustomerCard from '../cards/CustomerCard';
 const ITEMS_PER_PAGE = 30;
 
 const OrderListFull = ({ isAdmin }) => {
+  // Centralized Date Range State
+  const [dateRange, setDateRange] = useState({
+    start: dayjs().startOf('day'),
+    end: dayjs().endOf('day'),
+  });
+
+  const [activeTag, setActiveTag] = useState('today'); // Default to 'today'
+
   // State for main orders
   const [orderData, setOrderData] = useState({
     orders: [],
@@ -53,7 +61,6 @@ const OrderListFull = ({ isAdmin }) => {
   const [searchInput, setSearchInput] = useState('');
   const [searchField, setSearchField] = useState('orderId');
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeTag, setActiveTag] = useState('today'); // Default to 'today'
 
   // State for UTM Filters
   const [utmOptions, setUtmOptions] = useState({
@@ -93,154 +100,53 @@ const OrderListFull = ({ isAdmin }) => {
   const [syncDetails, setSyncDetails] = useState([]);
   const [openSyncDetails, setOpenSyncDetails] = useState(false);
 
-  // Handle date pickers
+  // Date Pickers State
   const [singleDate, setSingleDate] = useState(dayjs().startOf('day'));
   const [rangeDates, setRangeDates] = useState({
     start: dayjs().subtract(6, 'day').startOf('day'),
     end: dayjs().endOf('day'),
   });
 
-  /**
-   * Function to apply date range based on selected tag
-   * @param {number|string} days - Number of days or custom identifiers
-   */
-  const applyDateRange = useCallback((days) => {
-    let newStartDate, newEndDate;
+  // Fetch UTM Options State
+  const [loadingUTMOptions, setLoadingUTMOptions] = useState(false);
 
-
-    if (days === 0) {
-      // Today
-      newStartDate = dayjs().startOf('day');
-      newEndDate = dayjs().endOf('day');
-      setActiveTag('today');
-    } else if (days === 1) {
-      // Yesterday
-      newStartDate = dayjs().subtract(1, 'day').startOf('day');
-      newEndDate = dayjs().subtract(1, 'day').endOf('day');
-      setActiveTag('yesterday');
-    } else if (days === 6) {
-      // Last 7 days
-      newStartDate = dayjs().subtract(6, 'day').startOf('day');
-      newEndDate = dayjs().endOf('day');
-      setActiveTag('last7days');
-    } else if (days === 29) {
-      // Last 30 days
-      newStartDate = dayjs().subtract(29, 'day').startOf('day');
-      newEndDate = dayjs().endOf('day');
-      setActiveTag('last30days');
-    } else if (days === 'customDay') {
-      // Custom Day
-      setActiveTag('custom');
-      newStartDate = singleDate.startOf('day');
-      newEndDate = singleDate.endOf('day');
-    } else if (days === 'customRange') {
-      // Custom Range
-      setActiveTag('customRange');
-      newStartDate = rangeDates.start.startOf('day');
-      newEndDate = rangeDates.end.endOf('day');
-    } else if (days === 'all') {
-      // All
-      newStartDate = null;
-      newEndDate = null;
-      setActiveTag('all');
-    } else {
-      // Fallback to 'all' if unknown tag
-      newStartDate = null;
-      newEndDate = null;
-      setActiveTag('all');
-    }
-
-    setCurrentPage(1);
-    setProblematicCurrentPage(1);
-
-    fetchOrders(newStartDate, newEndDate, 1); // Reset to page 1
-    if (selectedProblematicFilter) {
-      fetchProblematicOrders(newStartDate, newEndDate, 1);
-    }
-  }, [selectedProblematicFilter, singleDate, rangeDates]);
-
-  /**
-   * Function to calculate aggregates based on the query
-   * Updated Formulas:
-   * - grossSales = sum(itemsTotal)
-   * - revenue = sum(totalAmount) // Includes extra charges
-   * - aov = revenue / count
-   * - discountRate = (sum(totalDiscount) / grossSales) * 100
-   */
-  const calculateAggregates = useCallback(async (query) => {
-    try {
-      const aggregationResult = await Order.aggregate([
-        { $match: query },
-        {
-          $group: {
-            _id: null,
-            sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue)
-            sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
-            sumItemsTotal: { $sum: "$itemsTotal" }, // Sum of itemsTotal (Gross Sales)
-            oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
-            count: { $sum: 1 }, // Total number of orders
-          }
+  // Effect to fetch UTM options when FiltersDrawer opens
+  useEffect(() => {
+    const fetchUTMOptions = async () => {
+      setLoadingUTMOptions(true);
+      try {
+        const res = await fetch('/api/admin/get-main/get-utm-fields');
+        const data = await res.json();
+        if (res.ok) {
+          setUtmOptions(data);
+        } else {
+          console.error("Error fetching UTM fields:", data.message);
         }
-      ]);
-
-      if (aggregationResult.length > 0) {
-        const {
-          sumTotalAmount,
-          sumTotalDiscount,
-          sumItemsTotal,
-          oldestOrderDate,
-          count,
-        } = aggregationResult[0];
-
-        const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal
-        const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
-        const aov = count > 0 ? revenue / count : 0;
-        const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
-
-        return {
-          grossSales,
-          revenue,
-          sumTotalAmount,
-          sumTotalDiscount,
-          aov,
-          discountRate,
-          oldestOrderDate,
-          count,
-        };
-      } else {
-        return {
-          grossSales: 0,
-          revenue: 0,
-          sumTotalAmount: 0,
-          sumTotalDiscount: 0,
-          aov: 0,
-          discountRate: 0,
-          oldestOrderDate: null,
-          count: 0,
-        };
+      } catch (error) {
+        console.error("Error fetching UTM fields:", error);
+      } finally {
+        setLoadingUTMOptions(false);
       }
-    } catch (error) {
-      console.error("Error in calculateAggregates:", error);
-      return {
-        grossSales: 0,
-        revenue: 0,
-        sumTotalAmount: 0,
-        sumTotalDiscount: 0,
-        aov: 0,
-        discountRate: 0,
-        oldestOrderDate: null,
-        count: 0,
-      };
+    };
+
+    if (isFiltersDrawerOpen) {
+      fetchUTMOptions();
     }
-  }, []);
+  }, [isFiltersDrawerOpen]);
+
+  // Effect to fetch orders whenever dateRange or other dependencies change
+  useEffect(() => {
+    fetchOrders(dateRange.start, dateRange.end, currentPage);
+    if (selectedProblematicFilter) {
+      fetchProblematicOrders(dateRange.start, dateRange.end, problematicCurrentPage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, searchInput, searchField, shiprocketFilter, paymentStatusFilter, selectedUTMFilters, currentPage, problematicCurrentPage, selectedProblematicFilter]);
 
   /**
    * Function to fetch orders based on provided start and end dates and page number
-   * @param {Date|null} start - Start date for filtering
-   * @param {Date|null} end - End date for filtering
-   * @param {number} pageNumber - Page number for pagination
    */
-  const fetchOrders = useCallback(async (start, end, pageNumber = 1) => {
+  const fetchOrders = async (start, end, pageNumber = 1) => {
     setLoading(true);
     const queryParams = [
       `page=${pageNumber}`,
@@ -260,7 +166,6 @@ const OrderListFull = ({ isAdmin }) => {
 
     const queryString = queryParams.join('&');
 
-
     try {
       const res = await fetch(`/api/admin/get-main/get-orders?${queryString}`);
       const data = await res.json();
@@ -273,7 +178,7 @@ const OrderListFull = ({ isAdmin }) => {
           totalPages: data.totalPages || 1,
           totalItems: data.totalItems || 0,
           grossSales: isAdmin ? (data.grossSales || 0) : 0,
-          sumTotalDiscount:data.sumTotalDiscount || 0,
+          sumTotalDiscount: data.sumTotalDiscount || 0,
           revenue: isAdmin ? (data.revenue || 0) : 0,
           aov: data.aov || 0,
           discountRate: isAdmin ? (data.discountRate || 0) : 0,
@@ -287,26 +192,12 @@ const OrderListFull = ({ isAdmin }) => {
     } finally {
       setLoading(false);
     }
-  }, [
-    searchInput,
-    searchField,
-    shiprocketFilter,
-    paymentStatusFilter,
-    isAdmin,
-    selectedUTMFilters.source,
-    selectedUTMFilters.medium,
-    selectedUTMFilters.campaign,
-    selectedUTMFilters.term,
-    selectedUTMFilters.content,
-  ]);
+  };
 
   /**
    * Function to fetch problematic orders based on selected filters and page number
-   * @param {Date|null} start - Start date for filtering
-   * @param {Date|null} end - End date for filtering
-   * @param {number} pageNumber - Page number for pagination
    */
-  const fetchProblematicOrders = useCallback(async (start, end, pageNumber = 1) => {
+  const fetchProblematicOrders = async (start, end, pageNumber = 1) => {
     if (!selectedProblematicFilter) {
       setProblematicOrderData({
         orders: [],
@@ -339,7 +230,6 @@ const OrderListFull = ({ isAdmin }) => {
 
     const queryString = queryParams.join('&');
 
-
     try {
       const res = await fetch(`/api/admin/get-main/get-orders?${queryString}`);
       const data = await res.json();
@@ -359,18 +249,7 @@ const OrderListFull = ({ isAdmin }) => {
     } finally {
       setProblematicLoading(false);
     }
-  }, [
-    selectedProblematicFilter,
-    searchInput,
-    searchField,
-    shiprocketFilter,
-    paymentStatusFilter,
-    selectedUTMFilters.source,
-    selectedUTMFilters.medium,
-    selectedUTMFilters.campaign,
-    selectedUTMFilters.term,
-    selectedUTMFilters.content,
-  ]);
+  };
 
   // Handle search input change
   const handleSearchInputChange = (e) => {
@@ -386,90 +265,93 @@ const OrderListFull = ({ isAdmin }) => {
     setSearchInput('');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
-    fetchOrders(null, null, 1); // Fetch with updated search field and page 1
-    if (selectedProblematicFilter) {
-      fetchProblematicOrders(null, null, 1);
-    }
   };
 
   // Handle accordion expansion
-  const handleAccordionChange = useCallback((panel) => (event, isExpanded) => {
+  const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpanded(isExpanded ? panel : false);
-  }, []);
-
-  // Removed handleTagRemove as onDelete is no longer used in DateRangeChips
+  };
 
   // Handle 'All' tag click
-  const handleAllTagClick = useCallback(() => {
+  const handleAllTagClick = () => {
     setActiveTag('all');
+    setDateRange({
+      start: null,
+      end: null,
+    });
     setSearchInput('');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     setSelectedProblematicFilter('');
-    fetchOrders(null, null, 1);
-    setSingleDate(dayjs().startOf('day'));
-    setRangeDates({
-      start: dayjs().subtract(6, 'day').startOf('day'),
-      end: dayjs().endOf('day'),
+  };
+
+  // Handle custom date change
+  const handleCustomDateChange = (newStart, newEnd) => {
+    setDateRange({
+      start: newStart ? newStart.startOf('day') : null,
+      end: newEnd ? newEnd.endOf('day') : null,
     });
-    setProblematicOrderData({
-      orders: [],
-      totalOrders: 0,
-      totalPages: 1,
-      totalItems: 0,
-    });
-  }, [fetchOrders]);
-
-  // Handle date changes
-  const handleDateChange = useCallback((type, newValue) => {
-    if (type === 'start') {
-      setRangeDates(prev => ({ ...prev, start: newValue }));
-    } else if (type === 'end') {
-      setRangeDates(prev => ({ ...prev, end: newValue }));
-    }
-
-    // If 'customRange' is active, refetch orders
-    if (activeTag === 'customRange') {
-      fetchOrders(newValue ? newValue.startOf('day') : null, newValue ? newValue.endOf('day') : null, currentPage);
-      if (selectedProblematicFilter) {
-        fetchProblematicOrders(newValue ? newValue.startOf('day') : null, newValue ? newValue.endOf('day') : null, problematicCurrentPage);
-      }
-    }
-  }, [activeTag, fetchOrders, fetchProblematicOrders, currentPage, problematicCurrentPage, selectedProblematicFilter]);
-
-  // Handle filters drawer toggle
-  const toggleFiltersDrawer = useCallback((open) => () => {
-    setIsFiltersDrawerOpen(open);
-  }, []);
-
-  // Apply filters from the drawer
-  const applyFilters = useCallback(() => {
+    setActiveTag(newStart && newEnd ? 'customRange' : activeTag);
     setCurrentPage(1);
     setProblematicCurrentPage(1);
-    fetchOrders(null, null, 1);
-    if (selectedProblematicFilter) {
-      fetchProblematicOrders(null, null, 1);
+  };
+
+  // Handle single day change for 'Custom Day'
+  const handleCustomDayChange = (newDate) => {
+    setSingleDate(newDate.startOf('day'));
+    setDateRange({
+      start: newDate.startOf('day'),
+      end: newDate.endOf('day'),
+    });
+    setActiveTag('custom');
+    setCurrentPage(1);
+    setProblematicCurrentPage(1);
+  };
+
+  // Handle 'This Month' and 'Last Month' selection
+  const handleMonthSelection = (type) => {
+    let start, end;
+    if (type === 'thisMonth') {
+      start = dayjs().startOf('month');
+      end = dayjs().endOf('day');
+      setActiveTag('thisMonth');
+    } else if (type === 'lastMonth') {
+      start = dayjs().subtract(1, 'month').startOf('month');
+      end = dayjs().subtract(1, 'month').endOf('month');
+      setActiveTag('lastMonth');
     }
+    setDateRange({ start, end });
+    setCurrentPage(1);
+    setProblematicCurrentPage(1);
+  };
+
+  // Handle filters drawer toggle
+  const toggleFiltersDrawer = (open) => () => {
+    setIsFiltersDrawerOpen(open);
+  };
+
+  // Apply filters from the drawer
+  const applyFilters = () => {
+    setCurrentPage(1);
+    setProblematicCurrentPage(1);
     setIsFiltersDrawerOpen(false);
-  }, [fetchOrders, fetchProblematicOrders, selectedProblematicFilter]);
+  };
 
   // Handle problematic filter changes
-  const handleProblematicFilterChange = useCallback((filter) => () => {
+  const handleProblematicFilterChange = (filter) => () => {
     setSelectedProblematicFilter(prev => (prev === filter ? '' : filter));
     setProblematicCurrentPage(1);
-    fetchProblematicOrders(null, null, 1);
-  }, [fetchProblematicOrders]);
+  };
 
   // Handle problematic pagination
-  const handleProblematicPaginationChange = useCallback((event, value) => {
+  const handleProblematicPaginationChange = (event, value) => {
     setProblematicCurrentPage(value);
-    fetchProblematicOrders(null, null, value);
-  }, [fetchProblematicOrders]);
+  };
 
   /**
    * Function to handle syncing Shiprocket orders
    */
-  const handleSyncShiprocketOrders = useCallback(async () => {
+  const handleSyncShiprocketOrders = async () => {
     setSyncing(true);
     setSyncResult(null);
     setSyncDetails([]);
@@ -482,8 +364,8 @@ const OrderListFull = ({ isAdmin }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          startDate: activeTag === 'custom' ? singleDate.toISOString() : (activeTag === 'customRange' ? rangeDates.start.toISOString() : null),
-          endDate: activeTag === 'custom' ? singleDate.toISOString() : (activeTag === 'customRange' ? rangeDates.end.toISOString() : null),
+          startDate: dateRange.start ? dateRange.start.toISOString() : null,
+          endDate: dateRange.end ? dateRange.end.toISOString() : null,
         }),
       });
 
@@ -493,7 +375,7 @@ const OrderListFull = ({ isAdmin }) => {
         setSyncResult(`Shiprocket Orders Created: ${data.created}, Failed: ${data.failed}`);
         setSyncDetails(data.details || []);
         setOpenSyncDetails(true);
-        fetchOrders(null, null, currentPage); // Refresh orders with current page
+        fetchOrders(dateRange.start, dateRange.end, currentPage); // Refresh orders with current page
       } else {
         console.error("Error syncing Shiprocket orders:", data.message);
         setSyncResult(`Error: ${data.message}`);
@@ -504,63 +386,18 @@ const OrderListFull = ({ isAdmin }) => {
     } finally {
       setSyncing(false);
     }
-  }, [activeTag, singleDate, rangeDates, fetchOrders, currentPage]);
-
-  // Initial fetch and refetch on activeTag change
-  useEffect(() => {
-
-    const daysMap = {
-      'today': 0,
-      'yesterday': 1,
-      'last7days': 6,
-      'last30days': 29,
-      'all': 'all',
-    };
-
-    // Only apply date range if activeTag is in daysMap
-    if (daysMap.hasOwnProperty(activeTag)) {
-      const applyDateRangeValue = daysMap[activeTag];
-      applyDateRange(applyDateRangeValue);
-    }
-    // Do not apply date range for 'custom' or 'customRange'
-  }, [applyDateRange, activeTag]);
-
-  const [loadingUTMOptions, setLoadingUTMOptions] = useState(false);
-
-  // Fetch UTM options when FiltersDrawer opens
-  useEffect(() => {
-    const fetchUTMOptions = async () => {
-      setLoadingUTMOptions(true);
-      try {
-        const res = await fetch('/api/admin/get-main/get-utm-fields');
-        const data = await res.json();
-        if (res.ok) {
-          setUtmOptions(data);
-        } else {
-          console.error("Error fetching UTM fields:", data.message);
-        }
-      } catch (error) {
-        console.error("Error fetching UTM fields:", error);
-      } finally {
-        setLoadingUTMOptions(false);
-      }
-    };
-
-    if (isFiltersDrawerOpen) {
-      fetchUTMOptions();
-    }
-  }, [isFiltersDrawerOpen]);
+  };
 
   // Handle UTM filter changes
-  const handleUTMFilterChange = useCallback((field) => (event) => {
+  const handleUTMFilterChange = (field) => (event) => {
     setSelectedUTMFilters(prev => ({
       ...prev,
       [field]: event.target.value,
     }));
-  }, []);
+  };
 
   // Handle Reset Filters
-  const handleResetFilters = useCallback(() => {
+  const handleResetFilters = () => {
     setShiprocketFilter('');
     setPaymentStatusFilter('');
     setSelectedUTMFilters({
@@ -575,14 +412,11 @@ const OrderListFull = ({ isAdmin }) => {
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     setActiveTag('today');
-    setSingleDate(dayjs().startOf('day'));
-    setRangeDates({
-      start: dayjs().subtract(6, 'day').startOf('day'),
+    setDateRange({
+      start: dayjs().startOf('day'),
       end: dayjs().endOf('day'),
     });
-    fetchOrders(dayjs().startOf('day'), dayjs().endOf('day'), 1);
-    fetchProblematicOrders(dayjs().startOf('day'), dayjs().endOf('day'), 1);
-  }, [fetchOrders, fetchProblematicOrders]);
+  };
 
   return (
     <Container sx={{ marginBottom: '2rem', width: '100%', padding: '2rem 1rem' }}>
@@ -595,29 +429,34 @@ const OrderListFull = ({ isAdmin }) => {
         Orders Dashboard
       </Typography>
 
-
       {/* Date Range Chips */}
       <DateRangeChips
         activeTag={activeTag}
-        applyDateRange={applyDateRange}
+        setActiveTag={setActiveTag}
+        setDateRange={setDateRange}
+        setCurrentPage={setCurrentPage}
+        setProblematicCurrentPage={setProblematicCurrentPage}
         handleAllTagClick={handleAllTagClick}
+        handleCustomDayChange={handleCustomDayChange}
+        handleCustomDateChange={handleCustomDateChange}
+        handleMonthSelection={handleMonthSelection}
       />
 
       {/* Formatted Date Display */}
       <Box sx={{ marginBottom: '1rem' }}>
         {activeTag === 'custom' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            {`Orders for ${singleDate.format('MMMM D, YYYY, dddd')}`}
+            {`Orders for ${singleDate?.format('MMMM D, YYYY, dddd')}`}
           </Typography>
         )}
         {activeTag === 'customRange' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            {`Orders from ${rangeDates.start.format('MMMM D, YYYY, dddd')} to ${rangeDates.end.format('MMMM D, YYYY, dddd')}`}
+            {`Orders from ${dateRange?.start?.format('MMMM D, YYYY, dddd')} to ${dateRange?.end?.format('MMMM D, YYYY, dddd')}`}
           </Typography>
         )}
         {activeTag === 'today' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Orders for today ({singleDate.format('MMMM D, YYYY, dddd')})
+            Orders for today ({dateRange?.start?.format('MMMM D, YYYY, dddd')})
           </Typography>
         )}
         {activeTag === 'yesterday' && (
@@ -635,9 +474,19 @@ const OrderListFull = ({ isAdmin }) => {
             Orders from last 30 days ({dayjs().subtract(29, 'day').format('MMMM D, YYYY, dddd')} to {dayjs().format('MMMM D, YYYY, dddd')})
           </Typography>
         )}
+        {activeTag === 'thisMonth' && (
+          <Typography variant="subtitle1" sx={{ color: 'white' }}>
+            Orders for this month ({dateRange.start.format('MMMM D, YYYY')} to {dayjs().format('MMMM D, YYYY')})
+          </Typography>
+        )}
+        {activeTag === 'lastMonth' && (
+          <Typography variant="subtitle1" sx={{ color: 'white' }}>
+            Orders for last month ({dateRange.start.format('MMMM D, YYYY')} to {dateRange.end.format('MMMM D, YYYY')})
+          </Typography>
+        )}
         {activeTag === 'all' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            All Orders ( From {orderData.oldestOrderDate ? dayjs(orderData.oldestOrderDate).format('MMMM D, YYYY, dddd') : 'N/A'})
+            All Orders ( From {orderData?.oldestOrderDate ? dayjs(orderData?.oldestOrderDate).format('MMMM D, YYYY, dddd') : 'N/A'})
           </Typography>
         )}
       </Box>
@@ -683,10 +532,6 @@ const OrderListFull = ({ isAdmin }) => {
               if (e.key === 'Enter') {
                 setCurrentPage(1);
                 setProblematicCurrentPage(1);
-                fetchOrders(null, null, 1);
-                if (selectedProblematicFilter) {
-                  fetchProblematicOrders(null, null, 1);
-                }
               }
             }}
             sx={{ minWidth: { xs: '100%', md: '200px' } }}
@@ -698,8 +543,6 @@ const OrderListFull = ({ isAdmin }) => {
                       size="small"
                       onClick={() => {
                         setSearchInput('');
-                        setCurrentPage(1);
-                        setProblematicCurrentPage(1);
                         handleResetFilters();
                       }}
                     >
@@ -715,46 +558,6 @@ const OrderListFull = ({ isAdmin }) => {
               ),
             }}
           />
-        </Box>
-
-
-        {/* Date Picker(s) */}
-        <Box display="flex" alignItems="center" gap="10px">
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            {activeTag === 'custom' ? (
-              <DatePicker
-                label="Select Date"
-                value={singleDate}
-                onChange={(newValue) => {
-                  setSingleDate(newValue);
-                  applyDateRange('customDay');
-                }}
-                renderInput={(params) => <TextField {...params} size='small' />}
-              />
-            ) : activeTag === 'customRange' ? (
-              <>
-                <DatePicker
-                  label="Start Date"
-                  value={rangeDates.start}
-                  onChange={(newValue) => {
-                    handleDateChange('start', newValue);
-                  }}
-                  renderInput={(params) => <TextField {...params} size='small' />}
-                />
-                <DatePicker
-                  label="End Date"
-                  value={rangeDates.end}
-                  onChange={(newValue) => {
-                    handleDateChange('end', newValue);
-                  }}
-                  renderInput={(params) => <TextField {...params} size='small' />}
-                />
-              </>
-            ) : (
-              <>
-              </>
-            )}
-          </LocalizationProvider>
         </Box>
 
         {/* Filters Button */}
@@ -787,6 +590,43 @@ const OrderListFull = ({ isAdmin }) => {
         />
       </Drawer>
 
+      {/* Custom Date Pickers */}
+      {(activeTag === 'custom' || activeTag === 'customRange') && (
+        <Box display="flex" justifyContent="center" marginBottom="1rem" gap="1rem">
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            {activeTag === 'custom' ? (
+              <DatePicker
+                label="Select Date"
+                value={singleDate}
+                onChange={(newValue) => {
+                  handleCustomDayChange(newValue);
+                }}
+                renderInput={(params) => <TextField {...params} size='small' />}
+              />
+            ) : (
+              <>
+                <DatePicker
+                  label="Start Date"
+                  value={dateRange.start}
+                  onChange={(newValue) => {
+                    handleCustomDateChange(newValue, dateRange.end);
+                  }}
+                  renderInput={(params) => <TextField {...params} size='small' />}
+                />
+                <DatePicker
+                  label="End Date"
+                  value={dateRange.end}
+                  onChange={(newValue) => {
+                    handleCustomDateChange(dateRange.start, newValue);
+                  }}
+                  renderInput={(params) => <TextField {...params} size='small' />}
+                />
+              </>
+            )}
+          </LocalizationProvider>
+        </Box>
+      )}
+
       {/* Main Orders Section */}
       <OrdersList
         orders={orderData.orders}
@@ -811,10 +651,7 @@ const OrderListFull = ({ isAdmin }) => {
           page={currentPage}
           onChange={(event, value) => {
             setCurrentPage(value);
-            fetchOrders(null, null, value);
-            if (selectedProblematicFilter) {
-              fetchProblematicOrders(null, null, 1); // Optionally reset problematic pagination
-            }
+            setProblematicCurrentPage(1);
           }}
           variant="outlined"
           shape="rounded"
@@ -938,4 +775,5 @@ const OrderListFull = ({ isAdmin }) => {
     </Container>
   );
 }
+
 export default OrderListFull;

@@ -1,7 +1,25 @@
 import React from 'react';
 import { Box, Chip, Stack } from '@mui/material';
+import dayjs from 'dayjs';
 
-const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
+const DateRangeChips = ({
+  activeTag,
+  setActiveTag,
+  setDateRange,
+  setCurrentPage,
+  setProblematicCurrentPage,
+  handleAllTagClick,
+  handleCustomDayChange,
+  handleCustomDateChange,
+  handleMonthSelection,
+}) => {
+  // Handlers for predefined ranges
+  const handlePredefinedRange = (tag, start, end) => {
+    setActiveTag(tag);
+    setDateRange({ start, end });
+    setCurrentPage(1);
+    setProblematicCurrentPage(1);
+  };
 
   return (
     <Box
@@ -18,65 +36,77 @@ const DateRangeChips = ({ activeTag, applyDateRange, handleAllTagClick }) => {
         <Chip
           label="Today"
           onClick={() => {
-            applyDateRange(0);
+            const todayStart = dayjs().startOf('day');
+            const todayEnd = dayjs().endOf('day');
+            handlePredefinedRange('today', todayStart, todayEnd);
           }}
           variant={activeTag === 'today' ? 'filled' : 'outlined'}
           color={activeTag === 'today' ? 'primary' : 'default'}
-          // Removed onDelete to prevent accidental state changes
         />
         <Chip
           label="Yesterday"
           onClick={() => {
-            applyDateRange(1);
+            const yesterday = dayjs().subtract(1, 'day');
+            handlePredefinedRange('yesterday', yesterday.startOf('day'), yesterday.endOf('day'));
           }}
           variant={activeTag === 'yesterday' ? 'filled' : 'outlined'}
           color={activeTag === 'yesterday' ? 'primary' : 'default'}
-          // Removed onDelete
         />
         <Chip
           label="Last 7 Days"
           onClick={() => {
-            applyDateRange(6);
+            const start = dayjs().subtract(6, 'day').startOf('day');
+            const end = dayjs().endOf('day');
+            handlePredefinedRange('last7days', start, end);
           }}
           variant={activeTag === 'last7days' ? 'filled' : 'outlined'}
           color={activeTag === 'last7days' ? 'primary' : 'default'}
-          // Removed onDelete
         />
         <Chip
           label="Last 30 Days"
           onClick={() => {
-            applyDateRange(29);
+            const start = dayjs().subtract(29, 'day').startOf('day');
+            const end = dayjs().endOf('day');
+            handlePredefinedRange('last30days', start, end);
           }}
           variant={activeTag === 'last30days' ? 'filled' : 'outlined'}
           color={activeTag === 'last30days' ? 'primary' : 'default'}
-          // Removed onDelete
+        />
+        <Chip
+          label="This Month"
+          onClick={() => handleMonthSelection('thisMonth')}
+          variant={activeTag === 'thisMonth' ? 'filled' : 'outlined'}
+          color={activeTag === 'thisMonth' ? 'primary' : 'default'}
+        />
+        <Chip
+          label="Last Month"
+          onClick={() => handleMonthSelection('lastMonth')}
+          variant={activeTag === 'lastMonth' ? 'filled' : 'outlined'}
+          color={activeTag === 'lastMonth' ? 'primary' : 'default'}
         />
         <Chip
           label="All"
-          onClick={() => {
-            handleAllTagClick();
-          }}
+          onClick={handleAllTagClick}
           variant={activeTag === 'all' ? 'filled' : 'outlined'}
           color={activeTag === 'all' ? 'primary' : 'default'}
-          // Removed onDelete to make "All" chip non-deletable
         />
         <Chip
           label="Custom Day"
           onClick={() => {
-            applyDateRange('customDay');
+            setActiveTag('custom');
+            // The actual date selection is handled outside the chips
           }}
           variant={activeTag === 'custom' ? 'filled' : 'outlined'}
           color={activeTag === 'custom' ? 'primary' : 'default'}
-          // Removed onDelete
         />
         <Chip
           label="Custom Range"
           onClick={() => {
-            applyDateRange('customRange');
+            setActiveTag('customRange');
+            // The actual date range selection is handled outside the chips
           }}
           variant={activeTag === 'customRange' ? 'filled' : 'outlined'}
           color={activeTag === 'customRange' ? 'primary' : 'default'}
-          // Removed onDelete
         />
       </Stack>
     </Box>

@@ -1,3 +1,5 @@
+// /components/page-sections/OrderListFull.js
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -110,7 +112,42 @@ const OrderListFull = ({ isAdmin }) => {
   // Fetch UTM Options State
   const [loadingUTMOptions, setLoadingUTMOptions] = useState(false);
 
-  // Effect to fetch UTM options when FiltersDrawer opens
+  // Variant Filters State
+  const [variants, setVariants] = useState([]);
+  const [selectedVariants, setSelectedVariants] = useState([]);
+  const [onlyIncludeSelectedVariants, setOnlyIncludeSelectedVariants] = useState(false);
+  const [singleVariantOnly, setSingleVariantOnly] = useState(false);
+  const [singleItemCountOnly, setSingleItemCountOnly] = useState(false);
+
+  // Snackbar State for Variant Selection
+  const [variantSnackbar, setVariantSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'warning',
+  });
+
+  // Fetch variant options when FiltersDrawer opens
+  useEffect(() => {
+    const fetchVariants = async () => {
+      try {
+        const res = await fetch('/api/admin/get-main/get-category-variants');
+        const data = await res.json();
+        if (res.ok) {
+          setVariants(data);
+        } else {
+          console.error("Error fetching category variants:", data.error);
+        }
+      } catch (error) {
+        console.error("Error fetching category variants:", error);
+      }
+    };
+
+    if (isFiltersDrawerOpen) {
+      fetchVariants();
+    }
+  }, [isFiltersDrawerOpen]);
+
+  // Fetch UTM options when FiltersDrawer opens
   useEffect(() => {
     const fetchUTMOptions = async () => {
       setLoadingUTMOptions(true);
@@ -134,17 +171,31 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [isFiltersDrawerOpen]);
 
-  // Effect to fetch orders whenever dateRange or other dependencies change
+  // Effect to fetch orders whenever dependencies change
   useEffect(() => {
     fetchOrders(dateRange.start, dateRange.end, currentPage);
     if (selectedProblematicFilter) {
       fetchProblematicOrders(dateRange.start, dateRange.end, problematicCurrentPage);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, searchInput, searchField, shiprocketFilter, paymentStatusFilter, selectedUTMFilters, currentPage, problematicCurrentPage, selectedProblematicFilter]);
+  }, [
+    dateRange,
+    searchInput,
+    searchField,
+    shiprocketFilter,
+    paymentStatusFilter,
+    selectedUTMFilters,
+    selectedVariants,
+    onlyIncludeSelectedVariants,
+    singleVariantOnly,
+    singleItemCountOnly,
+    currentPage,
+    problematicCurrentPage,
+    selectedProblematicFilter,
+  ]);
 
   /**
-   * Function to fetch orders based on provided start and end dates and page number
+   * Function to fetch orders based on provided filters
    */
   const fetchOrders = async (start, end, pageNumber = 1) => {
     setLoading(true);
@@ -162,6 +213,10 @@ const OrderListFull = ({ isAdmin }) => {
       `utmCampaign=${encodeURIComponent(selectedUTMFilters.campaign || '')}`,
       `utmTerm=${encodeURIComponent(selectedUTMFilters.term || '')}`,
       `utmContent=${encodeURIComponent(selectedUTMFilters.content || '')}`,
+      selectedVariants.length > 0 ? `variants=${selectedVariants.join(',')}` : '',
+      onlyIncludeSelectedVariants ? `onlyIncludeSelectedVariants=true` : '',
+      singleVariantOnly ? `singleVariantOnly=true` : '',
+      singleItemCountOnly ? `singleItemCountOnly=true` : '',
     ].filter(param => param !== '');
 
     const queryString = queryParams.join('&');
@@ -226,6 +281,10 @@ const OrderListFull = ({ isAdmin }) => {
       `utmCampaign=${encodeURIComponent(selectedUTMFilters.campaign || '')}`,
       `utmTerm=${encodeURIComponent(selectedUTMFilters.term || '')}`,
       `utmContent=${encodeURIComponent(selectedUTMFilters.content || '')}`,
+      selectedVariants.length > 0 ? `variants=${selectedVariants.join(',')}` : '',
+      onlyIncludeSelectedVariants ? `onlyIncludeSelectedVariants=true` : '',
+      singleVariantOnly ? `singleVariantOnly=true` : '',
+      singleItemCountOnly ? `singleItemCountOnly=true` : '',
     ].filter(param => param !== '');
 
     const queryString = queryParams.join('&');
@@ -283,6 +342,10 @@ const OrderListFull = ({ isAdmin }) => {
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     setSelectedProblematicFilter('');
+    setSelectedVariants([]);
+    setOnlyIncludeSelectedVariants(false);
+    setSingleVariantOnly(false);
+    setSingleItemCountOnly(false);
   };
 
   // Handle custom date change
@@ -416,6 +479,10 @@ const OrderListFull = ({ isAdmin }) => {
       start: dayjs().startOf('day'),
       end: dayjs().endOf('day'),
     });
+    setSelectedVariants([]);
+    setOnlyIncludeSelectedVariants(false);
+    setSingleVariantOnly(false);
+    setSingleItemCountOnly(false);
   };
 
   return (
@@ -587,6 +654,15 @@ const OrderListFull = ({ isAdmin }) => {
           handleUTMFilterChange={handleUTMFilterChange}
           loadingUTMOptions={loadingUTMOptions}
           handleResetFilters={handleResetFilters}
+          variants={variants}
+          selectedVariants={selectedVariants}
+          setSelectedVariants={setSelectedVariants}
+          onlyIncludeSelectedVariants={onlyIncludeSelectedVariants}
+          setOnlyIncludeSelectedVariants={setOnlyIncludeSelectedVariants}
+          singleVariantOnly={singleVariantOnly}
+          setSingleVariantOnly={setSingleVariantOnly}
+          singleItemCountOnly={singleItemCountOnly}
+          setSingleItemCountOnly={setSingleItemCountOnly}
         />
       </Drawer>
 
@@ -713,6 +789,22 @@ const OrderListFull = ({ isAdmin }) => {
         </Alert>
       </Snackbar>
 
+      {/* Snackbar for Variant Selection Notifications */}
+      <Snackbar
+        open={variantSnackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setVariantSnackbar({ ...variantSnackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setVariantSnackbar({ ...variantSnackbar, open: false })}
+          severity={variantSnackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {variantSnackbar.message}
+        </Alert>
+      </Snackbar>
+
       {/* Sync Details Dialog */}
       <Dialog
         open={openSyncDetails}
@@ -754,7 +846,7 @@ const OrderListFull = ({ isAdmin }) => {
                             <Typography key={key} variant="body2" sx={{ color: 'text.secondary' }}>
                               <strong>{key}:</strong> {value}
                             </Typography>
-                          ))}
+                          ))}  
                         </Box>
                       )}
                     </Box>

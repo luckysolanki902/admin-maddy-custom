@@ -5,7 +5,7 @@ export default function Marketing() {
   const optionsWithLinks = [
     { text: ' Manage User Role', link: "/admin/access-management/userRole" },
     { text: ' Manage Path Role', link: '/admin/access-management/pathRole' },
-    { text: 'Order-List', link: '/admin/super/orders/order-list' },
+    { text: 'Orders Dashboard', link: '/admin/super/orders/order-list' },
   ];
   
 

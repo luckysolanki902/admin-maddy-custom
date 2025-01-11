@@ -1,3 +1,5 @@
+// /components/page-sections/DateRangeChips.js
+
 import React from 'react';
 import { Box, Chip, Stack } from '@mui/material';
 import dayjs from 'dayjs';
@@ -52,6 +54,19 @@ const DateRangeChips = ({
           variant={activeTag === 'yesterday' ? 'filled' : 'outlined'}
           color={activeTag === 'yesterday' ? 'primary' : 'default'}
         />
+
+        <Chip
+          label="This Month"
+          onClick={() => handleMonthSelection('thisMonth')}
+          variant={activeTag === 'thisMonth' ? 'filled' : 'outlined'}
+          color={activeTag === 'thisMonth' ? 'primary' : 'default'}
+        />
+        <Chip
+          label="Last Month"
+          onClick={() => handleMonthSelection('lastMonth')}
+          variant={activeTag === 'lastMonth' ? 'filled' : 'outlined'}
+          color={activeTag === 'lastMonth' ? 'primary' : 'default'}
+        />
         <Chip
           label="Last 7 Days"
           onClick={() => {
@@ -72,24 +87,14 @@ const DateRangeChips = ({
           variant={activeTag === 'last30days' ? 'filled' : 'outlined'}
           color={activeTag === 'last30days' ? 'primary' : 'default'}
         />
-        <Chip
-          label="This Month"
-          onClick={() => handleMonthSelection('thisMonth')}
-          variant={activeTag === 'thisMonth' ? 'filled' : 'outlined'}
-          color={activeTag === 'thisMonth' ? 'primary' : 'default'}
-        />
-        <Chip
-          label="Last Month"
-          onClick={() => handleMonthSelection('lastMonth')}
-          variant={activeTag === 'lastMonth' ? 'filled' : 'outlined'}
-          color={activeTag === 'lastMonth' ? 'primary' : 'default'}
-        />
+
         <Chip
           label="All"
           onClick={handleAllTagClick}
           variant={activeTag === 'all' ? 'filled' : 'outlined'}
           color={activeTag === 'all' ? 'primary' : 'default'}
         />
+
         <Chip
           label="Custom Day"
           onClick={() => {

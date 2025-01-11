@@ -1,4 +1,5 @@
 // /models/Product.js
+
 const mongoose = require('mongoose');
 
 function toTitleCase(str) {
@@ -125,12 +126,12 @@ const ProductSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Text index for search functionality
 ProductSchema.index(
   {
     title: 'text',
-    searchKeywords: 'text',
     mainTags: 'text',
-    description: 'text',
+    description: 'text', // Assuming there's a description field
   },
   {
     weights: {
@@ -151,9 +152,5 @@ ProductSchema.index(
   { specificCategoryVariant: 1, title: 1 },
   { unique: true, name: 'VariantTitleUnique', collation: { locale: 'en', strength: 2 } }
 );
-
-
-
-
 
 module.exports = mongoose.models.Product || mongoose.model('Product', ProductSchema);

@@ -2,12 +2,13 @@
 
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
+import Product from '@/models/Product';
+import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import mongoose from 'mongoose';
 import SpecificCategory from '@/models/SpecificCategory';
-import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
-import Product from '@/models/Product';
 import User from '@/models/User';
 import ModeOfPayment from '@/models/ModeOfPayment';
 
@@ -35,6 +36,10 @@ dayjs.extend(timezone);
  * - utmCampaign: String
  * - utmTerm: String
  * - utmContent: String
+ * - variants: Comma-separated String of SpecificCategoryVariant IDs
+ * - onlyIncludeSelectedVariants: Boolean
+ * - singleVariantOnly: Boolean
+ * - singleItemCountOnly: Boolean
  */
 
 export async function GET(req) {
@@ -57,6 +62,11 @@ export async function GET(req) {
     const utmCampaign = searchParams.get('utmCampaign') || '';
     const utmTerm = searchParams.get('utmTerm') || '';
     const utmContent = searchParams.get('utmContent') || '';
+    const variantsParam = searchParams.get('variants') || ''; // Consistent naming
+    const onlyIncludeSelectedVariants = searchParams.get('onlyIncludeSelectedVariants') === 'true';
+    const singleVariantOnly = searchParams.get('singleVariantOnly') === 'true';
+    const singleItemCountOnly = searchParams.get('singleItemCountOnly') === 'true';
+
 
     const skip = (page - 1) * limit;
 
@@ -77,6 +87,7 @@ export async function GET(req) {
       baseQuery.paymentStatus = { $nin: ['pending', 'failed'] };
     }
 
+
     // Apply date range filter
     if (startDate && endDate) {
       const start = dayjs(startDate).toDate();
@@ -92,7 +103,7 @@ export async function GET(req) {
         baseQuery['address.receiverPhoneNumber'] = { $regex: new RegExp(searchInput, 'i') };
       } else if (searchField === 'orderId') {
         if (searchInput.match(/^[0-9a-fA-F]{24}$/)) { // Validate ObjectId
-          baseQuery['_id'] = searchInput;
+          baseQuery['_id'] = mongoose.Types.ObjectId(searchInput);
         } else {
           // If invalid ObjectId, set to null to return no results
           baseQuery['_id'] = null;
@@ -148,13 +159,68 @@ export async function GET(req) {
       baseQuery.$and = baseQuery.$and ? baseQuery.$and.concat(utmConditions) : utmConditions;
     }
 
+    // Apply Variant Filters
+    if (variantsParam) {
+      const variantIds = variantsParam.split(',').filter(id => mongoose.Types.ObjectId.isValid(id));
+      if (variantIds.length > 0) {
+        // Fetch Products that have specificCategoryVariant in variantIds
+        const products = await Product.find({
+          specificCategoryVariant: { $in: variantIds }
+        }).select('_id').lean();
+        
+        
+        const productIdsFromVariants = products.map(product => product._id); // Keep as ObjectId
+
+        if (productIdsFromVariants.length === 0) {
+          // If no products match the variants, the query should return no results
+          baseQuery['items.product'] = { $in: [] };
+        } else {
+          if (onlyIncludeSelectedVariants) {
+            // Ensure all products in the order are from the selected variants
+            baseQuery['items'] = { 
+              $not: { 
+                $elemMatch: { 
+                  'product': { $nin: productIdsFromVariants } 
+                } 
+              } 
+            };
+          } else {
+            // Include orders that have any product from the selected variants
+            baseQuery['items.product'] = { $in: productIdsFromVariants };
+          }
+        }
+      }
+    }
+
+    // Apply Single Variant Only
+    if (singleVariantOnly && variantsParam) {
+      const variantIds = variantsParam.split(',').filter(id => mongoose.Types.ObjectId.isValid(id));
+      if (variantIds.length > 0) {
+        // Ensure that all products in the order belong to one variant
+        // This requires that the number of unique specificCategoryVariant IDs in the order is 1
+        baseQuery.$expr = {
+          $eq: [
+            { $size: { $setIntersection: [
+              { $map: { 
+                input: "$items.product", 
+                as: "prod", 
+                in: "$$prod.specificCategoryVariant" 
+              } },
+              variantIds.map(id => mongoose.Types.ObjectId(id))
+            ] } },
+            1
+          ]
+        };
+      }
+    }
+
+    // Apply Single Item Count Only
+    if (singleItemCountOnly) {
+      baseQuery.itemsCount = 1;
+    }
+
     /**
      * Function to calculate aggregates based on the query
-     * Updated Formulas:
-     * - grossSales = sum(itemsTotal)
-     * - revenue = sum(totalAmount) // Includes extra charges
-     * - aov = revenue / count
-     * - discountRate = (sum(totalDiscount) / grossSales) * 100
      */
     const calculateAggregates = async (query) => {
       const aggregationResult = await Order.aggregate([
@@ -171,6 +237,7 @@ export async function GET(req) {
         }
       ]);
 
+
       if (aggregationResult.length > 0) {
         const {
           sumTotalAmount,
@@ -184,6 +251,7 @@ export async function GET(req) {
         const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
         const aov = count > 0 ? revenue / count : 0;
         const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
+
 
         return {
           grossSales,
@@ -212,7 +280,7 @@ export async function GET(req) {
     /**
      * Function to fetch orders based on a query with pagination and population
      */
-    const fetchOrders = async (query, pageNumber = page, limitNumber = limit) => {
+    const fetchOrdersFromQuery = async (query, pageNumber = page, limitNumber = limit) => {
       // Calculate aggregates
       const aggregates = await calculateAggregates(query);
       const {
@@ -253,6 +321,7 @@ export async function GET(req) {
         })
         .populate('paymentDetails.mode');
 
+
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
@@ -270,6 +339,14 @@ export async function GET(req) {
         discountRate,
         oldestOrderDate: formattedOldestOrderDate,
       };
+    };
+
+    /**
+     * Function to fetch orders based on a query
+     */
+    const fetchOrdersFinal = async (query) => {
+      const result = await fetchOrdersFromQuery(query);
+      return result;
     };
 
     // Handle problematic filters
@@ -295,6 +372,7 @@ export async function GET(req) {
             { status: 400 }
           );
       }
+
 
       // Combine baseQuery with problematicCondition
       const problematicQuery = { ...baseQuery, ...problematicCondition };
@@ -338,6 +416,7 @@ export async function GET(req) {
           },
         })
         .populate('paymentDetails.mode');
+
 
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
@@ -402,6 +481,7 @@ export async function GET(req) {
           },
         })
         .populate('paymentDetails.mode');
+
 
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;

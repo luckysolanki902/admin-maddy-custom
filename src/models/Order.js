@@ -1,4 +1,4 @@
-// models/Order.js
+// /models/Order.js
 
 const mongoose = require('mongoose');
 
@@ -66,7 +66,7 @@ const OrderSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    // Inludes delivery charges, MOP Charges (charges if you pay some part of the amount online and rest on cod)
+    // Includes delivery charges, MOP Charges (charges if you pay some part of the amount online and rest on COD)
     extraCharges: [
       {
         chargesName: {
@@ -279,5 +279,9 @@ OrderSchema.pre('findOneAndUpdate', function(next) {
   
   next();
 });
+
+// Indexes for better performance
+OrderSchema.index({ 'address.receiverName': 'text', 'address.receiverPhoneNumber': 'text' });
+OrderSchema.index({ 'items.product': 1 });
 
 module.exports = mongoose.models.Order || mongoose.model('Order', OrderSchema);

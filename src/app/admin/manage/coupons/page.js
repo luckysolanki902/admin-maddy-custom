@@ -1,3 +1,5 @@
+// src/app/page.js
+
 "use client"; // Ensure this is the first line if using client-side hooks
 
 import { useState, useEffect } from 'react';
@@ -26,7 +28,6 @@ import {
     Switch,
     Tooltip,
     Grid,
-    Box,
     useMediaQuery,
     useTheme,
     Card,
@@ -71,6 +72,7 @@ const CouponPage = () => {
             }
             const data = await res.json();
             setCoupons(data);
+            console.log('Fetched coupons:', data);
         } catch (error) {
             console.error(error);
             setSnackbarMessage('Error fetching coupons.');
@@ -93,6 +95,7 @@ const CouponPage = () => {
                 usagePerUser: coupon.usagePerUser || 1,
                 _id: coupon._id || null, // Ensure _id is handled
             });
+            console.log('Opened dialog for editing coupon:', coupon);
         } else {
             setCurrentCoupon({
                 code: '',
@@ -108,6 +111,7 @@ const CouponPage = () => {
                 usagePerUser: 1,
                 _id: null,
             });
+            console.log('Opened dialog for creating new coupon.');
         }
         setOpenDialog(true);
     };
@@ -128,57 +132,89 @@ const CouponPage = () => {
             _id: null,
         });
         setOpenDialog(false);
+        console.log('Closed dialog.');
     };
 
     const handleSaveCoupon = async () => {
         // Basic validation
         if (!currentCoupon.code || !currentCoupon.validFrom || !currentCoupon.validUntil) {
             setSnackbarMessage('Please fill all required fields.');
+            console.warn('Save coupon validation failed: Missing required fields.');
             return;
         }
-
+    
         // Ensure validUntil is after validFrom
         if (new Date(currentCoupon.validUntil) <= new Date(currentCoupon.validFrom)) {
             setSnackbarMessage('Valid Until date must be after Valid From date.');
+            console.warn('Save coupon validation failed: validUntil is not after validFrom.');
             return;
         }
-
+    
         const method = currentCoupon._id ? 'PUT' : 'POST';
         const endpoint = currentCoupon._id
             ? `/api/admin/manage/coupons/${currentCoupon._id}`
             : '/api/admin/manage/coupons';
-
+    
+        console.log(`Saving coupon with method ${method} to endpoint ${endpoint}:`, currentCoupon);
+    
         try {
             const res = await fetch(endpoint, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(currentCoupon),
             });
-
+    
+            console.log(`Response status: ${res.status}`);
+            const responseData = await res.json();
+            console.log('Response data:', responseData);
+    
             if (res.ok) {
+                const updatedOrNewCoupon = responseData;
+    
+                // Update the local state based on the server's response
+                setCoupons((prevCoupons) => {
+                    if (currentCoupon._id) {
+                        // Update existing coupon
+                        return prevCoupons.map((coupon) =>
+                            coupon._id === currentCoupon._id ? updatedOrNewCoupon : coupon
+                        );
+                    } else {
+                        // Add new coupon
+                        return [updatedOrNewCoupon, ...prevCoupons];
+                    }
+                });
+    
                 setSnackbarMessage(`Coupon ${currentCoupon._id ? 'updated' : 'created'} successfully!`);
-                fetchCoupons();
+                console.log(`Coupon ${currentCoupon._id ? 'updated' : 'created'} successfully.`);
                 handleDialogClose();
             } else {
-                const errorData = await res.json();
-                throw new Error(errorData.message || 'Error saving coupon.');
+                const errorData = responseData;
+                throw new Error(errorData.error || 'Error saving coupon.');
             }
         } catch (error) {
             console.error('Save Coupon Error:', error);
             setSnackbarMessage(`Error: ${error.message}`);
         }
     };
+    
 
     const handleDeleteCoupon = async (id) => {
         if (confirm('Are you sure you want to delete this coupon?')) {
+            console.log(`Attempting to delete coupon ID: ${id}`);
             try {
                 const res = await fetch(`/api/admin/manage/coupons/${id}`, { method: 'DELETE' });
+                console.log(`DELETE response status: ${res.status}`);
+                const responseData = await res.json();
+                console.log('DELETE response data:', responseData);
+
                 if (res.ok) {
+                    setCoupons((prevCoupons) => prevCoupons.filter((coupon) => coupon._id !== id));
                     setSnackbarMessage('Coupon deleted successfully!');
-                    fetchCoupons();
+                    console.log('Coupon deleted successfully.');
                 } else {
-                    const errorData = await res.json();
+                    const errorData = responseData;
                     setSnackbarMessage(`Error: ${errorData.error || 'Failed to delete coupon.'}`);
+                    console.warn(`Failed to delete coupon ID ${id}:`, errorData.error);
                 }
             } catch (error) {
                 console.error('Delete Coupon Error:', error);
@@ -200,6 +236,8 @@ const CouponPage = () => {
             ...prev,
             [name]: newValue,
         }));
+
+        console.log(`Updated ${name} to:`, newValue);
     };
 
     const generateRandomCode = () => {
@@ -209,9 +247,11 @@ const CouponPage = () => {
             code += characters.charAt(Math.floor(Math.random() * characters.length));
         }
         setCurrentCoupon((prev) => ({ ...prev, code }));
+        console.log('Generated random code:', code);
     };
 
     const handleToggleActive = async (id, isActive) => {
+        console.log(`Toggling isActive for coupon ID ${id} to: ${isActive}`);
         try {
             const res = await fetch(`/api/admin/manage/coupons/${id}`, {
                 method: 'PUT',
@@ -219,12 +259,22 @@ const CouponPage = () => {
                 body: JSON.stringify({ isActive }),
             });
 
+            console.log(`Toggle Active response status: ${res.status}`);
+            const responseData = await res.json();
+            console.log('Toggle Active response data:', responseData);
+
             if (res.ok) {
+                const updatedCoupon = responseData;
+                setCoupons((prevCoupons) =>
+                    prevCoupons.map((coupon) =>
+                        coupon._id === id ? updatedCoupon : coupon
+                    )
+                );
                 setSnackbarMessage('Coupon status updated successfully!');
-                fetchCoupons();
+                console.log('Coupon status updated successfully.');
             } else {
-                const errorData = await res.json();
-                throw new Error(errorData.message || 'Error updating coupon status.');
+                const errorData = responseData;
+                throw new Error(errorData.error || 'Error updating coupon status.');
             }
         } catch (error) {
             console.error('Toggle Active Error:', error);
@@ -270,9 +320,6 @@ const CouponPage = () => {
                                             ? `${coupon.discountValue}%`
                                             : `₹${coupon.discountValue}`}
                                     </Typography>
-                                    {/* <Typography variant="body1">
-                                        <strong>Description:</strong> {coupon.description || 'N/A'}
-                                    </Typography> */}
                                     <Typography variant="body1">
                                         <strong>Valid From:</strong> {format(new Date(coupon.validFrom), 'yyyy-MM-dd')}
                                     </Typography>
@@ -282,12 +329,6 @@ const CouponPage = () => {
                                     <Typography variant="body1">
                                         <strong>Minimum Purchase:</strong> ₹{coupon.minimumPurchasePrice}
                                     </Typography>
-                                    {/* <Typography variant="body1">
-                                        <strong>Max Uses:</strong> {coupon.maxUses}
-                                    </Typography> */}
-                                    {/* <Typography variant="body1">
-                                        <strong>Usage Per User:</strong> {coupon.usagePerUser}
-                                    </Typography> */}
                                     <FormControlLabel
                                         control={
                                             <Checkbox
@@ -336,9 +377,9 @@ const CouponPage = () => {
                                 <TableCell>Valid From</TableCell>
                                 <TableCell>Valid Until</TableCell>
                                 <TableCell>Minimum Purchase</TableCell>
-                                {/* <TableCell>Max Uses</TableCell> */}
                                 <TableCell>Show as Card</TableCell>
                                 <TableCell>Active</TableCell>
+                                <TableCell>Actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -520,18 +561,6 @@ const CouponPage = () => {
                             }}
                             required
                         />
-
-                        {/* Max Uses */}
-                        {/* <TextField
-                            name="maxUses"
-                            label="Max Uses"
-                            type="number"
-                            variant="outlined"
-                            value={currentCoupon.maxUses}
-                            onChange={handleInputChange}
-                            fullWidth
-                            inputProps={{ min: 0 }}
-                        /> */}
                     </Stack>
                 </DialogContent>
                 <DialogActions>

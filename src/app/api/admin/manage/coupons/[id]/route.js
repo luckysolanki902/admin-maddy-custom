@@ -1,4 +1,4 @@
-// ./src/app/api/admin/manage/coupons/[id].js
+// src/app/api/admin/manage/coupons/[id]/route.js
 
 import Coupon from '@/models/Coupon';
 import { connectToDatabase } from "@/lib/db";
@@ -6,61 +6,120 @@ import { ObjectId } from 'mongodb';
 
 // Handle PUT and DELETE requests for a specific coupon
 export async function PUT(request, { params }) {
-    const { id } = await params;
+    const { id } = params;
+
+    // Validate ObjectId format
+    if (!ObjectId.isValid(id)) {
+        return new Response(JSON.stringify({ error: 'Invalid coupon ID format.' }), { status: 400 });
+    }
 
     try {
         await connectToDatabase();
-        const data = await request.json();
 
-        // Ensure the coupon exists
-        const coupon = await Coupon.findById(id);
-        if (!coupon) {
+        const data = await request.json();
+        console.log(`PUT request data for ID ${id}:`, data);
+
+        // Remove '_id' from updateFields if present
+        if ('_id' in data) {
+            console.log('Removing _id from update data.');
+            delete data._id;
+        }
+
+        // Ensure code is uppercase if provided
+        if (data.code) {
+            data.code = data.code.toUpperCase();
+            console.log(`Updating code to: ${data.code}`);
+        }
+
+        // Validate discountType if provided
+        if (data.discountType) {
+            if (!['fixed', 'percentage'].includes(data.discountType)) {
+                console.warn(`PUT validation failed: Invalid discount type (${data.discountType}).`);
+                return new Response(JSON.stringify({ error: 'Invalid discount type.' }), { status: 400 });
+            }
+            console.log(`Updating discountType to: ${data.discountType}`);
+        }
+
+        // Parse and validate dates if provided
+        if (data.validFrom) {
+            const parsedValidFrom = new Date(data.validFrom);
+            if (isNaN(parsedValidFrom.getTime())) {
+                console.warn(`PUT validation failed: Invalid validFrom date format (${data.validFrom}).`);
+                return new Response(JSON.stringify({ error: 'Invalid validFrom date format.' }), { status: 400 });
+            }
+            data.validFrom = parsedValidFrom;
+            console.log(`Updating validFrom to: ${parsedValidFrom}`);
+        }
+        if (data.validUntil) {
+            const parsedValidUntil = new Date(data.validUntil);
+            if (isNaN(parsedValidUntil.getTime())) {
+                console.warn(`PUT validation failed: Invalid validUntil date format (${data.validUntil}).`);
+                return new Response(JSON.stringify({ error: 'Invalid validUntil date format.' }), { status: 400 });
+            }
+            data.validUntil = parsedValidUntil;
+            console.log(`Updating validUntil to: ${parsedValidUntil}`);
+        }
+
+        // Manual Validation: Ensure validUntil > validFrom if both are provided
+        if (data.validFrom && data.validUntil) {
+            console.log(`Validating dates: validFrom (${data.validFrom}) < validUntil (${data.validUntil})`);
+            if (data.validUntil <= data.validFrom) {
+                console.warn('PUT validation failed: validUntil is not after validFrom.');
+                return new Response(JSON.stringify({ error: 'Valid Until date must be after Valid From date.' }), { status: 400 });
+            }
+        }
+
+        // Perform the update using findByIdAndUpdate
+        const updatedCoupon = await Coupon.findByIdAndUpdate(
+            id,
+            { $set: data },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedCoupon) {
+            console.warn(`PUT validation failed: Coupon not found (${id}).`);
             return new Response(JSON.stringify({ error: 'Coupon not found.' }), { status: 404 });
         }
 
-        // Update fields
-        const updateFields = { ...data };
-        if (updateFields.code) {
-            updateFields.code = updateFields.code.toUpperCase();
-        }
+        console.log('Successfully updated coupon:', updatedCoupon);
 
-        // Validate validUntil > validFrom if dates are being updated
-        if (updateFields.validFrom || updateFields.validUntil) {
-            const validFrom = updateFields.validFrom ? new Date(updateFields.validFrom) : coupon.validFrom;
-            const validUntil = updateFields.validUntil ? new Date(updateFields.validUntil) : coupon.validUntil;
-
-            if (validUntil <= validFrom) {
-                return new Response(JSON.stringify({ error: 'Valid Until date must be after Valid From date.' }), { status: 400 });
-            }
-
-            updateFields.validFrom = validFrom;
-            updateFields.validUntil = validUntil;
-        }
-
-        // Update the coupon
-        const updatedCoupon = await Coupon.findByIdAndUpdate(id, updateFields, { new: true, runValidators: true });
         return new Response(JSON.stringify(updatedCoupon), { status: 200 });
     } catch (error) {
         console.error('Error updating coupon:', error);
         let errorMessage = 'Failed to update coupon.';
         if (error.code === 11000) { // Duplicate key error
             errorMessage = 'Coupon code must be unique.';
+        } else if (error.name === 'ValidationError') {
+            // Aggregate validation error messages
+            const messages = Object.values(error.errors).map(err => err.message);
+            errorMessage = messages.join(' ');
         }
-        return new Response(JSON.stringify({ error: errorMessage }), { status: 500 });
+        return new Response(JSON.stringify({ error: errorMessage, details: error.errors || error.message }), { status: 500 });
     }
 }
 
 export async function DELETE(request, { params }) {
     const { id } = params;
+    console.log(`Received DELETE request for coupon ID: ${id}`);
+
+    // Validate ObjectId format
+    if (!ObjectId.isValid(id)) {
+        console.warn(`DELETE validation failed: Invalid coupon ID format (${id}).`);
+        return new Response(JSON.stringify({ error: 'Invalid coupon ID format.' }), { status: 400 });
+    }
 
     try {
         await connectToDatabase();
+
         const coupon = await Coupon.findById(id);
         if (!coupon) {
+            console.warn(`DELETE validation failed: Coupon not found (${id}).`);
             return new Response(JSON.stringify({ error: 'Coupon not found.' }), { status: 404 });
         }
 
         await Coupon.findByIdAndDelete(id);
+        console.log(`Successfully deleted coupon ID: ${id}`);
+
         return new Response(JSON.stringify({ message: 'Coupon deleted successfully.' }), { status: 200 });
     } catch (error) {
         console.error('Error deleting coupon:', error);

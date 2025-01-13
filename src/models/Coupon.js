@@ -1,4 +1,4 @@
-// models/Coupon.js
+// ./models/Coupon.js
 
 const mongoose = require('mongoose');
 
@@ -47,7 +47,8 @@ const CouponSchema = new mongoose.Schema(
     },
     usagePerUser: {
       type: Number,
-      default: 100,
+      default: 1,
+      min: 1,
     },
     usageCount: {
       type: Number,
@@ -64,17 +65,17 @@ const CouponSchema = new mongoose.Schema(
     validUntil: {
       type: Date,
       required: true,
-      validate: {
-        validator: function (value) {
-          return value > this.validFrom;
-        },
-        message: 'validUntil must be after validFrom',
-      },
     },
     // Indicates if the coupon is currently active
     isActive: {
       type: Boolean,
       default: true,
+    },
+    // Max Uses
+    maxUses: {
+      type: Number,
+      default: 10000,
+      min: 0,
     },
   },
   { timestamps: true }

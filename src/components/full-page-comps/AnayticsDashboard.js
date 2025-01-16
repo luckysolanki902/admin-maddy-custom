@@ -18,8 +18,9 @@ import SalesSourcesChart from '@/components/analytics/main/SalesSourcesChart';
 import ReturningPayingUsersChart from '@/components/analytics/main/ReturningPayingUsersChart';
 import VariantSalesChart from '@/components/analytics/main/VariantSalesChart';
 import AbandonedCartsChart from '@/components/analytics/main/AbandonedCartsChart';
-import DailyRevenueChart from '@/components/analytics/main/DailyRevenueChart'; // New chart
-import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart'; // New chart
+import DailyRevenueChart from '@/components/analytics/main/DailyRevenueChart';
+import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart';
+import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import { styled } from '@mui/material/styles';
 import dayjs from '@/lib/dayjsConfig'; // Centralized Day.js import
@@ -32,21 +33,29 @@ const LoadingContainer = styled(Box)(() => ({
 }));
 
 const AnalyticsDashboard = ({ admin }) => {
+    // State for date range selections
     const [dateRange, setDateRange] = useState({
         start: dayjs().subtract(6, 'day').startOf('day').toDate(),
         end: dayjs().endOf('day').toDate(),
     });
     const [activeTag, setActiveTag] = useState('last7days'); // Default active tag
+
+    // State for charts that respect date ranges
     const [salesSources, setSalesSources] = useState([]);
     const [returningPayingUsers, setReturningPayingUsers] = useState([]);
     const [variantSales, setVariantSales] = useState([]);
     const [abandonedCarts, setAbandonedCarts] = useState([]);
-    const [dailyRevenue, setDailyRevenue] = useState([]); // New state for daily revenue
-    const [totalRevenue, setTotalRevenue] = useState([]); // New state for total revenue
+    const [dailyRevenue, setDailyRevenue] = useState([]);
+
+    // State for independent charts (do not respect date ranges)
+    const [totalRevenue, setTotalRevenue] = useState([]);
+    const [monthlyRevenue, setMonthlyRevenue] = useState([]);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Fetch Sales Sources Data
+    // --- Charts Respecting Date Range ---
+
     const fetchSalesSources = async () => {
         try {
             const query = new URLSearchParams();
@@ -68,7 +77,6 @@ const AnalyticsDashboard = ({ admin }) => {
         }
     };
 
-    // Fetch Returning Paying Users Data
     const fetchReturningPayingUsers = async () => {
         try {
             const query = new URLSearchParams();
@@ -90,7 +98,6 @@ const AnalyticsDashboard = ({ admin }) => {
         }
     };
 
-    // Fetch Variant Sales Data
     const fetchVariantSales = async () => {
         try {
             const query = new URLSearchParams();
@@ -112,7 +119,6 @@ const AnalyticsDashboard = ({ admin }) => {
         }
     };
 
-    // Fetch Abandoned Carts Data
     const fetchAbandonedCarts = async () => {
         try {
             const query = new URLSearchParams();
@@ -134,7 +140,6 @@ const AnalyticsDashboard = ({ admin }) => {
         }
     };
 
-    // Fetch Daily Revenue Data
     const fetchDailyRevenue = async () => {
         try {
             const query = new URLSearchParams();
@@ -156,15 +161,12 @@ const AnalyticsDashboard = ({ admin }) => {
         }
     };
 
-    // Fetch Total Revenue Data
-    const fetchTotalRevenue = async () => {
+    // --- Independent Charts (Do Not Respect Date Range) ---
+
+    // Fetch Total Revenue Without Date Range
+    const fetchTotalRevenueIndependent = async () => {
         try {
-            const query = new URLSearchParams();
-
-            if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-            if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-            const res = await fetch(`/api/admin/analytics/main/total-revenue?${query.toString()}`);
+            const res = await fetch(`/api/admin/analytics/main/total-revenue`);
 
             if (!res.ok) {
                 throw new Error('Failed to fetch total revenue data');
@@ -178,18 +180,35 @@ const AnalyticsDashboard = ({ admin }) => {
         }
     };
 
-    // Fetch All Data Concurrently
-    const fetchAllData = async () => {
+    // Fetch Monthly Revenue Without Date Range
+    const fetchMonthlyRevenueIndependent = async () => {
+        try {
+            const res = await fetch(`/api/admin/analytics/main/monthly-revenue`);
+
+            if (!res.ok) {
+                throw new Error('Failed to fetch monthly revenue data');
+            }
+
+            const data = await res.json();
+            setMonthlyRevenue(data.monthlyRevenue);
+        } catch (error) {
+            console.error('Error fetching monthly revenue:', error);
+            setError('Failed to load monthly revenue data. Please try again later.');
+        }
+    };
+
+    // --- Combined Fetching ---
+
+    const fetchChartsRespectingDateRange = async () => {
         setLoading(true);
         setError('');
         try {
             await Promise.all([
-                fetchDailyRevenue(),
-                fetchTotalRevenue(),
                 fetchSalesSources(),
                 fetchReturningPayingUsers(),
                 fetchVariantSales(),
                 fetchAbandonedCarts(),
+                fetchDailyRevenue(),
             ]);
         } catch (error) {
             // Individual fetch functions handle errors
@@ -198,13 +217,30 @@ const AnalyticsDashboard = ({ admin }) => {
         }
     };
 
-    // Initial Data Fetch and on Date Range Change
+    const fetchIndependentCharts = async () => {
+        try {
+            await Promise.all([
+                fetchTotalRevenueIndependent(),
+                fetchMonthlyRevenueIndependent(),
+            ]);
+        } catch (error) {
+            // Individual fetch functions handle errors
+        }
+    };
+
+    // --- Fetch All Data on Component Mount and on Date Range Change ---
+
     useEffect(() => {
-        fetchAllData();
+        // Fetch independent charts once on mount
+        fetchIndependentCharts();
+
+        // Fetch charts respecting date range whenever dateRange changes
+        fetchChartsRespectingDateRange();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dateRange]);
 
-    // Handlers for Date Range Chips
+    // --- Handlers for Date Range Chips ---
+
     const handleAllTagClick = () => {
         setActiveTag('all');
         setDateRange({ start: null, end: null });
@@ -244,7 +280,8 @@ const AnalyticsDashboard = ({ admin }) => {
         });
     };
 
-    // Display Error if Any
+    // --- Display Error if Any ---
+
     if (error) {
         return (
             <Container
@@ -369,11 +406,10 @@ const AnalyticsDashboard = ({ admin }) => {
             {/* Charts Grid */}
             <Grid container spacing={4} sx={{ marginTop: '1rem' }}>
 
-
                 {/* Sales Sources */}
                 <Grid item xs={12} md={6}>
                     {loading ? (
-                        <Skeleton variant="rectangular" height={450} />
+                        <Skeleton variant="rectangular" height={500} />
                     ) : (
                         <SalesSourcesChart data={salesSources} />
                     )}
@@ -382,7 +418,7 @@ const AnalyticsDashboard = ({ admin }) => {
                 {/* Returning Paying Users */}
                 <Grid item xs={12} md={6}>
                     {loading ? (
-                        <Skeleton variant="rectangular" height={450} />
+                        <Skeleton variant="rectangular" height={500} />
                     ) : (
                         <ReturningPayingUsersChart
                             data={returningPayingUsers}
@@ -395,7 +431,7 @@ const AnalyticsDashboard = ({ admin }) => {
                 {/* Variant Sales */}
                 <Grid item xs={12}>
                     {loading ? (
-                        <Skeleton variant="rectangular" height={450} />
+                        <Skeleton variant="rectangular" height={500} />
                     ) : (
                         <VariantSalesChart data={variantSales} />
                     )}
@@ -404,7 +440,7 @@ const AnalyticsDashboard = ({ admin }) => {
                 {/* Abandoned Carts */}
                 <Grid item xs={12}>
                     {loading ? (
-                        <Skeleton variant="rectangular" height={450} />
+                        <Skeleton variant="rectangular" height={500} />
                     ) : (
                         <AbandonedCartsChart data={abandonedCarts} />
                     )}
@@ -416,7 +452,7 @@ const AnalyticsDashboard = ({ admin }) => {
                         {/* Daily Revenue */}
                         <Grid item xs={12} md={6}>
                             {loading ? (
-                                <Skeleton variant="rectangular" height={450} />
+                                <Skeleton variant="rectangular" height={500} />
                             ) : (
                                 <DailyRevenueChart data={dailyRevenue} />
                             )}
@@ -425,9 +461,18 @@ const AnalyticsDashboard = ({ admin }) => {
                         {/* Total Revenue */}
                         <Grid item xs={12} md={6}>
                             {loading ? (
-                                <Skeleton variant="rectangular" height={450} />
+                                <Skeleton variant="rectangular" height={500} />
                             ) : (
                                 <TotalRevenueChart data={totalRevenue} />
+                            )}
+                        </Grid>
+
+                        {/* Monthly Revenue */}
+                        <Grid item xs={12}>
+                            {loading ? (
+                                <Skeleton variant="rectangular" height={500} />
+                            ) : (
+                                <MonthlyRevenueChart data={monthlyRevenue} />
                             )}
                         </Grid>
                     </>
@@ -435,6 +480,7 @@ const AnalyticsDashboard = ({ admin }) => {
             </Grid>
         </Container>
     );
+
 };
 
 export default AnalyticsDashboard;

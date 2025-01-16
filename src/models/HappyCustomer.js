@@ -50,6 +50,7 @@ const HappyCustomerSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // location, timestamp, testimonial
   },
   { timestamps: true }
 );

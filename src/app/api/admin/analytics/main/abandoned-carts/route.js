@@ -62,7 +62,6 @@ export async function GET(req) {
     ];
 
     const aggregatedData = await Order.aggregate(aggregationPipeline);
-console.log(aggregatedData)
     return new Response(JSON.stringify({ abandonedCarts: aggregatedData }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

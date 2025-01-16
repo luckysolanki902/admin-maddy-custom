@@ -29,7 +29,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import OrdersList from '@/components/page-sections/OrdersList';
-import DateRangeChips from '@/components/page-sections/DateRangeChips';
+import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import FiltersDrawer from '@/components/page-sections/FiltersDrawer';
 import CustomerCard from '../cards/CustomerCard';
 

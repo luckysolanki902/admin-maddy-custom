@@ -6,6 +6,8 @@ export default function Production() {
     { text: 'Download Templates', link: '/admin/download/download-production-templates' },
     { text: 'Orders Dashboard', link: '/admin/manage/orders/order-list' },
     { text: 'Design Search', link: '/admin/manage/orders/sku-search' },
+    { text: 'Analytics Dashboard', link: '/admin/analytics' },
+
   ];
 
   return (

@@ -469,7 +469,7 @@ const DownloadCustomersData = () => {
                                                         aria-labelledby="min-amount-spent-slider"
                                                         valueLabelDisplay="auto"
                                                         min={0}
-                                                        max={100000} // Adjust as needed
+                                                        max={5000} // Adjust as needed
                                                         step={200}
                                                     />
                                                     <Typography variant="body2" color="textSecondary">

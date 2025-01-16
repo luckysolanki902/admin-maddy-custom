@@ -1,5 +1,3 @@
-// /app/api/admin/analytics/main/monthly-revenue/route.js
-
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import dayjs from 'dayjs';
@@ -13,12 +11,11 @@ export async function GET(req) {
     const endDateParam = searchParams.get('endDate');
 
     let matchStage = {
-      paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] }, // Successful payments
+      paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
     };
 
     let startDate, endDate;
 
-    // Apply date range filter if provided
     if (startDateParam && endDateParam) {
       startDate = dayjs(startDateParam);
       endDate = dayjs(endDateParam);
@@ -27,7 +24,6 @@ export async function GET(req) {
         $lte: endDate.toDate(),
       };
     } else {
-      // If no date range is provided, determine min and max dates from data
       const dateRange = await Order.aggregate([
         { $match: matchStage },
         {
@@ -40,7 +36,6 @@ export async function GET(req) {
       ]);
 
       if (dateRange.length === 0) {
-        // No data available
         return new Response(JSON.stringify({ monthlyRevenue: [] }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -48,8 +43,7 @@ export async function GET(req) {
       }
 
       startDate = dayjs(dateRange[0].minDate).startOf('month');
-      endDate = dayjs(dateRange[0].maxDate).endOf('month');
-
+      endDate = dayjs().endOf('day');
       matchStage.createdAt = {
         $gte: startDate.toDate(),
         $lte: endDate.toDate(),
@@ -64,7 +58,7 @@ export async function GET(req) {
             year: { $year: '$createdAt' },
             month: { $month: '$createdAt' },
           },
-          monthlyRevenue: { $sum: '$itemsTotal' }, // Adjust field name if different
+          monthlyRevenue: { $sum: '$itemsTotal' },
         },
       },
       {
@@ -74,7 +68,7 @@ export async function GET(req) {
             $dateFromParts: {
               year: '$_id.year',
               month: '$_id.month',
-              day: 1, // Set day to 1 for uniformity
+              day: 1,
             },
           },
           monthlyRevenue: 1,
@@ -85,7 +79,6 @@ export async function GET(req) {
 
     const monthlyRevenueData = await Order.aggregate(aggregationPipeline);
 
-    // Generate all months within the range
     const allMonths = [];
     const months = endDate.diff(startDate, 'month') + 1;
 
@@ -93,18 +86,36 @@ export async function GET(req) {
       allMonths.push(startDate.add(i, 'month').format('YYYY-MM'));
     }
 
-    // Create a map for existing revenue data
     const revenueMap = {};
     monthlyRevenueData.forEach(entry => {
       const monthStr = dayjs(entry.date).format('YYYY-MM');
       revenueMap[monthStr] = entry.monthlyRevenue;
     });
 
-    // Fill missing months with zero revenue
-    const completeMonthlyRevenueData = allMonths.map(monthStr => ({
-      date: new Date(`${monthStr}-01`),
-      monthlyRevenue: revenueMap[monthStr] || 0,
-    }));
+    const currentMonthStr = dayjs().format('YYYY-MM');
+    const secondLastMonthStr = dayjs().subtract(1, 'month').format('YYYY-MM');
+
+    const completeMonthlyRevenueData = allMonths.map(monthStr => {
+      const isCurrentOrSecondLast = [currentMonthStr, secondLastMonthStr].includes(monthStr);
+
+      const actualRevenue = revenueMap[monthStr] || 0;
+      let predictedRevenue = null;
+
+      if (monthStr === currentMonthStr) {
+        const today = dayjs().date();
+        const totalDaysInMonth = dayjs().daysInMonth();
+        const averageDailyRevenue = actualRevenue / today;
+        predictedRevenue = Math.round(averageDailyRevenue * totalDaysInMonth);
+      } else if (monthStr === secondLastMonthStr) {
+        predictedRevenue = actualRevenue; // Second-to-last month predicted value equals actual
+      }
+
+      return {
+        date: new Date(`${monthStr}-01`),
+        monthlyRevenue: actualRevenue,
+        predictedRevenue: isCurrentOrSecondLast ? predictedRevenue : null,
+      };
+    });
 
     return new Response(JSON.stringify({ monthlyRevenue: completeMonthlyRevenueData }), {
       status: 200,

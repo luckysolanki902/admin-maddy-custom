@@ -1,4 +1,4 @@
-// components/EditCustomerDialog.js
+// components/page-sections/EditCustomerDialog.js
 
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';

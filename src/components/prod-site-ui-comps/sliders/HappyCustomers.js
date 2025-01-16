@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import styles from './styles/happycustomers.module.css';
 // import EditCustomerDialog from '';
-import EditCustomerDialog from '@/components/page-sections/common-utils/EditCustomerDialog';
+import EditCustomerDialog from '@/components/page-sections/EditCustomerDialog';
 import { Button, CircularProgress } from '@mui/material';
 
 export default function HappyCustomers({ parentSpecificCategoryId, noShadow, noHeading }) {

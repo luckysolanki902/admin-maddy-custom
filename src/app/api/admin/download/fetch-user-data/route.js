@@ -1,7 +1,6 @@
-// /app/api/admin/download-user-data/route.js
+// /app/api/admin/download/fetch-user-data/route.js
 
 import { NextResponse } from 'next/server';
-import { Parser } from 'json2csv';
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import SpecificCategory from '@/models/SpecificCategory';
@@ -22,7 +21,7 @@ export async function GET(req) {
         }
 
         const queryObj = JSON.parse(queryParam);
-        const { createdAt, items, tags, columns, loyalty } = queryObj;
+        const { createdAt, items, tags, columns, loyalty, page, pageSize } = queryObj;
 
         // Initialize the base aggregation pipeline
         const pipeline = [];
@@ -59,11 +58,11 @@ export async function GET(req) {
                     matchStage['items.product'] = { $in: productIds };
                 } else {
                     // If no products match, the pipeline should return no results
-                    return NextResponse.json({ message: 'No matching products found for the specified items.' }, { status: 404 });
+                    return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
                 }
             } else {
                 // If no specific categories match, the pipeline should return no results
-                return NextResponse.json({ message: 'No matching specific categories found for the specified items.' }, { status: 404 });
+                return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
             }
         }
 
@@ -105,27 +104,26 @@ export async function GET(req) {
             $unwind: '$items.product_details'
         });
 
-        // Group by User to compute loyalty metrics and prepare for orderCount
+        // Group by User to compute loyalty metrics
         const groupStage = {
             _id: '$user._id',
             fullName: { $first: '$user.name' },
             phoneNumber: { $first: '$user.phoneNumber' },
-            city: { $first: { $ifNull: ['$address.city', ''] } }, // Adjusted to match fetch-user-data
-            tags: { $first: { $ifNull: ['$extraFields.tags', 'default'] } }, // Adjusted to match fetch-user-data
-            purchaseCount: { $sum: 1 }, // Number of orders matching filters
+            city: { $first: { $ifNull: ['$address.city', ''] } }, // Corrected field reference
+            tags: { $first: { $ifNull: ['$extraFields.tags', 'default'] } }, // Corrected tags reference
+            orderCount: { $sum: 1 }, // Number of orders matching filters
             totalAmountSpent: { $sum: '$totalAmount' },
             itemPurchaseCounts: { $sum: '$items.quantity' },
             utmSource: { $first: '$utmDetails.source' },
             utmMedium: { $first: '$utmDetails.medium' },
             utmCampaign: { $first: '$utmDetails.campaign' },
-            specificCategoryIds: { $addToSet: '$items.product_details.specificCategory' }, // Adjusted to match fetch-user-data
+            specificCategoryIds: { $addToSet: '$items.product_details.specificCategory' }, // Corrected to specificCategory
         };
 
         pipeline.push({
             $group: groupStage
         });
 
-        // Add Order Count by performing a $lookup to count all orders per user
         pipeline.push({
             $lookup: {
                 from: 'orders', // Ensure the collection name is correct ('orders' vs. 'Order')
@@ -168,7 +166,6 @@ export async function GET(req) {
                 havingConditions.push({ totalAmountSpent: { $gte: loyalty.minAmountSpent } });
             }
             if (loyalty.minNumberOfOrders) {
-                // **Change Here:** Use 'orderCount' instead of 'purchaseCount'
                 havingConditions.push({ orderCount: { $gte: loyalty.minNumberOfOrders } });
             }
             if (loyalty.minItemsCount) {
@@ -213,6 +210,9 @@ export async function GET(req) {
             }
         });
 
+        // Add Order Count by performing a $lookup to count all orders per user
+       
+
         // Project the required fields based on selected columns
         const projectStage = {};
         if (columns && Array.isArray(columns) && columns.length > 0) {
@@ -240,9 +240,9 @@ export async function GET(req) {
                     case 'phoneNumber':
                         projectStage['Phone Number'] = { $concat: ['91', '$phoneNumber'] };
                         break;
-                    case 'purchaseCount':
-                        projectStage['Purchase Count'] = '$purchaseCount';
-                        break;
+                    // case 'purchaseCount':
+                    //     projectStage['Purchase Count'] = '$purchaseCount';
+                    //     break;
                     case 'itemPurchaseCounts':
                         projectStage['Item Purchase Counts'] = '$itemPurchaseCounts';
                         break;
@@ -290,29 +290,42 @@ export async function GET(req) {
             });
         }
 
+        // Implement Pagination using $facet
+        const currentPage = parseInt(page, 10) || 1;
+        const currentPageSize = parseInt(pageSize, 10) || 10;
+        const skip = (currentPage - 1) * currentPageSize;
+        const limit = currentPageSize;
+
+        pipeline.push({
+            $facet: {
+                customers: [
+                    { $skip: skip },
+                    { $limit: limit }
+                ],
+                totalRecords: [
+                    { $count: 'count' }
+                ]
+            }
+        });
+
         // Execute the aggregation pipeline
-        const customers = await Order.aggregate(pipeline).exec();
+        const results = await Order.aggregate(pipeline).exec();
+
+        const customers = results[0].customers;
+        const totalRecordsCount = results[0].totalRecords[0] ? results[0].totalRecords[0].count : 0;
 
         // Handle no matching customers
         if (!customers.length) {
-            return NextResponse.json({ message: 'No matching customers found.' }, { status: 404 });
+            return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
         }
 
-        // Convert data to CSV format
-        const fields = Object.keys(customers[0]);
-        const json2csvParser = new Parser({ fields });
-        const csv = json2csvParser.parse(customers);
-
-        // Set response headers for CSV download
-        return new NextResponse(csv, {
-            headers: {
-                'Content-Type': 'text/csv',
-                'Content-Disposition': 'attachment; filename=customers_data.csv',
-            },
-        });
+        // Return the JSON response
+        return NextResponse.json({
+            customers,
+            totalRecords: totalRecordsCount
+        }, { status: 200 });
     } catch (error) {
-        console.error('Error generating CSV:', error);
+        console.error('Error fetching user data:', error);
         return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
     }
 }
-

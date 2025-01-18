@@ -21,6 +21,7 @@ import AbandonedCartsChart from '@/components/analytics/main/AbandonedCartsChart
 import DailyRevenueChart from '@/components/analytics/main/DailyRevenueChart'; // New chart
 import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart'; // New chart
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
+import DownloadCustomersData from '@/components/analytics/main/DownloadCustomersData'; // Import the component
 import { styled } from '@mui/material/styles';
 import dayjs from '@/lib/dayjsConfig'; // Centralized Day.js import
 
@@ -369,7 +370,6 @@ const AnalyticsDashboard = ({ admin }) => {
             {/* Charts Grid */}
             <Grid container spacing={4} sx={{ marginTop: '1rem' }}>
 
-
                 {/* Sales Sources */}
                 <Grid item xs={12} md={6}>
                     {loading ? (
@@ -433,8 +433,17 @@ const AnalyticsDashboard = ({ admin }) => {
                     </>
                 }
             </Grid>
+
+            {/* Integrate DownloadCustomersData Component */}
+            <Box sx={{ marginTop: '4rem' }}>
+                <DownloadCustomersData
+                    dateRange={dateRange}
+                    activeTag={activeTag}
+                />
+            </Box>
         </Container>
     );
+
 };
 
 export default AnalyticsDashboard;

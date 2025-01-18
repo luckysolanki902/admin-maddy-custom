@@ -28,6 +28,7 @@ const UserSchema = new mongoose.Schema(
           type: String,
           required: true,
           match: /^\d{10}$/,
+          index: true
         },
         addressLine1: {
           type: String,

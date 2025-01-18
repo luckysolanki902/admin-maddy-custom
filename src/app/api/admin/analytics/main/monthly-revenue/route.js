@@ -1,5 +1,3 @@
-// /app/api/admin/analytics/main/daily-revenue/route.js
-
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import dayjs from 'dayjs';
@@ -13,12 +11,11 @@ export async function GET(req) {
     const endDateParam = searchParams.get('endDate');
 
     let matchStage = {
-      paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] }, // Successful payments
+      paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
     };
 
     let startDate, endDate;
 
-    // Apply date range filter if provided
     if (startDateParam && endDateParam) {
       startDate = dayjs(startDateParam);
       endDate = dayjs(endDateParam);
@@ -27,7 +24,6 @@ export async function GET(req) {
         $lte: endDate.toDate(),
       };
     } else {
-      // If no date range is provided, determine min and max dates from data
       const dateRange = await Order.aggregate([
         { $match: matchStage },
         {
@@ -40,16 +36,14 @@ export async function GET(req) {
       ]);
 
       if (dateRange.length === 0) {
-        // No data available
-        return new Response(JSON.stringify({ dailyRevenue: [] }), {
+        return new Response(JSON.stringify({ monthlyRevenue: [] }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      startDate = dayjs(dateRange[0].minDate).startOf('day');
-      endDate = dayjs(dateRange[0].maxDate).endOf('day');
-
+      startDate = dayjs(dateRange[0].minDate).startOf('month');
+      endDate = dayjs().endOf('day');
       matchStage.createdAt = {
         $gte: startDate.toDate(),
         $lte: endDate.toDate(),
@@ -63,9 +57,8 @@ export async function GET(req) {
           _id: {
             year: { $year: '$createdAt' },
             month: { $month: '$createdAt' },
-            day: { $dayOfMonth: '$createdAt' },
           },
-          dailyRevenue: { $sum: '$itemsTotal' }, // Adjust field name if different
+          monthlyRevenue: { $sum: '$itemsTotal' },
         },
       },
       {
@@ -75,48 +68,61 @@ export async function GET(req) {
             $dateFromParts: {
               year: '$_id.year',
               month: '$_id.month',
-              day: '$_id.day',
+              day: 1,
             },
           },
-          dailyRevenue: 1,
+          monthlyRevenue: 1,
         },
       },
       { $sort: { date: 1 } },
     ];
 
-    const dailyRevenueData = await Order.aggregate(aggregationPipeline); // Removed .lean()
+    const monthlyRevenueData = await Order.aggregate(aggregationPipeline);
 
-    // Determine the date range
-    const start = startDate ? dayjs(startDate) : dayjs(dailyRevenueData[0]?.date || new Date()).startOf('day');
-    const end = endDate ? dayjs(endDate) : dayjs(dailyRevenueData[dailyRevenueData.length - 1]?.date || new Date()).endOf('day');
+    const allMonths = [];
+    const months = endDate.diff(startDate, 'month') + 1;
 
-    // Generate all dates within the range
-    const allDates = [];
-    const days = end.diff(start, 'day') + 1;
-
-    for (let i = 0; i < days; i++) {
-      allDates.push(start.add(i, 'day').format('YYYY-MM-DD'));
+    for (let i = 0; i < months; i++) {
+      allMonths.push(startDate.add(i, 'month').format('YYYY-MM'));
     }
 
-    // Create a map for existing revenue data
     const revenueMap = {};
-    dailyRevenueData.forEach(entry => {
-      const dateStr = dayjs(entry.date).format('YYYY-MM-DD');
-      revenueMap[dateStr] = entry.dailyRevenue;
+    monthlyRevenueData.forEach(entry => {
+      const monthStr = dayjs(entry.date).format('YYYY-MM');
+      revenueMap[monthStr] = entry.monthlyRevenue;
     });
 
-    // Fill missing dates with zero revenue
-    const completeDailyRevenueData = allDates.map(dateStr => ({
-      date: new Date(dateStr),
-      dailyRevenue: revenueMap[dateStr] || 0,
-    }));
+    const currentMonthStr = dayjs().format('YYYY-MM');
+    const secondLastMonthStr = dayjs().subtract(1, 'month').format('YYYY-MM');
 
-    return new Response(JSON.stringify({ dailyRevenue: completeDailyRevenueData }), {
+    const completeMonthlyRevenueData = allMonths.map(monthStr => {
+      const isCurrentOrSecondLast = [currentMonthStr, secondLastMonthStr].includes(monthStr);
+
+      const actualRevenue = revenueMap[monthStr] || 0;
+      let predictedRevenue = null;
+
+      if (monthStr === currentMonthStr) {
+        const today = dayjs().date();
+        const totalDaysInMonth = dayjs().daysInMonth();
+        const averageDailyRevenue = actualRevenue / today;
+        predictedRevenue = Math.round(averageDailyRevenue * totalDaysInMonth);
+      } else if (monthStr === secondLastMonthStr) {
+        predictedRevenue = actualRevenue; // Second-to-last month predicted value equals actual
+      }
+
+      return {
+        date: new Date(`${monthStr}-01`),
+        monthlyRevenue: actualRevenue,
+        predictedRevenue: isCurrentOrSecondLast ? predictedRevenue : null,
+      };
+    });
+
+    return new Response(JSON.stringify({ monthlyRevenue: completeMonthlyRevenueData }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error fetching daily revenue:', error);
+    console.error('Error fetching monthly revenue:', error);
     return new Response(JSON.stringify({ message: 'Internal Server Error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

@@ -11,21 +11,22 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from 'recharts';
 import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
 
-// Define a palette of colors for variants
+// Define a palette of professional colors for variants
 const COLORS = [
-  '#8884d8', // Variant 1
-  '#82ca9d', // Variant 2
-  '#ffc658', // Variant 3
-  '#d0ed57', // Variant 4
-  '#a4de6c', // Variant 5
-  '#8dd1e1', // Variant 6
-  '#83a6ed', // Variant 7
-  '#8a2be2', // Variant 8
-  '#ff7f50', // Variant 9
-  '#ff6347', // Variant 10
+  '#1f77b4', // Variant 1 - Blue
+  '#ff7f0e', // Variant 2 - Orange
+  '#2ca02c', // Variant 3 - Green
+  '#d62728', // Variant 4 - Red
+  '#9467bd', // Variant 5 - Purple
+  '#8c564b', // Variant 6 - Brown
+  '#e377c2', // Variant 7 - Pink
+  '#7f7f7f', // Variant 8 - Gray
+  '#bcbd22', // Variant 9 - Olive
+  '#17becf', // Variant 10 - Cyan
   // Add more colors as needed
 ];
 
@@ -56,7 +57,7 @@ const CustomLegend = ({ dataKeys, variantColors, isSmallScreen }) => {
             sx={{
               width: 12,
               height: 12,
-              backgroundColor: variantColors[key] || COLORS[index % COLORS.length],
+              backgroundColor: variantColors[key]?.base || COLORS[index % COLORS.length],
               marginRight: 1,
             }}
           />
@@ -82,7 +83,7 @@ const VariantSalesChart = ({ data }) => {
   // Extract unique variants excluding 'Total'
   const variantNames = useMemo(() => {
     const variantsSet = new Set();
-    data.forEach(item => {
+    data.forEach((item) => {
       if (item.variant !== 'Total') {
         variantsSet.add(item.variant);
       }
@@ -94,10 +95,16 @@ const VariantSalesChart = ({ data }) => {
   const variantColors = useMemo(() => {
     const colorMap = {};
     variantNames.forEach((variant, index) => {
-      colorMap[variant] = COLORS[index % COLORS.length];
+      colorMap[variant] = {
+        base: COLORS[index % COLORS.length],
+        gradient: `url(#gradient-${index})`,
+      };
     });
     // Assign a distinct color for 'Total'
-    colorMap['Total'] = '#FF0000'; // Red color for Total
+    colorMap['Total'] = {
+      base: '#d9534f', // Bootstrap's red color for Total
+      gradient: `url(#gradient-total)`,
+    };
     return colorMap;
   }, [variantNames]);
 
@@ -105,7 +112,7 @@ const VariantSalesChart = ({ data }) => {
   const chartData = useMemo(() => {
     const groupedData = {};
 
-    data.forEach(item => {
+    data.forEach((item) => {
       if (!groupedData[item.category]) {
         groupedData[item.category] = { category: item.category };
       }
@@ -118,9 +125,9 @@ const VariantSalesChart = ({ data }) => {
     });
 
     // Add dummy variants to center single-variant categories
-    Object.keys(groupedData).forEach(category => {
+    Object.keys(groupedData).forEach((category) => {
       const currentVariants = Object.keys(groupedData[category]).filter(
-        key => key !== 'category' && key !== 'Total'
+        (key) => key !== 'category' && key !== 'Total'
       );
       const variantCount = currentVariants.length;
 
@@ -147,7 +154,7 @@ const VariantSalesChart = ({ data }) => {
   // List of dummy variant keys
   const dummyKeys = useMemo(() => {
     const keys = [];
-    data.forEach(item => {
+    data.forEach((item) => {
       if (item.variant === 'Total') return;
       // Identify dummy variants based on category
       keys.push('Dummy1');
@@ -193,6 +200,37 @@ const VariantSalesChart = ({ data }) => {
             bottom: isSmallScreen ? 100 : 50, // Increased bottom margin for angled labels
           }}
         >
+          {/* Define gradients */}
+          <defs>
+            {variantNames.map((variant, index) => (
+              <linearGradient
+                key={`gradient-${index}`}
+                id={`gradient-${index}`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="5%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.8} />
+                <stop offset="95%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.2} />
+              </linearGradient>
+            ))}
+            {/* Gradient for 'Total' */}
+            <linearGradient id="gradient-total" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#d9534f" stopOpacity={0.8} />
+              <stop offset="95%" stopColor="#d9534f" stopOpacity={0.2} />
+            </linearGradient>
+            {/* Gradients for dummy variants (transparent) */}
+            <linearGradient id="gradient-dummy1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#00000000" />
+              <stop offset="100%" stopColor="#00000000" />
+            </linearGradient>
+            <linearGradient id="gradient-dummy2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#00000000" />
+              <stop offset="100%" stopColor="#00000000" />
+            </linearGradient>
+          </defs>
+
           <CartesianGrid strokeDasharray="3 3" stroke="#555" />
           <XAxis
             dataKey="category"
@@ -205,21 +243,29 @@ const VariantSalesChart = ({ data }) => {
           />
           <YAxis stroke="#fff" allowDecimals={false} />
           <Tooltip
-            formatter={(value) =>
-              new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value)
-            }
+            formatter={(value) => value.toLocaleString('en-IN')}
             contentStyle={{ backgroundColor: '#333', border: 'none', borderRadius: '8px' }}
           />
           {/* Hide the default legend */}
           {/* <Legend /> */}
-          {dataKeys.map((key, index) => (
-            <Bar
-              key={key}
-              dataKey={key}
-              fill={variantColors[key] || COLORS[index % COLORS.length]}
-              name={key}
-            />
-          ))}
+          {dataKeys.map((key, index) => {
+            // Determine the fill based on whether it's a dummy variant
+            const isDummy = dummyKeys.includes(key);
+            const fill = isDummy
+              ? `url(#gradient-${key.toLowerCase()})`
+              : variantColors[key]?.gradient || `url(#gradient-${index})`;
+
+            return (
+              <Bar
+                key={key}
+                dataKey={key}
+                fill={fill}
+                name={key}
+                // Hide dummy bars by setting opacity to 0
+                opacity={isDummy ? 0 : 1}
+              />
+            );
+          })}
         </BarChart>
       </ResponsiveContainer>
 

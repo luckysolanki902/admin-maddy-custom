@@ -27,6 +27,8 @@ import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import { WhatsApp } from '@mui/icons-material';
+import Link from 'next/link';
 
 // Extend dayjs with plugins
 dayjs.extend(utc);
@@ -205,7 +207,17 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     onClick={handleCopyPhoneNumber}
                     sx={{ marginLeft: '4px' }}
                   >
-                    {phoneCopied ? <CheckIcon color="success" /> : <ContentCopyIcon fontSize="small" sx={{ color: '#2D7EE8' }} />}
+                    {phoneCopied ? <CheckIcon color="success" /> : <ContentCopyIcon fontSize="small" sx={{ color: 'rgb(200, 200, 200)' }} />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Open in Whatsapp Chat">
+                  <IconButton
+                    size="small"
+                    sx={{ marginLeft: '0px' }}
+                  >
+                    <Link style={{ display:'flex', alignItems: 'center', justifyContent:'center'}} href={`https://wa.me/${order.address?.receiverPhoneNumber}`} target='_blank'>
+                      <WhatsApp fontSize="small" sx={{ color: 'rgb(200, 200, 200)' }} />
+                    </Link>
                   </IconButton>
                 </Tooltip>
               </Box>
@@ -220,6 +232,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 sx={{
                   color: 'white',
                   fontSize: '0.9rem',
+                  textTransform: 'capitalize',
                 }}
               >
                 {order.utmDetails?.source || 'N/A'}
@@ -389,7 +402,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   variant="body2"
                   sx={{ fontSize: '0.85rem', color: 'text.secondary' }}
                 >
-                  Payment Mode: 
+                  Payment Mode:
                   <span style={{ marginLeft: '1rem', color: '#2D7EE8', fontWeight: '500' }}>
                     {order.paymentDetails?.mode?.name.toUpperCase() || 'COD'}
                   </span>
@@ -441,7 +454,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 {order.extraCharges.map((charge, index) => (
                   <ListItem key={index} disableGutters >
                     <ListItemText
-                    sx={{display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '1rem'}}
+                      sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '1rem' }}
                       primary={charge.chargesName || 'N/A'}
                       secondary={
                         <Typography component="span" variant="body2" color="text.secondary">
@@ -475,7 +488,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     <Grid item xs={6} key={key}>
                       <Typography
                         variant="body2"
-                        sx={{ fontSize: '0.85rem', color: 'text.secondary' }}
+                        sx={{ fontSize: '0.85rem', color: 'text.secondary', textTransform:'capitalize' }}
                       >
                         <strong>{key.toUpperCase()}:</strong> {value}
                       </Typography>

@@ -57,8 +57,18 @@ export async function GET(req) {
         // Stage 4: Add fields to count total orders
         pipeline.push({
             $addFields: {
-                orderCount: { $size: '$userOrders' },
-            }
+                orderCount: {
+                    $size: {
+                        $filter: {
+                            input: '$userOrders',
+                            as: 'order',
+                            cond: {
+                                $in: ['$$order.paymentStatus', ['paidPartially', 'allPaid', 'allToBePaidCod']],
+                            },
+                        },
+                    },
+                },
+            },
         });
 
         // Stage 5: Apply Date and Items Filters

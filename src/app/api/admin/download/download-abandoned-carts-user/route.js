@@ -13,7 +13,6 @@ await connectToDatabase();
 
 export async function GET(req) {
     try {
-        // Parse query parameters from the request URL
         const { searchParams } = new URL(req.url);
         const queryParam = searchParams.get('query');
 
@@ -22,9 +21,8 @@ export async function GET(req) {
         }
 
         const queryObj = JSON.parse(queryParam);
-        const { createdAt, items, tags, columns, loyalty } = queryObj;
+        const { createdAt, items, tags, columns, loyalty, page, pageSize } = queryObj;
 
-        // Initialize the base aggregation pipeline
         const pipeline = [];
 
         // Stage 1: Start with the User collection
@@ -37,34 +35,47 @@ export async function GET(req) {
             }
         });
 
-        // Stage 2: Add fields to count successful and total orders
+        // Stage 2: Add field to identify the most recent order for each user
         pipeline.push({
             $addFields: {
-                totalOrders: { $size: '$userOrders' },
-                successfulOrders: {
-                    $size: {
-                        $filter: {
-                            input: '$userOrders',
-                            as: 'order',
-                            cond: { $in: ['$$order.paymentStatus', ['paidPartially', 'allPaid', 'allToBePaidCod']] }
-                        }
-                    }
+                mostRecentOrder: {
+                    $arrayElemAt: [
+                        { $sortArray: { input: '$userOrders', sortBy: { createdAt: -1 } } },
+                        0,
+                    ],
+                }
+            }
+        });
+
+        // Stage 3: Match users whose most recent order is not successful
+        pipeline.push({
+            $match: {
+                'mostRecentOrder.paymentStatus': {
+                    $in: ['failed', 'pending', 'cancelled']
                 },
             }
         });
 
-        // Stage 3: Match users with at least one order and no successful orders
+        // Stage 4: Add fields to count total orders
         pipeline.push({
-            $match: {
-                totalOrders: { $gte: 1 },
-                successfulOrders: { $eq: 0 },
-            }
+            $addFields: {
+                orderCount: {
+                    $size: {
+                        $filter: {
+                            input: '$userOrders',
+                            as: 'order',
+                            cond: {
+                                $in: ['$$order.paymentStatus', ['paidPartially', 'allPaid', 'allToBePaidCod']],
+                            },
+                        },
+                    },
+                },
+            },
         });
 
-        // Stage 4: Apply Date and Items Filters
+        // Stage 5: Apply Date and Items Filters
         const matchStage = {};
 
-        // Date Filter
         if (createdAt) {
             if (createdAt.$or && Array.isArray(createdAt.$or)) {
                 matchStage.$or = createdAt.$or.map(cond => ({
@@ -76,40 +87,32 @@ export async function GET(req) {
             }
         }
 
-        // Items Filter
         if (items && Array.isArray(items) && items.length > 0) {
-            // Fetch specific category IDs based on item names
             const specificCategories = await SpecificCategory.find({ name: { $in: items } }).select('_id');
             const specificCategoryIds = specificCategories.map(cat => cat._id);
 
             if (specificCategoryIds.length > 0) {
-                // Fetch product IDs associated with these specific categories
                 const productIds = await Product.find({ specificCategory: { $in: specificCategoryIds } }).distinct('_id');
 
                 if (productIds.length > 0) {
                     matchStage['userOrders.items.product'] = { $in: productIds };
                 } else {
-                    // If no products match, the pipeline should return no results
-                    return NextResponse.json({ message: 'No matching products found for the specified items.' }, { status: 404 });
+                    return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
                 }
             } else {
-                // If no specific categories match, the pipeline should return no results
-                return NextResponse.json({ message: 'No matching specific categories found for the specified items.' }, { status: 404 });
+                return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
             }
         }
 
-        // Push the match stage if any additional filters are applied
         if (Object.keys(matchStage).length > 0) {
             pipeline.push({ $match: matchStage });
         }
 
-        // Stage 5: Unwind userOrders to process items
+        // Stage 6: Unwind userOrders and items
         pipeline.push({ $unwind: '$userOrders' });
-
-        // Stage 6: Unwind items within userOrders
         pipeline.push({ $unwind: '$userOrders.items' });
 
-        // Stage 7: Lookup to join with Product collection to get specificCategory
+        // Stage 7: Lookup product details
         pipeline.push({
             $lookup: {
                 from: 'products',
@@ -118,38 +121,34 @@ export async function GET(req) {
                 as: 'userOrders.items.product_details',
             }
         });
-
-        // Stage 8: Unwind product_details
         pipeline.push({ $unwind: '$userOrders.items.product_details' });
 
-        // Stage 9: Group by User to compute fields
-        const groupStage = {
-            _id: '$_id',
-            fullName: { $first: '$name' },
-            phoneNumber: { $first: '$phoneNumber' },
-            city: { $first: { $ifNull: ['$addresses.0.city', ''] } },
-            tags: { $first: { $ifNull: ['$tags', 'default'] } },
-            purchaseCount: { $sum: 1 }, // Number of abandoned orders
-            totalAmountSpent: { $sum: '$userOrders.totalAmount' }, // Assuming 'totalAmount' exists in Order schema
-            itemPurchaseCounts: { $sum: '$userOrders.items.quantity' }, // Total items purchased in abandoned orders
-            utmSource: { $first: '$userOrders.utmDetails.source' }, // Assuming 'utmDetails' exists in Order schema
-            utmMedium: { $first: '$userOrders.utmDetails.medium' },
-            utmCampaign: { $first: '$userOrders.utmDetails.campaign' },
-            specificCategoryIds: { $addToSet: '$userOrders.items.product_details.specificCategory' },
-        };
-
+        // Stage 8: Group by User
         pipeline.push({
-            $group: groupStage
+            $group: {
+                _id: '$_id',
+                fullName: { $first: '$name' },
+                phoneNumber: { $first: '$phoneNumber' },
+                city: { $first: { $ifNull: ['$addresses.city', ''] } },
+                tags: { $first: { $ifNull: ['$tags', 'default'] } },
+                orderCount: { $first: '$orderCount' },
+                totalAmountSpent: { $sum: '$userOrders.totalAmount' },
+                itemPurchaseCounts: { $sum: '$userOrders.items.quantity' },
+                utmSource: { $first: '$userOrders.utmDetails.source' },
+                utmMedium: { $first: '$userOrders.utmDetails.medium' },
+                utmCampaign: { $first: '$userOrders.utmDetails.campaign' },
+                specificCategoryIds: { $addToSet: '$userOrders.items.product_details.specificCategory' },
+            }
         });
 
-        // Stage 10: Apply Loyalty Filters
+        // Stage 9: Apply Loyalty Filters
         const havingConditions = [];
         if (loyalty) {
             if (loyalty.minAmountSpent) {
                 havingConditions.push({ totalAmountSpent: { $gte: loyalty.minAmountSpent } });
             }
             if (loyalty.minNumberOfOrders) {
-                havingConditions.push({ purchaseCount: { $gte: loyalty.minNumberOfOrders } });
+                havingConditions.push({ orderCount: { $gte: loyalty.minNumberOfOrders } });
             }
             if (loyalty.minItemsCount) {
                 havingConditions.push({ itemPurchaseCounts: { $gte: loyalty.minItemsCount } });
@@ -164,7 +163,7 @@ export async function GET(req) {
             });
         }
 
-        // Stage 11: Lookup Specific Categories based on specificCategoryIds
+        // Stage 10: Lookup Specific Categories
         pipeline.push({
             $lookup: {
                 from: 'specificcategories',
@@ -174,7 +173,7 @@ export async function GET(req) {
             }
         });
 
-        // Stage 12: Add Specific Category Names as comma-separated string
+        // Stage 11: Add Specific Category Names
         pipeline.push({
             $addFields: {
                 specificCategoryNames: {
@@ -193,7 +192,7 @@ export async function GET(req) {
             }
         });
 
-        // Stage 13: Project the required fields based on selected columns
+        // Stage 12: Project Fields
         const projectStage = {};
         if (columns && Array.isArray(columns) && columns.length > 0) {
             columns.forEach(col => {
@@ -202,9 +201,7 @@ export async function GET(req) {
                         projectStage['Full Name'] = '$fullName';
                         break;
                     case 'firstName':
-                        projectStage['First Name'] = {
-                            $arrayElemAt: [{ $split: ['$fullName', ' '] }, 0]
-                        };
+                        projectStage['First Name'] = { $arrayElemAt: [{ $split: ['$fullName', ' '] }, 0] };
                         break;
                     case 'lastName':
                         projectStage['Last Name'] = {
@@ -220,8 +217,8 @@ export async function GET(req) {
                     case 'phoneNumber':
                         projectStage['Phone Number'] = { $concat: ['91', '$phoneNumber'] };
                         break;
-                    case 'purchaseCount':
-                        projectStage['Purchase Count'] = '$purchaseCount';
+                    case 'orderCount':
+                        projectStage['Order Count'] = '$orderCount';
                         break;
                     case 'itemPurchaseCounts':
                         projectStage['Item Purchase Counts'] = '$itemPurchaseCounts';
@@ -241,30 +238,22 @@ export async function GET(req) {
                     case 'specificCategory':
                         projectStage['Specific Category'] = '$specificCategoryNames';
                         break;
-                    case 'orderCount':
-                        // Not applicable here as all orders are abandoned (no successful orders)
-                        break;
                     default:
                         break;
                 }
             });
         } else {
-            // Default columns if none selected
             projectStage['Full Name'] = '$fullName';
             projectStage['Phone Number'] = { $concat: ['91', '$phoneNumber'] };
         }
 
-        pipeline.push({
-            $project: projectStage
-        });
+        pipeline.push({ $project: projectStage });
 
-        // Stage 14: If Tags are provided, filter by tags
+        // Stage 13: Filter by Tags
         if (tags) {
-            // Assuming tags are in 'extraFields.tags' as a string, comma-separated or space-separated
-            // Adjust the regex accordingly. Here, using word boundaries
             pipeline.push({
                 $match: {
-                    tags: { $regex: new RegExp(`\\b${tags}\\b`, 'i') } // Case-insensitive exact match within string
+                    tags: { $regex: new RegExp(`\\b${tags}\\b`, 'i') }
                 }
             });
         }

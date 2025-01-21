@@ -25,6 +25,7 @@ import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChi
 import DownloadCustomersData from '@/components/analytics/main/DownloadCustomersData'; // Import the component
 import { styled } from '@mui/material/styles';
 import dayjs from '@/lib/dayjsConfig'; // Centralized Day.js import
+import Link from 'next/link';
 
 const LoadingContainer = styled(Box)(() => ({
     display: 'flex',
@@ -443,7 +444,7 @@ const AnalyticsDashboard = ({ admin }) => {
                     {loading ? (
                         <Skeleton variant="rectangular" height={500} />
                     ) : (
-                        <AbandonedCartsChart data={abandonedCarts} />
+                        <Link href="/admin/analytics/abandoned-cart-users"><AbandonedCartsChart data={abandonedCarts} /></Link>
                     )}
                 </Grid>
 

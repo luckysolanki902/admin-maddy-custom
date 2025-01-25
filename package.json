@@ -28,6 +28,7 @@
     "busboy": "^1.6.0",
     "date-fns": "^2.29.3",
     "dayjs": "^1.11.13",
+    "dayjs-plugin-utc": "^0.1.2",
     "file-saver": "^2.0.5",
     "formidable": "^3.5.2",
     "get-stream": "^9.0.1",

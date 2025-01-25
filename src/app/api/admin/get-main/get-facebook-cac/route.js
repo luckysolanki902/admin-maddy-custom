@@ -29,7 +29,6 @@ export async function POST(req) {
     const AD_ACCOUNT_ID = process.env.FACEBOOK_AD_ACCOUNT_ID;
     const ACCESS_TOKEN = process.env.FACEBOOK_ACCESS_TOKEN;
 
-console.info({AD_ACCOUNT_ID, ACCESS_TOKEN});
     if (!AD_ACCOUNT_ID || !ACCESS_TOKEN) {
       return new Response(
         JSON.stringify({ message: 'Facebook API credentials are not set.' }),

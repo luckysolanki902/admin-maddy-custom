@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Container,
   TextField,
@@ -134,7 +134,7 @@ const OrderListFull = ({ isAdmin }) => {
   const [cacLoading, setCacLoading] = useState(false);
   const [cacError, setCacError] = useState(null);
 
-  // Fetch variant options when FiltersDrawer opens
+  // --- Fetch variant options when FiltersDrawer opens ---
   useEffect(() => {
     const fetchVariants = async () => {
       try {
@@ -155,7 +155,7 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [isFiltersDrawerOpen]);
 
-  // Fetch UTM options when FiltersDrawer opens
+  // --- Fetch UTM options when FiltersDrawer opens ---
   useEffect(() => {
     const fetchUTMOptions = async () => {
       setLoadingUTMOptions(true);
@@ -179,9 +179,7 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [isFiltersDrawerOpen]);
 
-  /**
-   * Function to fetch orders based on provided filters
-   */
+  // --- Fetch Orders ---
   const fetchOrders = async (start, end, pageNumber = 1) => {
     setLoading(true);
     const queryParams = [
@@ -235,9 +233,7 @@ const OrderListFull = ({ isAdmin }) => {
     }
   };
 
-  /**
-   * Function to fetch problematic orders based on selected filters and page number
-   */
+  // --- Fetch Problematic Orders ---
   const fetchProblematicOrders = async (start, end, pageNumber = 1) => {
     if (!selectedProblematicFilter) {
       setProblematicOrderData({
@@ -296,9 +292,7 @@ const OrderListFull = ({ isAdmin }) => {
     }
   };
 
-  /**
-   * Function to fetch CAC data from Facebook Ads API
-   */
+  // --- Fetch CAC Data ---
   const fetchCacData = useCallback(async () => {
     setCacLoading(true);
     setCacError(null);
@@ -341,10 +335,11 @@ const OrderListFull = ({ isAdmin }) => {
   }, [dateRange.start, dateRange.end]);
 
   /**
-   * Single effect to fetch orders and problematic orders whenever relevant filters change.
+   * Single effect: fetch orders & problematic orders whenever relevant filters change
    */
   useEffect(() => {
     fetchOrders(dateRange.start, dateRange.end, currentPage);
+
     if (selectedProblematicFilter) {
       fetchProblematicOrders(dateRange.start, dateRange.end, problematicCurrentPage);
     }
@@ -365,20 +360,25 @@ const OrderListFull = ({ isAdmin }) => {
   ]);
 
   /**
-   * Separate effect to fetch CAC data only when dateRange changes (via the useCallback dependency).
+   * Separate effect: fetch CAC data only once per date-range change, ignoring React’s dev-mode double-invocation
    */
+  const firstRenderRef = useRef(true);
   useEffect(() => {
+    // Skip first render in dev mode (React 18 Strict Mode).
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
     fetchCacData();
   }, [fetchCacData]);
 
-  // Handle search input change
+  // --- Handlers ---
   const handleSearchInputChange = (e) => {
     const value = e.target.value;
     setSearchInput(value);
-    // No immediate search; wait for user to press Enter
+    // Wait for user to press Enter
   };
 
-  // Handle search field change
   const handleSearchFieldChange = (e) => {
     const value = e.target.value;
     setSearchField(value);
@@ -387,18 +387,13 @@ const OrderListFull = ({ isAdmin }) => {
     setProblematicCurrentPage(1);
   };
 
-  // Handle accordion expansion
   const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpanded(isExpanded ? panel : false);
   };
 
-  // Handle 'All' tag click
   const handleAllTagClick = () => {
     setActiveTag('all');
-    setDateRange({
-      start: null,
-      end: null,
-    });
+    setDateRange({ start: null, end: null });
     setSearchInput('');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
@@ -409,7 +404,6 @@ const OrderListFull = ({ isAdmin }) => {
     setSingleItemCountOnly(false);
   };
 
-  // Handle custom date change
   const handleCustomDateChange = (newStart, newEnd) => {
     setDateRange({
       start: newStart ? newStart.startOf('day') : null,
@@ -420,7 +414,6 @@ const OrderListFull = ({ isAdmin }) => {
     setProblematicCurrentPage(1);
   };
 
-  // Handle single day change for 'Custom Day'
   const handleCustomDayChange = (newDate) => {
     setSingleDate(newDate.startOf('day'));
     setDateRange({
@@ -432,7 +425,6 @@ const OrderListFull = ({ isAdmin }) => {
     setProblematicCurrentPage(1);
   };
 
-  // Handle 'This Month' and 'Last Month' selection
   const handleMonthSelection = (type) => {
     let start, end;
     if (type === 'thisMonth') {
@@ -449,32 +441,25 @@ const OrderListFull = ({ isAdmin }) => {
     setProblematicCurrentPage(1);
   };
 
-  // Handle filters drawer toggle
   const toggleFiltersDrawer = (open) => () => {
     setIsFiltersDrawerOpen(open);
   };
 
-  // Apply filters from the drawer
   const applyFilters = () => {
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     setIsFiltersDrawerOpen(false);
   };
 
-  // Handle problematic filter changes
   const handleProblematicFilterChange = (filter) => () => {
     setSelectedProblematicFilter(prev => (prev === filter ? '' : filter));
     setProblematicCurrentPage(1);
   };
 
-  // Handle problematic pagination
   const handleProblematicPaginationChange = (event, value) => {
     setProblematicCurrentPage(value);
   };
 
-  /**
-   * Function to handle syncing Shiprocket orders
-   */
   const handleSyncShiprocketOrders = async () => {
     setSyncing(true);
     setSyncResult(null);
@@ -499,7 +484,8 @@ const OrderListFull = ({ isAdmin }) => {
         setSyncResult(`Shiprocket Orders Created: ${data.created}, Failed: ${data.failed}`);
         setSyncDetails(data.details || []);
         setOpenSyncDetails(true);
-        fetchOrders(dateRange.start, dateRange.end, currentPage); // Refresh orders with current page
+        // Refresh orders on the current page
+        fetchOrders(dateRange.start, dateRange.end, currentPage);
       } else {
         console.error("Error syncing Shiprocket orders:", data.message);
         setSyncResult(`Error: ${data.message}`);
@@ -512,15 +498,10 @@ const OrderListFull = ({ isAdmin }) => {
     }
   };
 
-  // Handle UTM filter changes
   const handleUTMFilterChange = (field) => (event) => {
-    setSelectedUTMFilters(prev => ({
-      ...prev,
-      [field]: event.target.value,
-    }));
+    setSelectedUTMFilters(prev => ({ ...prev, [field]: event.target.value }));
   };
 
-  // Handle Reset Filters
   const handleResetFilters = () => {
     setShiprocketFilter('');
     setPaymentStatusFilter('');
@@ -546,6 +527,7 @@ const OrderListFull = ({ isAdmin }) => {
     setSingleItemCountOnly(false);
   };
 
+  // --- Render ---
   return (
     <Container sx={{ marginBottom: '2rem', width: '100%', padding: '2rem 1rem' }}>
       <Typography
@@ -614,7 +596,11 @@ const OrderListFull = ({ isAdmin }) => {
         )}
         {activeTag === 'all' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            All Orders ( From {orderData?.oldestOrderDate ? dayjs(orderData?.oldestOrderDate).format('MMMM D, YYYY, dddd') : 'N/A'})
+            All Orders ( From{' '}
+            {orderData?.oldestOrderDate
+              ? dayjs(orderData?.oldestOrderDate).format('MMMM D, YYYY, dddd')
+              : 'N/A'}
+            )
           </Typography>
         )}
       </Box>
@@ -782,7 +768,7 @@ const OrderListFull = ({ isAdmin }) => {
         cacData={cacData}
         cacLoading={cacLoading}
         cacError={cacError}
-        utmCounts={orderData.utmCounts} // Pass utmCounts as a prop
+        utmCounts={orderData.utmCounts}
       />
 
       {/* Pagination */}
@@ -812,7 +798,12 @@ const OrderListFull = ({ isAdmin }) => {
 
           {problematicLoading ? (
             Array.from(new Array(ITEMS_PER_PAGE)).map((_, index) => (
-              <Skeleton key={index} variant="rectangular" height={100} sx={{ marginBottom: '1rem', borderRadius: '8px' }} />
+              <Skeleton
+                key={index}
+                variant="rectangular"
+                height={100}
+                sx={{ marginBottom: '1rem', borderRadius: '8px' }}
+              />
             ))
           ) : problematicOrderData.orders.length === 0 ? (
             <Typography variant="body1" sx={{ color: 'text.secondary' }}>
@@ -905,12 +896,22 @@ const OrderListFull = ({ isAdmin }) => {
                         backgroundColor: '#2C2C2C'
                       }}
                     >
-                      <Typography><strong>Order ID:</strong> {detail.orderId}</Typography>
-                      <Typography><strong>Delivery Status Response:</strong> {detail.deliveryStatusResponse}</Typography>
+                      <Typography>
+                        <strong>Order ID:</strong> {detail.orderId}
+                      </Typography>
+                      <Typography>
+                        <strong>Delivery Status Response:</strong> {detail.deliveryStatusResponse}
+                      </Typography>
                       {isAdmin && (
                         <>
-                          <Typography><strong>Revenue:</strong> ₹{detail.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
-                          <Typography><strong>Discount:</strong> ₹{detail.discount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                          <Typography>
+                            <strong>Revenue:</strong> ₹
+                            {detail.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Typography>
+                          <Typography>
+                            <strong>Discount:</strong> ₹
+                            {detail.discount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Typography>
                         </>
                       )}
                       {detail.extraFields && Object.keys(detail.extraFields).length > 0 && (

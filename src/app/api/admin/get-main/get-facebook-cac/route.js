@@ -18,11 +18,9 @@ dayjs.extend(timezone);
  */
 export async function POST(req) {
   try {
-    console.log('get-facebook-cac: Received POST request');
     
     const { startDate, endDate } = await req.json();
-    console.log(`get-facebook-cac: startDate=${startDate}, endDate=${endDate}`);
-    
+
     if (!startDate || !endDate) {
       console.warn('get-facebook-cac: Missing startDate or endDate');
       return new Response(
@@ -44,13 +42,12 @@ export async function POST(req) {
 
     // Convert dates to IST timezone and format to YYYY-MM-DD
     const formattedStartDate = dayjs(startDate)
-      .tz('Asia/Kolkata', true) // 'true' keeps the local time
+      .tz('Asia/Kolkata') // Removed 'true' to allow proper conversion
       .format('YYYY-MM-DD');
     const formattedEndDate = dayjs(endDate)
-      .tz('Asia/Kolkata', true)
+      .tz('Asia/Kolkata') // Removed 'true' to allow proper conversion
       .format('YYYY-MM-DD');
     
-    console.info({ formattedStartDate, formattedEndDate });
 
     // Properly encode the time_range parameter
     const timeRange = encodeURIComponent(JSON.stringify({
@@ -61,11 +58,10 @@ export async function POST(req) {
     const url = `https://graph.facebook.com/v17.0/act_${AD_ACCOUNT_ID}/insights?fields=spend,actions&access_token=${ACCESS_TOKEN}&action_breakdowns=action_type&time_range=${timeRange}`;
 
     console.log(`get-facebook-cac: Fetching data from Facebook API: ${url}`);
-
+    
     // Fetch Data from Meta Ads API
     const response = await fetch(url);
     const data = await response.json();
-    console.info('get-facebook-cac: Facebook API response:', data);
 
     if (response.ok) {
       // Check if data is present
@@ -84,6 +80,7 @@ export async function POST(req) {
 
       // Since Meta CAC is now calculated on the frontend, set it to 'N/A'
       const cac = 'N/A';
+
       console.info({ spend, purchaseCount: purchases, cac });
 
       return new Response(

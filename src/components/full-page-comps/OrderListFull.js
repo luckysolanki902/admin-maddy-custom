@@ -195,12 +195,10 @@ const OrderListFull = ({ isAdmin }) => {
       hasFetchedOrders.end === end?.toISOString() &&
       hasFetchedOrders.page === pageNumber
     ) {
-      console.log('FetchOrders: Duplicate fetch prevented');
       return;
     }
 
     setLoading(true);
-    console.log(`Fetching orders: Start=${start?.toISOString()}, End=${end?.toISOString()}, Page=${pageNumber}`);
 
     const queryParams = [
       `page=${pageNumber}`,

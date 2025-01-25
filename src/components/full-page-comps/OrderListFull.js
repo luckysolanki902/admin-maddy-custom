@@ -1,5 +1,3 @@
-// /components/page-sections/OrderListFull.js
-
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -126,6 +124,7 @@ const OrderListFull = ({ isAdmin }) => {
     message: '',
     severity: 'warning',
   });
+
   // State for CAC
   const [cacData, setCacData] = useState({
     spend: 0,
@@ -134,7 +133,7 @@ const OrderListFull = ({ isAdmin }) => {
   });
   const [cacLoading, setCacLoading] = useState(false);
   const [cacError, setCacError] = useState(null);
-  
+
   // Fetch variant options when FiltersDrawer opens
   useEffect(() => {
     const fetchVariants = async () => {
@@ -180,29 +179,6 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [isFiltersDrawerOpen]);
 
-  // Effect to fetch orders whenever dependencies change
-  useEffect(() => {
-    fetchOrders(dateRange.start, dateRange.end, currentPage);
-    if (selectedProblematicFilter) {
-      fetchProblematicOrders(dateRange.start, dateRange.end, problematicCurrentPage);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    dateRange,
-    searchInput,
-    searchField,
-    shiprocketFilter,
-    paymentStatusFilter,
-    selectedUTMFilters,
-    selectedVariants,
-    onlyIncludeSelectedVariants,
-    singleVariantOnly,
-    singleItemCountOnly,
-    currentPage,
-    problematicCurrentPage,
-    selectedProblematicFilter,
-  ]);
-
   /**
    * Function to fetch orders based on provided filters
    */
@@ -247,7 +223,7 @@ const OrderListFull = ({ isAdmin }) => {
           aov: data.aov || 0,
           discountRate: isAdmin ? (data.discountRate || 0) : 0,
           oldestOrderDate: data.oldestOrderDate || null,
-          utmCounts: data.utmCounts || {}, // Include utmCounts
+          utmCounts: data.utmCounts || {},
         }));
       } else {
         console.error("Error fetching orders:", data.message);
@@ -350,7 +326,7 @@ const OrderListFull = ({ isAdmin }) => {
         setCacData({
           spend: data.spend,
           purchaseCount: data.purchaseCount,
-          cac: data.cac, // Currently unused, can be set to 'N/A' or removed
+          cac: data.cac, // or 'N/A'
         });
       } else {
         console.error("Error fetching CAC data:", data.error);
@@ -364,11 +340,14 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [dateRange.start, dateRange.end]);
 
-  // Effect to fetch orders and CAC data whenever dependencies change
+  /**
+   * Single effect to fetch orders and problematic orders whenever relevant filters change.
+   */
   useEffect(() => {
     fetchOrders(dateRange.start, dateRange.end, currentPage);
-    fetchCacData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (selectedProblematicFilter) {
+      fetchProblematicOrders(dateRange.start, dateRange.end, problematicCurrentPage);
+    }
   }, [
     dateRange,
     searchInput,
@@ -381,7 +360,16 @@ const OrderListFull = ({ isAdmin }) => {
     singleVariantOnly,
     singleItemCountOnly,
     currentPage,
+    problematicCurrentPage,
+    selectedProblematicFilter,
   ]);
+
+  /**
+   * Separate effect to fetch CAC data only when dateRange changes (via the useCallback dependency).
+   */
+  useEffect(() => {
+    fetchCacData();
+  }, [fetchCacData]);
 
   // Handle search input change
   const handleSearchInputChange = (e) => {
@@ -576,7 +564,7 @@ const OrderListFull = ({ isAdmin }) => {
         setDateRange={setDateRange}
         setCurrentPage={setCurrentPage}
         setProblematicCurrentPage={setProblematicCurrentPage}
-        handleAllTagClick={handleAllTagClick} // Ensure this prop is passed correctly
+        handleAllTagClick={handleAllTagClick}
         handleCustomDayChange={handleCustomDayChange}
         handleCustomDateChange={handleCustomDateChange}
         handleMonthSelection={handleMonthSelection}
@@ -907,7 +895,16 @@ const OrderListFull = ({ isAdmin }) => {
               <Box maxHeight="400px" overflow="auto">
                 {syncDetails.details && syncDetails.details.length > 0 ? (
                   syncDetails.details.map((detail, index) => (
-                    <Box key={index} sx={{ marginBottom: '1rem', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: '#2C2C2C' }}>
+                    <Box
+                      key={index}
+                      sx={{
+                        marginBottom: '1rem',
+                        padding: '0.5rem',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        backgroundColor: '#2C2C2C'
+                      }}
+                    >
                       <Typography><strong>Order ID:</strong> {detail.orderId}</Typography>
                       <Typography><strong>Delivery Status Response:</strong> {detail.deliveryStatusResponse}</Typography>
                       {isAdmin && (
@@ -923,7 +920,7 @@ const OrderListFull = ({ isAdmin }) => {
                             <Typography key={key} variant="body2" sx={{ color: 'text.secondary' }}>
                               <strong>{key}:</strong> {value}
                             </Typography>
-                          ))}  
+                          ))}
                         </Box>
                       )}
                     </Box>
@@ -943,6 +940,6 @@ const OrderListFull = ({ isAdmin }) => {
       </Dialog>
     </Container>
   );
-}
+};
 
 export default OrderListFull;

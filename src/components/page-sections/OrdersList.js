@@ -1,6 +1,6 @@
 // /components/page-sections/OrdersList.js
 
-import React, { memo,useEffect } from 'react';
+import React, { memo, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -91,7 +91,7 @@ const OrdersList = ({
   orders = [],
   loading = false,
   expanded = null,
-  handleChange = () => {},
+  handleChange = () => { },
   totalOrders = 0,
   grossSales = 0,
   revenue = 0,
@@ -112,6 +112,7 @@ const OrdersList = ({
 
   // Calculate Meta CAC and Overall CAC with error handling
   const inorganicMetaOrders = metaOrders - instagramBioOrders;
+  console.log({ inorganicMetaOrders, metaOrders, instagramBioOrders });
   const calculatedMetaCAC = inorganicMetaOrders > 0
     ? (spend / inorganicMetaOrders).toFixed(2)
     : 'N/A';
@@ -120,10 +121,10 @@ const OrdersList = ({
     ? (spend / totalOrders).toFixed(2)
     : 'N/A';
   useEffect(() => {
-      console.warn({spend, inorganicMetaOrders,totalOrders});
+    console.warn({ spend, inorganicMetaOrders, totalOrders });
 
 
-  },[spend, inorganicMetaOrders, totalOrders])
+  }, [spend, inorganicMetaOrders, totalOrders])
   // Define chip data with detailed tooltips and formulas
   const chipData = [
     {

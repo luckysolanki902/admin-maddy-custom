@@ -18,6 +18,7 @@ export async function POST(req) {
 
     const { startDate, endDate } = await req.json();
 
+
     if (!startDate || !endDate) {
       return new Response(
         JSON.stringify({ message: 'startDate and endDate are required.' }),
@@ -28,6 +29,7 @@ export async function POST(req) {
     const AD_ACCOUNT_ID = process.env.FACEBOOK_AD_ACCOUNT_ID;
     const ACCESS_TOKEN = process.env.FACEBOOK_ACCESS_TOKEN;
 
+console.info({AD_ACCOUNT_ID, ACCESS_TOKEN});
     if (!AD_ACCOUNT_ID || !ACCESS_TOKEN) {
       return new Response(
         JSON.stringify({ message: 'Facebook API credentials are not set.' }),
@@ -38,12 +40,13 @@ export async function POST(req) {
     // Format dates to YYYY-MM-DD as required by Facebook API
     const formattedStartDate = dayjs(startDate).format('YYYY-MM-DD');
     const formattedEndDate = dayjs(endDate).format('YYYY-MM-DD');
-
+    console.info({formattedStartDate, formattedEndDate});
     const url = `https://graph.facebook.com/v17.0/act_${AD_ACCOUNT_ID}/insights?fields=spend,actions&access_token=${ACCESS_TOKEN}&action_breakdowns=action_type&time_range={"since":"${formattedStartDate}","until":"${formattedEndDate}"}`;
 
     // Fetch Data from Meta Ads API
     const response = await fetch(url);
     const data = await response.json();
+    console.info(data);
 
     if (response.ok) {
       // Parse Spend and Purchase Data
@@ -55,6 +58,7 @@ export async function POST(req) {
       const cac = 'N/A';
 
       return new Response(
+        console.info({ spend, purchaseCount: purchases, cac }),
         JSON.stringify({ spend, purchaseCount: purchases, cac }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );

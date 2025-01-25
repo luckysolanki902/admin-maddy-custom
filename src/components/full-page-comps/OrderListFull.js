@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Container,
   TextField,
@@ -134,7 +134,7 @@ const OrderListFull = ({ isAdmin }) => {
   const [cacLoading, setCacLoading] = useState(false);
   const [cacError, setCacError] = useState(null);
 
-  // --- Fetch variant options when FiltersDrawer opens ---
+  // Fetch variant options when FiltersDrawer opens
   useEffect(() => {
     const fetchVariants = async () => {
       try {
@@ -143,10 +143,10 @@ const OrderListFull = ({ isAdmin }) => {
         if (res.ok) {
           setVariants(data);
         } else {
-          console.error("Error fetching category variants:", data.error);
+          console.error('Error fetching category variants:', data.error);
         }
       } catch (error) {
-        console.error("Error fetching category variants:", error);
+        console.error('Error fetching category variants:', error);
       }
     };
 
@@ -155,7 +155,7 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [isFiltersDrawerOpen]);
 
-  // --- Fetch UTM options when FiltersDrawer opens ---
+  // Fetch UTM options when FiltersDrawer opens
   useEffect(() => {
     const fetchUTMOptions = async () => {
       setLoadingUTMOptions(true);
@@ -165,10 +165,10 @@ const OrderListFull = ({ isAdmin }) => {
         if (res.ok) {
           setUtmOptions(data);
         } else {
-          console.error("Error fetching UTM fields:", data.message);
+          console.error('Error fetching UTM fields:', data.message);
         }
       } catch (error) {
-        console.error("Error fetching UTM fields:", error);
+        console.error('Error fetching UTM fields:', error);
       } finally {
         setLoadingUTMOptions(false);
       }
@@ -179,7 +179,9 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [isFiltersDrawerOpen]);
 
-  // --- Fetch Orders ---
+  /**
+   * Function to fetch orders based on provided filters
+   */
   const fetchOrders = async (start, end, pageNumber = 1) => {
     setLoading(true);
     const queryParams = [
@@ -224,16 +226,18 @@ const OrderListFull = ({ isAdmin }) => {
           utmCounts: data.utmCounts || {},
         }));
       } else {
-        console.error("Error fetching orders:", data.message);
+        console.error('Error fetching orders:', data.message);
       }
     } catch (error) {
-      console.error("Error fetching orders:", error);
+      console.error('Error fetching orders:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Fetch Problematic Orders ---
+  /**
+   * Function to fetch problematic orders based on selected filters and page number
+   */
   const fetchProblematicOrders = async (start, end, pageNumber = 1) => {
     if (!selectedProblematicFilter) {
       setProblematicOrderData({
@@ -283,16 +287,18 @@ const OrderListFull = ({ isAdmin }) => {
           totalItems: data.totalItems || 0,
         });
       } else {
-        console.error("Error fetching problematic orders:", data.message);
+        console.error('Error fetching problematic orders:', data.message);
       }
     } catch (error) {
-      console.error("Error fetching problematic orders:", error);
+      console.error('Error fetching problematic orders:', error);
     } finally {
       setProblematicLoading(false);
     }
   };
 
-  // --- Fetch CAC Data ---
+  /**
+   * Function to fetch CAC data from Facebook Ads API
+   */
   const fetchCacData = useCallback(async () => {
     setCacLoading(true);
     setCacError(null);
@@ -303,7 +309,7 @@ const OrderListFull = ({ isAdmin }) => {
       endDate: dateRange.end ? dateRange.end.toISOString() : null,
     };
 
-    const url = `/api/admin/get-main/get-facebook-cac`;
+    const url = '/api/admin/get-main/get-facebook-cac';
 
     try {
       const res = await fetch(url, {
@@ -320,14 +326,14 @@ const OrderListFull = ({ isAdmin }) => {
         setCacData({
           spend: data.spend,
           purchaseCount: data.purchaseCount,
-          cac: data.cac, // or 'N/A'
+          cac: data.cac, // We store 'N/A' from backend or can show it as needed
         });
       } else {
-        console.error("Error fetching CAC data:", data.error);
+        console.error('Error fetching CAC data:', data.error);
         setCacError(data.error || 'Failed to fetch CAC data.');
       }
     } catch (error) {
-      console.error("Error fetching CAC data:", error);
+      console.error('Error fetching CAC data:', error);
       setCacError('An error occurred while fetching CAC data.');
     } finally {
       setCacLoading(false);
@@ -335,14 +341,14 @@ const OrderListFull = ({ isAdmin }) => {
   }, [dateRange.start, dateRange.end]);
 
   /**
-   * Single effect: fetch orders & problematic orders whenever relevant filters change
+   * Effect to fetch orders (and problematic orders if needed) whenever filters or pagination change
    */
   useEffect(() => {
     fetchOrders(dateRange.start, dateRange.end, currentPage);
-
     if (selectedProblematicFilter) {
       fetchProblematicOrders(dateRange.start, dateRange.end, problematicCurrentPage);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dateRange,
     searchInput,
@@ -360,25 +366,21 @@ const OrderListFull = ({ isAdmin }) => {
   ]);
 
   /**
-   * Separate effect: fetch CAC data only once per date-range change, ignoring React’s dev-mode double-invocation
+   * Effect to fetch CAC data whenever the date range changes
+   * (so we don't double-fetch orders + CAC).
    */
-  const firstRenderRef = useRef(true);
   useEffect(() => {
-    // Skip first render in dev mode (React 18 Strict Mode).
-    if (firstRenderRef.current) {
-      firstRenderRef.current = false;
-      return;
-    }
     fetchCacData();
   }, [fetchCacData]);
 
-  // --- Handlers ---
+  // Handle search input change
   const handleSearchInputChange = (e) => {
     const value = e.target.value;
     setSearchInput(value);
-    // Wait for user to press Enter
+    // No immediate search; wait for user to press Enter
   };
 
+  // Handle search field change
   const handleSearchFieldChange = (e) => {
     const value = e.target.value;
     setSearchField(value);
@@ -387,13 +389,18 @@ const OrderListFull = ({ isAdmin }) => {
     setProblematicCurrentPage(1);
   };
 
+  // Handle accordion expansion
   const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpanded(isExpanded ? panel : false);
   };
 
+  // Handle 'All' tag click
   const handleAllTagClick = () => {
     setActiveTag('all');
-    setDateRange({ start: null, end: null });
+    setDateRange({
+      start: null,
+      end: null,
+    });
     setSearchInput('');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
@@ -404,6 +411,7 @@ const OrderListFull = ({ isAdmin }) => {
     setSingleItemCountOnly(false);
   };
 
+  // Handle custom date change
   const handleCustomDateChange = (newStart, newEnd) => {
     setDateRange({
       start: newStart ? newStart.startOf('day') : null,
@@ -414,6 +422,7 @@ const OrderListFull = ({ isAdmin }) => {
     setProblematicCurrentPage(1);
   };
 
+  // Handle single day change for 'Custom Day'
   const handleCustomDayChange = (newDate) => {
     setSingleDate(newDate.startOf('day'));
     setDateRange({
@@ -425,6 +434,7 @@ const OrderListFull = ({ isAdmin }) => {
     setProblematicCurrentPage(1);
   };
 
+  // Handle 'This Month' and 'Last Month' selection
   const handleMonthSelection = (type) => {
     let start, end;
     if (type === 'thisMonth') {
@@ -441,25 +451,32 @@ const OrderListFull = ({ isAdmin }) => {
     setProblematicCurrentPage(1);
   };
 
+  // Handle filters drawer toggle
   const toggleFiltersDrawer = (open) => () => {
     setIsFiltersDrawerOpen(open);
   };
 
+  // Apply filters from the drawer
   const applyFilters = () => {
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     setIsFiltersDrawerOpen(false);
   };
 
+  // Handle problematic filter changes
   const handleProblematicFilterChange = (filter) => () => {
     setSelectedProblematicFilter(prev => (prev === filter ? '' : filter));
     setProblematicCurrentPage(1);
   };
 
+  // Handle problematic pagination
   const handleProblematicPaginationChange = (event, value) => {
     setProblematicCurrentPage(value);
   };
 
+  /**
+   * Function to handle syncing Shiprocket orders
+   */
   const handleSyncShiprocketOrders = async () => {
     setSyncing(true);
     setSyncResult(null);
@@ -484,10 +501,10 @@ const OrderListFull = ({ isAdmin }) => {
         setSyncResult(`Shiprocket Orders Created: ${data.created}, Failed: ${data.failed}`);
         setSyncDetails(data.details || []);
         setOpenSyncDetails(true);
-        // Refresh orders on the current page
-        fetchOrders(dateRange.start, dateRange.end, currentPage);
+        // Refresh orders with current page
+        fetchOrders(dateRange.start, dateRange.end, currentPage); 
       } else {
-        console.error("Error syncing Shiprocket orders:", data.message);
+        console.error('Error syncing Shiprocket orders:', data.message);
         setSyncResult(`Error: ${data.message}`);
       }
     } catch (error) {
@@ -498,10 +515,15 @@ const OrderListFull = ({ isAdmin }) => {
     }
   };
 
+  // Handle UTM filter changes
   const handleUTMFilterChange = (field) => (event) => {
-    setSelectedUTMFilters(prev => ({ ...prev, [field]: event.target.value }));
+    setSelectedUTMFilters(prev => ({
+      ...prev,
+      [field]: event.target.value,
+    }));
   };
 
+  // Handle Reset Filters
   const handleResetFilters = () => {
     setShiprocketFilter('');
     setPaymentStatusFilter('');
@@ -527,7 +549,6 @@ const OrderListFull = ({ isAdmin }) => {
     setSingleItemCountOnly(false);
   };
 
-  // --- Render ---
   return (
     <Container sx={{ marginBottom: '2rem', width: '100%', padding: '2rem 1rem' }}>
       <Typography
@@ -546,7 +567,7 @@ const OrderListFull = ({ isAdmin }) => {
         setDateRange={setDateRange}
         setCurrentPage={setCurrentPage}
         setProblematicCurrentPage={setProblematicCurrentPage}
-        handleAllTagClick={handleAllTagClick}
+        handleAllTagClick={handleAllTagClick} 
         handleCustomDayChange={handleCustomDayChange}
         handleCustomDateChange={handleCustomDateChange}
         handleMonthSelection={handleMonthSelection}
@@ -596,8 +617,7 @@ const OrderListFull = ({ isAdmin }) => {
         )}
         {activeTag === 'all' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            All Orders ( From{' '}
-            {orderData?.oldestOrderDate
+            All Orders ( From {orderData?.oldestOrderDate
               ? dayjs(orderData?.oldestOrderDate).format('MMMM D, YYYY, dddd')
               : 'N/A'}
             )
@@ -724,7 +744,7 @@ const OrderListFull = ({ isAdmin }) => {
                 onChange={(newValue) => {
                   handleCustomDayChange(newValue);
                 }}
-                renderInput={(params) => <TextField {...params} size='small' />}
+                renderInput={(params) => <TextField {...params} size="small" />}
               />
             ) : (
               <>
@@ -734,7 +754,7 @@ const OrderListFull = ({ isAdmin }) => {
                   onChange={(newValue) => {
                     handleCustomDateChange(newValue, dateRange.end);
                   }}
-                  renderInput={(params) => <TextField {...params} size='small' />}
+                  renderInput={(params) => <TextField {...params} size="small" />}
                 />
                 <DatePicker
                   label="End Date"
@@ -742,7 +762,7 @@ const OrderListFull = ({ isAdmin }) => {
                   onChange={(newValue) => {
                     handleCustomDateChange(dateRange.start, newValue);
                   }}
-                  renderInput={(params) => <TextField {...params} size='small' />}
+                  renderInput={(params) => <TextField {...params} size="small" />}
                 />
               </>
             )}
@@ -893,30 +913,37 @@ const OrderListFull = ({ isAdmin }) => {
                         padding: '0.5rem',
                         border: '1px solid #ccc',
                         borderRadius: '4px',
-                        backgroundColor: '#2C2C2C'
+                        backgroundColor: '#2C2C2C',
                       }}
                     >
                       <Typography>
                         <strong>Order ID:</strong> {detail.orderId}
                       </Typography>
                       <Typography>
-                        <strong>Delivery Status Response:</strong> {detail.deliveryStatusResponse}
+                        <strong>Delivery Status Response:</strong>{' '}
+                        {detail.deliveryStatusResponse}
                       </Typography>
                       {isAdmin && (
                         <>
                           <Typography>
                             <strong>Revenue:</strong> ₹
-                            {detail.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            {detail.revenue.toLocaleString('en-IN', {
+                              minimumFractionDigits: 2,
+                            })}
                           </Typography>
                           <Typography>
                             <strong>Discount:</strong> ₹
-                            {detail.discount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            {detail.discount.toLocaleString('en-IN', {
+                              minimumFractionDigits: 2,
+                            })}
                           </Typography>
                         </>
                       )}
                       {detail.extraFields && Object.keys(detail.extraFields).length > 0 && (
                         <Box sx={{ marginTop: '0.5rem' }}>
-                          <Typography><strong>Extra Fields:</strong></Typography>
+                          <Typography>
+                            <strong>Extra Fields:</strong>
+                          </Typography>
                           {Object.entries(detail.extraFields).map(([key, value]) => (
                             <Typography key={key} variant="body2" sx={{ color: 'text.secondary' }}>
                               <strong>{key}:</strong> {value}

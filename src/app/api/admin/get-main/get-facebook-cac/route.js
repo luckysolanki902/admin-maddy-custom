@@ -56,9 +56,9 @@ console.info({AD_ACCOUNT_ID, ACCESS_TOKEN});
 
       // Since Meta CAC is now calculated on the frontend, set it to 'N/A'
       const cac = 'N/A';
+      console.info({ spend, purchaseCount: purchases, cac });
 
       return new Response(
-        console.info({ spend, purchaseCount: purchases, cac }),
         JSON.stringify({ spend, purchaseCount: purchases, cac }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );

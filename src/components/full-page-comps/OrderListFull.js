@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Container,
   TextField,
@@ -134,6 +134,11 @@ const OrderListFull = ({ isAdmin }) => {
   const [cacLoading, setCacLoading] = useState(false);
   const [cacError, setCacError] = useState(null);
 
+  // Refs to prevent duplicate API calls
+  const hasFetchedOrders = useRef(false);
+  const hasFetchedProblematicOrders = useRef(false);
+  const hasFetchedCacData = useRef(false);
+
   // Fetch variant options when FiltersDrawer opens
   useEffect(() => {
     const fetchVariants = async () => {
@@ -182,8 +187,21 @@ const OrderListFull = ({ isAdmin }) => {
   /**
    * Function to fetch orders based on provided filters
    */
-  const fetchOrders = async (start, end, pageNumber = 1) => {
+  const fetchOrders = useCallback(async (start, end, pageNumber = 1) => {
+    // Prevent duplicate fetching if already fetched for the same parameters
+    if (
+      hasFetchedOrders.current &&
+      hasFetchedOrders.start === start?.toISOString() &&
+      hasFetchedOrders.end === end?.toISOString() &&
+      hasFetchedOrders.page === pageNumber
+    ) {
+      console.log('FetchOrders: Duplicate fetch prevented');
+      return;
+    }
+
     setLoading(true);
+    console.log(`Fetching orders: Start=${start?.toISOString()}, End=${end?.toISOString()}, Page=${pageNumber}`);
+
     const queryParams = [
       `page=${pageNumber}`,
       `limit=${ITEMS_PER_PAGE}`,
@@ -225,6 +243,7 @@ const OrderListFull = ({ isAdmin }) => {
           oldestOrderDate: data.oldestOrderDate || null,
           utmCounts: data.utmCounts || {},
         }));
+        console.log('FetchOrders: Successfully fetched orders');
       } else {
         console.error('Error fetching orders:', data.message);
       }
@@ -232,13 +251,33 @@ const OrderListFull = ({ isAdmin }) => {
       console.error('Error fetching orders:', error);
     } finally {
       setLoading(false);
+      // Update the ref to indicate that orders have been fetched for these parameters
+      hasFetchedOrders.current = true;
+      hasFetchedOrders.start = start?.toISOString();
+      hasFetchedOrders.end = end?.toISOString();
+      hasFetchedOrders.page = pageNumber;
     }
-  };
+  }, [
+    searchInput,
+    searchField,
+    shiprocketFilter,
+    paymentStatusFilter,
+    selectedUTMFilters.source,
+    selectedUTMFilters.medium,
+    selectedUTMFilters.campaign,
+    selectedUTMFilters.term,
+    selectedUTMFilters.content,
+    selectedVariants,
+    onlyIncludeSelectedVariants,
+    singleVariantOnly,
+    singleItemCountOnly,
+    isAdmin,
+  ]);
 
   /**
    * Function to fetch problematic orders based on selected filters and page number
    */
-  const fetchProblematicOrders = async (start, end, pageNumber = 1) => {
+  const fetchProblematicOrders = useCallback(async (start, end, pageNumber = 1) => {
     if (!selectedProblematicFilter) {
       setProblematicOrderData({
         orders: [],
@@ -250,7 +289,20 @@ const OrderListFull = ({ isAdmin }) => {
       return;
     }
 
+    // Prevent duplicate fetching if already fetched for the same parameters
+    if (
+      hasFetchedProblematicOrders.current &&
+      hasFetchedProblematicOrders.start === start?.toISOString() &&
+      hasFetchedProblematicOrders.end === end?.toISOString() &&
+      hasFetchedProblematicOrders.page === pageNumber &&
+      hasFetchedProblematicOrders.filter === selectedProblematicFilter
+    ) {
+      console.log('FetchProblematicOrders: Duplicate fetch prevented');
+      return;
+    }
+
     setProblematicLoading(true);
+    console.log(`Fetching problematic orders: Start=${start?.toISOString()}, End=${end?.toISOString()}, Page=${pageNumber}, Filter=${selectedProblematicFilter}`);
 
     const queryParams = [
       `page=${pageNumber}`,
@@ -286,6 +338,7 @@ const OrderListFull = ({ isAdmin }) => {
           totalPages: data.totalPages || 1,
           totalItems: data.totalItems || 0,
         });
+        console.log('FetchProblematicOrders: Successfully fetched problematic orders');
       } else {
         console.error('Error fetching problematic orders:', data.message);
       }
@@ -293,15 +346,47 @@ const OrderListFull = ({ isAdmin }) => {
       console.error('Error fetching problematic orders:', error);
     } finally {
       setProblematicLoading(false);
+      // Update the ref to indicate that problematic orders have been fetched for these parameters
+      hasFetchedProblematicOrders.current = true;
+      hasFetchedProblematicOrders.start = start?.toISOString();
+      hasFetchedProblematicOrders.end = end?.toISOString();
+      hasFetchedProblematicOrders.page = pageNumber;
+      hasFetchedProblematicOrders.filter = selectedProblematicFilter;
     }
-  };
+  }, [
+    selectedProblematicFilter,
+    searchInput,
+    searchField,
+    shiprocketFilter,
+    paymentStatusFilter,
+    selectedUTMFilters.source,
+    selectedUTMFilters.medium,
+    selectedUTMFilters.campaign,
+    selectedUTMFilters.term,
+    selectedUTMFilters.content,
+    selectedVariants,
+    onlyIncludeSelectedVariants,
+    singleVariantOnly,
+    singleItemCountOnly,
+  ]);
 
   /**
    * Function to fetch CAC data from Facebook Ads API
    */
   const fetchCacData = useCallback(async () => {
+    // Prevent duplicate fetching if already fetched for the same parameters
+    if (
+      hasFetchedCacData.current &&
+      hasFetchedCacData.start === dateRange.start?.toISOString() &&
+      hasFetchedCacData.end === dateRange.end?.toISOString()
+    ) {
+      console.log('FetchCacData: Duplicate fetch prevented');
+      return;
+    }
+
     setCacLoading(true);
     setCacError(null);
+    console.log(`Fetching CAC data: Start=${dateRange.start?.toISOString()}, End=${dateRange.end?.toISOString()}`);
 
     // Prepare the payload
     const payload = {
@@ -328,6 +413,7 @@ const OrderListFull = ({ isAdmin }) => {
           purchaseCount: data.purchaseCount,
           cac: data.cac, // We store 'N/A' from backend or can show it as needed
         });
+        console.log('FetchCacData: Successfully fetched CAC data');
       } else {
         console.error('Error fetching CAC data:', data.error);
         setCacError(data.error || 'Failed to fetch CAC data.');
@@ -337,25 +423,33 @@ const OrderListFull = ({ isAdmin }) => {
       setCacError('An error occurred while fetching CAC data.');
     } finally {
       setCacLoading(false);
+      // Update the ref to indicate that CAC data has been fetched for these parameters
+      hasFetchedCacData.current = true;
+      hasFetchedCacData.start = dateRange.start?.toISOString();
+      hasFetchedCacData.end = dateRange.end?.toISOString();
     }
   }, [dateRange.start, dateRange.end]);
 
   /**
-   * Effect to fetch orders (and problematic orders if needed) whenever filters or pagination change
+   * Effect to fetch orders and problematic orders whenever relevant filters or pagination change
    */
   useEffect(() => {
     fetchOrders(dateRange.start, dateRange.end, currentPage);
     if (selectedProblematicFilter) {
       fetchProblematicOrders(dateRange.start, dateRange.end, problematicCurrentPage);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    dateRange,
+    dateRange.start,
+    dateRange.end,
     searchInput,
     searchField,
     shiprocketFilter,
     paymentStatusFilter,
-    selectedUTMFilters,
+    selectedUTMFilters.source,
+    selectedUTMFilters.medium,
+    selectedUTMFilters.campaign,
+    selectedUTMFilters.term,
+    selectedUTMFilters.content,
     selectedVariants,
     onlyIncludeSelectedVariants,
     singleVariantOnly,
@@ -363,11 +457,12 @@ const OrderListFull = ({ isAdmin }) => {
     currentPage,
     problematicCurrentPage,
     selectedProblematicFilter,
+    fetchOrders,
+    fetchProblematicOrders,
   ]);
 
   /**
    * Effect to fetch CAC data whenever the date range changes
-   * (so we don't double-fetch orders + CAC).
    */
   useEffect(() => {
     fetchCacData();
@@ -377,7 +472,7 @@ const OrderListFull = ({ isAdmin }) => {
   const handleSearchInputChange = (e) => {
     const value = e.target.value;
     setSearchInput(value);
-    // No immediate search; wait for user to press Enter
+    // Optionally, you can debounce this input to reduce the number of fetch calls
   };
 
   // Handle search field change
@@ -420,6 +515,10 @@ const OrderListFull = ({ isAdmin }) => {
     setActiveTag(newStart && newEnd ? 'customRange' : activeTag);
     setCurrentPage(1);
     setProblematicCurrentPage(1);
+    // Reset fetch flags
+    hasFetchedOrders.current = false;
+    hasFetchedProblematicOrders.current = false;
+    hasFetchedCacData.current = false;
   };
 
   // Handle single day change for 'Custom Day'
@@ -432,6 +531,10 @@ const OrderListFull = ({ isAdmin }) => {
     setActiveTag('custom');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
+    // Reset fetch flags
+    hasFetchedOrders.current = false;
+    hasFetchedProblematicOrders.current = false;
+    hasFetchedCacData.current = false;
   };
 
   // Handle 'This Month' and 'Last Month' selection
@@ -449,6 +552,10 @@ const OrderListFull = ({ isAdmin }) => {
     setDateRange({ start, end });
     setCurrentPage(1);
     setProblematicCurrentPage(1);
+    // Reset fetch flags
+    hasFetchedOrders.current = false;
+    hasFetchedProblematicOrders.current = false;
+    hasFetchedCacData.current = false;
   };
 
   // Handle filters drawer toggle
@@ -461,17 +568,25 @@ const OrderListFull = ({ isAdmin }) => {
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     setIsFiltersDrawerOpen(false);
+    // Reset fetch flags
+    hasFetchedOrders.current = false;
+    hasFetchedProblematicOrders.current = false;
+    hasFetchedCacData.current = false;
   };
 
   // Handle problematic filter changes
   const handleProblematicFilterChange = (filter) => () => {
     setSelectedProblematicFilter(prev => (prev === filter ? '' : filter));
     setProblematicCurrentPage(1);
+    // Reset fetch flags
+    hasFetchedProblematicOrders.current = false;
   };
 
   // Handle problematic pagination
   const handleProblematicPaginationChange = (event, value) => {
     setProblematicCurrentPage(value);
+    // Reset fetch flags
+    hasFetchedProblematicOrders.current = false;
   };
 
   /**
@@ -521,6 +636,10 @@ const OrderListFull = ({ isAdmin }) => {
       ...prev,
       [field]: event.target.value,
     }));
+    // Reset fetch flags
+    hasFetchedOrders.current = false;
+    hasFetchedProblematicOrders.current = false;
+    hasFetchedCacData.current = false;
   };
 
   // Handle Reset Filters
@@ -547,6 +666,10 @@ const OrderListFull = ({ isAdmin }) => {
     setOnlyIncludeSelectedVariants(false);
     setSingleVariantOnly(false);
     setSingleItemCountOnly(false);
+    // Reset fetch flags
+    hasFetchedOrders.current = false;
+    hasFetchedProblematicOrders.current = false;
+    hasFetchedCacData.current = false;
   };
 
   return (
@@ -666,6 +789,9 @@ const OrderListFull = ({ isAdmin }) => {
               if (e.key === 'Enter') {
                 setCurrentPage(1);
                 setProblematicCurrentPage(1);
+                // Reset fetch flags
+                hasFetchedOrders.current = false;
+                hasFetchedProblematicOrders.current = false;
               }
             }}
             sx={{ minWidth: { xs: '100%', md: '200px' } }}
@@ -799,6 +925,9 @@ const OrderListFull = ({ isAdmin }) => {
           onChange={(event, value) => {
             setCurrentPage(value);
             setProblematicCurrentPage(1);
+            // Reset fetch flags
+            hasFetchedOrders.current = false;
+            hasFetchedProblematicOrders.current = false;
           }}
           variant="outlined"
           shape="rounded"

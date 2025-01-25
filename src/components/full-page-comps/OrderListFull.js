@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Container,
   TextField,
@@ -56,6 +56,7 @@ const OrderListFull = ({ isAdmin }) => {
     aov: 0,
     discountRate: 0,
     oldestOrderDate: null,
+    utmCounts: {},             // Include utmCounts
   });
 
   const [loading, setLoading] = useState(true);
@@ -125,7 +126,15 @@ const OrderListFull = ({ isAdmin }) => {
     message: '',
     severity: 'warning',
   });
-
+  // State for CAC
+  const [cacData, setCacData] = useState({
+    spend: 0,
+    purchaseCount: 0,
+    cac: 'N/A',
+  });
+  const [cacLoading, setCacLoading] = useState(false);
+  const [cacError, setCacError] = useState(null);
+  
   // Fetch variant options when FiltersDrawer opens
   useEffect(() => {
     const fetchVariants = async () => {
@@ -238,6 +247,7 @@ const OrderListFull = ({ isAdmin }) => {
           aov: data.aov || 0,
           discountRate: isAdmin ? (data.discountRate || 0) : 0,
           oldestOrderDate: data.oldestOrderDate || null,
+          utmCounts: data.utmCounts || {}, // Include utmCounts
         }));
       } else {
         console.error("Error fetching orders:", data.message);
@@ -309,6 +319,69 @@ const OrderListFull = ({ isAdmin }) => {
       setProblematicLoading(false);
     }
   };
+
+  /**
+   * Function to fetch CAC data from Facebook Ads API
+   */
+  const fetchCacData = useCallback(async () => {
+    setCacLoading(true);
+    setCacError(null);
+
+    // Prepare the payload
+    const payload = {
+      startDate: dateRange.start ? dateRange.start.toISOString() : null,
+      endDate: dateRange.end ? dateRange.end.toISOString() : null,
+    };
+
+    const url = `/api/admin/get-main/get-facebook-cac`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setCacData({
+          spend: data.spend,
+          purchaseCount: data.purchaseCount,
+          cac: data.cac, // Currently unused, can be set to 'N/A' or removed
+        });
+      } else {
+        console.error("Error fetching CAC data:", data.error);
+        setCacError(data.error || 'Failed to fetch CAC data.');
+      }
+    } catch (error) {
+      console.error("Error fetching CAC data:", error);
+      setCacError('An error occurred while fetching CAC data.');
+    } finally {
+      setCacLoading(false);
+    }
+  }, [dateRange.start, dateRange.end]);
+
+  // Effect to fetch orders and CAC data whenever dependencies change
+  useEffect(() => {
+    fetchOrders(dateRange.start, dateRange.end, currentPage);
+    fetchCacData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    dateRange,
+    searchInput,
+    searchField,
+    shiprocketFilter,
+    paymentStatusFilter,
+    selectedUTMFilters,
+    selectedVariants,
+    onlyIncludeSelectedVariants,
+    singleVariantOnly,
+    singleItemCountOnly,
+    currentPage,
+  ]);
 
   // Handle search input change
   const handleSearchInputChange = (e) => {
@@ -503,7 +576,7 @@ const OrderListFull = ({ isAdmin }) => {
         setDateRange={setDateRange}
         setCurrentPage={setCurrentPage}
         setProblematicCurrentPage={setProblematicCurrentPage}
-        handleAllTagClick={handleAllTagClick}
+        handleAllTagClick={handleAllTagClick} // Ensure this prop is passed correctly
         handleCustomDayChange={handleCustomDayChange}
         handleCustomDateChange={handleCustomDateChange}
         handleMonthSelection={handleMonthSelection}
@@ -718,6 +791,10 @@ const OrderListFull = ({ isAdmin }) => {
         totalItems={orderData.totalItems}
         ITEMS_PER_PAGE={ITEMS_PER_PAGE}
         isAdmin={isAdmin}
+        cacData={cacData}
+        cacLoading={cacLoading}
+        cacError={cacError}
+        utmCounts={orderData.utmCounts} // Pass utmCounts as a prop
       />
 
       {/* Pagination */}

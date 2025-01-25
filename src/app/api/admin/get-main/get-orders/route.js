@@ -226,55 +226,107 @@ export async function GET(req) {
       const aggregationResult = await Order.aggregate([
         { $match: query },
         {
-          $group: {
-            _id: null,
-            sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue)
-            sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
-            sumItemsTotal: { $sum: "$itemsTotal" }, // Sum of itemsTotal (Gross Sales)
-            oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
-            count: { $sum: 1 }, // Total number of orders
+          $facet: {
+            // Existing aggregate metrics
+            metrics: [
+              {
+                $group: {
+                  _id: null,
+                  sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue)
+                  sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
+                  sumItemsTotal: { $sum: "$itemsTotal" }, // Sum of itemsTotal (Gross Sales)
+                  oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
+                  count: { $sum: 1 }, // Total number of orders
+                }
+              }
+            ],
+            // UTM-based order counts
+            utmCounts: [
+              {
+                $group: {
+                  _id: null,
+                  metaOrders: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $or: [
+                            { $regexMatch: { input: "$utmDetails.source", regex: /^instagram/i } },
+                            { $regexMatch: { input: "$utmDetails.source", regex: /^facebook/i } },
+                          ]
+                        },
+                        1,
+                        0
+                      ]
+                    }
+                  },
+                  directOrders: {
+                    $sum: {
+                      $cond: [
+                        { $eq: [{ $toLower: "$utmDetails.source" }, "direct"] },
+                        1,
+                        0
+                      ]
+                    }
+                  },
+                  instagramBioOrders: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $regexMatch: { input: "$utmDetails.source", regex: /^instagram/i } },
+                            { $eq: [{ $toLower: "$utmDetails.campaign" }, "bio"] }
+                          ]
+                        },
+                        1,
+                        0
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
           }
         }
       ]);
 
+      // Extract metrics
+      const metrics = aggregationResult[0].metrics[0] || {};
+      const utmCounts = aggregationResult[0].utmCounts[0] || {};
 
-      if (aggregationResult.length > 0) {
-        const {
-          sumTotalAmount,
-          sumTotalDiscount,
-          sumItemsTotal,
-          oldestOrderDate,
-          count,
-        } = aggregationResult[0];
+      const {
+        sumTotalAmount = 0,
+        sumTotalDiscount = 0,
+        sumItemsTotal = 0,
+        oldestOrderDate = null,
+        count = 0,
+      } = metrics;
 
-        const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal
-        const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
-        const aov = count > 0 ? revenue / count : 0;
-        const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
+      const {
+        metaOrders = 0,
+        directOrders = 0,
+        instagramBioOrders = 0,
+      } = utmCounts;
 
+      const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal
+      const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
+      const aov = count > 0 ? revenue / count : 0;
+      const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
 
-        return {
-          grossSales,
-          revenue,
-          sumTotalAmount,
-          sumTotalDiscount,
-          aov,
-          discountRate,
-          oldestOrderDate,
-          count,
-        };
-      } else {
-        return {
-          grossSales: 0,
-          revenue: 0,
-          sumTotalAmount: 0,
-          sumTotalDiscount: 0,
-          aov: 0,
-          discountRate: 0,
-          oldestOrderDate: null,
-          count: 0,
-        };
-      }
+      return {
+        grossSales,
+        revenue,
+        sumTotalAmount,
+        sumTotalDiscount,
+        aov,
+        discountRate,
+        oldestOrderDate,
+        count,
+        utmCounts: {
+          metaOrders,
+          directOrders,
+          instagramBioOrders,
+        },
+      };
     };
 
     /**
@@ -292,6 +344,7 @@ export async function GET(req) {
         discountRate,
         oldestOrderDate,
         count: totalOrders,
+        utmCounts,
       } = aggregates;
 
       // Calculate totalPages
@@ -338,6 +391,7 @@ export async function GET(req) {
         aov,
         discountRate,
         oldestOrderDate: formattedOldestOrderDate,
+        utmCounts, // Include the new UTM counts
       };
     };
 
@@ -388,6 +442,7 @@ export async function GET(req) {
         discountRate,
         oldestOrderDate,
         count: totalOrders,
+        utmCounts,
       } = problematicAggregates;
 
       // Calculate totalPages
@@ -421,7 +476,7 @@ export async function GET(req) {
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
-      // Respond with data
+      // Respond with data including utmCounts
       return new Response(
         JSON.stringify({
           orders,
@@ -436,6 +491,7 @@ export async function GET(req) {
           aov,
           discountRate,
           oldestOrderDate: formattedOldestOrderDate,
+          utmCounts, // Include the new UTM counts
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
@@ -453,6 +509,7 @@ export async function GET(req) {
         discountRate,
         oldestOrderDate,
         count: totalOrders,
+        utmCounts,
       } = baseAggregates;
 
       // Calculate totalPages
@@ -486,7 +543,7 @@ export async function GET(req) {
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
-      // Respond with data
+      // Respond with data including utmCounts
       return new Response(
         JSON.stringify({
           orders,
@@ -501,6 +558,7 @@ export async function GET(req) {
           aov,
           discountRate,
           oldestOrderDate: formattedOldestOrderDate,
+          utmCounts, // Include the new UTM counts
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );

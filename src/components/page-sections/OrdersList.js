@@ -1,6 +1,6 @@
 // /components/page-sections/OrdersList.js
 
-import React, { memo } from 'react';
+import React, { memo,useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -9,6 +9,7 @@ import {
   Tooltip,
   Skeleton,
   styled,
+  Alert,
 } from '@mui/material';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import InventoryIcon from '@mui/icons-material/Inventory';
@@ -55,6 +56,16 @@ const neutralDarkColors = {
     text: '#FFFFFF',
     icon: '#FFFFFF',
   },
+  metaCAC: { // New color for Meta CAC
+    background: '#424242', // Dark Blue
+    text: '#FFFFFF',
+    icon: '#FFFFFF',
+  },
+  overallCAC: { // New color for Overall CAC
+    background: '#424242', // Blue Grey
+    text: '#FFFFFF',
+    icon: '#FFFFFF',
+  },
 };
 
 // Styled Chip component using MUI's styled API
@@ -84,13 +95,35 @@ const OrdersList = ({
   totalOrders = 0,
   grossSales = 0,
   revenue = 0,
-  ITEMS_PER_PAGE = 30,
-  totalItems = 0,
   sumTotalDiscount = 0,
   aov = 0,
   discountRate = 0,
+  totalItems = 0,
+  ITEMS_PER_PAGE = 30,
   isAdmin = false,
+  cacData = { spend: 0, purchaseCount: 0, cac: 'N/A' },
+  cacLoading = false,
+  cacError = null,
+  utmCounts = {},
 }) => {
+  const { metaOrders = 0, instagramBioOrders = 0 } = utmCounts;
+
+  const { spend } = cacData;
+
+  // Calculate Meta CAC and Overall CAC with error handling
+  const inorganicMetaOrders = metaOrders - instagramBioOrders;
+  const calculatedMetaCAC = inorganicMetaOrders > 0
+    ? (spend / inorganicMetaOrders).toFixed(2)
+    : 'N/A';
+
+  const calculatedOverallCAC = totalOrders > 0
+    ? (spend / totalOrders).toFixed(2)
+    : 'N/A';
+  useEffect(() => {
+      console.warn({spend, inorganicMetaOrders,totalOrders});
+
+
+  },[spend, inorganicMetaOrders, totalOrders])
   // Define chip data with detailed tooltips and formulas
   const chipData = [
     {
@@ -262,6 +295,60 @@ const OrdersList = ({
       ),
       isVisible: true,
     },
+    // **Meta CAC Chip**
+    {
+      label: `Meta CAC: ₹${calculatedMetaCAC}`,
+      icon: (
+        <AttachMoneyIcon
+          sx={{
+            color: neutralDarkColors.metaCAC.icon,
+            marginRight: '0.5rem',
+          }}
+        />
+      ),
+      color: neutralDarkColors.metaCAC,
+      tooltip: (
+        <>
+          <Typography variant="subtitle2" gutterBottom>
+            Meta Customer Acquisition Cost (CAC)
+          </Typography>
+          <Typography variant="body2">
+            Calculated as Spend from Facebook API divided by (Meta Orders - Instagram Bio Orders).
+          </Typography>
+          <Typography variant="body2">
+            <strong>Formula:</strong> Meta CAC = Spend / (Meta Orders - Instagram Bio Orders)
+          </Typography>
+        </>
+      ),
+      isVisible: true,
+    },
+    // **Overall CAC Chip**
+    {
+      label: `Overall CAC: ₹${calculatedOverallCAC}`,
+      icon: (
+        <AttachMoneyIcon
+          sx={{
+            color: neutralDarkColors.overallCAC.icon,
+            marginRight: '0.5rem',
+          }}
+        />
+      ),
+      color: neutralDarkColors.overallCAC,
+      tooltip: (
+        <>
+          <Typography variant="subtitle2" gutterBottom>
+            Overall Customer Acquisition Cost (CAC)
+          </Typography>
+          <Typography variant="body2">
+            Calculated as Spend from Facebook API divided by All Orders.
+          </Typography>
+          <Typography variant="body2">
+            <strong>Formula:</strong> Overall CAC = Spend / All Orders
+          </Typography>
+        </>
+      ),
+      isVisible: true,
+    },
   ].filter(Boolean); // Remove false values if not admin
 
   return (
@@ -272,8 +359,7 @@ const OrdersList = ({
           marginBottom: '1.5rem',
           padding: '1.5rem',
           borderRadius: '12px',
-          backgroundColor:!loading ?  '#2c2c2e' : 'transparent',
-
+          backgroundColor: !loading ? '#2c2c2e' : 'transparent',
         }}
       >
         <Grid container spacing={3}>
@@ -342,6 +428,12 @@ const OrdersList = ({
             isAdmin={isAdmin}
           />
         ))
+      )}
+      {/* Display CAC Error if any */}
+      {cacError && (
+        <Box sx={{ marginTop: '1rem' }}>
+          <Alert severity="error">{cacError}</Alert>
+        </Box>
       )}
     </Box>
   );

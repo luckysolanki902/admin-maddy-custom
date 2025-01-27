@@ -116,7 +116,7 @@ const OrdersList = ({
   const calculatedMetaCAC = inorganicMetaOrders > 0
     ? (spend / inorganicMetaOrders).toFixed(2)
     : 'N/A';
-
+console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
   const calculatedOverallCAC = totalOrders > 0
     ? (spend / totalOrders).toFixed(2)
     : 'N/A';

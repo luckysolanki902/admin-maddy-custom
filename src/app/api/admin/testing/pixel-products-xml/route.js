@@ -1,17 +1,17 @@
-// /app/api/products/route.js
+
 
 import { connectToDatabase } from '@/lib/db';
 import Product from '@/models/Product';
 import SpecificCategory from '@/models/SpecificCategory';
-import SpecificCategoryVariant from '@/models/SpecificCategoryVariant'; // Import the SpecificCategoryVariant model
+import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
 import { NextResponse } from 'next/server';
-import { Parser } from 'json2csv';
+import js2xmlparser from 'js2xmlparser'; // Import the XML parser
 
 /**
  * GET /api/products
  * 
  * Retrieves all products with specificCategoryCode of 'win', 'bw', or 'tw',
- * transforms the data, and returns it as a downloadable CSV file.
+ * transforms the data into XML, and returns it as an XML response.
  */
 export async function GET() {
   try {
@@ -37,8 +37,8 @@ export async function GET() {
       .populate('specificCategoryVariant') // Populate the specificCategoryVariant field
       .lean(); // Use lean() for faster Mongoose queries by returning plain JavaScript objects
 
-    // Transform the product data to match the CSV requirements
-    const csvData = products.map(product => ({
+    // Transform the product data to match the XML requirements
+    const xmlProducts = products.map(product => ({
       id: product.sku,
       title: product.title,
       description: product.specificCategoryVariant && product.specificCategoryVariant.productDescription
@@ -54,33 +54,26 @@ export async function GET() {
       brand: 'Maddy Custom', // Static value as per requirements
     }));
 
-    // Define the CSV fields in the desired order
-    const fields = [
-      'id',
-      'title',
-      'description',
-      'availability',
-      'condition',
-      'price',
-      'link',
-      'image_link',
-      'brand',
-    ];
+    // Define the root element and its structure for the XML
+    const xmlOptions = {
+      declaration: { encoding: 'UTF-8' },
+      format: {
+        doubleQuotes: true
+      }
+    };
 
-    // Initialize the JSON to CSV parser with the defined fields
-    const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(csvData);
+    // Convert the JSON data to XML
+    const xmlData = js2xmlparser.parse("products", { product: xmlProducts }, xmlOptions);
 
-    // Return the CSV as a downloadable file
-    return new NextResponse(csv, {
+    // Return the XML as a response
+    return new NextResponse(xmlData, {
       status: 200,
       headers: {
-        'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename=products.csv',
+        'Content-Type': 'application/xml',
       },
     });
   } catch (error) {
-    console.error('Error generating CSV:', error);
+    console.error('Error generating XML:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

@@ -1,3 +1,5 @@
+// /app/api/admin/manage/reviews/route.js
+
 import Review from '@/models/Review';
 import Product from '@/models/Product';
 import SpecificCategory from '@/models/SpecificCategory';
@@ -7,22 +9,68 @@ import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
 
 // Fetch all reviews
-export async function GET() {
+// ... Existing imports ...
+
+export async function GET(request) {
     console.log('Fetching all reviews');
     try {
         await connectToDatabase();
-        const reviews = await Review.find()
+
+        // Parse query parameters
+        const url = new URL(request.url);
+        const searchParams = url.searchParams;
+
+        const page = parseInt(searchParams.get('page') || '1', 10);
+        const limit = Math.min(parseInt(searchParams.get('limit') || '30', 10), 100); // Max limit to prevent abuse
+        const startDate = searchParams.get('startDate');
+        const endDate = searchParams.get('endDate');
+
+        const skip = (page - 1) * limit;
+
+        // Build query object with date filtering
+        let query = {};
+
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            query.createdAt = { $gte: start, $lte: end };
+        } else if (startDate) {
+            const start = new Date(startDate);
+            query.createdAt = { $gte: start };
+        } else if (endDate) {
+            const end = new Date(endDate);
+            query.createdAt = { $lte: end };
+        }
+
+        // Optionally, add more filters here (e.g., status, product, etc.)
+
+        // Fetch total count for pagination
+        const totalReviews = await Review.countDocuments(query);
+
+        // Fetch reviews with pagination and populate related fields
+        const reviews = await Review.find(query)
+            .sort({ createdAt: -1 }) // Sort by newest first
+            .skip(skip)
+            .limit(limit)
             .populate('product', 'name')
             .populate('specificCategory', 'name')
             .populate('specificCategoryVariant', 'name')
             .populate('user', 'name phoneNumber');
 
-        return new Response(JSON.stringify(reviews), { status: 200 });
+        return new Response(JSON.stringify({
+            reviews,
+            totalReviews,
+            totalPages: Math.ceil(totalReviews / limit),
+            currentPage: page,
+        }), { status: 200 });
     } catch (error) {
         console.error('Error fetching reviews:', error);
         return new Response(JSON.stringify({ error: 'Failed to fetch reviews.' }), { status: 500 });
     }
 }
+
+// ... Existing POST, PUT, DELETE handlers ...
+
 
 // Create a new review
 export async function POST(request) {

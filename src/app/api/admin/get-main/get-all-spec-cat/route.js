@@ -9,7 +9,7 @@ export async function GET() {
     await connectToDatabase();
 
     // Fetch all categories
-    const categories = await SpecificCategory.find({}, "_id name").lean();
+    const categories = await SpecificCategory.find({}, "_id name productInfoTabs").lean();
 
     if (!categories.length) {
       return NextResponse.json(

@@ -60,6 +60,18 @@ const SpecificCategorySchema = new mongoose.Schema(
       type: [ExtraFieldSchema], // Array of ExtraFieldSchema
       default: [],
     },
+
+    productInfoTabs:[
+      {
+        title: {
+          type: String
+        },
+        fetchSource: {
+          type: String,
+          enum: ['Variant', 'SpecCat', 'Product']
+        }
+      }
+    ]
   },
   { timestamps: true }
 );

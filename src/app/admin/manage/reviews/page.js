@@ -49,7 +49,7 @@ const ManageReviews = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const imageBaseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL;
   const [currentReview, setCurrentReview] = useState({
-    title: "",
+    name: "",
     comment: "",
     rating: 1,
     product: "",
@@ -150,7 +150,7 @@ const ManageReviews = () => {
   const handleDialogOpen = (review = null) => {
     if (review) {
       setCurrentReview({
-        title: review.title,
+        name: review.name,
         comment: review.comment,
         rating: review.rating,
         product: review.product?._id || "",
@@ -162,7 +162,7 @@ const ManageReviews = () => {
       });
     } else {
       setCurrentReview({
-        title: "",
+        name: "",
         comment: "",
         rating: 1,
         product: "",
@@ -179,7 +179,7 @@ const ManageReviews = () => {
   const handleDialogClose = () => {
     setOpenDialog(false);
     setCurrentReview({
-      title: "",
+      name: "",
       comment: "",
       rating: 1,
       product: "",
@@ -411,7 +411,7 @@ const ManageReviews = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Title</TableCell>
+              <TableCell>Name</TableCell>
               <TableCell>Comment</TableCell>
               <TableCell>Rating</TableCell>
               <TableCell>Product</TableCell>
@@ -425,7 +425,7 @@ const ManageReviews = () => {
           <TableBody>
             {reviews.map((review) => (
               <TableRow key={review._id}>
-                <TableCell>{review.title}</TableCell>
+                <TableCell>{review.name}</TableCell>
                 <TableCell>{review.comment}</TableCell>
                 <TableCell>{review.rating}</TableCell>
                 <TableCell>{review.product?.name || "-"}</TableCell>
@@ -503,9 +503,9 @@ const ManageReviews = () => {
         <DialogContent>
           <Stack spacing={3}>
             <TextField
-              label="Title"
-              name="title"
-              value={currentReview.title}
+              label="Name"
+              name="name"
+              value={currentReview.name}
               onChange={handleInputChange}
               fullWidth
               required

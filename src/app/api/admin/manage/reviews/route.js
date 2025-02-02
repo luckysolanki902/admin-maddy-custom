@@ -80,9 +80,9 @@ export async function POST(request) {
         const data = await request.json();
 
         // Perform necessary validations
-        if (!data.title || !data.comment || !data.rating) {
+        if (!data.name || !data.comment || !data.rating) {
             console.warn('Validation failed: Missing required fields.');
-            return new Response(JSON.stringify({ error: 'Title, comment, and rating are required.' }), { status: 400 });
+            return new Response(JSON.stringify({ error: 'Name, comment, and rating are required.' }), { status: 400 });
         }
 
         if (!data.isAdminReview && !data.product) {

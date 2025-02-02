@@ -33,12 +33,6 @@ const mongoose = require('mongoose');
 const ReviewSchema = new mongoose.Schema(
   {
     // Basic fields
-    title: {
-      type: String,
-      required: true,
-      maxlength: 100,
-      trim: true,
-    },
     comment: {
       type: String,
       required: true,
@@ -56,6 +50,12 @@ const ReviewSchema = new mongoose.Schema(
         type: String,
       },
     ],
+    name:{
+      type:String,
+      required:true,
+      maxlength: 200, // feel free to adjust
+      trim: true,
+    },
 
     /**
      * Who created the review?

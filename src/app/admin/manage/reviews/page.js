@@ -150,6 +150,7 @@ const ManageReviews = () => {
   const handleDialogOpen = (review = null) => {
     if (review) {
       setCurrentReview({
+        _id:review._id,
         name: review.name,
         comment: review.comment,
         rating: review.rating,
@@ -160,6 +161,7 @@ const ManageReviews = () => {
         isAdminReview: review.isAdminReview || false,
         images: review.images || [],
       });
+      // console.log(currentReview,"boom")
     } else {
       setCurrentReview({
         name: "",
@@ -214,6 +216,7 @@ const ManageReviews = () => {
   };
 
   const handleSaveReview = async () => {
+    // console.log(currentReview,"muaaah")
     const method = currentReview._id ? "PUT" : "POST";
     const endpoint = currentReview._id
       ? `/api/admin/manage/reviews/${currentReview._id}`

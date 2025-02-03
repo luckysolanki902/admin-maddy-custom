@@ -32,17 +32,11 @@ import {
   Pagination,
   CircularProgress,
 } from "@mui/material";
-import {
-  Add,
-  Edit,
-  Delete,
-  CheckCircle,
-  Cancel,
-} from "@mui/icons-material";
+import { Add, Edit, Delete, CheckCircle, Cancel } from "@mui/icons-material";
 import { useDropzone } from "react-dropzone";
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import dayjs from 'dayjs';
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
+import dayjs from "dayjs";
 
 const ManageReviews = () => {
   const [reviews, setReviews] = useState([]);
@@ -57,7 +51,8 @@ const ManageReviews = () => {
     specificCategoryVariant: "",
     status: "pending",
     isAdminReview: false,
-    images: [], // Array of image URLs
+    images: [],
+    createdAt: dayjs(), // New custom review date field
   });
   const [categories, setCategories] = useState([]);
   const [variants, setVariants] = useState([]);
@@ -73,10 +68,10 @@ const ManageReviews = () => {
 
   // Date Filter State
   const [dateRange, setDateRange] = useState({
-    start: dayjs().startOf('day'),
-    end: dayjs().endOf('day'),
+    start: dayjs().startOf("day"),
+    end: dayjs().endOf("day"),
   });
-  const [activeDateFilter, setActiveDateFilter] = useState('today'); // 'today', 'thisMonth', 'custom'
+  const [activeDateFilter, setActiveDateFilter] = useState("today"); // 'today', 'thisMonth', 'custom'
 
   // Image Upload State
   const [uploading, setUploading] = useState(false);
@@ -91,21 +86,21 @@ const ManageReviews = () => {
     try {
       // Construct query parameters
       const params = new URLSearchParams();
-      params.append('page', currentPage);
-      params.append('limit', 30); // Adjust as needed
+      params.append("page", currentPage);
+      params.append("limit", 30); // Adjust as needed
 
       if (dateRange.start) {
-        params.append('startDate', dateRange.start.toISOString());
+        params.append("startDate", dateRange.start.toISOString());
       }
       if (dateRange.end) {
-        params.append('endDate', dateRange.end.toISOString());
+        params.append("endDate", dateRange.end.toISOString());
       }
 
       // Add other filters if necessary
 
       const res = await fetch(`/api/admin/manage/reviews?${params.toString()}`);
       if (!res.ok) {
-        throw new Error('Failed to fetch reviews.');
+        throw new Error("Failed to fetch reviews.");
       }
       const data = await res.json();
       setReviews(data.reviews);
@@ -159,6 +154,7 @@ const ManageReviews = () => {
         status: review.status || "pending",
         isAdminReview: review.isAdminReview || false,
         images: review.images || [],
+        createdAt: review.createdAt ? dayjs(review.createdAt) : dayjs(),
       });
     } else {
       setCurrentReview({
@@ -171,6 +167,7 @@ const ManageReviews = () => {
         status: "pending",
         isAdminReview: false,
         images: [],
+        createdAt: dayjs(),
       });
     }
     setOpenDialog(true);
@@ -188,6 +185,7 @@ const ManageReviews = () => {
       status: "pending",
       isAdminReview: false,
       images: [],
+      createdAt: dayjs(),
     });
     setUploadError("");
   };
@@ -219,17 +217,28 @@ const ManageReviews = () => {
       ? `/api/admin/manage/reviews/${currentReview._id}`
       : "/api/admin/manage/reviews";
 
+    // Convert createdAt from dayjs object to ISO string before saving
+    const reviewToSave = {
+      ...currentReview,
+      createdAt:
+        currentReview.createdAt && currentReview.createdAt.toISOString
+          ? currentReview.createdAt.toISOString()
+          : currentReview.createdAt,
+    };
+
     try {
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(currentReview),
+        body: JSON.stringify(reviewToSave),
       });
 
       if (res.ok) {
         const data = await res.json();
         setSnackbarMessage(
-          currentReview._id ? "Review updated successfully!" : "Review added successfully!"
+          currentReview._id
+            ? "Review updated successfully!"
+            : "Review added successfully!"
         );
         fetchReviews();
         handleDialogClose();
@@ -262,7 +271,6 @@ const ManageReviews = () => {
     if (acceptedFiles.length === 0) return;
 
     const file = acceptedFiles[0];
-    // const fileName = `${Date.now()}-${file.name}`;
     const fullPath = `reviews/${Date.now()}-${file.name}`;
     const fileType = file.type;
 
@@ -271,32 +279,32 @@ const ManageReviews = () => {
 
     try {
       // Request presigned URL from the backend
-      const res = await fetch('/api/admin/aws/generate-presigned-url', {
-        method: 'POST',
+      const res = await fetch("/api/admin/aws/generate-presigned-url", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ fullPath, fileType }),
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to get presigned URL.');
+        throw new Error(errorData.message || "Failed to get presigned URL.");
       }
 
       const { presignedUrl } = await res.json();
-     const url = fullPath; // Use the full path as the image URL
+      const url = fullPath; // Use the full path as the image URL
       // Upload the file directly to S3 using the presigned URL
       const uploadRes = await fetch(presignedUrl, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': fileType,
+          "Content-Type": fileType,
         },
         body: file,
       });
 
       if (!uploadRes.ok) {
-        throw new Error('Failed to upload image to S3.');
+        throw new Error("Failed to upload image to S3.");
       }
 
       // Update the currentReview's images array with the new image URL
@@ -305,7 +313,7 @@ const ManageReviews = () => {
         images: [...prev.images, url],
       }));
     } catch (error) {
-      console.error('Error uploading image:', error);
+      console.error("Error uploading image:", error);
       setUploadError(error.message);
     } finally {
       setUploading(false);
@@ -315,8 +323,8 @@ const ManageReviews = () => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/jpeg': ['.jpeg', '.jpg'],
-      'image/png': ['.png'],
+      "image/jpeg": [".jpeg", ".jpg"],
+      "image/png": [".png"],
     },
     multiple: false, // Allow only one image at a time
   });
@@ -329,20 +337,20 @@ const ManageReviews = () => {
   };
 
   return (
-    <Container sx={{ marginTop: '20px', color: 'white' }}>
+    <Container sx={{ marginTop: "20px", color: "white" }}>
       <Typography variant="h4" align="center" gutterBottom>
         Manage Reviews
       </Typography>
-      
+
       {/* Date Filters */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginBottom: '20px' }}>
+      <Box sx={{ display: "flex", justifyContent: "center", gap: "1rem", marginBottom: "20px" }}>
         <Button
-          variant={activeDateFilter === 'today' ? 'contained' : 'outlined'}
+          variant={activeDateFilter === "today" ? "contained" : "outlined"}
           onClick={() => {
-            setActiveDateFilter('today');
+            setActiveDateFilter("today");
             setDateRange({
-              start: dayjs().startOf('day'),
-              end: dayjs().endOf('day'),
+              start: dayjs().startOf("day"),
+              end: dayjs().endOf("day"),
             });
             setCurrentPage(1); // Reset to first page
           }}
@@ -350,12 +358,12 @@ const ManageReviews = () => {
           Today
         </Button>
         <Button
-          variant={activeDateFilter === 'thisMonth' ? 'contained' : 'outlined'}
+          variant={activeDateFilter === "thisMonth" ? "contained" : "outlined"}
           onClick={() => {
-            setActiveDateFilter('thisMonth');
+            setActiveDateFilter("thisMonth");
             setDateRange({
-              start: dayjs().startOf('month'),
-              end: dayjs().endOf('day'),
+              start: dayjs().startOf("month"),
+              end: dayjs().endOf("day"),
             });
             setCurrentPage(1); // Reset to first page
           }}
@@ -363,17 +371,17 @@ const ManageReviews = () => {
           This Month
         </Button>
         <Button
-          variant={activeDateFilter === 'custom' ? 'contained' : 'outlined'}
-          onClick={() => setActiveDateFilter('custom')}
+          variant={activeDateFilter === "custom" ? "contained" : "outlined"}
+          onClick={() => setActiveDateFilter("custom")}
         >
           Custom Range
         </Button>
       </Box>
-      
+
       {/* Custom Date Range Picker */}
-      {activeDateFilter === 'custom' && (
+      {activeDateFilter === "custom" && (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginBottom: '20px' }}>
+          <Box sx={{ display: "flex", justifyContent: "center", gap: "1rem", marginBottom: "20px" }}>
             <DatePicker
               label="Start Date"
               value={dateRange.start}
@@ -396,12 +404,7 @@ const ManageReviews = () => {
 
       {/* Add Review Button */}
       <Grid container justifyContent="flex-end" sx={{ marginBottom: "20px" }}>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<Add />}
-          onClick={() => handleDialogOpen()}
-        >
+        <Button variant="contained" color="primary" startIcon={<Add />} onClick={() => handleDialogOpen()}>
           Add Review
         </Button>
       </Grid>
@@ -443,18 +446,20 @@ const ManageReviews = () => {
                 <TableCell>
                   {review.images && review.images.length > 0 ? (
                     <Stack direction="row" spacing={1}>
-                      {review.images.map((imgUrl, index) => {
-                        // console.log(`image ${index + 1}: ${imgUrl}`);
-                        return (
-                          <Box key={index} position="relative">
-                            <img
-                              src={`${imageBaseUrl}/${imgUrl}`}
-                              alt={`Review ${index + 1}`}
-                              style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '4px' }}
-                            />
-                          </Box>
-                        );
-                      })}
+                      {review.images.map((imgUrl, index) => (
+                        <Box key={index} position="relative">
+                          <img
+                            src={`${imageBaseUrl}/${imgUrl}`}
+                            alt={`Review ${index + 1}`}
+                            style={{
+                              width: "50px",
+                              height: "50px",
+                              objectFit: "cover",
+                              borderRadius: "4px",
+                            }}
+                          />
+                        </Box>
+                      ))}
                     </Stack>
                   ) : (
                     "-"
@@ -487,7 +492,7 @@ const ManageReviews = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+        <Box sx={{ display: "flex", justifyContent: "center", marginTop: "20px" }}>
           <Pagination
             count={totalPages}
             page={currentPage}
@@ -560,22 +565,27 @@ const ManageReviews = () => {
               }
               label="Is Admin Review"
             />
+            {/* Show Custom Date Picker for Admin Reviews */}
+            {currentReview.isAdminReview && (
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DatePicker
+                  label="Custom Review Date"
+                  value={currentReview.createdAt}
+                  onChange={(newValue) =>
+                    setCurrentReview((prev) => ({ ...prev, createdAt: newValue }))
+                  }
+                  renderInput={(params) => <TextField {...params} fullWidth />}
+                />
+              </LocalizationProvider>
+            )}
             <Typography>Select Category:</Typography>
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ flexWrap: "wrap", gap: "8px" }}
-            >
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: "8px" }}>
               {categories.map((category) => (
                 <Chip
                   key={category._id}
                   label={category.name}
                   clickable
-                  color={
-                    currentReview.specificCategory === category._id
-                      ? "primary"
-                      : "default"
-                  }
+                  color={currentReview.specificCategory === category._id ? "primary" : "default"}
                   onClick={() => handleCategorySelect(category)}
                 />
               ))}
@@ -585,7 +595,7 @@ const ManageReviews = () => {
                 select
                 label="Select Variant"
                 value={currentReview.specificCategoryVariant}
-                onChange={(e) => handleVariantSelect(variants.find(v => v._id === e.target.value))}
+                onChange={(e) => handleVariantSelect(variants.find((v) => v._id === e.target.value))}
                 fullWidth
               >
                 {variants.map((variant) => (
@@ -600,7 +610,7 @@ const ManageReviews = () => {
                 select
                 label="Select Product"
                 value={currentReview.product}
-                onChange={(e) => handleProductSelect(products.find(p => p._id === e.target.value))}
+                onChange={(e) => handleProductSelect(products.find((p) => p._id === e.target.value))}
                 fullWidth
               >
                 {products.map((product) => (
@@ -619,11 +629,11 @@ const ManageReviews = () => {
               <Box
                 {...getRootProps()}
                 sx={{
-                  border: '2px dashed #cccccc',
-                  padding: '20px',
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  backgroundColor: isDragActive ? '#f0f0f0' : 'transparent',
+                  border: "2px dashed #cccccc",
+                  padding: "20px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  backgroundColor: isDragActive ? "#f0f0f0" : "transparent",
                 }}
               >
                 <input {...getInputProps()} />
@@ -642,23 +652,23 @@ const ManageReviews = () => {
               )}
               {/* Display Uploaded Images */}
               {currentReview.images && currentReview.images.length > 0 && (
-                <Stack direction="row" spacing={1} sx={{ marginTop: '10px', flexWrap: 'wrap' }}>
+                <Stack direction="row" spacing={1} sx={{ marginTop: "10px", flexWrap: "wrap" }}>
                   {currentReview.images.map((imgUrl, index) => (
                     <Box key={index} position="relative">
                       <img
                         src={imgUrl}
                         alt={`Review ${index + 1}`}
-                        style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }}
+                        style={{ width: "100px", height: "100px", objectFit: "cover", borderRadius: "4px" }}
                       />
                       <IconButton
                         size="small"
                         color="error"
                         onClick={() => handleRemoveImage(imgUrl)}
                         sx={{
-                          position: 'absolute',
+                          position: "absolute",
                           top: 0,
                           right: 0,
-                          backgroundColor: 'rgba(255,255,255,0.7)',
+                          backgroundColor: "rgba(255,255,255,0.7)",
                         }}
                       >
                         <Delete fontSize="small" />

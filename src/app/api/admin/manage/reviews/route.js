@@ -1,6 +1,10 @@
 import Review from '@/models/Review';
 import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
+import User from '@/models/User';
+import SpecificCategory from '@/models/SpecificCategory';
+import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
+import Product from '@/models/Product';
 
 export async function GET(request) {
   console.log('Fetching all reviews');

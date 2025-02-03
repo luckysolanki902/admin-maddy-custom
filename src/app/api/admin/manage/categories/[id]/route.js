@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import SpecificCategory from "@/models/SpecificCategory";
@@ -10,7 +11,7 @@ function slugify(str) {
 }
 
 export async function PATCH(request, { params }) {
-  const { id } = params;
+  const { id } = await params;
 
   try {
     await connectToDatabase();

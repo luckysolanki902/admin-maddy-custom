@@ -4,7 +4,7 @@ import Product from '@/models/Product';
 import { NextResponse } from 'next/server';
 
 export async function GET(request, { params }) {
-  const { specificCategoryVariantId } = params;
+  const { specificCategoryVariantId } = await params;
 
   // Validate the specificCategoryVariantId
   if (!specificCategoryVariantId || !specificCategoryVariantId.match(/^[0-9a-fA-F]{24}$/)) {

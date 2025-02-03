@@ -3,7 +3,7 @@ import Review from '@/models/Review';
 
 export async function PUT(request, { params }) {
   try {
-    const { id } = params; // The dynamic [id] from the route
+    const { id } = await params; // The dynamic [id] from the route
     await connectToDatabase();
 
     // Read the desired newStatus from the request body

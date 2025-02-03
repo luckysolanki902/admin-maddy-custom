@@ -11,7 +11,7 @@ function slugify(str) {
 }
 
 export async function PATCH(request, { params }) {
-  const { id } = params;
+  const { id } = await params;
 
   try {
     await connectToDatabase();

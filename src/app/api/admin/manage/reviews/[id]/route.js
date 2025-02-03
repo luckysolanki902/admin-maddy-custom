@@ -39,7 +39,7 @@ export async function PUT(request, { params }) {
 
 // Delete a review by ID
 export async function DELETE(request, { params }) {
-    const { id } = params;
+    const { id } = await params;
     console.log(`Deleting review ID: ${id}`);
 
     if (!ObjectId.isValid(id)) {
@@ -79,7 +79,7 @@ export async function DELETE(request, { params }) {
 
 // Fetch variants for a specific category
 export async function GET_VARIANTS(request, { params }) {
-    const { categoryId } = params;
+    const { categoryId } = await params;
     console.log(`Fetching variants for category ID: ${categoryId}`);
 
     if (!ObjectId.isValid(categoryId)) {
@@ -99,7 +99,7 @@ export async function GET_VARIANTS(request, { params }) {
 
 // Fetch products for a specific variant
 export async function GET_PRODUCTS(request, { params }) {
-    const { variantId } = params;
+    const { variantId } = await params;
     console.log(`Fetching products for variant ID: ${variantId}`);
 
     if (!ObjectId.isValid(variantId)) {

@@ -5,7 +5,7 @@ import Product from '@/models/Product';
 import { NextResponse } from 'next/server';
 
 export async function GET(request, { params }) {
-  const { productId } = params;
+  const { productId } = await params;
 
   if (!productId) {
     return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });

@@ -6,7 +6,7 @@ import { ObjectId } from 'mongodb';
 
 // Handle PUT and DELETE requests for a specific coupon
 export async function PUT(request, { params }) {
-    const { id } = params;
+    const { id } = await params;
     console.log(`Received PUT request for coupon ID: ${id}`);
 
     // Validate ObjectId format

@@ -9,7 +9,7 @@ import { ObjectId } from 'mongodb';
 
 // Update a review by ID
 export async function PUT(request, { params }) {
-    const { id } = params;
+    const { id } =await  params;
     console.log(`Updating review ID: ${id}`);
 
     if (!ObjectId.isValid(id)) {

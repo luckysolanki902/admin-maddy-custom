@@ -7,7 +7,7 @@ import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
 
 export async function GET(request, { params }) {
-    const { id } = params;
+    const { id } = await params;
     console.log(`Fetching variants for category ID: ${id}`);
 
     if (!ObjectId.isValid(id)) {

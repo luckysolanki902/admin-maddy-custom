@@ -8,6 +8,8 @@ export default function Design() {
     { text: 'Orders List', link: '/admin/manage/orders/order-list' },
     { text: 'Product Based Sales Analysis', link: '/admin/manage/data-analysis/sales/product-based' },
     { text: 'Design Search', link: '/admin/manage/orders/sku-search' },
+    { text: 'Review Manager', link: '/admin/manage/reviews' },
+
   ];
 
   return (

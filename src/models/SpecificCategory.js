@@ -60,10 +60,26 @@ const SpecificCategorySchema = new mongoose.Schema(
       type: [ExtraFieldSchema], // Array of ExtraFieldSchema
       default: [],
     },
+    // review fetch source
+    reviewFetchSource: {
+      type: String,
+      enum: ['variant', 'product'],
+      default: 'variant',
+      lowercase: true
+    },
+    productInfoTabs: [
+      {
+        title: {
+          type: String
+        },
+        fetchSource: {
+          type: String,
+          enum: ['Variant', 'SpecCat', 'Product']
+        }
+      }
+    ]
   },
   { timestamps: true }
 );
 
-module.exports =
-  mongoose.models.SpecificCategory ||
-  mongoose.model('SpecificCategory', SpecificCategorySchema);
+module.exports = mongoose.models.SpecificCategory || mongoose.model('SpecificCategory', SpecificCategorySchema);

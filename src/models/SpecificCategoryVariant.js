@@ -140,7 +140,7 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
       image: {
         type: String,
       },
-      weight:{
+      weight: {
         type: Number
       }
     },

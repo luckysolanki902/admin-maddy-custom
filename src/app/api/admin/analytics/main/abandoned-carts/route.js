@@ -28,7 +28,7 @@ export async function GET(req) {
       // Stage 2: Sort by receiverPhoneNumber and createdAt descending
       { $sort: { 'address.receiverPhoneNumber': 1, createdAt: -1 } },
 
-      // Stage 3: Group by receiverPhoneNumber and get the latest order
+      // Stage 3: Group by receiverPhoneNumber to get the latest order per phone number
       {
         $group: {
           _id: '$address.receiverPhoneNumber',
@@ -36,52 +36,40 @@ export async function GET(req) {
         },
       },
 
-      // Stage 4: Filter groups where latestOrder.deliveryStatus is 'pending'
+      // Stage 4: Keep only orders with deliveryStatus 'pending'
       {
         $match: {
           'latestOrder.deliveryStatus': 'pending',
         },
       },
 
-      // Stage 5: Project necessary fields and compute week
+      // Stage 5: Project a daily date string from latestOrder.createdAt
       {
         $project: {
           _id: 0,
-          week: {
-            $concat: [
-              { $toString: { $year: '$latestOrder.createdAt' } },
-              '-W',
-              {
-                $cond: [
-                  { $lt: [{ $isoWeek: '$latestOrder.createdAt' }, 10] },
-                  { $concat: ['0', { $toString: { $isoWeek: '$latestOrder.createdAt' } }] },
-                  { $toString: { $isoWeek: '$latestOrder.createdAt' } },
-                ],
-              },
-            ],
-          },
+          date: { $dateToString: { format: "%Y-%m-%d", date: "$latestOrder.createdAt" } },
         },
       },
 
-      // Stage 6: Group by week and count
+      // Stage 6: Group by the daily date and count abandoned carts per day
       {
         $group: {
-          _id: '$week',
+          _id: '$date',
           abandonedCartsCount: { $sum: 1 },
         },
       },
 
-      // Stage 7: Project final output format
+      // Stage 7: Format the output documents
       {
         $project: {
           _id: 0,
-          week: '$_id',
+          date: '$_id',
           abandonedCartsCount: 1,
         },
       },
 
-      // Stage 8: Sort by week ascending
-      { $sort: { week: 1 } },
+      // Stage 8: Sort the results by date ascending
+      { $sort: { date: 1 } },
     ];
 
     const aggregatedData = await Order.aggregate(aggregationPipeline);

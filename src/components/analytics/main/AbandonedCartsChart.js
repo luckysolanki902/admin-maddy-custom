@@ -14,9 +14,8 @@ import {
 } from 'recharts';
 import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
 
-const COLORS = ['#FF8042']; // You can add more colors if needed
+const COLORS = ['#FF8042'];
 
-// Custom Tooltip Content
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -28,16 +27,14 @@ const CustomTooltip = ({ active, payload, label }) => {
           color: 'white',
         }}
       >
-        <Typography variant="body2">{`Week: ${label}`}</Typography>
+        <Typography variant="body2">{`Date: ${label}`}</Typography>
         <Typography variant="body2">{`Abandoned Carts: ${payload[0].value}`}</Typography>
       </Box>
     );
   }
-
   return null;
 };
 
-// Custom Legend Component (Optional)
 const CustomLegend = ({ isSmallScreen }) => {
   return (
     <Box
@@ -89,22 +86,15 @@ const AbandonedCartsChart = ({ data }) => {
         minHeight: 450,
       }}
     >
-      {/* Clickable Heading */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography
           variant="h6"
           gutterBottom
           sx={{ color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
-          // onClick={() => {
-          //   // Navigate to detailed page
-          //   // window.location.href = '/analytics/abandoned-carts';
-          // }}
         >
           Abandoned Carts Over Time
         </Typography>
       </Box>
-
-      {/* Area Chart */}
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={data}>
           <defs>
@@ -114,11 +104,12 @@ const AbandonedCartsChart = ({ data }) => {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+          {/* Use the "date" field for the x-axis */}
           <XAxis
-            dataKey="week"
+            dataKey="date"
             stroke="#fff"
             tick={{ fill: '#fff' }}
-            interval={0}
+            interval={0} // Adjust interval if necessary to limit labels
             angle={isSmallScreen ? -45 : 0}
             textAnchor={isSmallScreen ? 'end' : 'middle'}
             height={isSmallScreen ? 60 : 30}
@@ -127,7 +118,7 @@ const AbandonedCartsChart = ({ data }) => {
           <Tooltip content={<CustomTooltip />} />
           <Area
             type="monotone"
-            dataKey="abandonedCartsCount" // Updated dataKey
+            dataKey="abandonedCartsCount"
             stroke={COLORS[0]}
             fillOpacity={1}
             fill="url(#colorAbandoned)"
@@ -135,8 +126,6 @@ const AbandonedCartsChart = ({ data }) => {
           />
         </AreaChart>
       </ResponsiveContainer>
-
-      {/* Custom Legend */}
       <CustomLegend isSmallScreen={isSmallScreen} />
     </Box>
   );

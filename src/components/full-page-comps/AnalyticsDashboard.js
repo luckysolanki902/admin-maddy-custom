@@ -478,7 +478,7 @@ const AnalyticsDashboard = ({ admin }) => {
           onClick={() => setShowDownloadUserDataSection(!showDownloadUserDataSection)}
           sx={{ marginTop: '2rem' }}
           fullWidth
-          variant="contained"
+          variant="outlined"
         >
           {showDownloadUserDataSection
             ? "Hide 'Download Customer Data' section"

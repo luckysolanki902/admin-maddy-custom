@@ -1,4 +1,4 @@
-import AnalyticsDashboard from '@/components/full-page-comps/AnayticsDashboard'
+import AnalyticsDashboard from '@/components/full-page-comps/AnalyticsDashboard'
 import React from 'react'
 
 const page = () => {

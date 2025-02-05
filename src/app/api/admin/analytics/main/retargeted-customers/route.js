@@ -34,7 +34,7 @@ export async function GET(req) {
         // and where the order's deliveryStatus is neither "pending" nor "cancelled".
         $lookup: {
           from: 'orders', // Make sure this matches your orders collection name.
-          let: { userId: '$user', campaignDate: '$updatedAt' },
+          let: { userId: '$user', campaignDate: '$createdAt' },
           pipeline: [
             {
               $match: {

@@ -293,8 +293,8 @@ const AnalyticsDashboard = ({ admin }) => {
         activeTag={activeTag}
         setActiveTag={setActiveTag}
         setDateRange={setDateRange}
-        setCurrentPage={() => {}}
-        setProblematicCurrentPage={() => {}}
+        setCurrentPage={() => { }}
+        setProblematicCurrentPage={() => { }}
         handleAllTagClick={handleAllTagClick}
         handleCustomDayChange={handleCustomDayChange}
         handleCustomDateChange={handleCustomDateChange}
@@ -487,6 +487,18 @@ const AnalyticsDashboard = ({ admin }) => {
       )}
       {showDownloadUserDataSection && (
         <Box sx={{ marginTop: '4rem' }}>
+          {/* Date Range Chips */}
+          <DateRangeChips
+            activeTag={activeTag}
+            setActiveTag={setActiveTag}
+            setDateRange={setDateRange}
+            setCurrentPage={() => { }}
+            setProblematicCurrentPage={() => { }}
+            handleAllTagClick={handleAllTagClick}
+            handleCustomDayChange={handleCustomDayChange}
+            handleCustomDateChange={handleCustomDateChange}
+            handleMonthSelection={handleMonthSelection}
+          />
           <DownloadCustomersData dateRange={dateRange} activeTag={activeTag} />
         </Box>
       )}

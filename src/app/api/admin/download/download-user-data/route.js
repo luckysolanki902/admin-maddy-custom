@@ -223,22 +223,34 @@ export async function GET(req) {
                         break;
                     case 'firstName':
                         projectStage['First Name'] = {
-                            $arrayElemAt: [{ $split: ['$fullName', ' '] }, 0]
+                            $arrayElemAt: [
+                                { $split: [{ $trim: { input: '$fullName' } }, ' '] },
+                                0
+                            ]
                         };
                         break;
                     case 'lastName':
                         projectStage['Last Name'] = {
-                            $arrayElemAt: [
-                                { $split: ['$fullName', ' '] },
-                                { $subtract: [{ $size: { $split: ['$fullName', ' '] } }, 1] }
-                            ]
+                            $let: {
+                                vars: {
+                                    names: { $split: [{ $trim: { input: '$fullName' } }, ' '] }
+                                },
+                                in: {
+                                    $cond: [
+                                        { $gt: [ { $size: "$$names" }, 1 ] },
+                                        { $arrayElemAt: [ "$$names", { $subtract: [ { $size: "$$names" }, 1 ] } ] },
+                                        ''
+                                    ]
+                                }
+                            }
                         };
                         break;
                     case 'city':
                         projectStage['City'] = '$city';
                         break;
                     case 'phoneNumber':
-                        projectStage['Phone Number'] = { $concat: ['91', '$phoneNumber'] };
+                        // Convert phone number to string to avoid scientific notation
+                        projectStage['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
                         break;
                     case 'purchaseCount':
                         projectStage['Purchase Count'] = '$purchaseCount';
@@ -271,7 +283,7 @@ export async function GET(req) {
         } else {
             // Default columns if none selected
             projectStage['Full Name'] = '$fullName';
-            projectStage['Phone Number'] = { $concat: ['91', '$phoneNumber'] };
+            projectStage['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
             projectStage['Order Count'] = '$orderCount'; // Include 'Order Count' by default if no columns are selected
         }
 
@@ -315,4 +327,3 @@ export async function GET(req) {
         return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
     }
 }
-

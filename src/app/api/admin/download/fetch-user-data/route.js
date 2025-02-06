@@ -57,11 +57,11 @@ export async function GET(req) {
                 if (productIds.length > 0) {
                     matchStage['items.product'] = { $in: productIds };
                 } else {
-                    // If no products match, the pipeline should return no results
+                    // If no products match, return empty results
                     return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
                 }
             } else {
-                // If no specific categories match, the pipeline should return no results
+                // If no specific categories match, return empty results
                 return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
             }
         }
@@ -117,16 +117,17 @@ export async function GET(req) {
             utmSource: { $first: '$utmDetails.source' },
             utmMedium: { $first: '$utmDetails.medium' },
             utmCampaign: { $first: '$utmDetails.campaign' },
-            specificCategoryIds: { $addToSet: '$items.product_details.specificCategory' }, // Corrected to specificCategory
+            specificCategoryIds: { $addToSet: '$items.product_details.specificCategory' },
         };
 
         pipeline.push({
             $group: groupStage
         });
 
+        // Lookup to add total order count per user
         pipeline.push({
             $lookup: {
-                from: 'orders', // Ensure the collection name is correct ('orders' vs. 'Order')
+                from: 'orders', // Ensure the collection name is correct
                 let: { userId: '$_id' },
                 pipeline: [
                     {
@@ -145,14 +146,14 @@ export async function GET(req) {
             }
         });
 
-        // Add 'orderCount' field
+        // Add 'orderCount' field from the lookup results
         pipeline.push({
             $addFields: {
                 orderCount: { $ifNull: [{ $arrayElemAt: ['$orderCountData.orderCount', 0] }, 0] }
             }
         });
 
-        // Optionally remove the 'orderCountData' field
+        // Remove the temporary orderCountData field
         pipeline.push({
             $project: {
                 orderCountData: 0
@@ -210,9 +211,6 @@ export async function GET(req) {
             }
         });
 
-        // Add Order Count by performing a $lookup to count all orders per user
-       
-
         // Project the required fields based on selected columns
         const projectStage = {};
         if (columns && Array.isArray(columns) && columns.length > 0) {
@@ -223,26 +221,35 @@ export async function GET(req) {
                         break;
                     case 'firstName':
                         projectStage['First Name'] = {
-                            $arrayElemAt: [{ $split: ['$fullName', ' '] }, 0]
+                            $arrayElemAt: [
+                                { $split: [{ $trim: { input: '$fullName' } }, ' '] },
+                                0
+                            ]
                         };
                         break;
                     case 'lastName':
                         projectStage['Last Name'] = {
-                            $arrayElemAt: [
-                                { $split: ['$fullName', ' '] },
-                                { $subtract: [{ $size: { $split: ['$fullName', ' '] } }, 1] }
-                            ]
+                            $let: {
+                                vars: {
+                                    names: { $split: [{ $trim: { input: '$fullName' } }, ' '] }
+                                },
+                                in: {
+                                    $cond: [
+                                        { $gt: [ { $size: "$$names" }, 1 ] },
+                                        { $arrayElemAt: [ "$$names", { $subtract: [ { $size: "$$names" }, 1 ] } ] },
+                                        ''
+                                    ]
+                                }
+                            }
                         };
                         break;
                     case 'city':
                         projectStage['City'] = '$city';
                         break;
                     case 'phoneNumber':
-                        projectStage['Phone Number'] = { $concat: ['91', '$phoneNumber'] };
+                        // Convert the phone number to a string to avoid scientific notation
+                        projectStage['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
                         break;
-                    // case 'purchaseCount':
-                    //     projectStage['Purchase Count'] = '$purchaseCount';
-                    //     break;
                     case 'itemPurchaseCounts':
                         projectStage['Item Purchase Counts'] = '$itemPurchaseCounts';
                         break;
@@ -271,8 +278,8 @@ export async function GET(req) {
         } else {
             // Default columns if none selected
             projectStage['Full Name'] = '$fullName';
-            projectStage['Phone Number'] = { $concat: ['91', '$phoneNumber'] };
-            projectStage['Order Count'] = '$orderCount'; // Include 'Order Count' by default if no columns are selected
+            projectStage['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
+            projectStage['Order Count'] = '$orderCount';
         }
 
         pipeline.push({
@@ -281,11 +288,10 @@ export async function GET(req) {
 
         // If Tags are provided, filter by tags
         if (tags) {
-            // Assuming tags are in 'extraFields.tags' as a string, comma-separated or space-separated
-            // Adjust the regex accordingly. Here, using word boundaries
+            // Assuming tags are stored as a string (comma or space-separated) in extraFields.tags
             pipeline.push({
                 $match: {
-                    tags: { $regex: new RegExp(`\\b${tags}\\b`, 'i') } // Case-insensitive exact match within string
+                    tags: { $regex: new RegExp(`\\b${tags}\\b`, 'i') } // Case-insensitive exact match
                 }
             });
         }
@@ -313,11 +319,6 @@ export async function GET(req) {
 
         const customers = results[0].customers;
         const totalRecordsCount = results[0].totalRecords[0] ? results[0].totalRecords[0].count : 0;
-
-        // Handle no matching customers
-        if (!customers.length) {
-            return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
-        }
 
         // Return the JSON response
         return NextResponse.json({

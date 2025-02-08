@@ -12,6 +12,10 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
       index: true,
       unique: true,
     },
+    thumbnail: {
+      type: String,
+      required: false
+    },
     variantType: {
       type: String,
       required: true,
@@ -124,6 +128,16 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
         }
       }
     },
+    // temproary-review-count
+    tempReviewCount:{
+      type: Number,
+      default: 0,
+    },
+    // 
+    tempReviewDistribution: {
+      type: Object,
+      default: {}, // e.g., { "3": 0, "4": 0, "5": 0 }
+    },
     variantInfo: {
       type: String,
       default: '',
@@ -148,6 +162,11 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
       type: String,
       maxlength: 500,
     },
+    customTemplate: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CustomTemplate',
+    },
+    defaultCarouselImages: [String],
     packagingDetails: {
       boxId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -165,5 +184,5 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
 );
 
 
-
+if(mongoose.models.SpecificCategoryVariant){delete mongoose.models.SpecificCategoryVariant}
 module.exports = mongoose.models.SpecificCategoryVariant || mongoose.model('SpecificCategoryVariant', SpecificCategoryVariantSchema);

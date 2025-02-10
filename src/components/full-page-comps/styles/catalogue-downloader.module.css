@@ -1,0 +1,36 @@
+/* File: components/full-page-comps/styles/catalogue-downloader.module.css */
+
+.catalogueDownloaderContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 2rem;
+  }
+  
+  .downloadButtonWrapper {
+    align-self: flex-start;
+  }
+  
+  .pdfPreviewWrapper {
+    /* This can be a scrollable container with “actual A4 pages” inside */
+    width: fit-content;
+    max-height: 80vh;
+    overflow: auto;
+    /* background-color: #f0f0f0; */
+    /* padding: 1rem; */
+    /* border: 2px dashed #aaa; */
+  }
+  
+  @media screen and (max-width: 768px) {
+    .pdfPreviewWrapper{
+      width: 100%;
+    }
+  }
+
+  @media print {
+    .pdfPreviewWrapper {
+      max-height: none !important;
+      overflow: visible !important;
+    }
+  }
+  

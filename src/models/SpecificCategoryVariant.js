@@ -80,7 +80,7 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
     ],
     available: {
       type: Boolean,
-      default: true,
+      default: false,
       index: true,
     },
     showCase: [{

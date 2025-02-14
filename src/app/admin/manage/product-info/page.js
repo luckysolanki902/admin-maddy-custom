@@ -5,6 +5,7 @@ import React, { useEffect, useState, useRef } from "react";
 import EditorJS from "@editorjs/editorjs";
 import Header from "@editorjs/header";
 import List from "@editorjs/list";
+import ImageTool from "@editorjs/image";
 import Paragraph from "@editorjs/paragraph";
 import InlineCode from "@editorjs/inline-code";
 import debounce from "lodash.debounce";
@@ -28,6 +29,41 @@ import {
 import CustomRenderer from "@/components/prod-site-ui-comps/sliders/CustomRenderer.js";
 import { useRouter } from "next/navigation";
 
+class CustomImageTool extends ImageTool {
+  render() {
+    // Get the default wrapper from ImageTool
+    const wrapper = super.render();
+
+    // Ensure the wrapper is positioned relative so our button can be absolute
+    wrapper.style.position = "relative";
+
+    // Create a delete button element
+    const deleteBtn = document.createElement("button");
+    deleteBtn.innerHTML = "❌";
+    deleteBtn.title = "Remove this image";
+    deleteBtn.style.position = "absolute";
+    deleteBtn.style.top = "5px";
+    deleteBtn.style.right = "5px";
+    // deleteBtn.style.backgroundColor = "red";
+    deleteBtn.style.color = "white";
+    deleteBtn.style.border = "none";
+    deleteBtn.style.padding = "5px";
+    deleteBtn.style.borderRadius = "5px";
+    deleteBtn.style.cursor = "pointer";
+
+    // Attach an event listener to delete the block when clicked
+    deleteBtn.addEventListener("click", () => {
+      // 'this.data.id' holds the block id, and we use the API to delete it
+      this.api.blocks.delete(this.data.id);
+    });
+
+    // Append the delete button to the wrapper
+    wrapper.appendChild(deleteBtn);
+
+    return wrapper;
+  }
+}
+
 const ProductInfoAdminEditor = () => {
   const router = useRouter();
 
@@ -46,6 +82,7 @@ const ProductInfoAdminEditor = () => {
   // States for loading, editor content and saving status
   const [loading, setLoading] = useState(false);
   const [editorData, setEditorData] = useState(null);
+  console.log(editorData)
   const [isSaved, setIsSaved] = useState(false);
   // Hold the ID of the ProductInfo document that matches the current mapping
   const [productInfoId, setProductInfoId] = useState(null);
@@ -161,12 +198,65 @@ const ProductInfoAdminEditor = () => {
             class: InlineCode,
             inlineToolbar: true,
           },
+          image: {
+  class: CustomImageTool,
+  config: {
+    uploader: {
+      async uploadByFile(file) {
+        try {
+          const randomPath = Math.random().toString(36).substring(2, 15);
+          const fullPath = `assets/editorjs/${randomPath}.${file.name.split('.').pop()}`;
+
+          // Get presigned URL
+          const res = await fetch('/api/admin/aws/generate-presigned-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullPath, fileType: file.type }),
+          });
+
+          if (!res.ok) {
+            throw new Error('Failed to get presigned URL');
+          }
+
+          const { presignedUrl, url } = await res.json();
+
+          // Upload file to S3 using presigned URL
+          const uploadRes = await fetch(presignedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type },
+            body: file,
+          });
+
+          if (!uploadRes.ok) {
+            throw new Error('Failed to upload image to S3');
+          }
+
+          return { success: 1, file: { url } };
+        } catch (error) {
+          console.error("Error uploading image:", error.message);
+          return { success: 0, message: "Image upload failed" };
+        }
+      }
+    },
+    actions: [
+      {
+        icon: '<svg width="20" height="20"><path d="M5 5 L15 15 M15 5 L5 15" stroke="black" stroke-width="2"/></svg>',
+        title: "Remove Image",
+        async action(block, api) {
+          // This will remove the current image block
+          api.blocks.delete(block.id);
+        },
+      },
+    ],
+  }
+}
         },
         autofocus: true,
         onChange: debounce(async () => {
           try {
             const data = await editorInstance.current.save();
             setEditorData(data);
+            console.log({data},"erthierh")
             setIsSaved(false);
           } catch (error) {
             console.error("Error saving editor data:", error);
@@ -175,12 +265,12 @@ const ProductInfoAdminEditor = () => {
       });
     }
     return () => {
-      if (editorInstance.current) {
+      if (editorInstance.current && typeof editorInstance.current.destroy === 'function') {
         editorInstance.current.destroy();
         editorInstance.current = null;
       }
     };
-  }, []);
+  }, [editorInstance?.current]);
 
   // ---------------------------
   // Auto-Load Description on Mapping Change
@@ -298,7 +388,7 @@ const ProductInfoAdminEditor = () => {
   // Render the UI
   // ---------------------------
   return (
-    <Container maxWidth="lg" sx={{ padding: "2rem 0" }}>
+    <Container maxWidth="lg" sx={{ padding: "2rem " }}>
       <Typography variant="h4" gutterBottom>
         Product Info Tabs Editor
       </Typography>

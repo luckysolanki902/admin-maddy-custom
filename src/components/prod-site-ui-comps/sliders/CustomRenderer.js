@@ -22,6 +22,9 @@ const renderInlineStyles = (text) => {
 };
 
 const CustomRenderer = ({ data }) => {
+  const baseImageUrl=process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL
+
+  console.log(data,"loooo")
   if (!data || !data.blocks) {
     return <p>No content available.</p>;
   }
@@ -37,12 +40,29 @@ const CustomRenderer = ({ data }) => {
 
           case "paragraph": {
             const formattedText = renderInlineStyles(block.data.text);
-            return (
-              <p
-                key={block.id}
-                dangerouslySetInnerHTML={{ __html: formattedText }}
-              ></p>
-            );
+            const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([^&\s]+)/;
+            const match = formattedText.match(youtubeRegex);
+            if (match) {
+              const videoId = match[1];
+              return (
+                <div key={block.id} className="youtube-video">
+                  <iframe
+                    width="100%"
+                    height="300"
+                    src={`https://www.youtube.com/embed/${videoId}`}
+                    frameBorder="0"
+                    allowFullScreen
+                  />
+                </div>
+              );
+            } else {
+              return (
+                <p
+                  key={block.id}
+                  dangerouslySetInnerHTML={{ __html: formattedText }}
+                ></p>
+              );
+            }
           }
 
           case "list":
@@ -70,7 +90,21 @@ const CustomRenderer = ({ data }) => {
           }
 
         
-        
+          case "image": {
+            const { file, caption, stretched } = block.data;
+            console.log(file.url.split(".com")[1])
+            return (
+              <div key={block.id} className="image-container">
+                <img
+                  style={{ width:"200px", height:"200px" }}
+                  src={`${baseImageUrl}${file.url.split(".com")[1]}`}
+                  alt={caption || "Uploaded image"}
+                  className={stretched ? "stretched" : ""}
+                />
+                {caption && <p className="caption">{caption}</p>}
+              </div>
+            );
+          }
 
           // Add more block types as needed
 

@@ -7,8 +7,8 @@ export default function Marketing() {
     { text: 'Orders Dashboard', link: '/admin/manage/orders/order-list' },
     { text: 'Product Based Sales Analysis', link: '/admin/manage/data-analysis/sales/product-based' },
     { text: 'Analytics Dashboard', link: '/admin/analytics' },
+    { text: 'ProductInfo Tabs', link: '/admin/manage/product-info' },
     { text: 'Review Manager', link: '/admin/manage/reviews' },
-
   ];
   
 

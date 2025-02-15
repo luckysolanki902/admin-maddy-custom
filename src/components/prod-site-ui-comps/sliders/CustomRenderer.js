@@ -32,7 +32,23 @@ const CustomRenderer = ({ data }) => {
           }
           case "paragraph": {
             const formattedText = renderInlineStyles(block.data.text);
-            // Detect YouTube links and render as a responsive iframe.
+            const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([^&\s]+)/;
+            const match = formattedText.match(youtubeRegex);
+            if (match) {
+              const videoId = match[1];
+              return (
+                <div key={block.id} className="youtube-video">
+                  <iframe
+                    width="100%"
+                    height="300"
+                    src={`https://www.youtube.com/embed/${videoId}`}
+                    frameBorder="0"
+                    allowFullScreen
+                  />
+                </div>
+              );
+            } else {
+              // Detect YouTube links and render as a responsive iframe.
             const youtubeRegex =
               /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
             const match = formattedText.match(youtubeRegex);
@@ -49,11 +65,12 @@ const CustomRenderer = ({ data }) => {
               );
             } else {
               return (
-                <p
-                  key={block.id}
-                  dangerouslySetInnerHTML={{ __html: formattedText }}
-                ></p>
-              );
+                  <p
+                    key={block.id}
+                    dangerouslySetInnerHTML={{ __html: formattedText }}
+                  ></p>
+                );
+            }
             }
           }
           case "list": {
@@ -89,6 +106,7 @@ const CustomRenderer = ({ data }) => {
                   src={`${baseImageUrl}${file.url.split(".com")[1]}`}
                   alt={caption || "Uploaded image"}
                   className={stretched ? "stretched" : ""}
+                  style={{ width:"150px", height:"150px" }}
                 />
                 {caption && <p className="caption">{caption}</p>}
               </div>

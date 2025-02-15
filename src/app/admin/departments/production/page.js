@@ -8,8 +8,8 @@ export default function Production() {
     { text: 'Orders Dashboard', link: '/admin/manage/orders/order-list' },
     { text: 'Design Search', link: '/admin/manage/orders/sku-search' },
     { text: 'Analytics Dashboard', link: '/admin/analytics' },
+    { text: 'ProductInfo Tabs', link: '/admin/manage/product-info' },
     { text: 'Review Manager', link: '/admin/manage/reviews' },
-
 
   ];
 

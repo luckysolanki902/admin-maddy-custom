@@ -8,7 +8,7 @@ import ImageTool from "@editorjs/image";
 import Paragraph from "@editorjs/paragraph";
 import InlineCode from "@editorjs/inline-code";
 import debounce from "lodash.debounce";
-import { 
+import {
   Container,
   Grid,
   Box,
@@ -20,20 +20,16 @@ import {
   FormControlLabel,
   Radio,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
 } from "@mui/material";
 import CustomRenderer from "@/components/prod-site-ui-comps/sliders/CustomRenderer.js";
 import { useRouter } from "next/navigation";
 
+// -----------------------------
+// Custom Image Tool
+// -----------------------------
 class CustomImageTool extends ImageTool {
   render() {
-    // Get the default wrapper from ImageTool
     const wrapper = super.render();
-
-    // Ensure the wrapper is positioned relative so our button can be absolute
     wrapper.style.position = "relative";
 
     // Create a delete button element
@@ -43,30 +39,72 @@ class CustomImageTool extends ImageTool {
     deleteBtn.style.position = "absolute";
     deleteBtn.style.top = "5px";
     deleteBtn.style.right = "5px";
-    // deleteBtn.style.backgroundColor = "red";
     deleteBtn.style.color = "white";
     deleteBtn.style.border = "none";
     deleteBtn.style.padding = "5px";
     deleteBtn.style.borderRadius = "5px";
     deleteBtn.style.cursor = "pointer";
 
-    // Attach an event listener to delete the block when clicked
     deleteBtn.addEventListener("click", () => {
-      // 'this.data.id' holds the block id, and we use the API to delete it
       this.api.blocks.delete(this.data.id);
     });
-
-    // Append the delete button to the wrapper
     wrapper.appendChild(deleteBtn);
+
+    // Remove spinner once image is loaded
+    const imageEl = wrapper.querySelector("img");
+    if (imageEl) {
+      if (imageEl.complete) {
+        const spinner = wrapper.querySelector(".ce-image__spinner");
+        if (spinner) spinner.style.display = "none";
+      } else {
+        imageEl.addEventListener("load", () => {
+          const spinner = wrapper.querySelector(".ce-image__spinner");
+          if (spinner) spinner.style.display = "none";
+        });
+      }
+    }
 
     return wrapper;
   }
 }
 
+// -----------------------------
+// Auto-Linkify Helper & Custom Paragraph Tool
+// -----------------------------
+function autoLinkify(text) {
+  // Regex to match URLs starting with http:// or https://
+  const urlRegex = /((https?:\/\/)[^\s]+)/g;
+  return text.replace(urlRegex, (url) => `<a href="${url}" style="color: blue;">${url}</a>`);
+}
+
+class CustomParagraph extends Paragraph {
+  render() {
+    const container = super.render();
+    // On blur, auto-detect URLs and wrap them in <a> tags styled in blue.
+    container.addEventListener("blur", () => {
+      const text = container.innerText;
+      // Replace innerHTML with linkified content.
+      container.innerHTML = autoLinkify(text);
+    });
+    return container;
+  }
+}
+
+// -----------------------------
+// Main Component
+// -----------------------------
 const ProductInfoAdminEditor = () => {
   const router = useRouter();
 
   const [selectedTab, setSelectedTab] = useState("Description");
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  // New layout state: "horizontal" (left/right) or "vertical" (up/down)
+  const [layout, setLayout] = useState("horizontal");
+
+  // Loading states for select options
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [variantsLoading, setVariantsLoading] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(false);
 
   // States for the dropdowns and fetched data
   const [categories, setCategories] = useState([]);
@@ -81,14 +119,8 @@ const ProductInfoAdminEditor = () => {
   // States for loading, editor content and saving status
   const [loading, setLoading] = useState(false);
   const [editorData, setEditorData] = useState(null);
-
   const [isSaved, setIsSaved] = useState(false);
-  // Hold the ID of the ProductInfo document that matches the current mapping
   const [productInfoId, setProductInfoId] = useState(null);
-
-  // Optional: state to warn the user if unsaved changes exist before switching mapping
-  const [unsavedWarningOpen, setUnsavedWarningOpen] = useState(false);
-  const [pendingMapping, setPendingMapping] = useState(null); // store mapping to load after warning
 
   // EditorJS ref
   const editorInstance = useRef(null);
@@ -98,6 +130,7 @@ const ProductInfoAdminEditor = () => {
   // ---------------------------
   useEffect(() => {
     async function fetchCategories() {
+      setCategoriesLoading(true);
       try {
         const res = await fetch("/api/admin/get-main/get-all-spec-cat");
         if (res.ok) {
@@ -108,21 +141,29 @@ const ProductInfoAdminEditor = () => {
         }
       } catch (error) {
         console.error("Error fetching categories:", error);
+      } finally {
+        setCategoriesLoading(false);
       }
     }
     fetchCategories();
   }, [selectedTab]);
 
-
-
   // ---------------------------
   // Fetch Variants when Category changes
   // ---------------------------
   useEffect(() => {
-    if (selectedCategory && selectedCategory._id && selectedCategory.productInfoTabs.find((ele)=>ele.title===selectedTab).fetchSource!=='SpecCat') {
+    if (
+      selectedCategory &&
+      selectedCategory._id &&
+      selectedCategory.productInfoTabs.find((ele) => ele.title === selectedTab)
+        .fetchSource !== "SpecCat"
+    ) {
       async function fetchVariants() {
+        setVariantsLoading(true);
         try {
-          const res = await fetch(`/api/admin/manage/reviews/${selectedCategory._id}/variants`);
+          const res = await fetch(
+            `/api/admin/manage/reviews/${selectedCategory._id}/variants`
+          );
           if (res.ok) {
             const data = await res.json();
             setVariants(data);
@@ -131,6 +172,8 @@ const ProductInfoAdminEditor = () => {
           }
         } catch (error) {
           console.error("Error fetching variants:", error);
+        } finally {
+          setVariantsLoading(false);
         }
       }
       fetchVariants();
@@ -138,19 +181,24 @@ const ProductInfoAdminEditor = () => {
       setVariants([]);
       setSelectedVariant(null);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedTab]);
 
   // ---------------------------
   // Fetch Products when Variant changes
   // ---------------------------
-
- 
-
   useEffect(() => {
-    if (selectedVariant && selectedVariant._id && selectedCategory.productInfoTabs.find((ele)=>ele.title===selectedTab).fetchSource==='Product') {
+    if (
+      selectedVariant &&
+      selectedVariant._id &&
+      selectedCategory.productInfoTabs.find((ele) => ele.title === selectedTab)
+        .fetchSource === "Product"
+    ) {
       async function fetchProducts() {
+        setProductsLoading(true);
         try {
-          const res = await fetch(`/api/admin/manage/reviews/${selectedVariant._id}/products`);
+          const res = await fetch(
+            `/api/admin/manage/reviews/${selectedVariant._id}/products`
+          );
           if (res.ok) {
             const data = await res.json();
             setProducts(data);
@@ -159,6 +207,8 @@ const ProductInfoAdminEditor = () => {
           }
         } catch (error) {
           console.error("Error fetching products:", error);
+        } finally {
+          setProductsLoading(false);
         }
       }
       fetchProducts();
@@ -166,7 +216,7 @@ const ProductInfoAdminEditor = () => {
       setProducts([]);
       setSelectedProduct(null);
     }
-  }, [selectedVariant]);
+  }, [selectedVariant, selectedTab]);
 
   // ---------------------------
   // Initialize EditorJS
@@ -189,7 +239,7 @@ const ProductInfoAdminEditor = () => {
             inlineToolbar: true,
           },
           paragraph: {
-            class: Paragraph,
+            class: CustomParagraph,
             inlineToolbar: ["bold", "italic", "link"],
           },
           inlineCode: {
@@ -197,64 +247,83 @@ const ProductInfoAdminEditor = () => {
             inlineToolbar: true,
           },
           image: {
-  class: CustomImageTool,
-  config: {
-    uploader: {
-      async uploadByFile(file) {
-        try {
-          const randomPath = Math.random().toString(36).substring(2, 15);
-          const fullPath = `assets/editorjs/${randomPath}.${file.name.split('.').pop()}`;
+            class: CustomImageTool,
+            
+            config: {
+              uploader: {
+                async uploadByFile(file) {
+                  try {
+                    const randomPath = Math.random()
+                      .toString(36)
+                      .substring(2, 15);
+                    const fullPath = `assets/editorjs/${randomPath}.${file.name
+                      .split(".")
+                      .pop()}`;
 
-          // Get presigned URL
-          const res = await fetch('/api/admin/aws/generate-presigned-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fullPath, fileType: file.type }),
-          });
+                    // Get presigned URL
+                    const res = await fetch(
+                      "/api/admin/aws/generate-presigned-url",
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          fullPath,
+                          fileType: file.type,
+                        }),
+                      }
+                    );
 
-          if (!res.ok) {
-            throw new Error('Failed to get presigned URL');
-          }
+                    if (!res.ok) {
+                      throw new Error("Failed to get presigned URL");
+                    }
 
-          const { presignedUrl, url } = await res.json();
+                    const { presignedUrl, url } = await res.json();
 
-          // Upload file to S3 using presigned URL
-          const uploadRes = await fetch(presignedUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': file.type },
-            body: file,
-          });
+                    // Upload file to S3 using presigned URL
+                    const uploadRes = await fetch(presignedUrl, {
+                      method: "PUT",
+                      headers: { "Content-Type": file.type },
+                      body: file,
+                    });
 
-          if (!uploadRes.ok) {
-            throw new Error('Failed to upload image to S3');
-          }
+                    if (!uploadRes.ok) {
+                      throw new Error("Failed to upload image to S3");
+                    }
 
-          return { success: 1, file: { url } };
-        } catch (error) {
-          console.error("Error uploading image:", error.message);
-          return { success: 0, message: "Image upload failed" };
-        }
-      }
-    },
-    actions: [
-      {
-        icon: '<svg width="20" height="20"><path d="M5 5 L15 15 M15 5 L5 15" stroke="black" stroke-width="2"/></svg>',
-        title: "Remove Image",
-        async action(block, api) {
-          // This will remove the current image block
-          api.blocks.delete(block.id);
-        },
-      },
-    ],
-  }
-}
+                    return {
+                      success: 1,
+                      file: { url: `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}/${fullPath}` },
+                    };
+                  } catch (error) {
+                    console.error("Error uploading image:", error.message);
+                    return { success: 0, message: "Image upload failed" };
+                  }
+                },
+              },
+              
+              features: {
+                border: false,
+                caption: false,
+                stretch: false
+              },
+              actions: [
+                {
+                  icon: '<svg width="20" height="20"><path d="M5 5 L15 15 M15 5 L5 15" stroke="black" stroke-width="2"/></svg>',
+                  title: "Remove Image",
+                  async action(block, api) {
+                    api.blocks.delete(block.id);
+                  },
+                },
+          
+              ],
+            },
+          },
         },
         autofocus: true,
         onChange: debounce(async () => {
           try {
             const data = await editorInstance.current.save();
             setEditorData(data);
-           
             setIsSaved(false);
           } catch (error) {
             console.error("Error saving editor data:", error);
@@ -263,35 +332,31 @@ const ProductInfoAdminEditor = () => {
       });
     }
     return () => {
-      if (editorInstance.current && typeof editorInstance.current.destroy === 'function') {
+      if (
+        editorInstance.current &&
+        typeof editorInstance.current.destroy === "function"
+      ) {
         editorInstance.current.destroy();
         editorInstance.current = null;
       }
     };
-  }, [editorInstance?.current]);
+  }, []);
 
   // ---------------------------
   // Auto-Load Description on Mapping Change
   // ---------------------------
-  // We listen to changes in selectedCategory, selectedVariant, or selectedProduct.
-  // Optionally, if you want to warn the user about unsaved changes before switching mappings,
-  // you could check for unsaved changes here.
   useEffect(() => {
-    // Only load if at least a category is selected (mapping is valid)
     if (selectedCategory) {
-      // If you want to add a check for unsaved changes, you can compare current editorData
-      // with what was loaded previously. For simplicity, we will auto-load.
       handleLoadDescription();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, selectedVariant, selectedProduct,selectedTab]);
+  }, [selectedCategory, selectedVariant, selectedProduct, selectedTab]);
 
   // ---------------------------
   // Load Existing Description based on Priority:
   // Product > Variant > Category
   // ---------------------------
   const handleLoadDescription = async () => {
-    // Determine priority (product first, then variant, then category)
     let queryParam = "";
     let type = "";
     if (selectedProduct) {
@@ -304,25 +369,24 @@ const ProductInfoAdminEditor = () => {
       queryParam = selectedCategory._id;
       type = "category";
     } else {
-      // If no valid mapping, do nothing.
       return;
     }
 
     setLoading(true);
     try {
-      // Call your API with query parameters to get the document.
-      const res = await fetch(`/api/admin/manage/product-info?type=${type}&id=${queryParam}&tab=${encodeURIComponent(selectedTab)}`);
-    
+      const res = await fetch(
+        `/api/admin/manage/product-info?type=${type}&id=${queryParam}&tab=${encodeURIComponent(
+          selectedTab
+        )}`
+      );
+
       if (res.ok || res.status) {
         const data = await res.json();
         if (data && data.content) {
-          // Render the content in EditorJS
           editorInstance.current.render(data.content);
           setEditorData(data.content);
-          setProductInfoId(data._id); // store the document id that matches this mapping
+          setProductInfoId(data._id);
         } else {
-          // No document found – clear the editor and reset productInfoId.
-          
           editorInstance.current.clear();
           setEditorData(null);
           setProductInfoId(null);
@@ -345,7 +409,6 @@ const ProductInfoAdminEditor = () => {
   const handleSave = async () => {
     try {
       const savedData = await editorInstance.current.save();
-      // Build the payload with the content and the current mapping.
       const payload = {
         content: savedData,
         product: selectedProduct ? selectedProduct._id : null,
@@ -354,8 +417,6 @@ const ProductInfoAdminEditor = () => {
         title: selectedTab,
       };
 
-      // If a document exists for the current mapping (productInfoId exists),
-      // then update that document. Otherwise, create a new one.
       const endpoint = productInfoId
         ? `/api/admin/manage/product-info/${productInfoId}`
         : `/api/admin/manage/product-info`;
@@ -382,89 +443,205 @@ const ProductInfoAdminEditor = () => {
     }
   };
 
+  // Determine grid size based on layout state:
+  const gridSize = layout === "horizontal" ? 6 : 12;
+
   // ---------------------------
-  // Render the UI
+  // Render UI
   // ---------------------------
   return (
-    <Container maxWidth="lg" sx={{ padding: "2rem " }}>
-      <Typography variant="h4" gutterBottom>
-        Product Info Tabs Editor
-      </Typography>
-      
-      
-        {/* Left Panel: Selection + Editor */}
-        <Grid item xs={12} md={6}>
-        <Box sx={{ mb: 2 }}>
-            <Typography variant="h6">Select Tab</Typography>
-            <RadioGroup
-                row
-                value={selectedTab}
-                onChange={(e) => setSelectedTab(e.target.value)}
-            >
-                <FormControlLabel value="Description" control={<Radio />} label="Description" />
-                <FormControlLabel value="How to Apply" control={<Radio />} label="How to Apply" />
-            </RadioGroup>
+    <Container maxWidth="lg" sx={{ padding: "2rem" }}>
+      {/* Full Screen Toggle */}
+      <Box sx={{ display: "flex", flexDirection: 'column' }}>
+
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+          <Button
+            variant="contained"
+            onClick={() => setIsFullScreen((prev) => !prev)}
+          >
+            {isFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
+          </Button>
         </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="h6">Select Category</Typography>
-            <Autocomplete
-              options={categories}
-              getOptionLabel={(option) => option.name || ""}
-              value={selectedCategory}
-              onChange={(event, newValue) => {setSelectedCategory(newValue); setSelectedVariant(null); setSelectedProduct(null)}}
-              renderInput={(params) => (
-                <TextField {...params} label="Category" variant="outlined" />
-              )}
-            />
-          </Box>
 
-          {selectedCategory && selectedCategory.productInfoTabs.find((ele)=>ele.title===selectedTab).fetchSource!=='SpecCat' && <Box sx={{ mb: 2 }} >
-            <Typography variant="h6">Select Variant (Optional)</Typography>
-            <Autocomplete
-              options={variants}
-              getOptionLabel={(option) => option.name || ""}
-              value={selectedVariant}
-              onChange={(event, newValue) => {setSelectedVariant(newValue); setSelectedProduct(null)}}
-              renderInput={(params) => (
-                <TextField {...params} label="Variant" variant="outlined" />
-              )}
-              disabled={!selectedCategory || selectedCategory.productInfoTabs.find((ele)=>ele.title===selectedTab).fetchSource==='SpecCat'}
-              hidden={selectedCategory && selectedCategory.productInfoTabs.find((ele)=>ele.title===selectedTab).fetchSource==='SpecCat'}
-            />
-          </Box>
-          }
+        {/* Layout Toggle Buttons */}
+        <Box sx={{ display: "flex", gap: 0, justifyContent: "flex-end"}}>
+          <Button
+            variant={layout === "horizontal" ? "contained" : "outlined"}
+            size="small"
+            sx={{borderTopRightRadius:'0', borderBottomRightRadius:'0'}}
+            onClick={() => setLayout("horizontal")}
+          >
+            Left/Right
+          </Button>
+          <Button
+            variant={layout === "vertical" ? "contained" : "outlined"}
+            size="small"
+            sx={{borderTopLeftRadius:'0', borderBottomLeftRadius:'0'}}
+            onClick={() => setLayout("vertical")}
+          >
+            Up/Down
+          </Button>
+        </Box>
 
-          {selectedCategory && selectedCategory.productInfoTabs.find((ele)=>ele.title===selectedTab).fetchSource==='Product' && <Box sx={{ mb: 2 }}>
-            <Typography variant="h6">Select Product (Optional)</Typography>
-            <Autocomplete
-              options={products}
-              getOptionLabel={(option) => option.name || ""}
-              value={selectedProduct}
-              onChange={(event, newValue) => setSelectedProduct(newValue)}
-              renderInput={(params) => (
-                <TextField {...params} label="Product" variant="outlined" />
-              )}
-              disabled={!selectedVariant || selectedCategory.productInfoTabs.find((ele)=>ele.title===selectedTab).fetchSource!=='Product'}
-            />
-          </Box>
-          }
+      </Box>
 
-          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
-            {/* The "Load Description" button is removed */}
-            <Button variant="contained" color="secondary" onClick={handleSave}>
-              Save Description
-            </Button>
-            {isSaved && (
-              <Typography color="green" sx={{ mt: 1 }}>
-                Content saved successfully!
-              </Typography>
-            )}
-          </Box>
-        </Grid>
 
-        <Grid container spacing={3}>
-        {/* Right Panel: Live Preview */}
-        <Grid item xs={12} md={6}>
+      {/* Normal Mode: Show Selection Panels */}
+      {!isFullScreen && (
+        <>
+          <Typography variant="h4" gutterBottom>
+            Product Info Tabs Editor
+          </Typography>
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h6">Select Tab</Typography>
+                <RadioGroup
+                  row
+                  value={selectedTab}
+                  onChange={(e) => setSelectedTab(e.target.value)}
+                >
+                  <FormControlLabel
+                    value="Description"
+                    control={<Radio />}
+                    label="Description"
+                  />
+                  <FormControlLabel
+                    value="How to Apply"
+                    control={<Radio />}
+                    label="How to Apply"
+                  />
+                </RadioGroup>
+              </Box>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h6">Select Category</Typography>
+                <Autocomplete
+                  options={categories}
+                  getOptionLabel={(option) => option.name || ""}
+                  value={selectedCategory}
+                  onChange={(event, newValue) => {
+                    setSelectedCategory(newValue);
+                    setSelectedVariant(null);
+                    setSelectedProduct(null);
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Category"
+                      variant="outlined"
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {categoriesLoading ? (
+                              <CircularProgress color="inherit" size={20} />
+                            ) : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  disabled={categoriesLoading}
+                />
+              </Box>
+
+              {selectedCategory &&
+                selectedCategory.productInfoTabs.find(
+                  (ele) => ele.title === selectedTab
+                ).fetchSource !== "SpecCat" && (
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="h6">
+                      Select Variant (Optional)
+                    </Typography>
+                    <Autocomplete
+                      options={variants}
+                      getOptionLabel={(option) => option.name || ""}
+                      value={selectedVariant}
+                      onChange={(event, newValue) => {
+                        setSelectedVariant(newValue);
+                        setSelectedProduct(null);
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Variant"
+                          variant="outlined"
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {variantsLoading ? (
+                                  <CircularProgress color="inherit" size={20} />
+                                ) : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                      disabled={
+                        variantsLoading ||
+                        !selectedCategory ||
+                        selectedCategory.productInfoTabs.find(
+                          (ele) => ele.title === selectedTab
+                        ).fetchSource === "SpecCat"
+                      }
+                    />
+                  </Box>
+                )}
+
+              {selectedCategory &&
+                selectedCategory.productInfoTabs.find(
+                  (ele) => ele.title === selectedTab
+                ).fetchSource === "Product" && (
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="h6">
+                      Select Product (Optional)
+                    </Typography>
+                    <Autocomplete
+                      options={products}
+                      getOptionLabel={(option) => option.name || ""}
+                      value={selectedProduct}
+                      onChange={(event, newValue) =>
+                        setSelectedProduct(newValue)
+                      }
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Product"
+                          variant="outlined"
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {productsLoading ? (
+                                  <CircularProgress color="inherit" size={20} />
+                                ) : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                      disabled={
+                        productsLoading ||
+                        !selectedVariant ||
+                        selectedCategory.productInfoTabs.find(
+                          (ele) => ele.title === selectedTab
+                        ).fetchSource !== "Product"
+                      }
+                    />
+                  </Box>
+                )}
+            </Grid>
+          </Grid>
+        </>
+      )}
+
+      {/* Editor & Preview (applies in both full screen and normal modes) */}
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={gridSize}>
           <Typography variant="h5" gutterBottom>
             Live Editor
           </Typography>
@@ -479,9 +656,20 @@ const ProductInfoAdminEditor = () => {
               color: "black",
             }}
           ></Box>
+          {/* Save button below the Live Editor box */}
+          <Box sx={{ mt: 2 }}>
+            <Button variant="contained" color="secondary" onClick={handleSave}>
+              Save
+            </Button>
+            {isSaved && (
+              <Typography color="green" sx={{ mt: 1 }}>
+                Content saved successfully!
+              </Typography>
+            )}
+          </Box>
         </Grid>
-        <Grid item xs={12} md={6}>
-          <Typography variant="h5" gutterBottom >
+        <Grid item xs={12} md={gridSize}>
+          <Typography variant="h5" gutterBottom>
             Live Preview
           </Typography>
           <Box
@@ -497,6 +685,22 @@ const ProductInfoAdminEditor = () => {
           </Box>
         </Grid>
       </Grid>
+
+      {/* Global Styles for Editor and Link Styling */}
+      <style jsx global>{`
+        #editorjs,
+        #editorjs * {
+          opacity: 1 !important;
+        }
+        #editorjs a {
+          color: blue;
+          text-decoration: underline;
+          cursor: pointer;
+        }
+        #editorjs a:hover {
+          color: purple;
+        }
+      `}</style>
     </Container>
   );
 };

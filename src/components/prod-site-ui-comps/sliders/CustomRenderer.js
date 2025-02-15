@@ -1,54 +1,41 @@
-
+import { Box } from "@mui/material";
+import Image from "next/image";
 import React from "react";
-// import DOMPurify from "dompurify";
 
-// Helper function to handle inline styles
 const renderInlineStyles = (text) => {
-  // Replace **bold** with <strong>
+  if (typeof text !== "string") return text;
   let formattedText = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  // Replace *italic* with <em>
   formattedText = formattedText.replace(/\*(.*?)\*/g, "<em>$1</em>");
-  // Replace __underline__ with <u>
   formattedText = formattedText.replace(/__(.*?)__/g, "<u>$1</u>");
-  // Replace ~~strikethrough~~ with <s>
   formattedText = formattedText.replace(/~~(.*?)~~/g, "<s>$1</s>");
-  // Replace `code` with <code>
   formattedText = formattedText.replace(/`(.*?)`/g, "<code>$1</code>");
-
-  // Sanitize the formatted text to prevent XSS attacks
-  // formattedText = DOMPurify.sanitize(formattedText);
-
   return formattedText;
 };
 
-const CustomRenderer = ({ data }) => {
-  const baseImageUrl=process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL
-
-  console.log(data,"loooo")
+const CustomRenderer = ({ data, seamlessImages = false }) => {
   if (!data || !data.blocks) {
     return <p>No content available.</p>;
   }
 
   return (
-    <div className="custom-renderer">
+    // If you want to drop padding on the entire container when seamless is true:
+    <div className={`custom-renderer`}>
       {data.blocks.map((block) => {
         switch (block.type) {
           case "header": {
             const Tag = `h${block.data.level}`;
             return <Tag key={block.id}>{block.data.text}</Tag>;
           }
-
           case "paragraph": {
             const formattedText = renderInlineStyles(block.data.text);
-            const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([^&\s]+)/;
+            const youtubeRegex =
+              /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
             const match = formattedText.match(youtubeRegex);
             if (match) {
               const videoId = match[1];
               return (
                 <div key={block.id} className="youtube-video">
                   <iframe
-                    width="100%"
-                    height="300"
                     src={`https://www.youtube.com/embed/${videoId}`}
                     frameBorder="0"
                     allowFullScreen
@@ -60,54 +47,71 @@ const CustomRenderer = ({ data }) => {
                 <p
                   key={block.id}
                   dangerouslySetInnerHTML={{ __html: formattedText }}
-                ></p>
+                />
               );
             }
           }
-
-          case "list":
-          if(block.data.style==="unordered"){
-            return (
+          case "list": {
+            const isUnordered = block.data.style === "unordered";
+            return isUnordered ? (
               <ul key={block.id}>
-              {block.data.items.map((item, index) => (
-              <li key={index} dangerouslySetInnerHTML={{ __html: item.content }}>
-                {/* <span dangerouslySetInnerHTML={{ __html: item.content }}></span> */}
-              </li>
-            ))}
+                {block.data.items.map((item, index) => (
+                  <li key={index} dangerouslySetInnerHTML={{ __html: item.content }} />
+                ))}
               </ul>
-            )
-          }
-          else{
-            return (
-              <ol key={block.id} >
-              {block.data.items.map((item, index) => (
-              <li key={index} dangerouslySetInnerHTML={{ __html: item.content }}>
-                {/* <span dangerouslySetInnerHTML={{ __html: item.content }}></span> */}
-              </li>
-            ))}
+            ) : (
+              <ol key={block.id}>
+                {block.data.items.map((item, index) => (
+                  <li key={index} dangerouslySetInnerHTML={{ __html: item.content }} />
+                ))}
               </ol>
-            )
-          }
-
-        
-          case "image": {
-            const { file, caption, stretched } = block.data;
-            console.log(file.url.split(".com")[1])
-            return (
-              <div key={block.id} className="image-container">
-                <img
-                  style={{ width:"200px", height:"200px" }}
-                  src={`${baseImageUrl}${file.url.split(".com")[1]}`}
-                  alt={caption || "Uploaded image"}
-                  className={stretched ? "stretched" : ""}
-                />
-                {caption && <p className="caption">{caption}</p>}
-              </div>
             );
           }
-
-          // Add more block types as needed
-
+          case "image": {
+            const { file, caption } = block.data;
+            return (
+              <Box
+                component="div"
+                key={block.id}
+                className={`image-container ${seamlessImages ? "seamless" : ""}`}
+                sx={{
+                  // Force overriding default MUI or theme styles
+                  display: "block !important",
+                  margin: seamlessImages ? "0 !important" : "1em 0 !important",
+                  padding: "0 !important",
+                  borderRadius: "0 !important",
+                  lineHeight: "0 !important",
+                  border: "none !important",
+                  background: "none !important",
+                  width: "100% !important",
+                  height: "auto !important",
+                  overflow: "hidden !important",
+                  textAlign: "center !important",
+                }}
+              >
+                <Image
+                  width={1000}
+                  height={1000}
+                  src={file.url}
+                  alt={caption || "Uploaded image"}
+                  style={{
+                    width: "100%",
+                    height: "auto",
+                    margin: 0,
+                    objectFit: "cover",
+                    borderRadius: seamlessImages ? "0" : "8px",
+                  }}
+                />
+                {caption && (
+                  <p
+                    className={`caption ${seamlessImages ? "seamless-caption" : ""}`}
+                  >
+                    {caption}
+                  </p>
+                )}
+              </Box>
+            );
+          }
           default:
             return (
               <p key={block.id}>
@@ -117,71 +121,64 @@ const CustomRenderer = ({ data }) => {
         }
       })}
 
-      {/* Scoped CSS for styling */}
       <style jsx>{`
         .custom-renderer {
           font-family: Arial, sans-serif;
           line-height: 1.6;
           color: #333;
+          padding: 0 1rem; /* Default padding */
+        }
+        /* Remove padding if seamless */
+        .custom-renderer.no-padding {
+          padding: 0 !important;
         }
 
         h1 {
           font-size: 2em;
           margin: 1em 0 0.5em;
-          color: #2c3e50;
         }
-
         h2 {
           font-size: 1.75em;
           margin: 1em 0 0.5em;
-          color: #34495e;
         }
-
         h3 {
           font-size: 1.5em;
           margin: 1em 0 0.5em;
-          color: #7f8c8d;
         }
-
         p {
           margin: 0.5em 0;
         }
         ul {
-  list-style-type: disc; /* Ensures bullets for unordered lists */
-  margin: 0.5em 0;
-  padding-left: 1.5em;
-}
-
-ol {
-  list-style-type: decimal; /* Ensures numbers for ordered lists */
-  margin: 0.5em 0;
-  padding-left: 1.5em;
-}
-
+          list-style-type: disc;
+          margin: 0.5em 0;
+          padding-left: 1.5em;
+        }
+        ol {
+          list-style-type: decimal;
+          margin: 0.5em 0;
+          padding-left: 1.5em;
+        }
         li {
           margin: 0.25em 0;
         }
 
+        /* Inline styles from the formatting helper */
         strong {
           font-weight: bold;
           color: #e74c3c;
         }
-
         em {
           font-style: italic;
           color: #8e44ad;
         }
-
         u {
           text-decoration: underline;
           color: #2980b9;
         }
-
         s {
           text-decoration: line-through;
           color: #95a5a6;
         }
-
         code {
           background-color: #f5f5f5;
           padding: 2px 4px;
@@ -189,20 +186,60 @@ ol {
           font-family: monospace;
         }
 
-        /* Additional styles for responsiveness */
+        .youtube-video {
+          position: relative;
+          padding-bottom: 56.25%;
+          height: 0;
+          overflow: hidden;
+          margin: 1em 0;
+        }
+        .youtube-video iframe {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+        }
+
+        .image-container {
+          margin: 1em 0; /* default */
+          text-align: center;
+          border-radius: 8px;
+        }
+        .image-container.seamless {
+          margin: 0 !important;
+          padding: 0 !important;
+          border-radius: 0 !important;
+          line-height: 0 !important;
+        }
+
+        .image-container img {
+          width: 100%;
+          height: auto;
+          max-width: 100%;
+          object-fit: cover;
+        }
+
+        .caption {
+          font-size: 0.9em;
+          color: #666;
+          margin-top: 0.5em;
+        }
+        /* Also remove any margin from caption if we want it truly flush. */
+        .seamless-caption {
+          margin-top: 0 !important;
+        }
+
         @media (max-width: 600px) {
           .custom-renderer {
             padding: 0 10px;
           }
-
           h1 {
             font-size: 1.5em;
           }
-
           h2 {
             font-size: 1.25em;
           }
-
           h3 {
             font-size: 1em;
           }

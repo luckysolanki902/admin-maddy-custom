@@ -18,7 +18,7 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
     },
     variantType: {
       type: String,
-      required: true,
+      required: false,
       maxlength: 100,
       trim: true,
     },

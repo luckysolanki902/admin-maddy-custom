@@ -7,6 +7,7 @@ import {
   Button,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 function CategoryCard({ category, onEdit }) {
   const router = useRouter();
@@ -53,6 +54,7 @@ function CategoryCard({ category, onEdit }) {
         <Typography variant="body2" color="text.secondary">
           Category: {cat}
         </Typography>
+        <Link href={`/admin/manage/brand-new/spec-cat-var/${_id}`} style={{ color:'white', textDecoration: 'underline' }} target="_blank">Manage Variants</Link>
       </CardContent>
       <Button
         sx={{ position: "absolute", top: 5, right: 5 }}

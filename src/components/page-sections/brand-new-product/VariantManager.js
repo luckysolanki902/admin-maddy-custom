@@ -315,7 +315,7 @@ function VariantManager() {
             />
 
             {/* variantType */}
-            <FormControl fullWidth>
+            {/* <FormControl fullWidth>
               <InputLabel id="variant-type-label">Variant Type</InputLabel>
               <Select
                 labelId="variant-type-label"
@@ -329,7 +329,7 @@ function VariantManager() {
                 <MenuItem value="modelVariant">modelVariant</MenuItem>
                 <MenuItem value="designVariant">designVariant</MenuItem>
               </Select>
-            </FormControl>
+            </FormControl> */}
 
             {/* name */}
             <TextField
@@ -339,31 +339,17 @@ function VariantManager() {
               required
             />
 
+            {/* Google Seo */}
             {/* title */}
             <TextField
-              label="Title"
+              label="Seo Title for google"
               value={editData.title}
               onChange={(e) => setEditData({ ...editData, title: e.target.value })}
               required
             />
-
-            {/* subtitles dynamic array */}
-            <DynamicArrayField
-              label="Subtitles"
-              values={editData.subtitles}
-              onChange={(vals) => setEditData({ ...editData, subtitles: vals })}
-            />
-
-            {/* cardCaptions dynamic array */}
-            <DynamicArrayField
-              label="Card Captions"
-              values={editData.cardCaptions}
-              onChange={(vals) => setEditData({ ...editData, cardCaptions: vals })}
-            />
-
             {/* description */}
             <TextField
-              label="Description"
+              label="Seo Description for google"
               value={editData.description}
               onChange={(e) =>
                 setEditData({ ...editData, description: e.target.value })
@@ -371,6 +357,22 @@ function VariantManager() {
               multiline
               rows={3}
             />
+
+            {/* subtitles dynamic array */}
+            <DynamicArrayField
+              label="Subtitles (Optional) - Appear on Products list page below main heading"
+              values={editData.subtitles}
+              onChange={(vals) => setEditData({ ...editData, subtitles: vals })}
+            />
+
+            {/* cardCaptions dynamic array */}
+            <DynamicArrayField
+              label="Card Captions (Optional) - appear on each product card (e.g. Universal size fits on all cars)"
+              values={editData.cardCaptions}
+              onChange={(vals) => setEditData({ ...editData, cardCaptions: vals })}
+            />
+
+
 
             {/* variantInfo */}
             <TextField

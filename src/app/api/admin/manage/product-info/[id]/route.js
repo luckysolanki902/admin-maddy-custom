@@ -18,7 +18,7 @@ import { ObjectId } from 'mongodb';
  * }
  */
 export async function PUT(request, { params }) {
-  const { id } = params;
+  const { id } = await params;
 
   // Validate id format
   if (!ObjectId.isValid(id)) {

@@ -239,7 +239,7 @@ const ProductInfoAdminEditor = () => {
             inlineToolbar: true,
           },
           paragraph: {
-            class: CustomParagraph,
+            class: Paragraph,
             inlineToolbar: ["bold", "italic", "link"],
           },
           inlineCode: {
@@ -277,7 +277,7 @@ const ProductInfoAdminEditor = () => {
                       throw new Error("Failed to get presigned URL");
                     }
 
-                    const { presignedUrl, url } = await res.json();
+                    const { presignedUrl } = await res.json();
 
                     // Upload file to S3 using presigned URL
                     const uploadRes = await fetch(presignedUrl, {

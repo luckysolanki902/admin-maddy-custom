@@ -77,18 +77,63 @@ function autoLinkify(text) {
   return text.replace(urlRegex, (url) => `<a href="${url}" style="color: blue;">${url}</a>`);
 }
 
+function linkifyTextNodes(node) {
+  // Process only text nodes
+  if (node.nodeType === Node.TEXT_NODE) {
+    const urlRegex = /((https?:\/\/)[^\s]+)/g;
+    const text = node.textContent;
+    let match;
+    let lastIndex = 0;
+    const fragment = document.createDocumentFragment();
+
+    // Loop over all URL matches in the text node
+    while ((match = urlRegex.exec(text)) !== null) {
+      // Add any text before the URL
+      if (match.index > lastIndex) {
+        fragment.appendChild(
+          document.createTextNode(text.slice(lastIndex, match.index))
+        );
+      }
+      // Create an anchor for the URL
+      const a = document.createElement("a");
+      a.href = match[0];
+      a.textContent = match[0];
+      a.style.color = "blue";
+      a.style.textDecoration = "underline";
+      fragment.appendChild(a);
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Append any text after the last URL
+    if (lastIndex < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+
+    // Replace the original text node if any URL was found
+    if (fragment.childNodes.length > 0) {
+      node.parentNode.replaceChild(fragment, node);
+    }
+  } else if (node.nodeType === Node.ELEMENT_NODE && node.childNodes) {
+    // Recursively process child nodes
+    Array.from(node.childNodes).forEach((child) => linkifyTextNodes(child));
+  }
+}
+
 class CustomParagraph extends Paragraph {
   render() {
     const container = super.render();
-    // On blur, auto-detect URLs and wrap them in <a> tags styled in blue.
+
+    // Instead of replacing innerHTML entirely, traverse the DOM on blur to linkify text nodes.
     container.addEventListener("blur", () => {
-      const text = container.innerText;
-      // Replace innerHTML with linkified content.
-      container.innerHTML = autoLinkify(text);
+      linkifyTextNodes(container);
     });
+
     return container;
   }
 }
+
+
+
 
 // -----------------------------
 // Main Component

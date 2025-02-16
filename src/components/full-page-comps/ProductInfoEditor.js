@@ -284,7 +284,7 @@ const ProductInfoAdminEditor = () => {
             inlineToolbar: true,
           },
           paragraph: {
-            class: CustomParagraph,
+            class: Paragraph,
             inlineToolbar: ["bold", "italic", "link"],
           },
           inlineCode: {

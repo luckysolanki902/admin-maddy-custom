@@ -1,4 +1,4 @@
-// /models/Order.js
+// models/Order.js
 
 const mongoose = require('mongoose');
 
@@ -18,6 +18,7 @@ const OrderSchema = new mongoose.Schema(
       default: 0,
       index: true, // If you need to query based on itemsCount
     },
+    //test
     
     itemsTotal: {
       type: Number,
@@ -56,6 +57,7 @@ const OrderSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
+
       },
     ],
 
@@ -66,7 +68,7 @@ const OrderSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    // Includes delivery charges, MOP Charges (charges if you pay some part of the amount online and rest on COD)
+    // Inludes delivery charges, MOP Charges (charges if you pay some part of the amount online and rest on cod)
     extraCharges: [
       {
         chargesName: {
@@ -104,6 +106,10 @@ const OrderSchema = new mongoose.Schema(
       required: true,
       min: 0,
       default: 0,
+    },
+    isTestingOrder:{
+      type: Boolean,
+      default: false
     },
     // Payment details
     paymentDetails: {
@@ -201,9 +207,27 @@ const OrderSchema = new mongoose.Schema(
     deliveryStatus: {
       type: String,
       required: true,
-      enum: ['pending', 'orderCreated', 'processing', 'shipped', 'delivered', 'cancelled'],
+      enum: [
+        'pending',            // Order awaiting action
+        'orderCreated',       // Order created/registered
+        'processing',         // Pre-shipping & preparation states (including pickup scheduling, packaging, etc.)
+        'shipped',            // Order dispatched from warehouse
+        'onTheWay',           // Order picked up & actively moving toward delivery
+        'partiallyDelivered', // Only part of the order delivered
+        'delivered',          // Order delivered successfully
+        'returnInitiated',    // Return process initiated/in progress (pickup, in transit back, etc.)
+        'returned',           // Return completed (item has reached its return destination)
+        'lost',               // Order lost/damaged in transit
+        'cancelled',           // Order cancelled
+        'undelivered',        // Order undelivered
+        'unknown',            // Unknown
+      ],
       default: 'pending',
       index: true, // Index for efficient querying
+    },
+    actualDeliveryStatus: {
+      type: String,
+      default: 'pending',
     },
 
     // Extra fields like bike model:
@@ -280,6 +304,10 @@ OrderSchema.pre('findOneAndUpdate', function(next) {
   next();
 });
 
+if (mongoose.models.Order) {
+  delete mongoose.models.Order;
+}
 // Indexes for better performance
 OrderSchema.index({ 'address.receiverName': 'text', 'address.receiverPhoneNumber': 'text' });
+
 module.exports = mongoose.models.Order || mongoose.model('Order', OrderSchema);

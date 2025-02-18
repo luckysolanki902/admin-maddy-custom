@@ -96,7 +96,6 @@ export async function POST(req) {
             const dimensionsAndWeight = await getDimensionsAndWeight(order.items);
             const { length, breadth, height, weight } = dimensionsAndWeight;
 
-            console.info(`Calculated dimensions and weight for Order ID: ${order._id}:`, dimensionsAndWeight);
 
             // Prepare Shiprocket order data
             const [firstName, ...lastNameParts] = order.address.receiverName.split(' ');
@@ -128,11 +127,9 @@ export async function POST(req) {
               weight: weight,
             };
 
-            console.info(`Shiprocket order data prepared for Order ID: ${order._id}:`, shiprocketOrderData);
 
             // Create Shiprocket order
             const response = await createShiprocketOrder(shiprocketOrderData);
-            console.info(`Shiprocket response for Order ID: ${order._id}:`, response);
 
             if (response.status_code === 1 && !response.packaging_box_error) {
               // Update order with Shiprocket order ID and deliveryStatus

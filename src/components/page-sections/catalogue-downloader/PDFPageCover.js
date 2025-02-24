@@ -17,7 +17,7 @@ export default function PDFPageCover() {
       }}
     >
       <Image
-        src={`${imageBaseUrl}/assets/catalogue/yellow1/cover_page.png`}
+        src={`${imageBaseUrl}/assets/catalogue/yellow1/cover_page1.png`}
         alt="Cover Page"
         fill
         style={{ objectFit: 'cover' }}

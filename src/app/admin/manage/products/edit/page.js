@@ -217,7 +217,7 @@ const EditProductPage = () => {
   
       // Update the UI immediately by appending a timestamp to bust the cache
       const cacheBuster = `?t=${Date.now()}`;
-      const updatedUrl = `${url}${cacheBuster}`;
+      const updatedUrl = `${fullPath}${cacheBuster}`;
   
       if (type === 'main') {
         // Update the carouselImages array with the new image URL
@@ -259,7 +259,7 @@ const EditProductPage = () => {
       }
 
       // Optionally, enforce file size limits client-side
-      const maxSizeInBytes = type === 'main' ? 15 * 1024 * 1024 : 10 * 1024 * 1024; // 15MB for main, 10MB for design
+      const maxSizeInBytes = type === 'main' ? 5 * 1024 * 1024 : 10 * 1024 * 1024; // 5MB for main, 10MB for design
       if (file.size > maxSizeInBytes) {
         setErrorAlert(
           `File size exceeds the limit of ${type === 'main' ? '15MB' : '10MB'

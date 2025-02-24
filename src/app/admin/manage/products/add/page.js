@@ -226,11 +226,10 @@ const AddProductPage = () => {
     if (specificCategory && name && specificCategoryVariant) {
       // Convert name to title case
       const titleCaseName = toTitleCase(name);
-      const constructedTitle = `${titleCaseName} ${
-        specificCategory.name.endsWith('s')
+      const constructedTitle = `${titleCaseName} ${specificCategory.name.endsWith('s')
           ? specificCategory.name.slice(0, -1)
           : specificCategory.name
-      }`;
+        }`;
       const titleCaseTitle = toTitleCase(constructedTitle);
       setTitle(titleCaseTitle);
 
@@ -289,12 +288,12 @@ const AddProductPage = () => {
       const imagePath = `products/${hiddenFields.category
         .toLowerCase()
         .replace(/\s+/g, '-')}/${hiddenFields.subCategory
-        .toLowerCase()
-        .replace(/\s+/g, '-')}/${specificCategory.name
-        .toLowerCase()
-        .replace(/\s+/g, '-')}/${specificCategoryVariant.variantCode
-        .toLowerCase()
-        .replace(/\s+/g, '-')}/${sku}.jpg`;
+          .toLowerCase()
+          .replace(/\s+/g, '-')}/${specificCategory.name
+            .toLowerCase()
+            .replace(/\s+/g, '-')}/${specificCategoryVariant.variantCode
+              .toLowerCase()
+              .replace(/\s+/g, '-')}/${sku}.jpg`;
 
       // Construct Design Template Path
       const designTemplatePath = `${specificCategoryVariant.designTemplateFolderPath}/${sku}.png`;
@@ -501,9 +500,15 @@ const AddProductPage = () => {
 
   return (
     <Box p={4} maxWidth="900px" margin="0 auto">
-      <Typography variant="h4" gutterBottom align="center">
-        Add New Product
-      </Typography>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '0.6rem', marginBottom: '1rem' }}>
+        <h1>
+          Add New Product
+        </h1>
+        <span>
+          {`${specificCategoryVariant?.name}`}
+        </span>
+      </div>
+
 
       <Grid container spacing={4}>
         {/* Image Uploads */}

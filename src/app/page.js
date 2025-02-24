@@ -9,6 +9,7 @@ import NotSignedIn from "@/components/full-page-comps/NotSignedIn";
 import { Button } from "@mui/material";
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
+import Typography from '@mui/material/Typography';
 // import { useRouter } from 'next/router';
 import { useSearchParams } from 'next/navigation';
 dayjs.extend(isoWeek);
@@ -48,53 +49,7 @@ export default function Home() {
     }
   }, []);
 
-  // // Fetch analytics data on mount
-  // useEffect(() => {
-  //   async function fetchAnalytics() {
-  //     try {
-  //       const cacResponse = await fetch('/api/admin/department-targets/cac_market');
-  //       const cacJson = await cacResponse.json();
-  //       setCacData(cacJson);
-
-  //       const revenueResponse = await fetch('/api/admin/department-targets/monthly-revenue');
-  //       const revenueJson = await revenueResponse.json();
-  //       setMonthlyRevenueData(revenueJson);
-  //       // for a week 
-  //       console.log(startDate, "startDate");
-  //       console.log(endDate, "endDate");
-  //       const lateCountResponse = await fetch(`/api/admin/department-targets/production/track-shipment-delays?startDate=${startDate}&endDate=${endDate}`);
-  //       const lateCountJson = await lateCountResponse.json();
-  //       setLateCount(lateCountJson.lateCount);
-  //       setIsThresholdExceeded(lateCountJson.isThresholdExceeded);
-  //       console.log(lateCountJson,"lateCountJson");
-  //       // console.log(lateCount,"lateCount");
-
-  //       // http://localhost:3000/api/admin/analytics/main/returning-paying-users
-  //       // const returningPayingUsersResponse = await fetch('/api/admin/analytics/main/returning-paying-users');
-  //       // const returningPayingUsersJson = await returningPayingUsersResponse.json(); 
-  //       // const currentMonthData = returningPayingUsersJson.returningPayingUsers.find(entry => entry.period === currentMonth);
-  //       // CREATED A NEW API FOR THIS
-
-  //       // localhost:3000/api/admin/department-targets/monthly-paying-users?month=2025-02
-  //       const returningPayingUsersResponse = await fetch(`/api/admin/department-targets/monthly-paying-users?month=${currentMonth}`);
-  //       const returningPayingUsersJson = await returningPayingUsersResponse.json();
-  //      const returingusers = returningPayingUsersJson.totalPayingUsersCount;
-  //      setReturningPayingUsersData(returingusers);
-  //     //  totalPayingUsersCount
-  //     const totalPayingUsersCount = returningPayingUsersJson.totalPayingUsersCount;
-  //     const percentageretention = (returingusers/totalPayingUsersCount)*100;
-  //     setUserretentionData(percentageretention);
-  //     // console.log(totalPayingUsersCount,"totalPayingUsersCount");
-  //     //   console.log(returingusers,"returingusers");
-  //       console.log(percentageretention,"percentageretention");
-  //       // this does not show the update because of the async nature the start cant be updated that fast
-  //       // console.log(returningPayingUsersData,"returningPayingUsersData");
-  //     } catch (error) {
-  //       console.error('Error fetching analytics data:', error);
-  //     }
-  //   }
-  //   fetchAnalytics();
-  // }, []);
+ 
   useEffect(() => {
     async function fetchAnalytics() {
       try {
@@ -223,9 +178,9 @@ export default function Home() {
           <div className={styles.Container}> 
   <div 
     className={styles.statusbox} 
-    style={{ boxShadow: overallColor === 'green' ? '0 0 10px green' : '0 0 10px red' }}
+    style={{ boxShadow: overallColor === 'green' ? '0 0 10px rgba(100, 255, 131, 0.25)' : '0 0 10px rgba(255, 103, 103, 0.25)' }}
   >
-    <h2>Marketing</h2>
+    <Typography variant="h2" style={{fontWeight:'bolder', fontSize:'37px'}} fontFamily="Jost">Marketing</Typography>
     <div className={styles.metrics}>
       <div>
         <p style={{ color: customerRetentionColor }}>Customer retention</p>
@@ -240,9 +195,9 @@ export default function Home() {
 
   <div 
     className={styles.statusbox} 
-    style={{ boxShadow: overallColor2 === 'green' ? '0 0 10px green' : '0 0 10px red' }}
+    style={{ boxShadow: overallColor2 === 'green' ? '0 0 10px rgba(100, 255, 131, 0.25)' : '0 0 10px rgba(255, 103, 103, 0.25)' }}
   >
-    <h2>Production</h2>
+      <Typography variant="h2" style={{fontWeight:'bolder', fontSize:'37px'}} fontFamily="Jost">Production</Typography>
     <div className={styles.metrics}>
       <div>
         <p style={{ color: lateCountColor }}>Shipment delays</p>
@@ -257,9 +212,9 @@ export default function Home() {
 
   <div 
     className={styles.statusbox} 
-    style={{ boxShadow: overallColor3 === 'green' ? '0 0 10px green' : '0 0 10px red' }}
+    style={{ boxShadow: overallColor3 === 'green' ? '0 0 10px rgba(100, 255, 131, 0.25)' : '0 0 10px rgba(255, 103, 103, 0.25)' }}
   >
-    <h2>Design</h2>
+    <Typography variant="h2" style={{fontWeight:'bolder', fontSize:'35px'}} fontFamily="Jost">Design</Typography>
     <div className={styles.metrics}>
       <div>
         <p style={{ color: instapostColor }}>Insta Post</p>
@@ -273,39 +228,40 @@ export default function Home() {
   </div>
 </div>
 
+
           <div className={styles.grid}>
   <div className={styles.department}>
-    <Link href="/admin/departments/marketing" className={`${styles.box} ${styles.marketing}`}>
+    <Link href="/admin/departments/marketing"  className={styles.box} style={{ boxShadow: '0px 0px 11.34px rgba(255, 255, 0, 0.4)' }}>
       Marketing
     </Link>
-    <Link href="/admin/departments/marketing-goals" className={`${styles.goals} ${styles.marketingGoals}`}>
+    <Link href="/admin/departments/marketing-goals" className={styles.goals} style={{ boxShadow: '0px 0px 11.34px rgba(255, 255, 0, 0.4)' }}>
       Goals
     </Link>
   </div>
 
   <div className={styles.department}>
-    <Link href="/admin/departments/design" className={`${styles.box} ${styles.design}`}>
+    <Link href="/admin/departments/design" className={styles.box} style={{ boxShadow: '0px 0px 11.34px rgba(0, 255, 229, 0.4)' }}>
       Design
     </Link>
-    <Link href="/admin/departments/design-goals" className={`${styles.goals} ${styles.designGoals}`}>
+    <Link href="/admin/departments/design-goals" className={styles.goals} style={{ boxShadow: '0px 0px 11.34px rgba(0, 255, 229, 0.4)' }}>
       Goals
     </Link>
   </div>
 
   <div className={styles.department}>
-    <Link href="/admin/departments/web-d" className={`${styles.box} ${styles.webd}`}>
+    <Link href="/admin/departments/web-d" className={styles.box} style={{ boxShadow: '0px 0px 11.34px rgba(255, 89, 144, 0.4)' }}>
       Web-Dev
     </Link>
-    <Link href="#" className={`${styles.goals} ${styles.webdGoals}`}>
+    <Link href="#" className={styles.goals} style={{ boxShadow: '0px 0px 11.34px rgba(255, 89, 144, 0.4)' }}>
       Goals
     </Link>
   </div>
 
   <div className={styles.department}>
-    <Link href="/admin/departments/production" className={`${styles.box} ${styles.production}`}>
+    <Link href="/admin/departments/production" className={styles.box}  style={{ boxShadow: '0px 0px 11.34px rgba(255, 255, 255, 0.4)' }}>
       Production
     </Link>
-    <Link href="#" className={`${styles.goals} ${styles.productionGoals}`}>
+    <Link href="#"className={styles.goals} style={{ boxShadow: '0px 0px 11.34px rgba(255, 255, 255, 0.4)' }}>
       Goals
     </Link>
   </div>

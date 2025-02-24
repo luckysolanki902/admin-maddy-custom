@@ -252,7 +252,7 @@ export default function Home() {
     <Link href="/admin/departments/web-d" className={styles.box} style={{ boxShadow: '0px 0px 11.34px rgba(255, 89, 144, 0.4)' }}>
       Web-Dev
     </Link>
-    <Link href="#" className={styles.goals} style={{ boxShadow: '0px 0px 11.34px rgba(255, 89, 144, 0.4)' }}>
+    <Link href="/admin/departments/web-d-goals" className={styles.goals} style={{ boxShadow: '0px 0px 11.34px rgba(255, 89, 144, 0.4)' }}>
       Goals
     </Link>
   </div>
@@ -261,7 +261,7 @@ export default function Home() {
     <Link href="/admin/departments/production" className={styles.box}  style={{ boxShadow: '0px 0px 11.34px rgba(255, 255, 255, 0.4)' }}>
       Production
     </Link>
-    <Link href="#"className={styles.goals} style={{ boxShadow: '0px 0px 11.34px rgba(255, 255, 255, 0.4)' }}>
+    <Link href="/admin/departments/production-goals"className={styles.goals} style={{ boxShadow: '0px 0px 11.34px rgba(255, 255, 255, 0.4)' }}>
       Goals
     </Link>
   </div>

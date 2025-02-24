@@ -50,11 +50,18 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 40px;
+   /* gap: 25px 15px; */
   width: 60%;
   max-width: 800px;
   margin: 10px;
 }
 
+.department {
+  display: flex;
+  flex-direction: column;
+ 
+  gap: 10px;
+}
 .box {
   background-color: #444;
   margin:10px;
@@ -72,6 +79,80 @@
   box-shadow: 0px 0px 11.34px rgba(255, 255, 0, 0.7);
   height: 130px;
 }
+.Container {
+  display: flex;
+  flex-wrap: nowrap; /* force items into one row */
+  overflow-x: auto;  /* allow horizontal scrolling */
+  width: 100%;       /* ensure the container spans full width */
+  gap: 20px;
+  padding: 10px;
+  -webkit-overflow-scrolling: touch; /* optional: smooth scrolling on iOS */
+}
+
+/* For larger screens, center the items */
+@media (min-width: 1024px) {
+  .Container {
+    justify-content: center; /* or use space-evenly/space-around if you prefer */
+  }
+}
+
+.statusbox {
+  background-color: #2c2c2c;
+  border-radius: 8px;
+  /* Default glow; overridden inline if needed */
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+  padding: 20px;
+  margin: 10px;
+  color: #ffffff;
+  font-family: 'Jost';
+  min-width: 300px;      /* Minimum width for responsiveness */
+  flex-shrink: 0;        /* Prevent shrinking below min-width */
+}
+
+.metrics {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+
+
+/* .marqueeContent {
+
+  display: inline-block;
+  white-space: nowrap;      
+  animation: marquee 15s linear infinite; 
+} */
+
+
+
+.goals{
+  padding: 10px;
+  font-size: 0.9rem;
+  /* margin-left: 150px; */
+  align-self: center;
+  border-radius: 0.4rem;
+  text-align: center;
+  width: 80px;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+
+/* change these later  */
+ /* Adding colors for each department */
+.marketing { border: 2px solid #FFD700; box-shadow: 0px 0px 10px #FFD700; }
+.marketingGoals { border: 2px solid #FFD700; box-shadow: 0px 0px 5px #FFD700; }
+
+.design { border: 2px solid #00CED1; box-shadow: 0px 0px 10px #00CED1; }
+.designGoals { border: 2px solid #00CED1; box-shadow: 0px 0px 5px #00CED1; }
+
+.webd { border: 2px solid #FF69B4; box-shadow: 0px 0px 10px #FF69B4; }
+.webdGoals { border: 2px solid #FF69B4; box-shadow: 0px 0px 5px #FF69B4; }
+
+.production { border: 2px solid #D3D3D3; box-shadow: 0px 0px 10px #D3D3D3; }
+.productionGoals { border: 2px solid #D3D3D3; box-shadow: 0px 0px 5px #D3D3D3; }
+
 
 .box:hover {
   transform: translateY(-5px);

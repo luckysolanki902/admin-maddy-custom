@@ -21,8 +21,11 @@ const OptionSchema = new mongoose.Schema({
     of: String,
     required: false,
   },
-
-
+  images:[
+    {
+      type: String,
+    },
+  ],
   availableQuantity: {
     type: Number,
     required: true,
@@ -38,4 +41,4 @@ const OptionSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-module.exports = mongoose.model('Option',OptionSchema);
+module.exports = mongoose.models.Option || mongoose.model('Option', OptionSchema);

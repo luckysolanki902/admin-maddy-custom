@@ -20,6 +20,10 @@ const ProductSchema = new mongoose.Schema(
       index: true,
       set: toTitleCase, 
     },
+
+        // file names kc01-1.jpg
+        space separated (warning )
+
     images: [
       {
         type: String,
@@ -30,6 +34,10 @@ const ProductSchema = new mongoose.Schema(
       required: true,
       maxlength: 200,
     },
+
+    single tag 
+    like stylish or formal
+
     mainTags: [
       {
         type: String,
@@ -38,6 +46,13 @@ const ProductSchema = new mongoose.Schema(
         index: true,
       },
     ],
+    // automated 
+    format
+    /{category}/{subCategory}/{specificCategory}/{varaintname}/{productname}
+    // lowercase converted to dash-case
+    // not in csv
+
+    /wraps/bike-wraps/full-bike-wraps/apache-160-4v/cyberion
     pageSlug: {
       type: String,
       required: true,
@@ -46,28 +61,34 @@ const ProductSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    //prefilled
     category: {
       type: String,
       enum: ['Wraps', 'Accessories'],
       required: true,
       index: true,
     },
+    //prefilled
     subCategory: {
       type: String,
       enum: ['Bike Wraps', 'Car Wraps', 'Safety'],
       required: true,
       index: true,
     },
+    //prefilled
     specificCategory: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SpecificCategory',
       index: true,
     },
+    //prefilled
     specificCategoryVariant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SpecificCategoryVariant',
       index: true,
     },
+    // not needed (future )
+    // let it be optional feild in csv
     deliveryCost: {
       type: Number,
       default: 100,
@@ -79,17 +100,19 @@ const ProductSchema = new mongoose.Schema(
       min: 1,
       index: true,
     },
-    //options available for the product
-optionsAvailable: {
-  type: Boolean,
-  default: false,
-},
+    // format  
+    // ap00164 padding constant to 5 digits
+
+    // {varaintcode}{serialno}{padding constant to 5 digits}
     sku: {
       type: String,
       unique: true,
-      required: false,
+      required: true,
       index: true,
     },
+    // optional 
+    // add in frontend does it require desing template or not
+    // only ask image name 
     designTemplate:{
       designCode: {
         type: String,
@@ -100,12 +123,12 @@ optionsAvailable: {
         required: true,
       }
     },
-
+ // 
     displayOrder: {
       type: Number,
       index: true,
     },
-    
+   // convert it to lowercase for mongo db
     available: {
       type: Boolean,
       default: true,

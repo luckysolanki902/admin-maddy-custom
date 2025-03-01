@@ -171,7 +171,7 @@ export async function POST(request) {
           deliveryCost: prod.deliveryCost || 100,
           price: prod.price,
           sku: prod.sku,
-          designTemplate: prod.designTemplate,
+          ...(prod.designTemplate ? { designTemplate: prod.designTemplate } : {}),
           images: prod.images || [],
           displayOrder: prod.displayOrder || 0,
           available: prod.available !== undefined ? prod.available : true,

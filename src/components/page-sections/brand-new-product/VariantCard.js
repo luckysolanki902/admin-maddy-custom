@@ -1,9 +1,10 @@
 "use client";
 import React from "react";
 import { Card, CardContent, Typography, Button } from "@mui/material";
+import Link from "next/link";
 
 function VariantCard({ variant, onEdit }) {
-  const { name, variantCode, variantType, description } = variant;
+  const { _id,name, variantCode, variantType, description } = variant;
 
   return (
     <Card
@@ -31,6 +32,7 @@ function VariantCard({ variant, onEdit }) {
             {description}
           </Typography>
         )}
+        <Link href={`/admin/manage/brand-new/product/${_id}`} style={{ color:'white', textDecoration: 'underline' }} target="_blank">Manage Products</Link>
       </CardContent>
       <Button
         sx={{ position: "absolute", top: 5, right: 5 }}

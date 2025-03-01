@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -6,20 +7,22 @@ import {
   Button,
   CircularProgress,
   Paper,
-  TextField,
   Typography,
   Table,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
+  TablePagination,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
 } from "@mui/material";
 import Papa from "papaparse";
+import JSZip from "jszip";
 import { useParams } from "next/navigation";
+import { unzip } from "fflate";
 
 // A simple slugify function to create URL-friendly strings
 const slugify = (str) =>
@@ -34,19 +37,22 @@ const padSerial = (num) => String(num).padStart(5, "0");
 export default function ProductBulkUpload() {
   const { variantId } = useParams(); // Expecting variantId in URL
   const [csvFile, setCsvFile] = useState(null);
+  const [zipFile, setZipFile] = useState(null);
   const [csvData, setCsvData] = useState([]);
+  const [zipMapping, setZipMapping] = useState({}); // { filename: fileObject }
   const [uploading, setUploading] = useState(false);
   const [variant, setVariant] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [resultDetails, setResultDetails] = useState([]); // Detailed results array
   const [summary, setSummary] = useState(null);
-  // console.log(variantId,"variantId")
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Fetch variant details based on variantId to prefill fields (like variantCode, category, etc.)
+  // Fetch variant details based on variantId
   useEffect(() => {
     async function fetchVariant() {
       try {
-        // console.log(variantId)
         const res = await fetch(`/api/admin/manage/get-variant-details?variantId=${variantId}`);
         if (res.ok) {
           const data = await res.json();
@@ -61,33 +67,57 @@ export default function ProductBulkUpload() {
     if (variantId) fetchVariant();
   }, [variantId]);
 
-  // Handle file selection
-  const handleFileChange = (e) => {
+  // Handle CSV file selection
+  const handleCSVChange = (e) => {
     setCsvFile(e.target.files[0]);
   };
 
-  // Parse CSV file using Papa Parse
+  // Handle ZIP file selection
+  const handleZIPChange = (e) => {
+    setZipFile(e.target.files[0]);
+  };
+
+  // Process the ZIP file and create a mapping of filenames to JSZip file objects
+  
+
+  
+const processZIPFile = async (file) => {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    unzip(uint8Array, (err, files) => {
+      if (err) {
+        setErrorMsg("Error processing ZIP file: " + err.message);
+        return;
+      }
+      const mapping = {};
+      // fflate returns an object with keys as file paths and values as Uint8Array.
+      Object.keys(files).forEach((filename) => {
+        mapping[filename.toLowerCase()] = files[filename];
+      });
+      setZipMapping(mapping);
+    });
+  } catch (error) {
+    setErrorMsg("Error reading ZIP file: " + error.message);
+  }
+};
+  
+
+  // When ZIP file changes, process it
+  useEffect(() => {
+    if (zipFile) {
+      processZIPFile(zipFile);
+    }
+  }, [zipFile]);
+
+  // Parse CSV using Papa Parse
   const handleParseCSV = () => {
     if (!csvFile) return;
     Papa.parse(csvFile, {
       header: false,
       skipEmptyLines: true,
       complete: (results) => {
-        // Assuming CSV columns in the following order:
-        // 0: Product Name
-        // 1: Product Title
-        // 2: Main Tag
-        // 3: Delivery Cost (optional)
-        // 4: Price
-        // 5: Design Template (yes/no)
-        // 6: Design Template Image URL (if design template is yes)
-        // 7: Images (space or comma separated list)
-        // 8: OptionsAvailable (true/false)
-        // 9: Option Details (key:value;key2:value2) [optional if OptionsAvailable true]
-        // 10: Option Available Quantity
-        // 11: Option Reserved Quantity
-        // 12: Option Reorder Level
-        setCsvData(results.data);
+        setCsvData(results.data.slice(1));
         setPreviewOpen(true);
       },
       error: (err) => {
@@ -96,31 +126,72 @@ export default function ProductBulkUpload() {
     });
   };
 
-  // Helper: Call AWS presigned URL API for a given image file name
-  const getImageUrl = async (fileName) => {
-    // Determine fileType based on file extension
+  // Helper: Upload an image file (from ZIP) to AWS using presigned URL
+  const uploadImageFile = async (fileData, fileName) => {
     const ext = fileName.split(".").pop().toLowerCase();
     let fileType = "image/jpeg";
     if (ext === "png") fileType = "image/png";
-    // Construct a full path (assuming a base path, adjust as needed)
-    const fullPath = `products/${fileName}`;
+    const fullPath = `products/test/${fileName}`;
     try {
       const res = await fetch("/api/admin/aws/generate-presigned-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fullPath, fileType }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        return data.url; // Use the returned URL
-      } else {
+      if (!res.ok) {
         console.error("Failed to get presigned URL for", fileName);
         return "";
       }
-    } catch (err) {
-      console.error("Error fetching presigned URL:", err);
+      const data = await res.json();
+      // Directly create a Blob from the Uint8Array (fileData)
+      const blobData = new Blob([fileData], { type: fileType });
+      const uploadRes = await fetch(data.presignedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": fileType },
+        body: blobData,
+      });
+      if (!uploadRes.ok) {
+        console.error("Failed to upload file", fileName);
+        return "";
+      }
+      return fullPath;
+    } catch (error) {
+      console.error("Error uploading image", fileName, error);
       return "";
     }
+  };
+  
+
+  // Helper: Find product images from ZIP mapping based on naming convention.
+  // For product "x", look for filenames like "x-1.jpg", "x-2.jpg", etc.
+  const getProductImages = async (productName) => {
+    const lowerName = productName.toLowerCase();
+    const imageUrls = [];
+    // Scan through zipMapping keys for matches
+    for (const filename in zipMapping) {
+      // Check if filename starts with productName followed by '-' and a number
+      const regex = new RegExp(`^${lowerName}-\\d+\\.(jpg|jpeg|png)$`);
+      if (regex.test(filename)) {
+        const url = await uploadImageFile(zipMapping[filename], filename);
+        if (url) imageUrls.push(url);
+      }
+    }
+    return imageUrls;
+  };
+
+  // Helper: Find option images from ZIP mapping for a given product and option index.
+  // For product "x" and optionIndex=1, look for filenames like "x-opt1-1.jpg", "x-opt1-2.jpg", etc.
+  const getOptionImages = async (productName, optionIndex) => {
+    const lowerName = productName.toLowerCase();
+    const imageUrls = [];
+    const regex = new RegExp(`^${lowerName}-opt${optionIndex}-\\d+\\.(jpg|jpeg|png)$`);
+    for (const filename in zipMapping) {
+      if (regex.test(filename)) {
+        const url = await uploadImageFile(zipMapping[filename], filename);
+        if (url) imageUrls.push(url);
+      }
+    }
+    return imageUrls;
   };
 
   // Process CSV data and upload products in bulk
@@ -128,6 +199,9 @@ export default function ProductBulkUpload() {
     if (!variant) {
       setErrorMsg("Variant details not loaded yet.");
       return;
+    }
+    if (!zipFile) {
+      console.log("Proceeding without Images")
     }
     setUploading(true);
     setErrorMsg("");
@@ -137,6 +211,16 @@ export default function ProductBulkUpload() {
     // Loop through each CSV row
     for (const row of csvData) {
       try {
+        // Fixed columns (indexes 0-8):
+        // 0: Product Name
+        // 1: Product Title
+        // 2: Main Tag
+        // 3: Delivery Cost (optional)
+        // 4: Price
+        // 5: Design Template (yes/no)
+        // 6: Design Template Image URL (if yes)
+        // 7: (Ignored here – images will come from ZIP based on naming convention)
+        // 8: OptionsAvailable (true/false)
         const [
           productName,
           productTitle,
@@ -145,83 +229,85 @@ export default function ProductBulkUpload() {
           priceRaw,
           designTemplateIndicator,
           designTemplateImageUrl,
-          imagesRaw,
+          _ignoredImages, // ignore CSV images column as we'll use ZIP mapping
           optionsAvailableRaw,
-          optionDetailsRaw,
-          optionAvailableQuantityRaw,
-          optionReservedQuantityRaw,
-          optionReorderLevelRaw,
+          // Remaining columns (if any) are for options; each option set takes 4 columns:
+          // Option Details, Option Avail Qty, Option Reserved Qty, Option Reorder Level
+          ...optionColumns
         ] = row;
 
-        // Parse numeric fields
         const deliveryCost = deliveryCostRaw ? parseFloat(deliveryCostRaw) : undefined;
         const price = parseFloat(priceRaw);
 
-        // Process images: split by comma or space, trim, and get presigned URLs
-        const imageFiles = imagesRaw ? imagesRaw.split(/[\s,]+/).filter(Boolean) : [];
-        const imageUrls = await Promise.all(
-          imageFiles.map((file) => getImageUrl(file))
-        );
+        // For product images, use the ZIP mapping: naming format: productName-1.jpg, productName-2.jpg, ...
+        const productImages = await getProductImages(productName);
+        console.log(productName, "productImages", productImages);
 
-        // Generate SKU using variantCode and a padded serial number
-        const sku = `${variant.variantCode}${padSerial(serialCounter)}`;
+        // Generate SKU for product using variantCode and a padded serial number
+        const sku = `${variant.variantCode.trim()}${padSerial(serialCounter)}`;
         serialCounter++;
 
-        // Compute pageSlug based on format:
-        // {category}/{subCategory}/{specificCategory}/{variantName}/{productName}
-        // Assume variant carries variant name, and variant.specificCategory holds a reference
-        // For simplicity, we assume that category and subCategory are available in variant.specificCategory
-        // (you might need to adjust this based on your actual data structure)
+        // Compute pageSlug based on pattern:
+        // {category}/{subCategory}/{specificCategorySlug}/{variantNameSlug}/{productNameSlug}
         const category = variant.category || "Wraps";
         const subCategory = variant.subCategory || "Bike Wraps";
-        const specificCategorySlug = variant.specificCategory
-          ? slugify(variant.specificCategory)
-          : "default-cat";
+        const specificCategorySlug = variant.specificCategory ? slugify(variant.specificCategory) : "default-cat";
         const variantNameSlug = slugify(variant.name || "");
         const productNameSlug = slugify(productName);
         const pageSlug = `${category}/${subCategory}/${specificCategorySlug}/${variantNameSlug}/${productNameSlug}`;
 
-        // Process designTemplate field
         let designTemplate = undefined;
         if (designTemplateIndicator.trim().toLowerCase() === "yes") {
+          // Upload design template image from ZIP mapping if available.
+          // We expect the file to be named similar to product images but can also use the URL provided.
           designTemplate = {
-            designCode: sku, // Using the product SKU as design code or adjust as needed
-            imageUrl: designTemplateImageUrl.trim(),
+            designCode: sku,
+            imageUrl: designTemplateImageUrl.trim(), // or you can search ZIP if needed
           };
         }
 
-        // Process options if OptionsAvailable is true
+        // Parse options: if OptionsAvailable is "true", then process additional columns.
+        // In this updated version, prod.options is an array of option objects.
         let options = [];
         if (optionsAvailableRaw.trim().toLowerCase() === "true") {
-          // Parse optionDetailsRaw as key:value pairs separated by semicolon
-          // e.g., "color:red;size:M"
-          const optionDetails = {};
-          if (optionDetailsRaw) {
-            optionDetailsRaw.split(";").forEach((pair) => {
+          // Each option set is in groups of 4 columns.
+          const numOptionSets = Math.floor(optionColumns.length / 4);
+          for (let i = 0; i < numOptionSets; i++) {
+            const baseIndex = i * 4;
+            const optionDetailStr = optionColumns[baseIndex];
+            if (!optionDetailStr || optionDetailStr.trim() === "") continue;
+            const availableQtyStr = optionColumns[baseIndex + 1];
+            const reservedQtyStr = optionColumns[baseIndex + 2];
+            const reorderLevelStr = optionColumns[baseIndex + 3];
+
+            const optionDetails = {};
+            optionDetailStr.split(";").forEach((pair) => {
               const [key, value] = pair.split(":").map((s) => s.trim());
               if (key && value) {
                 optionDetails[key] = value;
               }
             });
+            const availableQuantity = availableQtyStr ? parseInt(availableQtyStr) : 0;
+            const reservedQuantity = reservedQtyStr ? parseInt(reservedQtyStr) : 0;
+            const reorderLevel = reorderLevelStr ? parseInt(reorderLevelStr) : 50;
+            // Generate option SKU for this option set
+            const optionSku = `${sku}-O${i + 1}`;
+            // Get images for this option set, using naming convention: productName-opt{optionIndex}-*.jpg
+            const optionImages = await getOptionImages(productName, i + 1);
+            console.log(productName, "optionImages", optionImages);
+
+            options.push({
+              sku: optionSku,
+              optionDetails,
+              availableQuantity,
+              reservedQuantity,
+              reorderLevel,
+              images: optionImages,
+            });
           }
-          options.push({
-            // Option document fields based on OptionSchema
-            optionDetails,
-            availableQuantity: optionAvailableQuantityRaw
-              ? parseInt(optionAvailableQuantityRaw)
-              : 0,
-            reservedQuantity: optionReservedQuantityRaw
-              ? parseInt(optionReservedQuantityRaw)
-              : 0,
-            reorderLevel: optionReorderLevelRaw
-              ? parseInt(optionReorderLevelRaw)
-              : 50,
-            // Generate option SKU similarly (append a suffix to product SKU)
-            sku: `${sku}-OPT1`,
-          });
         }
 
-        // Build the product object
+        // Build final product object
         const product = {
           name: productName,
           title: productTitle,
@@ -230,16 +316,14 @@ export default function ProductBulkUpload() {
           ...(deliveryCost !== undefined && { deliveryCost }),
           sku,
           pageSlug,
-          images: imageUrls,
-          designTemplate, // if undefined, backend can handle default behavior
-          available: true, // as per requirements
-          // The following fields will be auto-populated from the variant context:
+          images: productImages, // from ZIP mapping
+          designTemplate,
+          available: true,
           category,
           subCategory,
           specificCategory: variant.specificCategory || null,
           specificCategoryVariant: variant._id,
-          // Include options data to be processed later in the backend, if any.
-          options,
+          options, // array of option objects, each with its own images array
         };
 
         products.push(product);
@@ -248,9 +332,8 @@ export default function ProductBulkUpload() {
       }
     }
 
-    // Call bulk API endpoint to insert products
     try {
-      console.log(products);
+      console.log("Uploading products:", products);
       const res = await fetch("/api/admin/manage/bulk-products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -259,7 +342,9 @@ export default function ProductBulkUpload() {
       
       if (res.ok) {
         const result = await res.json();
+        // Expect the API to return a summary and a detailed results array.
         setSummary(result.summary);
+        setResultDetails(result.details || []);
       } else {
         const errData = await res.json();
         setErrorMsg(errData.message || "Bulk upload failed.");
@@ -269,6 +354,24 @@ export default function ProductBulkUpload() {
     } finally {
       setUploading(false);
     }
+  };
+
+  // For CSV preview: dynamically generate header cells based on max columns in CSV
+  const getMaxColumns = () => {
+    if (!csvData || csvData.length === 0) return 0;
+    return Math.max(...csvData.map((row) => row.length));
+  };
+
+  const maxColumns = getMaxColumns();
+  const dynamicHeaders = Array.from({ length: maxColumns }, (_, i) => `Column ${i + 1}`);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
 
   return (
@@ -281,18 +384,29 @@ export default function ProductBulkUpload() {
           {errorMsg}
         </Typography>
       )}
-      {!csvFile && (
-        <Button variant="contained" component="label">
+      <Box sx={{ mb: 2 }}>
+        <Button variant="contained" component="label" sx={{ mr: 2 }}>
           Select CSV File
-          <input type="file" accept=".csv" hidden onChange={handleFileChange} />
+          <input type="file" accept=".csv" hidden onChange={handleCSVChange} />
         </Button>
+        <Button variant="contained" component="label">
+          Select ZIP File
+          <input type="file" accept=".zip" hidden onChange={handleZIPChange} />
+        </Button>
+      </Box>
+      {csvFile && (
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="body1">Selected CSV: {csvFile.name}</Typography>
+        </Box>
+      )}
+      {zipFile && (
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="body1">Selected ZIP: {zipFile.name}</Typography>
+        </Box>
       )}
       {csvFile && (
         <Box sx={{ mt: 2 }}>
-          <Typography variant="body1">
-            Selected file: {csvFile.name}
-          </Typography>
-          <Button variant="outlined" sx={{ mt: 1 }} onClick={handleParseCSV}>
+          <Button variant="outlined" onClick={handleParseCSV}>
             Parse CSV & Preview
           </Button>
         </Box>
@@ -308,21 +422,7 @@ export default function ProductBulkUpload() {
                 <TableHead>
                   <TableRow>
                     <TableCell>#</TableCell>
-                    {[
-                      "Product Name",
-                      "Product Title",
-                      "Main Tag",
-                      "Delivery Cost",
-                      "Price",
-                      "Design Template",
-                      "Design Template URL",
-                      "Images",
-                      "Options Available",
-                      "Option Details",
-                      "Option Avail Qty",
-                      "Option Reserved Qty",
-                      "Option Reorder Level",
-                    ].map((header, idx) => (
+                    {dynamicHeaders.map((header, idx) => (
                       <TableCell key={idx}>{header}</TableCell>
                     ))}
                   </TableRow>
@@ -331,8 +431,8 @@ export default function ProductBulkUpload() {
                   {csvData.map((row, idx) => (
                     <TableRow key={idx}>
                       <TableCell>{idx + 1}</TableCell>
-                      {row.map((cell, cellIdx) => (
-                        <TableCell key={cellIdx}>{cell}</TableCell>
+                      {Array.from({ length: maxColumns }).map((_, colIdx) => (
+                        <TableCell key={colIdx}>{row[colIdx] || ""}</TableCell>
                       ))}
                     </TableRow>
                   ))}
@@ -348,30 +448,58 @@ export default function ProductBulkUpload() {
         </DialogActions>
       </Dialog>
 
-      {/* Upload Button & Progress */}
       {csvData.length > 0 && (
         <Box sx={{ mt: 3 }}>
-          <Button
-            variant="contained"
-            onClick={handleUpload}
-            disabled={uploading}
-          >
+          <Button variant="contained" onClick={handleUpload} disabled={uploading}>
             {uploading ? "Uploading..." : "Process & Upload Products"}
           </Button>
           {uploading && <CircularProgress size={24} sx={{ ml: 2 }} />}
         </Box>
       )}
 
-      {/* Upload Summary */}
-      {summary && (
+      {/* Detailed Results Table with Pagination */}
+      {resultDetails && resultDetails.length > 0 && (
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6">Upload Results</Typography>
+          <Paper>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Product Name</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Error Message</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {resultDetails
+                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                  .map((result, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>{result.productName}</TableCell>
+                      <TableCell>{result.status}</TableCell>
+                      <TableCell>{result.error || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+            <TablePagination
+              component="div"
+              count={resultDetails.length}
+              page={page}
+              onPageChange={handleChangePage}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+            />
+          </Paper>
+        </Box>
+      )}
+
+      {/* Summary if no detailed results */}
+      {summary && (!resultDetails || resultDetails.length === 0) && (
         <Box sx={{ mt: 3 }}>
           <Typography variant="h6">Upload Summary</Typography>
-          <Typography>
-            Products Processed: {summary.processed || 0}
-          </Typography>
-          <Typography>
-            Successfully Uploaded: {summary.success || 0}
-          </Typography>
+          <Typography>Products Processed: {summary.processed || 0}</Typography>
+          <Typography>Successfully Uploaded: {summary.success || 0}</Typography>
           {summary.errors && summary.errors.length > 0 && (
             <Box sx={{ mt: 1 }}>
               <Typography color="error">Errors:</Typography>
@@ -389,3 +517,4 @@ export default function ProductBulkUpload() {
     </Box>
   );
 }
+

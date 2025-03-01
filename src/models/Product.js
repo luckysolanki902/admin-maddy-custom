@@ -110,6 +110,22 @@ optionsAvailable: {
       type: Boolean,
       default: true,
     },
+    productSource: {
+      type: String,
+      required: true,
+      enum: ['inhouse', 'marketplace'],
+      index: true,
+    },
+    brand: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Brand',
+      required: false,
+      index: true,
+    },
+    inventoryData: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Inventory',
+    },
   },
   { timestamps: true }
 );

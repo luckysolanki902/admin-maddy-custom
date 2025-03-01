@@ -26,18 +26,9 @@ const OptionSchema = new mongoose.Schema({
       type: String,
     },
   ],
-  availableQuantity: {
-    type: Number,
-    required: true,
-    default: 0,
-  },
-  reservedQuantity: {
-    type: Number,
-    default: 0,
-  },
-  reorderLevel: {
-    type: Number,
-    default: 50,
+  inventoryData: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Inventory',
   },
 }, { timestamps: true });
 

@@ -36,6 +36,8 @@ function CategoryManager() {
     subCategory: "",
     category: "",
     available: true,
+    reviewFetchSource: "variant", // new field default value
+    productInfoTabs: [], // new field: an array for product info tabs
   });
 
   // Fetch Categories
@@ -80,7 +82,7 @@ function CategoryManager() {
     setCategories(previousCategories);
   };
 
-  // =========== Dialog Open/Close =============
+  // =========== Dialog Open/Close ============
   const handleAddCategory = () => {
     setDialogMode("add");
     setEditData({
@@ -91,6 +93,8 @@ function CategoryManager() {
       subCategory: "",
       category: "",
       available: true,
+      reviewFetchSource: "variant",
+      productInfoTabs: [],
     });
     setOpenDialog(true);
   };
@@ -305,6 +309,134 @@ function CategoryManager() {
               }
               label="Available"
             />
+
+            {/* New Field: Review Fetch Source */}
+            <FormControl fullWidth>
+              <InputLabel id="review-fetch-source-label">
+                Review Fetch Source
+              </InputLabel>
+              <Select
+                labelId="review-fetch-source-label"
+                label="Review Fetch Source"
+                value={editData.reviewFetchSource || ""}
+                onChange={(e) =>
+                  setEditData({
+                    ...editData,
+                    reviewFetchSource: e.target.value,
+                  })
+                }
+                required
+              >
+                <MenuItem value="variant">Variant</MenuItem>
+                <MenuItem value="product">Product</MenuItem>
+                <MenuItem value="specCat">SpecCat</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* New Field: Product Info Tabs */}
+            <Box
+              sx={{
+                border: "1px solid #ccc",
+                p: 2,
+                borderRadius: 1,
+                mt: 2,
+              }}
+            >
+              <Typography variant="subtitle1">
+                Product Info Tabs
+              </Typography>
+              {editData.productInfoTabs &&
+                editData.productInfoTabs.map((tab, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: "flex",
+                      gap: 2,
+                      alignItems: "center",
+                      mt: 1,
+                    }}
+                  >
+                    <FormControl fullWidth>
+                      <InputLabel id={`product-info-title-${index}`}>
+                        Title
+                      </InputLabel>
+                      <Select
+                        labelId={`product-info-title-${index}`}
+                        label="Title"
+                        value={tab.title || ""}
+                        onChange={(e) => {
+                          const newTabs = [...editData.productInfoTabs];
+                          newTabs[index].title = e.target.value;
+                          setEditData({
+                            ...editData,
+                            productInfoTabs: newTabs,
+                          });
+                        }}
+                        required
+                      >
+                        <MenuItem value="Description">Description</MenuItem>
+                        <MenuItem value="How to Apply">How to Apply</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <FormControl fullWidth>
+                      <InputLabel id={`product-info-fetch-${index}`}>
+                        Fetch Source
+                      </InputLabel>
+                      <Select
+                        labelId={`product-info-fetch-${index}`}
+                        label="Fetch Source"
+                        value={tab.fetchSource || ""}
+                        onChange={(e) => {
+                          const newTabs = [...editData.productInfoTabs];
+                          newTabs[index].fetchSource = e.target.value;
+                          setEditData({
+                            ...editData,
+                            productInfoTabs: newTabs,
+                          });
+                        }}
+                        required
+                      >
+                        <MenuItem value="Variant">Variant</MenuItem>
+                        <MenuItem value="SpecCat">SpecCat</MenuItem>
+                        <MenuItem value="Product">Product</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={() => {
+                        const newTabs = [...editData.productInfoTabs];
+                        newTabs.splice(index, 1);
+                        setEditData({
+                          ...editData,
+                          productInfoTabs: newTabs,
+                        });
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </Box>
+                ))}
+              <Button
+                variant="contained"
+                onClick={() => {
+                  const newTab = {
+                    title: "Description",
+                    fetchSource: "Variant",
+                  };
+                  setEditData({
+                    ...editData,
+                    productInfoTabs: [
+                      ...(editData.productInfoTabs || []),
+                      newTab,
+                    ],
+                  });
+                }}
+                sx={{ mt: 2 }}
+              >
+                Add Product Info Tab
+              </Button>
+            </Box>
 
             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
               <Button variant="outlined" onClick={handleCloseDialog}>

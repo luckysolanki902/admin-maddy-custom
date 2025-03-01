@@ -1,4 +1,4 @@
-// app/admin/manage/brand-new/page.js
+// app/admin/manage/brand-new/spec-cat/page.js
 
 // import BrandNewProduct from '@/components/full-page-comps/brand-new-product/BrandNewProduct'
 import CategoryManager from '@/components/page-sections/brand-new-product/CategoryManager'

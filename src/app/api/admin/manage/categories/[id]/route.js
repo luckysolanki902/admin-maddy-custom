@@ -1,4 +1,4 @@
-
+// /app/api/admin/manage/categories/[id]/route.js
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import SpecificCategory from "@/models/SpecificCategory";
@@ -24,6 +24,8 @@ export async function PATCH(request, { params }) {
       category,
       subCategory,
       available,
+      reviewFetchSource,  // new field
+      productInfoTabs,    // new field
     } = updates;
 
     // Recompute the pageSlug
@@ -41,6 +43,8 @@ export async function PATCH(request, { params }) {
         category,
         subCategory,
         available,
+        reviewFetchSource,  // include new field
+        productInfoTabs,    // include new field
         pageSlug,
       },
       { new: true }

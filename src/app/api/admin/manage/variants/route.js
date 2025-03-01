@@ -51,6 +51,7 @@ export async function POST(request) {
       specificCategory, // the ID
       available,
       variantInfo,
+      productDescription, // NEW FIELD
       packagingDetails, // { boxId, productWeight }
     } = body;
 
@@ -69,8 +70,6 @@ export async function POST(request) {
     const pageSlug = `${parentSlug}/${variantSlug}`;
 
     // For designTemplateFolderPath & imageFolderPath, you might define your own logic:
-    // e.g. "design-templates" + parentSlug + variantSlug, etc.
-    // For now, let's do a simple approach:
     const designTemplateFolderPath = `design-templates${pageSlug}`;
     const imageFolderPath = `products${pageSlug}`;
 
@@ -85,6 +84,7 @@ export async function POST(request) {
       specificCategory,
       available,
       variantInfo,
+      productDescription, // include new field
       packagingDetails,
       pageSlug,
       designTemplateFolderPath,

@@ -93,11 +93,11 @@ optionsAvailable: {
     designTemplate:{
       designCode: {
         type: String,
-        required: true,
+        required: false,
       },
       imageUrl: {
         type: String,
-        required: true,
+        required: false,
       }
     },
 

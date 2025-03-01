@@ -1,5 +1,3 @@
-// /app/api/admin/get-main/get-orders/route.js
-
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import Product from '@/models/Product';
@@ -67,7 +65,6 @@ export async function GET(req) {
     const singleVariantOnly = searchParams.get('singleVariantOnly') === 'true';
     const singleItemCountOnly = searchParams.get('singleItemCountOnly') === 'true';
 
-
     const skip = (page - 1) * limit;
 
     // Base query initialization
@@ -86,7 +83,6 @@ export async function GET(req) {
       // Default to excluding 'pending' and 'failed' statuses
       baseQuery.paymentStatus = { $nin: ['pending', 'failed'] };
     }
-
 
     // Apply date range filter
     if (startDate && endDate) {
@@ -167,8 +163,7 @@ export async function GET(req) {
         const products = await Product.find({
           specificCategoryVariant: { $in: variantIds }
         }).select('_id').lean();
-        
-        
+
         const productIdsFromVariants = products.map(product => product._id); // Keep as ObjectId
 
         if (productIdsFromVariants.length === 0) {
@@ -226,15 +221,20 @@ export async function GET(req) {
       const aggregationResult = await Order.aggregate([
         { $match: query },
         {
+          $addFields: {
+            extraChargesTotal: { $sum: "$extraCharges.chargesAmount" }
+          }
+        },
+        {
           $facet: {
-            // Existing aggregate metrics
+            // Existing aggregate metrics with updated gross sales calculation
             metrics: [
               {
                 $group: {
                   _id: null,
                   sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue)
                   sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
-                  sumItemsTotal: { $sum: "$itemsTotal" }, // Sum of itemsTotal (Gross Sales)
+                  sumItemsTotal: { $sum: { $add: ["$itemsTotal", "$extraChargesTotal"] } }, // Sum of itemsTotal + extraCharges (Gross Sales)
                   oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
                   count: { $sum: 1 }, // Total number of orders
                 }
@@ -307,7 +307,7 @@ export async function GET(req) {
         instagramBioOrders = 0,
       } = utmCounts;
 
-      const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal
+      const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal + extraCharges
       const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
       const aov = count > 0 ? revenue / count : 0;
       const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
@@ -374,7 +374,6 @@ export async function GET(req) {
         })
         .populate('paymentDetails.mode');
 
-
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
@@ -427,7 +426,6 @@ export async function GET(req) {
           );
       }
 
-
       // Combine baseQuery with problematicCondition
       const problematicQuery = { ...baseQuery, ...problematicCondition };
 
@@ -471,7 +469,6 @@ export async function GET(req) {
           },
         })
         .populate('paymentDetails.mode');
-
 
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
@@ -538,7 +535,6 @@ export async function GET(req) {
           },
         })
         .populate('paymentDetails.mode');
-
 
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;

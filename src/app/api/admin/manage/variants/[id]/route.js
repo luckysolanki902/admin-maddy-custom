@@ -1,8 +1,8 @@
-// /app/api/admin/manage/[id]/route.js
+// /app/api/admin/manage/variants/[id]/route.js
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import SpecificCategory from "@/models/SpecificCategory";
 import SpecificCategoryVariant from "@/models/SpecificCategoryVariant";
+import SpecificCategory from "@/models/SpecificCategory";
 
 function slugify(str) {
   return str
@@ -12,12 +12,12 @@ function slugify(str) {
 }
 
 export async function PATCH(request, { params }) {
-  const { id } = await params;
+  const { id } = params;
 
   try {
     await connectToDatabase();
-
     const updates = await request.json();
+
     const {
       variantCode,
       variantType,
@@ -26,13 +26,14 @@ export async function PATCH(request, { params }) {
       subtitles,
       cardCaptions,
       description,
+      specificCategory,
       available,
       variantInfo,
+      productDescription, // NEW FIELD
       packagingDetails,
-      specificCategory, // might have changed the parent? Usually not
     } = updates;
 
-    // find parent category
+    // Retrieve parent category for updated pageSlug
     const parent = await SpecificCategory.findById(specificCategory);
     if (!parent) {
       return NextResponse.json(
@@ -40,15 +41,9 @@ export async function PATCH(request, { params }) {
         { status: 404 }
       );
     }
-
-    // Recompute slug
     const parentSlug = parent.pageSlug.replace(/\/+$/, "");
     const variantSlug = slugify(name || "");
     const pageSlug = `${parentSlug}/${variantSlug}`;
-
-    // Optionally also re-derive designTemplateFolderPath & imageFolderPath
-    const designTemplateFolderPath = `design-templates${pageSlug}`;
-    const imageFolderPath = `products${pageSlug}`;
 
     const updatedVariant = await SpecificCategoryVariant.findByIdAndUpdate(
       id,
@@ -60,13 +55,12 @@ export async function PATCH(request, { params }) {
         subtitles,
         cardCaptions,
         description,
+        specificCategory,
         available,
         variantInfo,
+        productDescription, // include new field
         packagingDetails,
-        specificCategory,
         pageSlug,
-        designTemplateFolderPath,
-        imageFolderPath,
       },
       { new: true }
     );
@@ -83,7 +77,7 @@ export async function PATCH(request, { params }) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("PATCH /api/admin/manage/variants/[id] error:", error);
+    console.error(`PATCH /api/admin/manage/variants/${id} error:`, error);
     return NextResponse.json(
       { message: "Internal server error", error: error.message },
       { status: 500 }

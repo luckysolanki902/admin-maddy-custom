@@ -1,3 +1,4 @@
+// /app/api/admin/manage/categories/route.js
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import SpecificCategory from "@/models/SpecificCategory";
@@ -30,7 +31,7 @@ export async function POST(request) {
     await connectToDatabase();
     const body = await request.json();
 
-    // Destructure the needed fields
+    // Destructure the needed fields, including new ones
     const {
       name,
       specificCategoryCode,
@@ -38,6 +39,8 @@ export async function POST(request) {
       category, // e.g. 'Wraps' or 'Accessories'
       subCategory, // e.g. 'Bike Wraps', 'Car Wraps', 'Safety'
       available,
+      reviewFetchSource,  // new field
+      productInfoTabs,    // new field
     } = body;
 
     // Auto-generate pageSlug
@@ -54,6 +57,8 @@ export async function POST(request) {
       category,
       subCategory,
       available,
+      reviewFetchSource,  // include new field
+      productInfoTabs,    // include new field
       pageSlug,
     });
 

@@ -91,6 +91,7 @@ function VariantManager() {
     description: "",
     available: true,
     variantInfo: "",
+    productDescription: "", // NEW FIELD
     packagingDetails: {
       boxId: "",
       productWeight: 0,
@@ -169,6 +170,7 @@ function VariantManager() {
       description: "",
       available: true,
       variantInfo: "",
+      productDescription: "", // NEW FIELD
       packagingDetails: {
         boxId: "",
         productWeight: 0,
@@ -189,6 +191,7 @@ function VariantManager() {
       },
       subtitles: variant.subtitles || [],
       cardCaptions: variant.cardCaptions || [],
+      productDescription: variant.productDescription || "", // NEW FIELD
     });
     setOpenDialog(true);
   };
@@ -314,23 +317,6 @@ function VariantManager() {
               required
             />
 
-            {/* variantType */}
-            {/* <FormControl fullWidth>
-              <InputLabel id="variant-type-label">Variant Type</InputLabel>
-              <Select
-                labelId="variant-type-label"
-                label="Variant Type"
-                value={editData.variantType}
-                onChange={(e) =>
-                  setEditData({ ...editData, variantType: e.target.value })
-                }
-                required
-              >
-                <MenuItem value="modelVariant">modelVariant</MenuItem>
-                <MenuItem value="designVariant">designVariant</MenuItem>
-              </Select>
-            </FormControl> */}
-
             {/* name */}
             <TextField
               label="Variant Name"
@@ -339,17 +325,19 @@ function VariantManager() {
               required
             />
 
-            {/* Google Seo */}
-            {/* title */}
+            {/* Seo Title */}
             <TextField
-              label="Seo Title for google"
+              label="Seo Title for Google"
               value={editData.title}
-              onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+              onChange={(e) =>
+                setEditData({ ...editData, title: e.target.value })
+              }
               required
             />
-            {/* description */}
+
+            {/* Seo Description */}
             <TextField
-              label="Seo Description for google"
+              label="Seo Description for Google"
               value={editData.description}
               onChange={(e) =>
                 setEditData({ ...editData, description: e.target.value })
@@ -367,12 +355,10 @@ function VariantManager() {
 
             {/* cardCaptions dynamic array */}
             <DynamicArrayField
-              label="Card Captions (Optional) - appear on each product card (e.g. Universal size fits on all cars)"
+              label="Card Captions (Optional) - Appear on each product card (e.g. Universal size fits on all cars)"
               values={editData.cardCaptions}
               onChange={(vals) => setEditData({ ...editData, cardCaptions: vals })}
             />
-
-
 
             {/* variantInfo */}
             <TextField
@@ -383,6 +369,18 @@ function VariantManager() {
               }
               multiline
               rows={2}
+            />
+
+            {/* NEW FIELD: Product Description */}
+            <TextField
+              label="Product Description"
+              value={editData.productDescription}
+              onChange={(e) =>
+                setEditData({ ...editData, productDescription: e.target.value })
+              }
+              multiline
+              rows={3}
+              helperText="To render the description successfully : 'Wrap Your Passion in Style! Evolve your {fullBikename} with Maddy Cust…'. Make sure to include {unique name} as placeholder."
             />
 
             {/* packagingDetails */}
@@ -408,7 +406,7 @@ function VariantManager() {
                 <MenuItem value="">None</MenuItem>
                 {boxes.map((box) => (
                   <MenuItem key={box._id} value={box._id}>
-                    {box.name} (capacity:{box.capacity})
+                    {box.name} (capacity: {box.capacity})
                   </MenuItem>
                 ))}
               </Select>

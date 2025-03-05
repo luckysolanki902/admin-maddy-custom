@@ -48,13 +48,13 @@ const OrderListFull = ({ isAdmin }) => {
     totalOrders: 0,
     totalPages: 1,
     totalItems: 0,
-    grossSales: 0,             // Sum of itemsTotal from API
-    sumTotalDiscount: 0,       // Sum of totalDiscount from API
+    grossSales: 0,        // Sum of itemsTotal from API
+    sumTotalDiscount: 0,  // Sum of totalDiscount from API
     revenue: 0,
     aov: 0,
     discountRate: 0,
     oldestOrderDate: null,
-    utmCounts: {},             // Include utmCounts
+    utmCounts: {},        // Include utmCounts
   });
 
   const [loading, setLoading] = useState(true);
@@ -134,12 +134,14 @@ const OrderListFull = ({ isAdmin }) => {
   const [cacLoading, setCacLoading] = useState(false);
   const [cacError, setCacError] = useState(null);
 
-  // Refs to prevent duplicate API calls
+  // Refs to prevent duplicate API calls for the exact same parameters
   const hasFetchedOrders = useRef(false);
   const hasFetchedProblematicOrders = useRef(false);
   const hasFetchedCacData = useRef(false);
 
-  // Fetch variant options when FiltersDrawer opens
+  /*****************************************************
+   * Fetch Variants when FiltersDrawer opens
+   *****************************************************/
   useEffect(() => {
     const fetchVariants = async () => {
       try {
@@ -160,7 +162,9 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [isFiltersDrawerOpen]);
 
-  // Fetch UTM options when FiltersDrawer opens
+  /*****************************************************
+   * Fetch UTM options when FiltersDrawer opens
+   *****************************************************/
   useEffect(() => {
     const fetchUTMOptions = async () => {
       setLoadingUTMOptions(true);
@@ -184,207 +188,214 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [isFiltersDrawerOpen]);
 
-  /**
-   * Function to fetch orders based on provided filters
-   */
-  const fetchOrders = useCallback(async (start, end, pageNumber = 1) => {
-    // Prevent duplicate fetching if already fetched for the same parameters
-    if (
-      hasFetchedOrders.current &&
-      hasFetchedOrders.start === start?.toISOString() &&
-      hasFetchedOrders.end === end?.toISOString() &&
-      hasFetchedOrders.page === pageNumber
-    ) {
-      return;
-    }
-
-    setLoading(true);
-
-    const queryParams = [
-      `page=${pageNumber}`,
-      `limit=${ITEMS_PER_PAGE}`,
-      `searchInput=${encodeURIComponent(searchInput)}`,
-      `searchField=${encodeURIComponent(searchField)}`,
-      start ? `startDate=${encodeURIComponent(start.toISOString())}` : '',
-      end ? `endDate=${encodeURIComponent(end.toISOString())}` : '',
-      `shiprocketFilter=${encodeURIComponent(shiprocketFilter)}`,
-      `paymentStatusFilter=${encodeURIComponent(paymentStatusFilter)}`,
-      `utmSource=${encodeURIComponent(selectedUTMFilters.source || '')}`,
-      `utmMedium=${encodeURIComponent(selectedUTMFilters.medium || '')}`,
-      `utmCampaign=${encodeURIComponent(selectedUTMFilters.campaign || '')}`,
-      `utmTerm=${encodeURIComponent(selectedUTMFilters.term || '')}`,
-      `utmContent=${encodeURIComponent(selectedUTMFilters.content || '')}`,
-      selectedVariants.length > 0 ? `variants=${selectedVariants.join(',')}` : '',
-      onlyIncludeSelectedVariants ? `onlyIncludeSelectedVariants=true` : '',
-      singleVariantOnly ? `singleVariantOnly=true` : '',
-      singleItemCountOnly ? `singleItemCountOnly=true` : '',
-    ].filter(param => param !== '');
-
-    const queryString = queryParams.join('&');
-
-    try {
-      const res = await fetch(`/api/admin/get-main/get-orders?${queryString}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        setOrderData(prev => ({
-          ...prev,
-          orders: data.orders || [],
-          totalOrders: data.totalOrders || 0,
-          totalPages: data.totalPages || 1,
-          totalItems: data.totalItems || 0,
-          grossSales: isAdmin ? (data.grossSales || 0) : 0,
-          sumTotalDiscount: data.sumTotalDiscount || 0,
-          revenue: isAdmin ? (data.revenue || 0) : 0,
-          aov: data.aov || 0,
-          discountRate: isAdmin ? (data.discountRate || 0) : 0,
-          oldestOrderDate: data.oldestOrderDate || null,
-          utmCounts: data.utmCounts || {},
-        }));
-        console.log('FetchOrders: Successfully fetched orders');
-      } else {
-        console.error('Error fetching orders:', data.message);
+  /*****************************************************
+   * Function to fetch main orders
+   *****************************************************/
+  const fetchOrders = useCallback(
+    async (start, end, pageNumber = 1) => {
+      // If we've fetched before with the exact same filters + search,
+      // do not fetch again. Now includes 'searchInput'.
+      if (
+        hasFetchedOrders.current &&
+        hasFetchedOrders.current === true &&
+        hasFetchedOrders.start === start?.toISOString() &&
+        hasFetchedOrders.end === end?.toISOString() &&
+        hasFetchedOrders.page === pageNumber &&
+        hasFetchedOrders.searchInput === searchInput
+      ) {
+        return;
       }
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    } finally {
-      setLoading(false);
-      // Update the ref to indicate that orders have been fetched for these parameters
-      hasFetchedOrders.current = true;
-      hasFetchedOrders.start = start?.toISOString();
-      hasFetchedOrders.end = end?.toISOString();
-      hasFetchedOrders.page = pageNumber;
-    }
-  }, [
-    searchInput,
-    searchField,
-    shiprocketFilter,
-    paymentStatusFilter,
-    selectedUTMFilters.source,
-    selectedUTMFilters.medium,
-    selectedUTMFilters.campaign,
-    selectedUTMFilters.term,
-    selectedUTMFilters.content,
-    selectedVariants,
-    onlyIncludeSelectedVariants,
-    singleVariantOnly,
-    singleItemCountOnly,
-    isAdmin,
-  ]);
 
-  /**
-   * Function to fetch problematic orders based on selected filters and page number
-   */
-  const fetchProblematicOrders = useCallback(async (start, end, pageNumber = 1) => {
-    if (!selectedProblematicFilter) {
-      setProblematicOrderData({
-        orders: [],
-        totalOrders: 0,
-        totalPages: 1,
-        totalItems: 0,
-      });
-      setProblematicCurrentPage(1);
-      return;
-    }
+      setLoading(true);
 
-    // Prevent duplicate fetching if already fetched for the same parameters
-    if (
-      hasFetchedProblematicOrders.current &&
-      hasFetchedProblematicOrders.start === start?.toISOString() &&
-      hasFetchedProblematicOrders.end === end?.toISOString() &&
-      hasFetchedProblematicOrders.page === pageNumber &&
-      hasFetchedProblematicOrders.filter === selectedProblematicFilter
-    ) {
-      console.log('FetchProblematicOrders: Duplicate fetch prevented');
-      return;
-    }
+      const queryParams = [
+        `page=${pageNumber}`,
+        `limit=${ITEMS_PER_PAGE}`,
+        `searchInput=${encodeURIComponent(searchInput)}`,
+        `searchField=${encodeURIComponent(searchField)}`,
+        start ? `startDate=${encodeURIComponent(start.toISOString())}` : '',
+        end ? `endDate=${encodeURIComponent(end.toISOString())}` : '',
+        `shiprocketFilter=${encodeURIComponent(shiprocketFilter)}`,
+        `paymentStatusFilter=${encodeURIComponent(paymentStatusFilter)}`,
+        `utmSource=${encodeURIComponent(selectedUTMFilters.source || '')}`,
+        `utmMedium=${encodeURIComponent(selectedUTMFilters.medium || '')}`,
+        `utmCampaign=${encodeURIComponent(selectedUTMFilters.campaign || '')}`,
+        `utmTerm=${encodeURIComponent(selectedUTMFilters.term || '')}`,
+        `utmContent=${encodeURIComponent(selectedUTMFilters.content || '')}`,
+        selectedVariants.length > 0 ? `variants=${selectedVariants.join(',')}` : '',
+        onlyIncludeSelectedVariants ? `onlyIncludeSelectedVariants=true` : '',
+        singleVariantOnly ? `singleVariantOnly=true` : '',
+        singleItemCountOnly ? `singleItemCountOnly=true` : '',
+      ].filter(param => param !== '');
 
-    setProblematicLoading(true);
-    console.log(`Fetching problematic orders: Start=${start?.toISOString()}, End=${end?.toISOString()}, Page=${pageNumber}, Filter=${selectedProblematicFilter}`);
+      const queryString = queryParams.join('&');
 
-    const queryParams = [
-      `page=${pageNumber}`,
-      `limit=${ITEMS_PER_PAGE}`,
-      `searchInput=${encodeURIComponent(searchInput)}`,
-      `searchField=${encodeURIComponent(searchField)}`,
-      start ? `startDate=${encodeURIComponent(start.toISOString())}` : '',
-      end ? `endDate=${encodeURIComponent(end.toISOString())}` : '',
-      `problematicFilter=${encodeURIComponent(selectedProblematicFilter)}`,
-      `shiprocketFilter=${encodeURIComponent(shiprocketFilter)}`,
-      `paymentStatusFilter=${encodeURIComponent(paymentStatusFilter)}`,
-      `utmSource=${encodeURIComponent(selectedUTMFilters.source || '')}`,
-      `utmMedium=${encodeURIComponent(selectedUTMFilters.medium || '')}`,
-      `utmCampaign=${encodeURIComponent(selectedUTMFilters.campaign || '')}`,
-      `utmTerm=${encodeURIComponent(selectedUTMFilters.term || '')}`,
-      `utmContent=${encodeURIComponent(selectedUTMFilters.content || '')}`,
-      selectedVariants.length > 0 ? `variants=${selectedVariants.join(',')}` : '',
-      onlyIncludeSelectedVariants ? `onlyIncludeSelectedVariants=true` : '',
-      singleVariantOnly ? `singleVariantOnly=true` : '',
-      singleItemCountOnly ? `singleItemCountOnly=true` : '',
-    ].filter(param => param !== '');
+      try {
+        const res = await fetch(`/api/admin/get-main/get-orders?${queryString}`);
+        const data = await res.json();
 
-    const queryString = queryParams.join('&');
+        if (res.ok) {
+          setOrderData(prev => ({
+            ...prev,
+            orders: data.orders || [],
+            totalOrders: data.totalOrders || 0,
+            totalPages: data.totalPages || 1,
+            totalItems: data.totalItems || 0,
+            grossSales: isAdmin ? (data.grossSales || 0) : 0,
+            sumTotalDiscount: data.sumTotalDiscount || 0,
+            revenue: isAdmin ? (data.revenue || 0) : 0,
+            aov: data.aov || 0,
+            discountRate: isAdmin ? (data.discountRate || 0) : 0,
+            oldestOrderDate: data.oldestOrderDate || null,
+            utmCounts: data.utmCounts || {},
+          }));
+        } else {
+          console.error('Error fetching orders:', data.message);
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      } finally {
+        setLoading(false);
+        // Update the ref to indicate that orders have been fetched
+        hasFetchedOrders.current = true;
+        hasFetchedOrders.start = start?.toISOString();
+        hasFetchedOrders.end = end?.toISOString();
+        hasFetchedOrders.page = pageNumber;
+        hasFetchedOrders.searchInput = searchInput;
+      }
+    },
+    [
+      searchInput,
+      searchField,
+      shiprocketFilter,
+      paymentStatusFilter,
+      selectedUTMFilters.source,
+      selectedUTMFilters.medium,
+      selectedUTMFilters.campaign,
+      selectedUTMFilters.term,
+      selectedUTMFilters.content,
+      selectedVariants,
+      onlyIncludeSelectedVariants,
+      singleVariantOnly,
+      singleItemCountOnly,
+      isAdmin,
+    ]
+  );
 
-    try {
-      const res = await fetch(`/api/admin/get-main/get-orders?${queryString}`);
-      const data = await res.json();
-
-      if (res.ok) {
+  /*****************************************************
+   * Function to fetch problematic orders
+   *****************************************************/
+  const fetchProblematicOrders = useCallback(
+    async (start, end, pageNumber = 1) => {
+      if (!selectedProblematicFilter) {
         setProblematicOrderData({
-          orders: data.orders || [],
-          totalOrders: data.totalOrders || 0,
-          totalPages: data.totalPages || 1,
-          totalItems: data.totalItems || 0,
+          orders: [],
+          totalOrders: 0,
+          totalPages: 1,
+          totalItems: 0,
         });
-        console.log('FetchProblematicOrders: Successfully fetched problematic orders');
-      } else {
-        console.error('Error fetching problematic orders:', data.message);
+        setProblematicCurrentPage(1);
+        return;
       }
-    } catch (error) {
-      console.error('Error fetching problematic orders:', error);
-    } finally {
-      setProblematicLoading(false);
-      // Update the ref to indicate that problematic orders have been fetched for these parameters
-      hasFetchedProblematicOrders.current = true;
-      hasFetchedProblematicOrders.start = start?.toISOString();
-      hasFetchedProblematicOrders.end = end?.toISOString();
-      hasFetchedProblematicOrders.page = pageNumber;
-      hasFetchedProblematicOrders.filter = selectedProblematicFilter;
-    }
-  }, [
-    selectedProblematicFilter,
-    searchInput,
-    searchField,
-    shiprocketFilter,
-    paymentStatusFilter,
-    selectedUTMFilters.source,
-    selectedUTMFilters.medium,
-    selectedUTMFilters.campaign,
-    selectedUTMFilters.term,
-    selectedUTMFilters.content,
-    selectedVariants,
-    onlyIncludeSelectedVariants,
-    singleVariantOnly,
-    singleItemCountOnly,
-  ]);
 
-  /**
-   * Function to fetch CAC data from Facebook Ads API
-   */
+      // If we've fetched before with the exact same filters + search,
+      // do not fetch again. Now includes 'searchInput'.
+      if (
+        hasFetchedProblematicOrders.current &&
+        hasFetchedProblematicOrders.start === start?.toISOString() &&
+        hasFetchedProblematicOrders.end === end?.toISOString() &&
+        hasFetchedProblematicOrders.page === pageNumber &&
+        hasFetchedProblematicOrders.filter === selectedProblematicFilter &&
+        hasFetchedProblematicOrders.searchInput === searchInput
+      ) {
+        return;
+      }
+
+      setProblematicLoading(true);
+
+      const queryParams = [
+        `page=${pageNumber}`,
+        `limit=${ITEMS_PER_PAGE}`,
+        `searchInput=${encodeURIComponent(searchInput)}`,
+        `searchField=${encodeURIComponent(searchField)}`,
+        start ? `startDate=${encodeURIComponent(start.toISOString())}` : '',
+        end ? `endDate=${encodeURIComponent(end.toISOString())}` : '',
+        `problematicFilter=${encodeURIComponent(selectedProblematicFilter)}`,
+        `shiprocketFilter=${encodeURIComponent(shiprocketFilter)}`,
+        `paymentStatusFilter=${encodeURIComponent(paymentStatusFilter)}`,
+        `utmSource=${encodeURIComponent(selectedUTMFilters.source || '')}`,
+        `utmMedium=${encodeURIComponent(selectedUTMFilters.medium || '')}`,
+        `utmCampaign=${encodeURIComponent(selectedUTMFilters.campaign || '')}`,
+        `utmTerm=${encodeURIComponent(selectedUTMFilters.term || '')}`,
+        `utmContent=${encodeURIComponent(selectedUTMFilters.content || '')}`,
+        selectedVariants.length > 0 ? `variants=${selectedVariants.join(',')}` : '',
+        onlyIncludeSelectedVariants ? `onlyIncludeSelectedVariants=true` : '',
+        singleVariantOnly ? `singleVariantOnly=true` : '',
+        singleItemCountOnly ? `singleItemCountOnly=true` : '',
+      ].filter(param => param !== '');
+
+      const queryString = queryParams.join('&');
+
+      try {
+        const res = await fetch(`/api/admin/get-main/get-orders?${queryString}`);
+        const data = await res.json();
+
+        if (res.ok) {
+          setProblematicOrderData({
+            orders: data.orders || [],
+            totalOrders: data.totalOrders || 0,
+            totalPages: data.totalPages || 1,
+            totalItems: data.totalItems || 0,
+          });
+        } else {
+          console.error('Error fetching problematic orders:', data.message);
+        }
+      } catch (error) {
+        console.error('Error fetching problematic orders:', error);
+      } finally {
+        setProblematicLoading(false);
+        // Update the ref
+        hasFetchedProblematicOrders.current = true;
+        hasFetchedProblematicOrders.start = start?.toISOString();
+        hasFetchedProblematicOrders.end = end?.toISOString();
+        hasFetchedProblematicOrders.page = pageNumber;
+        hasFetchedProblematicOrders.filter = selectedProblematicFilter;
+        hasFetchedProblematicOrders.searchInput = searchInput;
+      }
+    },
+    [
+      selectedProblematicFilter,
+      searchInput,
+      searchField,
+      shiprocketFilter,
+      paymentStatusFilter,
+      selectedUTMFilters.source,
+      selectedUTMFilters.medium,
+      selectedUTMFilters.campaign,
+      selectedUTMFilters.term,
+      selectedUTMFilters.content,
+      selectedVariants,
+      onlyIncludeSelectedVariants,
+      singleVariantOnly,
+      singleItemCountOnly,
+    ]
+  );
+
+  /*****************************************************
+   * Function to fetch CAC data
+   *****************************************************/
   const fetchCacData = useCallback(async () => {
-    // Prevent duplicate fetching if already fetched for the same parameters
+    // If we've fetched for the same date range, don't do it again
     if (
       hasFetchedCacData.current &&
       hasFetchedCacData.start === dateRange.start?.toISOString() &&
       hasFetchedCacData.end === dateRange.end?.toISOString()
     ) {
-      console.log('FetchCacData: Duplicate fetch prevented');
       return;
     }
 
     setCacLoading(true);
     setCacError(null);
-    console.log(`Fetching CAC data: Start=${dateRange.start?.toISOString()}, End=${dateRange.end?.toISOString()}`);
 
     // Prepare the payload
     const payload = {
@@ -409,9 +420,8 @@ const OrderListFull = ({ isAdmin }) => {
         setCacData({
           spend: data.spend,
           purchaseCount: data.purchaseCount,
-          cac: data.cac, // We store 'N/A' from backend or can show it as needed
+          cac: data.cac, // can be 'N/A' if not applicable
         });
-        console.log('FetchCacData: Successfully fetched CAC data');
       } else {
         console.error('Error fetching CAC data:', data.error);
         setCacError(data.error || 'Failed to fetch CAC data.');
@@ -421,16 +431,16 @@ const OrderListFull = ({ isAdmin }) => {
       setCacError('An error occurred while fetching CAC data.');
     } finally {
       setCacLoading(false);
-      // Update the ref to indicate that CAC data has been fetched for these parameters
+      // Update the ref
       hasFetchedCacData.current = true;
       hasFetchedCacData.start = dateRange.start?.toISOString();
       hasFetchedCacData.end = dateRange.end?.toISOString();
     }
   }, [dateRange.start, dateRange.end]);
 
-  /**
-   * Effect to fetch orders and problematic orders whenever relevant filters or pagination change
-   */
+  /*****************************************************
+   * UseEffects to fetch orders + CAC data
+   *****************************************************/
   useEffect(() => {
     fetchOrders(dateRange.start, dateRange.end, currentPage);
     if (selectedProblematicFilter) {
@@ -459,27 +469,37 @@ const OrderListFull = ({ isAdmin }) => {
     fetchProblematicOrders,
   ]);
 
-  /**
-   * Effect to fetch CAC data whenever the date range changes
-   */
   useEffect(() => {
     fetchCacData();
   }, [fetchCacData]);
 
-  // Handle search input change
+  /*****************************************************
+   * Handlers
+   *****************************************************/
+  // Search input change => store in state
   const handleSearchInputChange = (e) => {
-    const value = e.target.value;
-    setSearchInput(value);
-    // Optionally, you can debounce this input to reduce the number of fetch calls
+    setSearchInput(e.target.value);
   };
 
-  // Handle search field change
+  // Search field change => reset page, input
   const handleSearchFieldChange = (e) => {
-    const value = e.target.value;
-    setSearchField(value);
+    setSearchField(e.target.value);
     setSearchInput('');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
+    // We reset fetch flags to ensure a fresh fetch
+    hasFetchedOrders.current = false;
+    hasFetchedProblematicOrders.current = false;
+  };
+
+  // Handle pressing Enter in search box
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      setCurrentPage(1);
+      setProblematicCurrentPage(1);
+      hasFetchedOrders.current = false;
+      hasFetchedProblematicOrders.current = false;
+    }
   };
 
   // Handle accordion expansion
@@ -502,6 +522,10 @@ const OrderListFull = ({ isAdmin }) => {
     setOnlyIncludeSelectedVariants(false);
     setSingleVariantOnly(false);
     setSingleItemCountOnly(false);
+    // Reset fetch flags
+    hasFetchedOrders.current = false;
+    hasFetchedProblematicOrders.current = false;
+    hasFetchedCacData.current = false;
   };
 
   // Handle custom date change
@@ -587,9 +611,7 @@ const OrderListFull = ({ isAdmin }) => {
     hasFetchedProblematicOrders.current = false;
   };
 
-  /**
-   * Function to handle syncing Shiprocket orders
-   */
+  // Function to sync Shiprocket orders
   const handleSyncShiprocketOrders = async () => {
     setSyncing(true);
     setSyncResult(null);
@@ -615,7 +637,7 @@ const OrderListFull = ({ isAdmin }) => {
         setSyncDetails(data.details || []);
         setOpenSyncDetails(true);
         // Refresh orders with current page
-        fetchOrders(dateRange.start, dateRange.end, currentPage); 
+        fetchOrders(dateRange.start, dateRange.end, currentPage);
       } else {
         console.error('Error syncing Shiprocket orders:', data.message);
         setSyncResult(`Error: ${data.message}`);
@@ -664,12 +686,16 @@ const OrderListFull = ({ isAdmin }) => {
     setOnlyIncludeSelectedVariants(false);
     setSingleVariantOnly(false);
     setSingleItemCountOnly(false);
+
     // Reset fetch flags
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
     hasFetchedCacData.current = false;
   };
 
+  /*****************************************************
+   * Render
+   *****************************************************/
   return (
     <Container sx={{ marginBottom: '2rem', width: '100%', padding: '2rem 1rem' }}>
       <Typography
@@ -688,7 +714,7 @@ const OrderListFull = ({ isAdmin }) => {
         setDateRange={setDateRange}
         setCurrentPage={setCurrentPage}
         setProblematicCurrentPage={setProblematicCurrentPage}
-        handleAllTagClick={handleAllTagClick} 
+        handleAllTagClick={handleAllTagClick}
         handleCustomDayChange={handleCustomDayChange}
         handleCustomDateChange={handleCustomDateChange}
         handleMonthSelection={handleMonthSelection}
@@ -738,7 +764,8 @@ const OrderListFull = ({ isAdmin }) => {
         )}
         {activeTag === 'all' && (
           <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            All Orders ( From {orderData?.oldestOrderDate
+            All Orders ( From{' '}
+            {orderData?.oldestOrderDate
               ? dayjs(orderData?.oldestOrderDate).format('MMMM D, YYYY, dddd')
               : 'N/A'}
             )
@@ -746,7 +773,7 @@ const OrderListFull = ({ isAdmin }) => {
         )}
       </Box>
 
-      {/* Search and Date Picker Section */}
+      {/* Search and Filter Section */}
       <Box
         display="flex"
         justifyContent="space-between"
@@ -783,17 +810,14 @@ const OrderListFull = ({ isAdmin }) => {
             placeholder="Search"
             value={searchInput}
             onChange={handleSearchInputChange}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                setCurrentPage(1);
-                setProblematicCurrentPage(1);
-                // Reset fetch flags
-                hasFetchedOrders.current = false;
-                hasFetchedProblematicOrders.current = false;
-              }
-            }}
+            onKeyDown={handleSearchKeyDown}
             sx={{ minWidth: { xs: '100%', md: '200px' } }}
             InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
               endAdornment: (
                 <InputAdornment position="end">
                   {searchInput && (
@@ -807,11 +831,6 @@ const OrderListFull = ({ isAdmin }) => {
                       <CloseIcon />
                     </IconButton>
                   )}
-                </InputAdornment>
-              ),
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
                 </InputAdornment>
               ),
             }}
@@ -915,7 +934,7 @@ const OrderListFull = ({ isAdmin }) => {
         utmCounts={orderData.utmCounts}
       />
 
-      {/* Pagination */}
+      {/* Pagination for Main Orders */}
       {!loading && orderData.orders.length > 0 && (
         <Pagination
           count={orderData.totalPages}
@@ -940,7 +959,8 @@ const OrderListFull = ({ isAdmin }) => {
             Problematic Orders
           </Typography>
           <Typography variant="subtitle1" gutterBottom sx={{ color: 'white' }}>
-            Total Problematic Orders: {problematicOrderData.totalOrders} | Total Items: {problematicOrderData.totalItems}
+            Total Problematic Orders: {problematicOrderData.totalOrders} | Total Items:{' '}
+            {problematicOrderData.totalItems}
           </Typography>
 
           {problematicLoading ? (

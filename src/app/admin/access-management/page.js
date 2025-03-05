@@ -7,7 +7,7 @@ export default function Marketing() {
     { text: ' Manage Path Role', link: '/admin/access-management/pathRole' },
     { text: 'Orders Dashboard', link: '/admin/super/orders/order-list' },
     { text: 'Analytics Dashboard', link: '/admin/super/analytics' },
-    { text: 'Add a New Spec-cat', link: '/admin/super/analytics' },
+    { text: 'Add a New Spec-cat', link: '/admin/manage/brand-new/spec-cat' },
   ];
   
 

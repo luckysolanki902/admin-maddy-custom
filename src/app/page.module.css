@@ -50,28 +50,158 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 40px;
-  width: 60%;
+   /* gap: 25px 15px; */
+  width: 80%;
   max-width: 800px;
-  margin: 10px;
+  margin: 20px;
 }
 
+.department {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .box {
   background-color: #444;
-  margin:10px;
+  margin: 30px;
   padding: 20px;
   display: flex;
   justify-content: center;
   align-items: center;
   border-radius: 10px;
   font-size: 1.6rem;
-  font-weight: 200;
-  font-family: 'Jost';
+  font-weight: 300;
+  font-family: 'Jost', sans-serif;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
-  box-shadow: 0px 0px 11.34px rgba(255, 255, 0, 0.7);
-  height: 130px;
+  box-shadow: 0px 0px 10px rgba(255, 255, 0, 0.5);
+  height: 180px;
 }
+
+.box:hover {
+  border: 2px solid #0D99FF;
+  transform: scale(1.1);
+  box-shadow: 0px 0px 15px rgba(13, 153, 255, 0.8);
+}
+
+.Container {
+  display: flex;
+  flex-wrap: nowrap; /* force items into one row */
+  overflow-x: auto;  /* allow horizontal scrolling */
+  width: 100%;       /* ensure the container spans full width */
+  gap: 20px;
+  padding: 10px;
+  /* justify-content: center; */
+  -webkit-overflow-scrolling: touch; /* optional: smooth scrolling on iOS */
+}
+
+/* For larger screens, center the items */
+@media (min-width: 1024px) {
+  .Container {
+    justify-content: center; /* or use space-evenly/space-around if you prefer */
+  }
+}
+
+
+
+.statusbox {
+  background-color: #3A3A3A;
+  border-radius: 8px;
+  /* Default glow; overridden inline if needed */
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+  padding: 20px;
+  margin: 10px;
+  /* justify-content: center; */
+  color: #ffffff;
+  font-family: 'Jost';
+  min-width: 300px;      /* Minimum width for responsiveness */
+  flex-shrink: 0;        /* Prevent shrinking below min-width */
+  height: 180px;
+}
+.statusbox:hover{
+  border: 2px solid #0D99FF;
+  /* transform: scale(1.1); */
+  box-shadow: 0px 0px 15px rgba(13, 153, 255, 0.8);
+}
+
+.metrics {
+  display: flex;
+  /* justify-content: center; */
+  justify-content: flex-start;
+  gap: 30px;
+  margin-top: 10px;
+}
+
+/* .metrics {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px; 
+}
+
+*/
+.metrics > div:first-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.3); 
+  padding-right: 25px;
+  margin-right: 15px;
+} 
+
+
+
+/* .marqueeContent {
+
+  display: inline-block;
+  white-space: nowrap;      
+  animation: marquee 15s linear infinite; 
+} */
+
+
+
+.goals {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  font-size: 1.3rem;
+  margin-left: 40px;
+  border-radius: 0.4rem;
+  text-align: center;
+  width: 110px;
+  height: 70px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: all 0.3s ease-in-out;
+}
+
+.goals:hover {
+  border: 2px solid #0D99FF;
+  transform: scale(1.1);
+}
+
+@media (max-width: 600px) {
+  .goals {
+    width: 55px;
+    height: 30px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+}
+
+
+/* change these later  */
+ /* Adding colors for each department */
+
+/* .marketingGoals { border: 2px solid #FFD700; box-shadow: 0px 0px 5px #FFD700; }
+
+.design {  box-shadow: 0px 0px 11.87px rgba(100, 255, 131, 0.25) }
+.designGoals { border:  #00FFE5; box-shadow: 0px 0px 11.34px rgba(100, 255, 131, 0.25) ; }
+
+.webd { border: 2px solid #FF69B4; box-shadow: 0px 0px 10px #FF69B4; }
+.webdGoals { border:  #FF69B4; box-shadow: 0px 0px 5px #FF69B4; }
+
+.production { border: 2px solid #D3D3D3; box-shadow: 0px 0px 10px #D3D3D3; }
+.productionGoals { border: 2px solid #D3D3D3; box-shadow: 0px 0px 5px #D3D3D3; }  */
+
 
 .box:hover {
   transform: translateY(-5px);
@@ -105,10 +235,19 @@
     height: auto;
     border-radius: 0.6rem;
     height: 100px;
+    width: 30vw;
+    /* margin-right: -1px; */
+    
   }
 
   .grid {
     width: 100%;
     gap: 25px 15px;
+  }
+  .goals {
+    width: 55px;
+    height: 30px;
+    font-size: 0.8rem;
+    font-weight: 500;
   }
 }

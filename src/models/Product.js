@@ -48,13 +48,13 @@ const ProductSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['Wraps', 'Accessories'],
+     
       required: true,
       index: true,
     },
     subCategory: {
       type: String,
-      enum: ['Bike Wraps', 'Car Wraps', 'Safety'],
+     
       required: true,
       index: true,
     },
@@ -130,7 +130,12 @@ optionsAvailable: {
   { timestamps: true }
 );
 
-
-
+// Pre-save hook to ensure pageSlug starts with a "/"
+ProductSchema.pre('save', function(next) {
+  if (this.pageSlug && !this.pageSlug.startsWith('/')) {
+    this.pageSlug = '/' + this.pageSlug;
+  }
+  next();
+});
 
 module.exports = mongoose.models.Product || mongoose.model('Product', ProductSchema);

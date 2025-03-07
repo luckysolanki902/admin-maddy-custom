@@ -61,15 +61,32 @@
 /* Status Container */
 .statusContainer {
   display: flex;
-  gap: 20px;
-  width: 100%;
-  margin-bottom: 2rem;
+  align-items: center;
   overflow-x: auto;
   width: 100vw;
   background-color: rgb(65, 65, 65);
   padding: 2rem 1rem;
+  scroll-behavior: smooth;
 }
 
+@media (min-width: 768px) {
+  .statusContainer {
+    justify-content: center;
+  }
+}
+
+.statusContainer::-webkit-scrollbar {
+  height: 8px;
+}
+
+.statusContainer::-webkit-scrollbar-track {
+  background: rgb(65, 65, 65);
+}
+
+.statusContainer::-webkit-scrollbar-thumb {
+  background-color: rgb(100, 100, 100);
+  border-radius: 10px;
+}
 
 
 /* Status Box Base */

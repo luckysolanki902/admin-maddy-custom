@@ -1,5 +1,3 @@
-// /app/api/admin/aws/get-presigned-urls/route.js
-
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
@@ -46,7 +44,6 @@ async function handleGetPresignedUrls(request) {
     }
 
     const { startDate, endDate } = decoded;
-
     if (!startDate || !endDate) {
       return NextResponse.json(
         { message: 'Token does not contain startDate or endDate.' },
@@ -64,7 +61,26 @@ async function handleGetPresignedUrls(request) {
       );
     }
 
-    // Aggregate Orders to get SKU counts and designTemplate.imageUrl
+    // Get total orders (only paid orders)
+    const totalOrders = await Order.countDocuments({
+      createdAt: { $gte: start, $lte: end },
+      'paymentDetails.amountPaidOnline': { $gt: 0 }
+    });
+
+    // Get total items across orders
+    const totalItemsAgg = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: start, $lte: end },
+          'paymentDetails.amountPaidOnline': { $gt: 0 }
+        }
+      },
+      { $unwind: "$items" },
+      { $group: { _id: null, totalItems: { $sum: "$items.quantity" } } }
+    ]);
+    const totalItems = totalItemsAgg[0] ? totalItemsAgg[0].totalItems : 0;
+
+    // Aggregate imagesData (only include items with designTemplate.imageUrl set)
     const imagesData = await Order.aggregate([
       {
         $match: {
@@ -82,6 +98,12 @@ async function handleGetPresignedUrls(request) {
         },
       },
       { $unwind: '$product' },
+      // Filter to include only products with designTemplate.imageUrl set and non-empty
+      {
+        $match: {
+          "product.designTemplate.imageUrl": { $exists: true, $ne: "", $type: "string" }
+        }
+      },
       {
         $lookup: {
           from: 'specificcategoryvariants',
@@ -104,18 +126,10 @@ async function handleGetPresignedUrls(request) {
       { $sort: { count: -1 } },
     ]);
 
-    if (!imagesData || imagesData.length === 0) {
-      return NextResponse.json(
-        { message: 'No images found for the specified date range.' },
-        { status: 404 }
-      );
-    }
-
-    // Generate presigned URLs for each image
+    // Generate presigned URLs for each image where applicable
     const imagesWithPresignedUrls = await Promise.all(
       imagesData.map(async (item) => {
         const { sku, specificCategoryVariant, imageUrl } = item._id;
-
         if (!imageUrl) {
           return {
             sku,
@@ -125,7 +139,6 @@ async function handleGetPresignedUrls(request) {
             count: item.count,
           };
         }
-
         try {
           const presignedUrlObj = await getPresignedUrl(
             imageUrl,
@@ -133,8 +146,6 @@ async function handleGetPresignedUrls(request) {
             'getObject'
           );
           const presignedUrl = presignedUrlObj.presignedUrl;
-          const url = presignedUrlObj.url;
-
           return {
             sku,
             specificCategoryVariant,
@@ -154,7 +165,11 @@ async function handleGetPresignedUrls(request) {
         }
       })
     );
-    return NextResponse.json({ images: imagesWithPresignedUrls }, { status: 200 });
+
+    return NextResponse.json(
+      { totalOrders, totalItems, images: imagesWithPresignedUrls },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error in get-presigned-urls:', error);
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });

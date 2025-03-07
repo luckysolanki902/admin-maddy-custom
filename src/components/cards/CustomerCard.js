@@ -51,16 +51,23 @@ const formatOrderDate = (dateInput) => {
 
 // Status color mapping
 const statusColors = {
-  pending: 'warning',
-  failed: 'error',
-  paidPartially: 'secondary',
-  allPaid: 'success',
-  allToBePaidCod: 'secondary',
-  orderCreated: 'info',
-  processing: 'warning',
-  shipped: 'primary',
-  delivered: 'success',
-  cancelled: 'error',
+  pending: 'warning',              // Order awaiting action
+  orderCreated: 'info',            // Order created/registered
+  processing: 'warning',           // Pre-shipping & preparation states (including pickup scheduling, packaging, etc.)
+  shipped: 'primary',              // Order dispatched from warehouse
+  onTheWay: 'info',                // Order picked up & actively moving toward delivery
+  partiallyDelivered: 'warning',   // Only part of the order delivered
+  delivered: 'success',            // Order delivered successfully
+  returnInitiated: 'warning',      // Return process initiated/in progress (pickup, in transit back, etc.)
+  returned: 'info',                // Return completed (item has reached its return destination)
+  lost: 'error',                   // Order lost/damaged in transit
+  cancelled: 'error',              // Order cancelled
+  undelivered: 'error',            // Order undelivered
+  unknown: 'secondary',            // Unknown
+  failed: 'error',                 
+  paidPartially: 'secondary',      
+  allPaid: 'success',              
+  allToBePaidCod: 'secondary',     
 };
 
 // Payment Mode color mapping

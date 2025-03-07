@@ -375,7 +375,7 @@ const DownloadProductionTemplates = () => {
           <Typography variant="h6" gutterBottom>
             Sticker Orders
           </Typography>
-          <Typography variant="subtitle1">Total Orders: {totalOrders}</Typography>
+          <Typography variant="subtitle1">Total Items: {totalOrders}</Typography>
         </Stack>
         {loading ? (
           <Stack alignItems="center" sx={{ py: 4 }}>

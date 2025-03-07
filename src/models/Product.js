@@ -88,7 +88,7 @@ const ProductSchema = new mongoose.Schema(
     designTemplate:{
       designCode: {
         type: String,
-        required: true,
+        required: false,
       },
       imageUrl: {
         type: String,

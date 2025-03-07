@@ -51,34 +51,40 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 40px;
    /* gap: 25px 15px; */
-  width: 60%;
+  width: 80%;
   max-width: 800px;
-  margin: 10px;
+  margin: 20px;
 }
 
 .department {
   display: flex;
   flex-direction: column;
- 
   gap: 10px;
 }
 .box {
   background-color: #444;
-  margin:10px;
+  margin: 30px;
   padding: 20px;
   display: flex;
   justify-content: center;
   align-items: center;
   border-radius: 10px;
   font-size: 1.6rem;
-  font-weight: 200;
-  font-family: 'Jost';
+  font-weight: 300;
+  font-family: 'Jost', sans-serif;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
-  box-shadow: 0px 0px 11.34px rgba(255, 255, 0, 0.7);
-  height: 130px;
+  box-shadow: 0px 0px 10px rgba(255, 255, 0, 0.5);
+  height: 180px;
 }
+
+.box:hover {
+  border: 2px solid #0D99FF;
+  transform: scale(1.1);
+  box-shadow: 0px 0px 15px rgba(13, 153, 255, 0.8);
+}
+
 .Container {
   display: flex;
   flex-wrap: nowrap; /* force items into one row */
@@ -111,6 +117,12 @@
   font-family: 'Jost';
   min-width: 300px;      /* Minimum width for responsiveness */
   flex-shrink: 0;        /* Prevent shrinking below min-width */
+  height: 180px;
+}
+.statusbox:hover{
+  border: 2px solid #0D99FF;
+  /* transform: scale(1.1); */
+  box-shadow: 0px 0px 15px rgba(13, 153, 255, 0.8);
 }
 
 .metrics {
@@ -145,16 +157,34 @@
 
 
 
-.goals{
+.goals {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 10px;
-  font-size: 0.9rem;
-  /* margin-left: 150px; */
-  align-self: center;
+  font-size: 1.3rem;
+  margin-left: 40px;
   border-radius: 0.4rem;
   text-align: center;
-  width: 80px;
+  width: 110px;
+  height: 70px;
   text-decoration: none;
   font-weight: bold;
+  transition: all 0.3s ease-in-out;
+}
+
+.goals:hover {
+  border: 2px solid #0D99FF;
+  transform: scale(1.1);
+}
+
+@media (max-width: 600px) {
+  .goals {
+    width: 55px;
+    height: 30px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
 }
 
 
@@ -205,6 +235,9 @@
     height: auto;
     border-radius: 0.6rem;
     height: 100px;
+    /* width: 140px; */
+    /* margin-right: -1px; */
+    
   }
 
   .grid {

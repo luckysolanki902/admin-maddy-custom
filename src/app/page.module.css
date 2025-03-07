@@ -235,7 +235,7 @@
     height: auto;
     border-radius: 0.6rem;
     height: 100px;
-    /* width: 140px; */
+    width: 30vw;
     /* margin-right: -1px; */
     
   }
@@ -243,5 +243,11 @@
   .grid {
     width: 100%;
     gap: 25px 15px;
+  }
+  .goals {
+    width: 55px;
+    height: 30px;
+    font-size: 0.8rem;
+    font-weight: 500;
   }
 }

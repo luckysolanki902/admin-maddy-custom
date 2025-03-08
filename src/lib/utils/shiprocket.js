@@ -10,13 +10,19 @@ const PackagingBox = require('@/models/PackagingBox');
  */
 export async function getShiprocketToken() {
   try {
-    const response = await axios.post('https://apiv2.shiprocket.in/v1/external/auth/login', {
-      email: process.env.SHIPROCKET_EMAIL,
-      password: process.env.SHIPROCKET_PASSWORD,
-    });
+    const response = await axios.post(
+      'https://apiv2.shiprocket.in/v1/external/auth/login',
+      {
+        email: process.env.SHIPROCKET_EMAIL,
+        password: process.env.SHIPROCKET_PASSWORD,
+      }
+    );
     return response.data.token;
   } catch (error) {
-    console.error('Error fetching Shiprocket token:', error.response ? error.response.data : error.message);
+    console.error(
+      'Error fetching Shiprocket token:',
+      error.response ? error.response.data : error.message
+    );
     throw new Error('Failed to retrieve Shiprocket token.');
   }
 }
@@ -28,15 +34,22 @@ export async function createShiprocketOrder(orderData) {
   try {
     const token = await getShiprocketToken();
 
-    const response = await axios.post('https://apiv2.shiprocket.in/v1/external/orders/create/adhoc', orderData, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    const response = await axios.post(
+      'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc',
+      orderData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        }
+      }
+    );
     return response.data;
   } catch (error) {
-    console.error('Error creating Shiprocket order:', error.response ? error.response.data : error.message);
+    console.error(
+      'Error creating Shiprocket order:',
+      error.response ? error.response.data : error.message
+    );
     throw new Error('Failed to create Shiprocket order.');
   }
 }
@@ -48,344 +61,261 @@ export async function trackShiprocketOrder(orderId) {
   try {
     const token = await getShiprocketToken();
 
-    const response = await axios.get(`https://apiv2.shiprocket.in/v1/external/courier/track`, {
-      params: { order_id: orderId },
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    const response = await axios.get(
+      `https://apiv2.shiprocket.in/v1/external/courier/track`,
+      {
+        params: { order_id: orderId },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error) {
-    console.error('Error tracking Shiprocket order:', error.response ? error.response.data : error.message);
+    console.error(
+      'Error tracking Shiprocket order:',
+      error.response ? error.response.data : error.message
+    );
     throw new Error('Failed to track Shiprocket order.');
   }
 }
 
-
-
 /**
- * Fetch Shiprocket orders between startDate and endDate (inclusive).
- *
- * @param {Date} startDate - JS Date object representing the start of the range
- * @param {Date} endDate - JS Date object representing the end of the range
- * @returns {Array} Array of Shiprocket orders
+ * Get packaging details from a variant or fallback to product-level packaging
+ * 
+ * @param {Object} item The cart item (with `product` property)
+ * @returns {Object} { box, productWeight, hasFreebie, freebieWeight, itemName }
  */
-export async function getShiprocketOrders(startDate, endDate) {
-  try {
-    const token = await getShiprocketToken();
-
-    // Ensure we have Date objects
-    if (!(startDate instanceof Date) || isNaN(startDate)) {
-      throw new Error('Invalid startDate parameter');
+async function getPackagingDetailsForItem(item) {
+  // 1) If variant packaging is present:
+  const variantId = item?.product?.specificCategoryVariant?._id;
+  if (variantId) {
+    const variant = await SpecificCategoryVariant.findById(variantId).populate({
+      path: 'packagingDetails.boxId',
+      model: 'PackagingBox'
+    });
+    if (variant?.packagingDetails?.boxId) {
+      // Found packaging details on variant
+      const hasFreebie = variant.freebies?.available === true;
+      return {
+        box: variant.packagingDetails.boxId, // entire box doc
+        productWeight: variant.packagingDetails.productWeight || 0,
+        hasFreebie,
+        freebieWeight: hasFreebie ? variant.freebies.weight || 0 : 0,
+        itemName: variant.name
+      };
     }
-    if (!(endDate instanceof Date) || isNaN(endDate)) {
-      throw new Error('Invalid endDate parameter');
-    }
-
-    // Convert to YYYY-MM-DD format
-    const fromDate = startDate.toISOString().split('T')[0];
-    const toDate = endDate.toISOString().split('T')[0];
-
-    let currentPage = 1;
-    const perPage = 50;
-    let allOrders = [];
-    let totalPages = 1;
-
-    while (currentPage <= totalPages) {
-      const response = await axios.get('https://apiv2.shiprocket.in/v1/external/orders', {
-        params: {
-          from: fromDate,
-          to: toDate,
-          page: currentPage,
-          per_page: perPage,
-        },
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const orders = response.data.data || [];
-      const pagination = response.data.meta?.pagination || {};
-
-      allOrders = allOrders.concat(orders);
-      totalPages = pagination.total_pages || 1;
-      currentPage++;
-    }
-
-    return allOrders;
-  } catch (error) {
-    console.error('Error fetching Shiprocket orders:', error.response ? error.response.data : error.message);
-    throw new Error('Failed to fetch Shiprocket orders.');
   }
+
+  // 2) Otherwise fallback to product-level packaging
+  const productId = item?.product?._id;
+  if (productId) {
+    const product = await Product.findById(productId).populate({
+      path: 'packagingDetails.boxId',
+      model: 'PackagingBox'
+    });
+    if (product?.packagingDetails?.boxId) {
+      // Found packaging details on product
+      return {
+        box: product.packagingDetails.boxId,
+        productWeight: product.packagingDetails.productWeight || 0,
+        hasFreebie: false,
+        freebieWeight: 0,
+        itemName: product.name
+      };
+    }
+  }
+
+  // 3) If no packaging details found at all, throw or handle gracefully
+  throw new Error(`No packaging details found for item: ${item?._id}`);
 }
 
+/**
+ * Packs items into as many boxes of a single box type as needed.
+ * 
+ * @param {Object} options
+ * @param {Array} options.itemsForThisBox - Array of items that all share the same box doc
+ * @param {Object} options.boxDoc         - The single PackagingBox document
+ * 
+ * @returns {Object} { length, breadth, height, weight, freebieWeight, boxesUsed, boxDetails }
+ */
+function packItemsInSingleBoxType({ itemsForThisBox, boxDoc }) {
+  // We'll open multiple boxes of this type if needed
+  const { length, breadth, height } = boxDoc.dimensions;
+  const capacity = boxDoc.capacity;
+  const boxWeight = boxDoc.weight;
+
+  // Each "open box" is an object tracking how many items we can still fit, plus packing info
+  const openBoxes = [];
+  const createNewBox = () => ({
+    leftoverCapacity: capacity,
+    totalProductWeight: 0,
+    freebieWeights: [],
+    packedItems: []
+  });
+
+  // Optionally, we only assign one freebie across all boxes of this type:
+  let freebieAssigned = false;
+
+  // For each item, fill existing boxes or open a new one
+  for (const entry of itemsForThisBox) {
+    let remainingQty = entry.quantity;
+
+    while (remainingQty > 0) {
+      // find an open box that has leftover capacity
+      let suitableBox = openBoxes.find((ob) => ob.leftoverCapacity > 0);
+      if (!suitableBox) {
+        // create a new box
+        suitableBox = createNewBox();
+        openBoxes.push(suitableBox);
+      }
+
+      // how many of this item can we fit?
+      const canFit = Math.min(suitableBox.leftoverCapacity, remainingQty);
+      suitableBox.leftoverCapacity -= canFit;
+      suitableBox.totalProductWeight += entry.productWeight * canFit;
+
+      // freebies
+      if (entry.hasFreebie && !freebieAssigned) {
+        if (entry.freebieWeight > 0) {
+          suitableBox.freebieWeights.push(entry.freebieWeight);
+          freebieAssigned = true;
+        }
+      }
+
+      // record packed items
+      suitableBox.packedItems.push({
+        itemName: entry.itemName,
+        quantity: canFit
+      });
+
+      remainingQty -= canFit;
+    }
+  }
+
+  // Summarize the results
+  const boxesUsed = openBoxes.length;
+  const totalBoxWeight = boxWeight * boxesUsed; // sum of all box (carton) weights
+
+  let totalProductWeight = 0;
+  let totalFreebieWeight = 0;
+
+  // Build a detailed breakdown
+  const boxDetails = openBoxes.map((ob, idx) => {
+    totalProductWeight += ob.totalProductWeight;
+    if (ob.freebieWeights.length) {
+      totalFreebieWeight += ob.freebieWeights.reduce((a, b) => a + b, 0);
+    }
+    return {
+      boxIndex: idx + 1,
+      leftoverCapacity: ob.leftoverCapacity,
+      productWeightInBox: ob.totalProductWeight,
+      freebiesInBox: ob.freebieWeights,
+      packedItems: ob.packedItems
+    };
+  });
+
+  const finalWeight = totalProductWeight + totalBoxWeight + totalFreebieWeight;
+
+  // Return the dimension of a single box multiplied by how many we used
+  // We'll figure out the overall dimension logic later in the aggregator.
+  return {
+    singleBoxDimensions: { length, breadth, height },
+    boxesUsed,
+    totalWeight: +finalWeight.toFixed(3),
+    totalFreebieWeight,
+    boxDetails,
+    boxName: boxDoc.name
+  };
+}
 
 /**
- * Calculates total dimensions and weight based on optimized box assignments.
- * Also returns a breakdown of which items were packed into which boxes with variant names.
+ * Calculates total dimensions and weight by grouping items by their box ID,
+ * then combining them into an "imaginary" single dimension.
+ * 
+ * The final dimension is computed as:
+ *   length = max length among all box types used
+ *   breadth = max breadth among all box types used
+ *   height = sum of (height × boxesUsed) for all box types
  *
- * @param {Array} items - The list of items to be packed.
- * @returns {Object} - Total dimensions, weight, and box usage details.
+ * @param {Array} items - The list of cart items. Each item must have {product, quantity}.
+ * @returns {Object} - Summaries per boxId and a grandTotal for everything.
  */
-
 export const getDimensionsAndWeight = async (items) => {
-  // 1) Collect variant IDs
-  const variantIds = items
-    .map((item) => {
-      if (item?.product?.specificCategoryVariant) {
-        return item.product.specificCategoryVariant._id;
-      }
-      console.warn(
-        `Skipping item due to missing Product or SpecificCategoryVariant: ${item?._id}`
-      );
-      return null;
-    })
-    .filter(Boolean);
-
   try {
-    // 2) Fetch variants with packaging + freebies info
-    const variants = await SpecificCategoryVariant.find({
-      _id: { $in: variantIds },
-    }).populate({
-      path: 'packagingDetails.boxId',
-      model: 'PackagingBox',
-    });
-
-    // 3) Build a map variantId -> { box, productWeight, freebies, name }
-    //    Also gather all distinct boxes encountered.
-    const variantMap = {};
-    const allBoxesMap = new Map();
-
-    for (const variant of variants) {
-      const { boxId, productWeight } = variant.packagingDetails || {};
-      const hasFreebie = variant.freebies && variant.freebies.available;
-      const freebieWeight = hasFreebie ? variant.freebies.weight || 0 : 0;
-      const variantName = variant.name || `Variant_${variant._id}`; // Adjust based on your schema
-
-      if (boxId) {
-        allBoxesMap.set(boxId._id.toString(), boxId);
-      }
-
-      variantMap[variant._id.toString()] = {
-        box: boxId,
-        productWeight: productWeight || 0,
-        hasFreebie,
-        freebieWeight,
-        variantName, // Include the variant name
-      };
+    // 1) For each item, gather packaging details (variant or product).
+    // We'll store them in a map to avoid repeated DB lookups.
+    const packagingMap = {};
+    for (const item of items) {
+      packagingMap[item._id] = await getPackagingDetailsForItem(item);
     }
 
-    // 4) Convert the boxes to an array and sort by (volume) descending
-    const allBoxes = Array.from(allBoxesMap.values());
-
-    const getVolume = (box) => {
-      const { length, breadth, height } = box.dimensions;
-      return length * breadth * height;
-    };
-
-    allBoxes.sort((a, b) => getVolume(b) - getVolume(a));
-    // Now index=0 => largest box, index=1 => next largest, etc.
-
-    // 5) Build a lookup from box._id -> index
-    const boxIdToIndex = {};
-    allBoxes.forEach((box, idx) => {
-      boxIdToIndex[box._id.toString()] = idx;
-    });
-
-    // 6) Convert `items` into "item entries" => { minBoxIdx, quantity, weights, etc. }
-    const itemEntries = [];
+    // 2) Group items by boxId
+    const groups = {};
     for (const item of items) {
-      const variantId = item?.product?.specificCategoryVariant?._id?.toString();
-      if (!variantId || !variantMap[variantId]) {
-        throw new Error(
-          `Variant missing or not found for item _id=${item?._id}`
-        );
+      const pkg = packagingMap[item._id];
+      const boxId = pkg.box?._id.toString();
+      if (!groups[boxId]) {
+        groups[boxId] = {
+          boxDoc: pkg.box,
+          items: []
+        };
       }
-
-      const variantData = variantMap[variantId];
-      const { box, productWeight, hasFreebie, freebieWeight, variantName } = variantData;
-      if (!box) {
-        throw new Error(`Box details missing for variant ID ${variantId}.`);
-      }
-
-      const minBoxIdx = boxIdToIndex[box._id.toString()]; // e.g. 0=largest, etc.
-
-      itemEntries.push({
-        variantId,
-        variantName, // Include the variant name
+      groups[boxId].items.push({
         quantity: item.quantity,
-        productWeight,
-        hasFreebie,
-        freebieWeight,
-        minBoxIdx,
+        productWeight: pkg.productWeight,
+        hasFreebie: pkg.hasFreebie,
+        freebieWeight: pkg.freebieWeight,
+        itemName: pkg.itemName
       });
     }
 
-    // 7) Group item entries by minBoxIdx so we handle from largest dimension to smallest
-    const groupedByMinBoxIdx = {};
-    for (const entry of itemEntries) {
-      if (!groupedByMinBoxIdx[entry.minBoxIdx]) {
-        groupedByMinBoxIdx[entry.minBoxIdx] = [];
-      }
-      groupedByMinBoxIdx[entry.minBoxIdx].push(entry);
-    }
+    // 3) For each boxId group, perform the packing
+    const resultsPerBoxId = {};
 
-    // Sort the group keys so we handle the largest dimension first
-    const sortedKeys = Object.keys(groupedByMinBoxIdx)
-      .map((n) => parseInt(n, 10))
-      .sort((a, b) => a - b);
-
-    // 8) We'll maintain an array of "open boxes"
-    //    Each "open box" = {
-    //       boxIdx,
-    //       leftoverCapacity,
-    //       totalProductWeight,
-    //       freebieWeights: [],
-    //       packedItems: []    <-- detail of which items/variants got placed
-    //    }
-    const openBoxes = [];
-
-    // Helper to create a new box
-    const createNewBox = (boxIdx) => {
-      const boxRef = allBoxes[boxIdx];
-      return {
-        boxIdx,
-        leftoverCapacity: boxRef.capacity, // e.g. "4" items
-        totalProductWeight: 0,
-        freebieWeights: [],
-        packedItems: [],
-      };
-    };
-
-    // 9) Allocation logic: largest minBoxIdx first => smaller minBoxIdx last
-    let freebieAssigned = false; // Flag to ensure only one freebie per order
-
-    for (const minBoxIdx of sortedKeys) {
-      const currentGroup = groupedByMinBoxIdx[minBoxIdx];
-
-      for (const entry of currentGroup) {
-        let remainingQty = entry.quantity;
-
-        while (remainingQty > 0) {
-          // Look for an open box that is "big enough" => boxIdx <= minBoxIdx
-          // AND has leftover capacity.
-          let suitableBox = openBoxes.find(
-            (ob) => ob.boxIdx <= minBoxIdx && ob.leftoverCapacity > 0
-          );
-
-          // If none found, open a new box of exactly `minBoxIdx` dimension
-          if (!suitableBox) {
-            suitableBox = createNewBox(minBoxIdx);
-            openBoxes.push(suitableBox);
-          }
-
-          // Place as many items as possible
-          const canFit = Math.min(suitableBox.leftoverCapacity, remainingQty);
-          suitableBox.leftoverCapacity -= canFit;
-          suitableBox.totalProductWeight += entry.productWeight * canFit;
-
-          // Assign a freebie if applicable and not yet assigned
-          if (entry.hasFreebie && !freebieAssigned) {
-            if (entry.freebieWeight > 0) { // Ensure freebie has a positive weight
-              suitableBox.freebieWeights.push(entry.freebieWeight);
-              freebieAssigned = true;
-            }
-          }
-
-          // Log which variant (or item) we placed, including the variant name and box name
-          suitableBox.packedItems.push({
-            variantName: entry.variantName,
-            variantBoxName: allBoxes[minBoxIdx].name, // Include the variant's box name
-            quantity: canFit,
-          });
-
-          remainingQty -= canFit;
-        }
-      }
-    }
-
-    // 10) Calculate total dimensions and weights
-    const boxUsageMap = {};
-    for (let i = 0; i < allBoxes.length; i++) {
-      boxUsageMap[i] = []; // an array of openBoxes with that boxIdx
-    }
-    for (const ob of openBoxes) {
-      boxUsageMap[ob.boxIdx].push(ob);
-    }
-
-    let totalWrapWeight = 0;
-    let totalBoxWeight = 0;
-    let totalFreebieWeight = 0;
-    let totalLength = 0;
-    let totalBreadth = 0;
+    // We'll track the final dimension with this approach:
+    let maxLength = 0;
+    let maxBreadth = 0;
     let totalHeight = 0;
 
-    // Prepare box details
-    const boxDetails = []; // each entry => { boxName, items: [...], leftoverCapacity, ... }
+    let overallWeight = 0;
+    let overallFreebieWeight = 0;
+    let overallBoxesUsed = 0;
 
-    Object.keys(boxUsageMap).forEach((idxStr) => {
-      const idx = parseInt(idxStr, 10);
-      const usedBoxes = boxUsageMap[idx];
-      if (!usedBoxes.length) return;
+    for (const boxId of Object.keys(groups)) {
+      const { boxDoc, items: groupItems } = groups[boxId];
 
-      const boxInfo = allBoxes[idx];
-      const boxCount = usedBoxes.length;
-
-      // Dimensional sums
-      totalLength += boxInfo.dimensions.length * boxCount;
-      totalBreadth += boxInfo.dimensions.breadth * boxCount;
-      totalHeight += boxInfo.dimensions.height * boxCount;
-
-      // Box weight sum
-      totalBoxWeight += boxInfo.weight * boxCount;
-
-      // For each open box of this type
-      usedBoxes.forEach((ub) => {
-        // Sum product weight
-        totalWrapWeight += ub.totalProductWeight;
-
-        // Sum freebie weight (only one freebie is assigned)
-        if (ub.freebieWeights.length > 0) {
-          // Assuming only one freebie is assigned across all boxes
-          totalFreebieWeight += ub.freebieWeights[0];
-        }
-
-        // Detail the packed items in this box
-        boxDetails.push({
-          boxName: boxInfo.name,
-          leftoverCapacity: ub.leftoverCapacity,
-          productWeightInBox: ub.totalProductWeight,
-          freebiesInBox: ub.freebieWeights,
-          packedItems: ub.packedItems.map((pi) => ({
-            variantName: pi.variantName,
-            variantBoxName: pi.variantBoxName,
-            quantity: pi.quantity,
-          })),
-        });
+      const result = packItemsInSingleBoxType({
+        itemsForThisBox: groupItems,
+        boxDoc
       });
-    });
 
-    const finalWeight = totalWrapWeight + totalBoxWeight + totalFreebieWeight;
+      // Save result
+      resultsPerBoxId[boxId] = result;
 
-    // 11) Summarize which box types were used
-    const usedBoxNames = [];
-    Object.keys(boxUsageMap).forEach((idxStr) => {
-      const idx = parseInt(idxStr, 10);
-      if (boxUsageMap[idx].length) {
-        usedBoxNames.push(allBoxes[idx].name);
-      }
-    });
+      // Update dimension aggregator
+      const { length, breadth, height } = result.singleBoxDimensions;
+      if (length > maxLength) maxLength = length;
+      if (breadth > maxBreadth) maxBreadth = breadth;
+      // we sum (height * boxesUsed) to get "stacked" height
+      totalHeight += height * result.boxesUsed;
 
-    const totalBoxCount = openBoxes.length;
+      // Weight aggregator
+      overallWeight += result.totalWeight;
+      overallFreebieWeight += result.totalFreebieWeight;
+      overallBoxesUsed += result.boxesUsed;
+    }
 
-    // 12) Return the final data
+    // 4) Return the final response
     return {
-      length: totalLength,
-      breadth: totalBreadth,
+      success: true,
+      perBoxId: resultsPerBoxId,
+      length: maxLength,
+      breadth: maxBreadth,
       height: totalHeight,
-      weight: finalWeight.toFixed(3),
-      freebieWeight: totalFreebieWeight,
-      boxesUsed: totalBoxCount,
-      boxesUsedNames: usedBoxNames,
-      boxDetails,
+      weight: +overallWeight.toFixed(3),
+      freebieWeight: +overallFreebieWeight.toFixed(3),
+      boxesUsed: overallBoxesUsed
     };
   } catch (error) {
     console.error('Error calculating dimensions and weight:', error.message);

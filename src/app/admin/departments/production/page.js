@@ -10,6 +10,7 @@ export default function Production() {
     { text: 'Analytics Dashboard', link: '/admin/analytics' },
     { text: 'ProductInfo Tabs', link: '/admin/manage/product-info' },
     { text: 'Review Manager', link: '/admin/manage/reviews' },
+    { text: 'Download Inventory Orders Data', link: '/admin/download/download-inventory-orders' },
 
   ];
 

@@ -26,7 +26,59 @@ export async function getShiprocketToken() {
     throw new Error('Failed to retrieve Shiprocket token.');
   }
 }
+/**
+ * Fetch Shiprocket orders between startDate and endDate (inclusive).
+ *
+ * @param {Date} startDate - JS Date object representing the start of the range
+ * @param {Date} endDate - JS Date object representing the end of the range
+ * @returns {Array} Array of Shiprocket orders
+ */
+export async function getShiprocketOrders(startDate, endDate) {
+  try {
+    const token = await getShiprocketToken();
 
+    // Ensure we have Date objects
+    if (!(startDate instanceof Date) || isNaN(startDate)) {
+      throw new Error('Invalid startDate parameter');
+    }
+    if (!(endDate instanceof Date) || isNaN(endDate)) {
+      throw new Error('Invalid endDate parameter');
+    }
+
+    // Convert to YYYY-MM-DD format
+    const fromDate = startDate.toISOString().split('T')[0];
+    const toDate = endDate.toISOString().split('T')[0];
+
+    let currentPage = 1;
+    const perPage = 50;
+    let allOrders = [];
+    let totalPages = 1;
+
+    while (currentPage <= totalPages) {
+      const response = await axios.get('https://apiv2.shiprocket.in/v1/external/orders', {
+        params: {
+          from: fromDate,
+          to: toDate,
+          page: currentPage,
+          per_page: perPage,
+        },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const orders = response.data.data || [];
+      const pagination = response.data.meta?.pagination || {};
+
+      allOrders = allOrders.concat(orders);
+      totalPages = pagination.total_pages || 1;
+      currentPage++;
+    }
+
+    return allOrders;
+  } catch (error) {
+    console.error('Error fetching Shiprocket orders:', error.response ? error.response.data : error.message);
+    throw new Error('Failed to fetch Shiprocket orders.');
+  }
+}
 /**
  * Function to create a Shiprocket order
  */

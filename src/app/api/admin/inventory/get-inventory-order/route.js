@@ -40,7 +40,8 @@ export async function GET(req) {
     const pipeline = [
       {
         $match: {
-          createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) }
+          createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) },
+          paymentStatus: { $in: ["allPaid", "partiallyPaid"] }
         }
       },
       { $unwind: '$items' },

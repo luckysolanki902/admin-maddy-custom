@@ -396,8 +396,8 @@ const DownloadInventoryOrders = () => {
                             <Image
                               src={imageUrl}
                               alt={`Image for ${item._id}`}
-                              width={50}
-                              height={50}
+                              width={200}
+                              height={200}
                               style={{ objectFit: 'contain' }}
                             />
                           </div>
@@ -468,8 +468,8 @@ const DownloadInventoryOrders = () => {
         >
           <Image
             src={dialogImageUrl}
-            width={200}
-            height={200}
+            width={2000}
+            height={2000}
             alt="Full screen preview"
             style={{ maxWidth: '100%', maxHeight: '100%', cursor: 'pointer' }}
           />

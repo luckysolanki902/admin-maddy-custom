@@ -1,5 +1,3 @@
-// /app/admin/download/download-production-templates/page.jsx
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -39,6 +37,8 @@ const DownloadProductionTemplates = () => {
   const [startDate, setStartDate] = useState(dayjs().startOf('day').toISOString());
   const [endDate, setEndDate] = useState(dayjs().endOf('day').toISOString());
   const [imagesData, setImagesData] = useState([]);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [error, setError] = useState('');
@@ -82,7 +82,7 @@ const DownloadProductionTemplates = () => {
     }
   }, [selectedDateTag, customDate]);
 
-  // Function to fetch images data with presigned URLs
+  // Function to fetch images data with presigned URLs and totals
   const fetchImagesData = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -102,7 +102,7 @@ const DownloadProductionTemplates = () => {
 
       const { token } = await tokenRes.json();
 
-      // Fetch images with presigned URLs using the token
+      // Fetch images (and totals) using the token
       const res = await fetch(`/api/admin/aws/get-presigned-urls?token=${encodeURIComponent(token)}`);
       if (!res.ok) {
         const errorData = await res.json();
@@ -111,6 +111,8 @@ const DownloadProductionTemplates = () => {
 
       const data = await res.json();
       setImagesData(data.images);
+      setTotalOrders(data.totalOrders);
+      setTotalItems(data.totalItems);
       setUnavailableImages(new Set()); // Reset unavailable images on new fetch
     } catch (error) {
       console.error('Error fetching images:', error);
@@ -191,7 +193,7 @@ const DownloadProductionTemplates = () => {
       saveAs(zipBlob, fileName);
 
       const endTime = performance.now(); // End timing
-      const timeTaken = ((endTime - startTime) / 1000).toFixed(2); // Time in seconds with 2 decimal places
+      const timeTaken = ((endTime - startTime) / 1000).toFixed(2); // Time in seconds
 
       setSuccess(`Downloaded in ${timeTaken} seconds.`);
     } catch (error) {
@@ -205,7 +207,6 @@ const DownloadProductionTemplates = () => {
   // Function to handle copying download link to clipboard
   const handleCopyDownloadLink = async () => {
     try {
-      // Generate a download token
       const tokenRes = await fetch('/api/admin/aws/generate-download-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -218,10 +219,8 @@ const DownloadProductionTemplates = () => {
       }
 
       const { token } = await tokenRes.json();
-
       const downloadLink = `${SITE_URL}/api/public/download/download-raw-designs?token=${encodeURIComponent(token)}`;
 
-      // Copy to clipboard
       await navigator.clipboard.writeText(downloadLink);
       setSuccess('Download link copied to clipboard!');
       setSnackbarOpen(true);
@@ -236,17 +235,18 @@ const DownloadProductionTemplates = () => {
     setSnackbarOpen(false);
   };
 
-  // Calculate total orders
-  const totalOrders = imagesData.reduce((acc, item) => acc + item.count, 0);
-
-  // Calculate unavailable count based on failed image loads
-  const unavailableCount = unavailableImages.size;
-
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
       <Typography variant="h4" align="center" gutterBottom>
         Raw Design Images
       </Typography>
+
+      {/* Display Totals */}
+      <Paper elevation={3} sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6">Summary</Typography>
+        <Typography variant="body1">Total Orders: {totalOrders}</Typography>
+        <Typography variant="body1">Total Items: {totalItems}</Typography>
+      </Paper>
 
       {/* Feedback Messages */}
       <Stack spacing={2} sx={{ mb: 2 }}>
@@ -314,9 +314,9 @@ const DownloadProductionTemplates = () => {
       </Paper>
 
       {/* Warning for unavailable files */}
-      {unavailableCount > 0 && (
+      {unavailableImages.size > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          {`${unavailableCount} file${unavailableCount > 1 ? 's are' : ' is'} unavailable in the AWS bucket`}
+          {`${unavailableImages.size} file${unavailableImages.size > 1 ? 's are' : ' is'} unavailable in the AWS bucket`}
         </Alert>
       )}
 
@@ -326,10 +326,8 @@ const DownloadProductionTemplates = () => {
           Actions
         </Typography>
         <Grid container spacing={2} alignItems="center">
-          {/* Download Images Button */}
           <Grid item xs={12} sm={4}>
             <Tooltip title="Download all available images as a zip file">
-              {/* Wrap the Button in a span to fix MUI Tooltip issue when disabled */}
               <span style={{ display: 'inline-block', width: '100%' }}>
                 <Button
                   variant="contained"
@@ -339,16 +337,16 @@ const DownloadProductionTemplates = () => {
                   disabled={downloadLoading || imagesData.length === 0}
                   fullWidth
                   size="large"
-                  style={{ pointerEvents: 'auto' }} // Ensure tooltip works
+                  style={{ pointerEvents: 'auto' }}
                 >
                   {downloadLoading ? <CircularProgress size={24} color="inherit" /> : 'Download Images'}
                 </Button>
               </span>
             </Tooltip>
           </Grid>
-
-          {/* Copy Download Link Button */}
-          {/* <Grid item xs={12} sm={4}>
+          {/* Uncomment below if you want to enable copying download link */}
+          {/*
+          <Grid item xs={12} sm={4}>
             <Tooltip title="Copy the download link to clipboard">
               <span style={{ display: 'inline-block', width: '100%' }}>
                 <Button
@@ -359,23 +357,24 @@ const DownloadProductionTemplates = () => {
                   disabled={imagesData.length === 0}
                   fullWidth
                   size="large"
-                  style={{ pointerEvents: 'auto' }} 
+                  style={{ pointerEvents: 'auto' }}
                 >
                   Copy Download Link
                 </Button>
               </span>
             </Tooltip>
-          </Grid> */}
+          </Grid>
+          */}
         </Grid>
       </Paper>
 
-      {/* Images Data Table */}
+      {/* Images Data Table (only items with design template set are shown) */}
       <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6" gutterBottom>
-            Sticker Orders
+            Sticker Orders with Design Templates
           </Typography>
-          <Typography variant="subtitle1">Total Orders: {totalOrders}</Typography>
+          <Typography variant="subtitle1">Total Items having template: {imagesData.reduce((acc, item) => acc + item.count, 0)}</Typography>
         </Stack>
         {loading ? (
           <Stack alignItems="center" sx={{ py: 4 }}>
@@ -446,11 +445,7 @@ const DownloadProductionTemplates = () => {
         message="Download link copied to clipboard!"
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         action={
-          <IconButton
-            size="small"
-            color="inherit"
-            onClick={handleSnackbarClose}
-          >
+          <IconButton size="small" color="inherit" onClick={handleSnackbarClose}>
             <CloseIcon fontSize="small" />
           </IconButton>
         }

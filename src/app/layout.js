@@ -31,7 +31,6 @@ export default function RootLayout({ children }) {
           <ThemeRegistry>
             <Suspense fallback={null}>
               <TopLoadingBar />
-            
             <AuthHeader />
             <main>{children}</main>
             </Suspense>

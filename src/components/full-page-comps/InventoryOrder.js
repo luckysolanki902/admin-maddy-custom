@@ -22,7 +22,8 @@ import {
   Dialog,
   AppBar,
   Toolbar,
-  Slide
+  Slide,
+  TableContainer,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -113,7 +114,9 @@ const DownloadInventoryOrders = () => {
     setSuccess('');
     try {
       const res = await fetch(
-        `/api/admin/inventory/get-inventory-order?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+        `/api/admin/inventory/get-inventory-order?startDate=${encodeURIComponent(
+          startDate
+        )}&endDate=${encodeURIComponent(endDate)}`
       );
       if (!res.ok) {
         const errorData = await res.json();
@@ -143,16 +146,25 @@ const DownloadInventoryOrders = () => {
     }
     setDownloadLoading(true);
     try {
-      const headers = ['SKU', 'Product Name', 'Order Count', 'Total Quantity', 'Image URL', 'Option Details'];
-      const rows = data.map(item => [
+      const headers = [
+        'SKU',
+        'Product Name',
+        'Order Count',
+        'Total Quantity',
+        'Image URL',
+        'Option Details',
+      ];
+      const rows = data.map((item) => [
         item._id,
         item.productName,
         item.orderCount,
         item.totalQuantity,
         item.image || '',
-        item.optionDetails ? JSON.stringify(Object.fromEntries(Object.entries(item.optionDetails))) : ''
+        item.optionDetails
+          ? JSON.stringify(Object.fromEntries(Object.entries(item.optionDetails)))
+          : '',
       ]);
-      const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+      const csvContent = [headers, ...rows].map((row) => row.join(',')).join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const formattedStartDate = dayjs(startDate).format('MMM_DD_YYYY');
       const formattedCurrentDateTime = dayjs().format('MMM_DD_YYYY_At_hh_mm_A');
@@ -212,7 +224,7 @@ const DownloadInventoryOrders = () => {
   }, [dialogOpen]);
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 8, px: { xs: 2, sm: 3 } }}>
       <Typography variant="h4" align="center" gutterBottom>
         Inventory-Based Product Orders
       </Typography>
@@ -244,7 +256,7 @@ const DownloadInventoryOrders = () => {
           Select Date
         </Typography>
         <Grid container spacing={2} alignItems="center">
-          <Grid item>
+          <Grid item xs={6} sm="auto">
             <Button
               onClick={() => {
                 setSelectedDateTag('today');
@@ -257,7 +269,7 @@ const DownloadInventoryOrders = () => {
               Today
             </Button>
           </Grid>
-          <Grid item>
+          <Grid item xs={6} sm="auto">
             <Button
               onClick={() => {
                 setSelectedDateTag('yesterday');
@@ -270,7 +282,7 @@ const DownloadInventoryOrders = () => {
               Yesterday
             </Button>
           </Grid>
-          <Grid item>
+          <Grid item xs={6} sm="auto">
             <Button
               onClick={() => {
                 setSelectedDateTag('thisMonth');
@@ -283,7 +295,7 @@ const DownloadInventoryOrders = () => {
               This Month
             </Button>
           </Grid>
-          <Grid item>
+          <Grid item xs={6} sm="auto">
             <Button
               onClick={() => {
                 setSelectedDateTag('pastMonth');
@@ -296,7 +308,7 @@ const DownloadInventoryOrders = () => {
               Past Month
             </Button>
           </Grid>
-          <Grid item>
+          <Grid item xs={6} sm="auto">
             <Button
               onClick={() => {
                 setSelectedDateTag('all');
@@ -367,61 +379,77 @@ const DownloadInventoryOrders = () => {
             <CircularProgress />
           </Stack>
         ) : (
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell><strong>SKU</strong></TableCell>
-                <TableCell align="left"><strong>Product Name</strong></TableCell>
-                <TableCell align="right"><strong>Order Count</strong></TableCell>
-                <TableCell align="right"><strong>Total Quantity</strong></TableCell>
-                <TableCell align="center"><strong>Image</strong></TableCell>
-                <TableCell align="left"><strong>Option Details</strong></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {data.length > 0 ? (
-                data.map((item) => {
-                  const imageUrl = item.image
-                    ? `${baseUrl}${item.image.startsWith('/') ? '' : '/'}${item.image}`
-                    : '';
-                  return (
-                    <TableRow key={item._id}>
-                      <TableCell>{item._id}</TableCell>
-                      <TableCell align="left">{item.productName}</TableCell>
-                      <TableCell align="right">{item.orderCount}</TableCell>
-                      <TableCell align="right">{item.totalQuantity}</TableCell>
-                      <TableCell align="center">
-                        {item.image ? (
-                          <div onClick={() => handleImageClick(imageUrl)} style={{ cursor: 'pointer' }}>
-                            <Image
-                              src={imageUrl}
-                              alt={`Image for ${item._id}`}
-                              width={200}
-                              height={200}
-                              style={{ objectFit: 'contain' }}
-                            />
-                          </div>
-                        ) : (
-                          'N/A'
-                        )}
-                      </TableCell>
-                      <TableCell align="left">
-                        {item.optionDetails
-                          ? JSON.stringify(Object.fromEntries(Object.entries(item.optionDetails)))
-                          : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              ) : (
+          <TableContainer sx={{ maxWidth: '100%', overflowX: 'auto' }}>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    No data available.
+                  <TableCell>
+                    <strong>SKU</strong>
+                  </TableCell>
+                  <TableCell align="left">
+                    <strong>Product Name</strong>
+                  </TableCell>
+                  <TableCell align="right">
+                    <strong>Order Count</strong>
+                  </TableCell>
+                  <TableCell align="right">
+                    <strong>Total Quantity</strong>
+                  </TableCell>
+                  <TableCell align="center">
+                    <strong>Image</strong>
+                  </TableCell>
+                  <TableCell align="left">
+                    <strong>Option Details</strong>
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {data.length > 0 ? (
+                  data.map((item) => {
+                    const imageUrl = item.image
+                      ? `${baseUrl}${item.image.startsWith('/') ? '' : '/'}${item.image}`
+                      : '';
+                    return (
+                      <TableRow key={item._id}>
+                        <TableCell>{item._id}</TableCell>
+                        <TableCell align="left">{item.productName}</TableCell>
+                        <TableCell align="right">{item.orderCount}</TableCell>
+                        <TableCell align="right">{item.totalQuantity}</TableCell>
+                        <TableCell align="center">
+                          {item.image ? (
+                            <div onClick={() => handleImageClick(imageUrl)} style={{ cursor: 'pointer' }}>
+                              <Image
+                                src={imageUrl}
+                                alt={`Image for ${item._id}`}
+                                width={80}
+                                height={80}
+                                style={{ objectFit: 'contain' }}
+                              />
+                            </div>
+                          ) : (
+                            'N/A'
+                          )}
+                        </TableCell>
+                        <TableCell align="left">
+                          {item.optionDetails
+                            ? JSON.stringify(
+                                Object.fromEntries(Object.entries(item.optionDetails))
+                              )
+                            : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      No data available.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Paper>
 
@@ -459,19 +487,17 @@ const DownloadInventoryOrders = () => {
         <div
           onClick={handleDialogImageClick}
           style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '100%',
-            backgroundColor: 'black'
+            position: 'relative',
+            width: '100%',
+            height: 'calc(100% - 64px)', // Adjust for AppBar height
+            backgroundColor: 'black',
           }}
         >
           <Image
             src={dialogImageUrl}
-            width={2000}
-            height={2000}
             alt="Full screen preview"
-            style={{ maxWidth: '100%', maxHeight: '100%', cursor: 'pointer' }}
+            fill
+            style={{ objectFit: 'contain', cursor: 'pointer' }}
           />
         </div>
       </Dialog>

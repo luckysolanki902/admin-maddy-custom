@@ -663,7 +663,7 @@ const DownloadInventoryOrders = () => {
                     <TableCell align="center">
                       {item.image ? (
                         <Image
-                          src={`${baseUrl}${item.image}`}
+                          src={`${baseUrl}${item.image.startsWith('/') ? '' : '/'}${item.image}`}
                           alt={`Image for ${item._id}`}
                           width={50}
                           height={50}

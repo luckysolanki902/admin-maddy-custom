@@ -11,7 +11,6 @@ export default clerkMiddleware(async (auth, req) => {
     const { sessionClaims } = await auth();
 
     let userRole = sessionClaims?.metadata?.role;
-    
 
     const res = await fetch(`${domainName}/api/authentication/check-role-access?pathname=${currentPath}&role=${userRole}`);
     const { allowed } = await res.json();

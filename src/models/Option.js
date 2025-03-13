@@ -11,17 +11,17 @@ const OptionSchema = new mongoose.Schema({
   sku: {
     type: String,
     required: true,
-    unique: true,   
+    unique: true,
   },
   // A flexible approach to store option details using a Map
   optionDetails: {
     // Example: { color: 'red', size: 'M' }
-      // Example: { color: 'blue'}
+    // Example: { color: 'blue'}
     type: Map,
     of: String,
     required: false,
   },
-  images:[
+  images: [
     {
       type: String,
     },
@@ -31,12 +31,12 @@ const OptionSchema = new mongoose.Schema({
     ref: 'Inventory',
   },
 
-    // New thumbnail field: stores either a hex code or an image URL
-    thumbnail: {
-      type: String,
-      required: false,
-    },
-    
+  // New thumbnail field: stores either a hex code or an image URL and is not required
+  thumbnail: {
+    type: String,
+    required: false,
+  },
+
 }, { timestamps: true });
 
 module.exports = mongoose.models.Option || mongoose.model('Option', OptionSchema);

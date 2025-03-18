@@ -30,6 +30,10 @@ const OptionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Inventory',
   },
+  thumbnail: {
+    type: String,
+    required: false,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.models.Option || mongoose.model('Option', OptionSchema);

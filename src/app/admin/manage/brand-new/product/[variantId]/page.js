@@ -155,7 +155,7 @@ export default function ProductBulkUpload() {
     let fileType = "image/jpeg";
     if (ext === "png") fileType = "image/png";
     // Define the full S3 path – adjust folder structure as needed
-    const fullPath = `products/test/${fileName}`;
+    const fullPath = `products/images/${fileName}`;
     try {
       const res = await fetch("/api/admin/aws/generate-presigned-url", {
         method: "POST",
@@ -228,7 +228,7 @@ export default function ProductBulkUpload() {
     return undefined;
   };
 
-  // Validate that for each product, at least one image exists in the ZIP (via naming convention)
+  // Validate that for each product, at least one image exists in the ZIP mapping (via naming convention)
   const validateImagesExist = (products) => {
     const errors = [];
     products.forEach((prod, index) => {
@@ -265,7 +265,8 @@ export default function ProductBulkUpload() {
     // Expected CSV headers:
     // "Product Name", "Brand", "Product Title", "Main Tag", "Delivery Cost", "Price",
     // "Product Available Quantity", "Product Reserved Quantity", "Product Reorder Level",
-    // "OptionsAvailable", then for each option set:
+    // "OptionsAvailable", "Use Master Inventory(for Options)",
+    // then for each option set:
     // "Option Details 1", "Option Avail Qty 1", "Option Reserved Qty 1", "Option Reorder Level 1",
     // "Option Thumbnail 1", etc.
     for (const row of csvData) {
@@ -280,6 +281,11 @@ export default function ProductBulkUpload() {
         const productReservedQtyRaw = row["Product Reserved Quantity"];
         const productReorderLvlRaw = row["Product Reorder Level"];
         const optionsAvailableRaw = row["OptionsAvailable"];
+
+        // New field: Use Master Inventory(for Options)
+        const useMasterInventoryForOptions =
+          row["Use Master Inventory(for Options)"] &&
+          row["Use Master Inventory(for Options)"].trim().toLowerCase() === "true";
 
         const deliveryCost = deliveryCostRaw ? parseFloat(deliveryCostRaw) : undefined;
         const price = parseFloat(priceRaw);
@@ -386,6 +392,7 @@ export default function ProductBulkUpload() {
               inventoryData: optionInventoryData,
               images: optionImages,
               thumbnail, // New thumbnail field included here
+              useMasterInventory: useMasterInventoryForOptions, // New flag for master inventory usage
             });
           }
         }

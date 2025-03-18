@@ -37,10 +37,11 @@
 //   const { variantId } = useParams(); // Expecting variantId in URL
 //   const [csvFile, setCsvFile] = useState(null);
 //   const [zipFile, setZipFile] = useState(null);
-//   const [csvData, setCsvData] = useState([]);
+//   const [csvData, setCsvData] = useState([]); // Array of objects (rows) from CSV
 //   const [zipMapping, setZipMapping] = useState({}); // mapping: filename (lowercase) -> fileData (Uint8Array)
 //   const [uploading, setUploading] = useState(false);
 //   const [variant, setVariant] = useState(null);
+//   const [specificCategory, setSpecificCategory] = useState(null);
 //   const [errorMsg, setErrorMsg] = useState("");
 //   const [previewOpen, setPreviewOpen] = useState(false);
 //   const [resultDetails, setResultDetails] = useState([]); // Detailed per-product result status
@@ -67,6 +68,29 @@
 //     }
 //     if (variantId) fetchVariant();
 //   }, [variantId]);
+
+//   // Once variant is loaded, fetch its specific category details using variant.specificCategory
+//   useEffect(() => {
+//     async function fetchSpecificCategory() {
+//       if (variant && variant.specificCategory) {
+//         try {
+//           // Example endpoint; adjust as needed.
+//           const res = await fetch(
+//             `/api/admin/manage/get-specific-category?categoryId=${variant.specificCategory}`
+//           );
+//           if (res.ok) {
+//             const data = await res.json();
+//             setSpecificCategory(data.specificCategory);
+//           } else {
+//             setErrorMsg("Failed to fetch specific category details");
+//           }
+//         } catch (err) {
+//           setErrorMsg("Error fetching specific category details");
+//         }
+//       }
+//     }
+//     fetchSpecificCategory();
+//   }, [variant]);
 
 //   // Handle CSV file selection
 //   const handleCSVChange = (e) => {
@@ -105,15 +129,15 @@
 //     }
 //   }, [zipFile]);
 
-//   // Parse CSV using Papa Parse; assume first row is header and skip it
+//   // Parse CSV using Papa Parse with header: true
 //   const handleParseCSV = () => {
 //     if (!csvFile) return;
 //     Papa.parse(csvFile, {
-//       header: false,
+//       header: true,
 //       skipEmptyLines: true,
 //       complete: (results) => {
-//         // Skip header row
-//         setCsvData(results.data.slice(1));
+//         // results.data is an array of objects; header row keys are used.
+//         setCsvData(results.data);
 //         setPreviewOpen(true);
 //       },
 //       error: (err) => {
@@ -187,6 +211,20 @@
 //     return imageUrls;
 //   };
 
+//   // Helper: Get design template image from ZIP using naming convention: productName-dt.(jpg|jpeg|png)
+//   const getDesignTemplateImage = async (productName) => {
+//     const lowerName = productName.toLowerCase();
+//     const regex = new RegExp(`^${lowerName}-dt\\.(jpg|jpeg|png)$`);
+//     for (const filename in zipMapping) {
+//       if (regex.test(filename)) {
+//         const fileData = zipMapping[filename];
+//         const url = await uploadImageFile(fileData, filename);
+//         return url;
+//       }
+//     }
+//     return undefined;
+//   };
+
 //   // Validate that for each product, at least one image exists in the ZIP (via naming convention)
 //   const validateImagesExist = (products) => {
 //     const errors = [];
@@ -203,6 +241,7 @@
 //   };
 
 //   // Process CSV data and upload products in bulk
+//   // We now use header keys from CSV.
 //   const handleUpload = async () => {
 //     if (!variant) {
 //       setErrorMsg("Variant details not loaded yet.");
@@ -212,50 +251,42 @@
 //       setErrorMsg("Please upload a valid ZIP file of images first.");
 //       return;
 //     }
+//     if (!specificCategory) {
+//       setErrorMsg("Specific category details not loaded yet.");
+//       return;
+//     }
 //     setUploading(true);
 //     setErrorMsg("");
 //     const products = [];
 //     let serialCounter = 1;
 
-//     // Expected CSV columns (order):
-//     // 0: Product Name
-//     // 1: Brand
-//     // 2: Product Title
-//     // 3: Main Tag
-//     // 4: Delivery Cost
-//     // 5: Price
-//     // 6: Design Template (yes/no)
-//     // 7: Design Template Image URL
-//     // 8: Product Available Quantity
-//     // 9: Product Reserved Quantity
-//     // 10: Product Reorder Level
-//     // 11: OptionsAvailable (true/false)
-//     // 12+: For each option set (4 columns each):
-//     //       Option Details, Option Avail Qty, Option Reserved Qty, Option Reorder Level
+//     // Expected CSV headers:
+//     // "Product Name", "Brand", "Product Title", "Main Tag", "Delivery Cost", "Price",
+//     // "Product Available Quantity", "Product Reserved Quantity", "Product Reorder Level",
+//     // "OptionsAvailable", then for each option set:
+//     // "Option Details 1", "Option Avail Qty 1", "Option Reserved Qty 1", "Option Reorder Level 1", etc.
 //     for (const row of csvData) {
 //       try {
-//         const [
-//           productName,
-//           brandName,
-//           productTitle,
-//           mainTag,
-//           deliveryCostRaw,
-//           priceRaw,
-//           designTemplateIndicator,
-//           designTemplateImageUrl,
-//           productAvailQtyRaw,
-//           productReservedQtyRaw,
-//           productReorderLvlRaw,
-//           optionsAvailableRaw,
-//           ...optionColumns
-//         ] = row;
+//         const productName = row["Product Name"];
+//         const brandName = row["Brand"];
+//         const productTitle = row["Product Title"];
+//         const mainTag = row["Main Tag"];
+//         const deliveryCostRaw = row["Delivery Cost"];
+//         const priceRaw = row["Price"];
+//         const productAvailQtyRaw = row["Product Available Quantity"];
+//         const productReservedQtyRaw = row["Product Reserved Quantity"];
+//         const productReorderLvlRaw = row["Product Reorder Level"];
+//         const optionsAvailableRaw = row["OptionsAvailable"];
+
 //         const deliveryCost = deliveryCostRaw ? parseFloat(deliveryCostRaw) : undefined;
 //         const price = parseFloat(priceRaw);
+
 //         // Determine brand and productSource
 //         const brandValue =
 //           brandName && brandName.trim() !== "" ? brandName.trim() : "MaddyCustom";
 //         const productSource =
 //           brandName && brandName.trim() !== "" ? "marketplace" : "inhouse";
+
 //         // Process product-level inventory if provided
 //         let productInventoryData = null;
 //         if (productAvailQtyRaw || productReservedQtyRaw || productReorderLvlRaw) {
@@ -265,52 +296,62 @@
 //             reorderLevel: productReorderLvlRaw ? parseInt(productReorderLvlRaw) : 50,
 //           };
 //         }
-//         // Get product images from ZIP based on naming convention
+
+//         // Get product images from ZIP using naming convention (e.g. productName-1.jpg, etc.)
 //         const productImages = await getProductImages(productName);
+//         // Also check for design template image (named productName-dt.jpg)
+//         const designTemplateImageUrl = await getDesignTemplateImage(productName);
 //         // Generate SKU for product
 //         const sku = `${variant.variantCode.trim()}${padSerial(serialCounter)}`;
 //         serialCounter++;
-//         // Compute pageSlug
-//         const category = variant.category || "Wraps";
-//         const subCategory = variant.subCategory || "Bike Wraps";
-//         const specificCategorySlug = variant.specificCategory
-//           ? slugify(variant.specificCategory)
-//           : "default-cat";
+
+//         // Build pageSlug using specificCategory details.
+//         const categoryVal = specificCategory.category || "Wraps";
+//         const subCategoryVal = specificCategory.subCategory || "Bike Wraps";
+//         const specificCategorySlug = slugify(specificCategory.name);
+//         console.log(specificCategorySlug,"boom")
 //         const variantNameSlug = slugify(variant.name || "");
 //         const productNameSlug = slugify(productName);
-//         const pageSlug = `${category}/${subCategory}/${specificCategorySlug}/${variantNameSlug}/${productNameSlug}`;
+//         const pageSlug = `${slugify(categoryVal)}/${slugify(subCategoryVal)}/${specificCategorySlug}/${variantNameSlug}/${productNameSlug}`;
+
+//         // Build designTemplate object if design template image is found.
 //         let designTemplate = undefined;
-//         if (designTemplateIndicator.trim().toLowerCase() === "yes") {
+//         if (designTemplateImageUrl) {
 //           designTemplate = {
 //             designCode: sku,
-//             imageUrl: designTemplateImageUrl.trim(),
+//             imageUrl: designTemplateImageUrl,
 //           };
 //         }
-//         // Process options if available
+
+//         // Process options if available.
 //         let options = [];
-//         if (optionsAvailableRaw.trim().toLowerCase() === "true") {
-//           const numOptionSets = Math.floor(optionColumns.length / 4);
-//           for (let i = 0; i < numOptionSets; i++) {
-//             const baseIndex = i * 4;
-//             const optionDetailStr = optionColumns[baseIndex];
-//             if (!optionDetailStr || optionDetailStr.trim() === "") continue;
-//             const availableQtyStr = optionColumns[baseIndex + 1];
-//             const reservedQtyStr = optionColumns[baseIndex + 2];
-//             const reorderLevelStr = optionColumns[baseIndex + 3];
+//         if (optionsAvailableRaw && optionsAvailableRaw.trim().toLowerCase() === "true") {
+//           // Look for keys starting with "Option Details" and extract their suffix numbers.
+//           const optionSetNumbers = Object.keys(row)
+//             .filter((key) => key.startsWith("Option Details"))
+//             .map((key) => key.split(" ").pop())
+//             .filter((num) => num); // e.g. ["1", "2", ...]
+//           // For each option set, extract values.
+//           for (const num of optionSetNumbers) {
+//             const optionDetailsStr = row[`Option Details ${num}`];
+//             if (!optionDetailsStr || optionDetailsStr.trim() === "") continue;
 //             const optionDetails = {};
-//             optionDetailStr.split(";").forEach((pair) => {
-//               const [key, value] = pair.split(":").map((s) => s.trim());
-//               if (key && value) {
-//                 optionDetails[key] = value;
+//             optionDetailsStr.split(";").forEach((pair) => {
+//               const [k, v] = pair.split(":").map((s) => s.trim());
+//               if (k && v) {
+//                 optionDetails[k] = v;
 //               }
 //             });
+//             const availQtyStr = row[`Option Avail Qty ${num}`];
+//             const reservedQtyStr = row[`Option Reserved Qty ${num}`];
+//             const reorderLvlStr = row[`Option Reorder Level ${num}`];
 //             const optionInventoryData = {
-//               availableQuantity: availableQtyStr ? parseInt(availableQtyStr) : 0,
+//               availableQuantity: availQtyStr ? parseInt(availQtyStr) : 0,
 //               reservedQuantity: reservedQtyStr ? parseInt(reservedQtyStr) : 0,
-//               reorderLevel: reorderLevelStr ? parseInt(reorderLevelStr) : 50,
+//               reorderLevel: reorderLvlStr ? parseInt(reorderLvlStr) : 50,
 //             };
-//             const optionSku = `${sku}-O${i + 1}`;
-//             const optionImages = await getOptionImages(productName, i + 1);
+//             const optionSku = `${sku}-O${num}`;
+//             const optionImages = await getOptionImages(productName, parseInt(num));
 //             options.push({
 //               sku: optionSku,
 //               optionDetails,
@@ -319,10 +360,11 @@
 //             });
 //           }
 //         }
+
 //         // Build final product object with new fields: brand, productSource, inventoryData
 //         const product = {
 //           name: productName,
-//           brand: brandValue, // Ideally, backend logic converts this to an ObjectId if needed
+//           brand: brandValue, // Backend will convert to ObjectId via Brand lookup
 //           productSource,
 //           title: productTitle,
 //           mainTags: [mainTag],
@@ -333,9 +375,9 @@
 //           images: productImages,
 //           designTemplate,
 //           available: true,
-//           category,
-//           subCategory,
-//           specificCategory: variant.specificCategory || null,
+//           category: categoryVal,
+//           subCategory: subCategoryVal,
+//           specificCategory: specificCategory._id || null,
 //           specificCategoryVariant: variant._id,
 //           inventoryData: productInventoryData,
 //           options,
@@ -346,7 +388,7 @@
 //       }
 //     }
 
-//     // Validate that every product has at least one image from ZIP mapping
+//     // Validate that every product has at least one image in the ZIP mapping (via naming convention)
 //     const imageValidationErrors = validateImagesExist(products);
 //     if (imageValidationErrors.length > 0) {
 //       setErrorMsg("Image validation errors:\n" + imageValidationErrors.join("\n"));
@@ -377,14 +419,8 @@
 //     }
 //   };
 
-//   // For CSV preview: dynamically generate header cells based on maximum columns in CSV
-//   const getMaxColumns = () => {
-//     if (!csvData || csvData.length === 0) return 0;
-//     return Math.max(...csvData.map((row) => row.length));
-//   };
-//   const maxColumns = getMaxColumns();
-//   const dynamicHeaders = Array.from({ length: maxColumns }, (_, i) => `Column ${i + 1}`);
-
+//   // For CSV preview: display a table from the objects using header keys
+//   const csvKeys = csvData.length > 0 ? Object.keys(csvData[0]) : [];
 //   const handleChangePage = (event, newPage) => {
 //     setPage(newPage);
 //   };
@@ -442,8 +478,8 @@
 //                 <TableHead>
 //                   <TableRow>
 //                     <TableCell>#</TableCell>
-//                     {dynamicHeaders.map((header, idx) => (
-//                       <TableCell key={idx}>{header}</TableCell>
+//                     {csvKeys.map((key, idx) => (
+//                       <TableCell key={idx}>{key}</TableCell>
 //                     ))}
 //                   </TableRow>
 //                 </TableHead>
@@ -451,8 +487,8 @@
 //                   {csvData.map((row, idx) => (
 //                     <TableRow key={idx}>
 //                       <TableCell>{idx + 1}</TableCell>
-//                       {Array.from({ length: maxColumns }).map((_, colIdx) => (
-//                         <TableCell key={colIdx}>{row[colIdx] || ""}</TableCell>
+//                       {csvKeys.map((key, colIdx) => (
+//                         <TableCell key={colIdx}>{row[key] || ""}</TableCell>
 //                       ))}
 //                     </TableRow>
 //                   ))}
@@ -537,6 +573,7 @@
 //     </Box>
 //   );
 // }
+
 
 "use client";
 
@@ -641,7 +678,7 @@ export default function ProductBulkUpload() {
     setZipFile(e.target.files[0]);
   };
 
-  // Process ZIP file using fflate's unzip; build mapping { filename (lowercase): fileData }
+  // Process ZIP file using fflate's unzip; build mapping { filename (lowercase): fileData (Uint8Array) }
   const processZIPFile = async (file) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -691,7 +728,7 @@ export default function ProductBulkUpload() {
     let fileType = "image/jpeg";
     if (ext === "png") fileType = "image/png";
     // Define the full S3 path – adjust folder structure as needed
-    const fullPath = `products/test/${fileName}`;
+    const fullPath = `products/images/${fileName}`;
     try {
       const res = await fetch("/api/admin/aws/generate-presigned-url", {
         method: "POST",
@@ -750,21 +787,21 @@ export default function ProductBulkUpload() {
     return imageUrls;
   };
 
-  // Helper: Get design template image from ZIP using naming convention: productName-dt.(jpg|jpeg|png)
-  const getDesignTemplateImage = async (productName) => {
+  // New helper: Get option thumbnail image from ZIP using naming convention: productName-opt{optionIndex}-t.jpg
+  const getOptionThumbnailImage = async (productName, optionIndex) => {
     const lowerName = productName.toLowerCase();
-    const regex = new RegExp(`^${lowerName}-dt\\.(jpg|jpeg|png)$`);
+    const regex = new RegExp(`^${lowerName}-opt${optionIndex}-t\\.(jpg|jpeg|png)$`);
     for (const filename in zipMapping) {
       if (regex.test(filename)) {
         const fileData = zipMapping[filename];
         const url = await uploadImageFile(fileData, filename);
-        return url;
+        if (url) return url;
       }
     }
     return undefined;
   };
 
-  // Validate that for each product, at least one image exists in the ZIP (via naming convention)
+  // Validate that for each product, at least one image exists in the ZIP mapping (via naming convention)
   const validateImagesExist = (products) => {
     const errors = [];
     products.forEach((prod, index) => {
@@ -780,7 +817,6 @@ export default function ProductBulkUpload() {
   };
 
   // Process CSV data and upload products in bulk
-  // We now use header keys from CSV.
   const handleUpload = async () => {
     if (!variant) {
       setErrorMsg("Variant details not loaded yet.");
@@ -802,8 +838,10 @@ export default function ProductBulkUpload() {
     // Expected CSV headers:
     // "Product Name", "Brand", "Product Title", "Main Tag", "Delivery Cost", "Price",
     // "Product Available Quantity", "Product Reserved Quantity", "Product Reorder Level",
-    // "OptionsAvailable", then for each option set:
-    // "Option Details 1", "Option Avail Qty 1", "Option Reserved Qty 1", "Option Reorder Level 1", etc.
+    // "OptionsAvailable", "Use Master Inventory(for Options)",
+    // then for each option set:
+    // "Option Details 1", "Option Avail Qty 1", "Option Reserved Qty 1", "Option Reorder Level 1",
+    // "Option Thumbnail 1", etc.
     for (const row of csvData) {
       try {
         const productName = row["Product Name"];
@@ -816,6 +854,11 @@ export default function ProductBulkUpload() {
         const productReservedQtyRaw = row["Product Reserved Quantity"];
         const productReorderLvlRaw = row["Product Reorder Level"];
         const optionsAvailableRaw = row["OptionsAvailable"];
+
+        // New field: Use Master Inventory(for Options)
+        const useMasterInventoryForOptions =
+          row["Use Master Inventory(for Options)"] &&
+          row["Use Master Inventory(for Options)"].trim().toLowerCase() === "true";
 
         const deliveryCost = deliveryCostRaw ? parseFloat(deliveryCostRaw) : undefined;
         const price = parseFloat(priceRaw);
@@ -839,7 +882,19 @@ export default function ProductBulkUpload() {
         // Get product images from ZIP using naming convention (e.g. productName-1.jpg, etc.)
         const productImages = await getProductImages(productName);
         // Also check for design template image (named productName-dt.jpg)
-        const designTemplateImageUrl = await getDesignTemplateImage(productName);
+        const designTemplateImageUrl = await (async (productName) => {
+          const lowerName = productName.toLowerCase();
+          const regex = new RegExp(`^${lowerName}-dt\\.(jpg|jpeg|png)$`);
+          for (const filename in zipMapping) {
+            if (regex.test(filename)) {
+              const fileData = zipMapping[filename];
+              const url = await uploadImageFile(fileData, filename);
+              return url;
+            }
+          }
+          return undefined;
+        })(productName);
+
         // Generate SKU for product
         const sku = `${variant.variantCode.trim()}${padSerial(serialCounter)}`;
         serialCounter++;
@@ -848,7 +903,6 @@ export default function ProductBulkUpload() {
         const categoryVal = specificCategory.category || "Wraps";
         const subCategoryVal = specificCategory.subCategory || "Bike Wraps";
         const specificCategorySlug = slugify(specificCategory.name);
-        console.log(specificCategorySlug,"boom")
         const variantNameSlug = slugify(variant.name || "");
         const productNameSlug = slugify(productName);
         const pageSlug = `${slugify(categoryVal)}/${slugify(subCategoryVal)}/${specificCategorySlug}/${variantNameSlug}/${productNameSlug}`;
@@ -891,11 +945,26 @@ export default function ProductBulkUpload() {
             };
             const optionSku = `${sku}-O${num}`;
             const optionImages = await getOptionImages(productName, parseInt(num));
+
+            // Process the new thumbnail field for this option.
+            // CSV should contain a column "Option Thumbnail {num}"
+            const csvThumbnail = row[`Option Thumbnail ${num}`];
+            let thumbnail = "";
+            // If CSV contains a valid hex code (starts with "#"), use it.
+            if (csvThumbnail && csvThumbnail.trim() !== "" && csvThumbnail.trim().startsWith("#")) {
+              thumbnail = csvThumbnail.trim();
+            } else {
+              // Otherwise, try to get the thumbnail image from the ZIP.
+              thumbnail = await getOptionThumbnailImage(productName, parseInt(num));
+            }
+
             options.push({
               sku: optionSku,
               optionDetails,
               inventoryData: optionInventoryData,
               images: optionImages,
+              thumbnail, // New thumbnail field included here
+              useMasterInventory: useMasterInventoryForOptions, // New flag for master inventory usage
             });
           }
         }

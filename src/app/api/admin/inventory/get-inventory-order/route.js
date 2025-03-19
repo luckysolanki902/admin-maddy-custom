@@ -41,7 +41,7 @@ export async function GET(req) {
       {
         $match: {
           createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) },
-          paymentStatus: { $in: ["allPaid", "partiallyPaid"] }
+          paymentStatus: { $in: ["allPaid", "partiallyPaid","paidPartially"] }
         }
       },
       { $unwind: '$items' },

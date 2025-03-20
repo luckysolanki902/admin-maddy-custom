@@ -265,10 +265,8 @@ export default function ProductBulkUpload() {
     // Expected CSV headers:
     // "Product Name", "Brand", "Product Title", "Main Tag", "Delivery Cost", "Price",
     // "Product Available Quantity", "Product Reserved Quantity", "Product Reorder Level",
-    // "OptionsAvailable", "Use Master Inventory(for Options)",
-    // then for each option set:
-    // "Option Details 1", "Option Avail Qty 1", "Option Reserved Qty 1", "Option Reorder Level 1",
-    // "Option Thumbnail 1", etc.
+    // "OptionsAvailable", then for each option set:
+    // "Option Details 1", "Option Avail Qty 1", "Option Reserved Qty 1", "Option Reorder Level 1", etc.
     for (const row of csvData) {
       try {
         const productName = row["Product Name"];
@@ -325,6 +323,7 @@ export default function ProductBulkUpload() {
         // Generate SKU for product
         const sku = `${variant.variantCode.trim()}${padSerial(serialCounter)}`;
         serialCounter++;
+        // error found for one time upload only
         // error found for one time upload only
 
         // Build pageSlug using specificCategory details.
@@ -391,8 +390,6 @@ export default function ProductBulkUpload() {
               optionDetails,
               inventoryData: optionInventoryData,
               images: optionImages,
-              thumbnail, // New thumbnail field included here
-              useMasterInventory: useMasterInventoryForOptions, // New flag for master inventory usage
             });
           }
         }

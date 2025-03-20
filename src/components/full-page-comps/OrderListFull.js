@@ -48,14 +48,18 @@ const OrderListFull = ({ isAdmin }) => {
     totalOrders: 0,
     totalPages: 1,
     totalItems: 0,
-    grossSales: 0,        // Sum of itemsTotal from API
-    sumTotalDiscount: 0,  // Sum of totalDiscount from API
+    grossSales: 0,
+    sumTotalDiscount: 0,
     revenue: 0,
     aov: 0,
     discountRate: 0,
     oldestOrderDate: null,
-    utmCounts: {},        // Include utmCounts
+    utmCounts: {},
   });
+
+  // New states for revenue after tax (RAT) and ROAS
+  const [revenueAfterTax, setRevenueAfterTax] = useState(0);
+  const [roas, setRoas] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
@@ -193,8 +197,6 @@ const OrderListFull = ({ isAdmin }) => {
    *****************************************************/
   const fetchOrders = useCallback(
     async (start, end, pageNumber = 1) => {
-      // If we've fetched before with the exact same filters + search,
-      // do not fetch again. Now includes 'searchInput'.
       if (
         hasFetchedOrders.current &&
         hasFetchedOrders.current === true &&
@@ -256,7 +258,6 @@ const OrderListFull = ({ isAdmin }) => {
         console.error('Error fetching orders:', error);
       } finally {
         setLoading(false);
-        // Update the ref to indicate that orders have been fetched
         hasFetchedOrders.current = true;
         hasFetchedOrders.start = start?.toISOString();
         hasFetchedOrders.end = end?.toISOString();
@@ -283,6 +284,29 @@ const OrderListFull = ({ isAdmin }) => {
   );
 
   /*****************************************************
+   * Calculate revenueAfterTax (RAT) using useEffect
+   *****************************************************/
+  useEffect(() => {
+    if (isAdmin) {
+      const newRevenueAfterTax = orderData.revenue - orderData.revenue * 0.18;
+      setRevenueAfterTax(newRevenueAfterTax);
+    } else {
+      setRevenueAfterTax(0);
+    }
+  }, [isAdmin, orderData.revenue]);
+
+  /*****************************************************
+   * Calculate ROAS using useEffect
+   *****************************************************/
+  useEffect(() => {
+    if (isAdmin) {
+      setRoas(cacData.spend ? revenueAfterTax / cacData.spend : 0);
+    } else {
+      setRoas(0);
+    }
+  }, [isAdmin, revenueAfterTax, cacData.spend]);
+
+  /*****************************************************
    * Function to fetch problematic orders
    *****************************************************/
   const fetchProblematicOrders = useCallback(
@@ -298,8 +322,6 @@ const OrderListFull = ({ isAdmin }) => {
         return;
       }
 
-      // If we've fetched before with the exact same filters + search,
-      // do not fetch again. Now includes 'searchInput'.
       if (
         hasFetchedProblematicOrders.current &&
         hasFetchedProblematicOrders.start === start?.toISOString() &&
@@ -354,7 +376,6 @@ const OrderListFull = ({ isAdmin }) => {
         console.error('Error fetching problematic orders:', error);
       } finally {
         setProblematicLoading(false);
-        // Update the ref
         hasFetchedProblematicOrders.current = true;
         hasFetchedProblematicOrders.start = start?.toISOString();
         hasFetchedProblematicOrders.end = end?.toISOString();
@@ -385,7 +406,6 @@ const OrderListFull = ({ isAdmin }) => {
    * Function to fetch CAC data
    *****************************************************/
   const fetchCacData = useCallback(async () => {
-    // If we've fetched for the same date range, don't do it again
     if (
       hasFetchedCacData.current &&
       hasFetchedCacData.start === dateRange.start?.toISOString() &&
@@ -397,7 +417,6 @@ const OrderListFull = ({ isAdmin }) => {
     setCacLoading(true);
     setCacError(null);
 
-    // Prepare the payload
     const payload = {
       startDate: dateRange.start ? dateRange.start.toISOString() : null,
       endDate: dateRange.end ? dateRange.end.toISOString() : null,
@@ -420,7 +439,7 @@ const OrderListFull = ({ isAdmin }) => {
         setCacData({
           spend: data.spend,
           purchaseCount: data.purchaseCount,
-          cac: data.cac, // can be 'N/A' if not applicable
+          cac: data.cac,
         });
       } else {
         console.error('Error fetching CAC data:', data.error);
@@ -431,7 +450,6 @@ const OrderListFull = ({ isAdmin }) => {
       setCacError('An error occurred while fetching CAC data.');
     } finally {
       setCacLoading(false);
-      // Update the ref
       hasFetchedCacData.current = true;
       hasFetchedCacData.start = dateRange.start?.toISOString();
       hasFetchedCacData.end = dateRange.end?.toISOString();
@@ -439,7 +457,7 @@ const OrderListFull = ({ isAdmin }) => {
   }, [dateRange.start, dateRange.end]);
 
   /*****************************************************
-   * UseEffects to fetch orders + CAC data
+   * useEffect hooks to fetch orders and CAC data
    *****************************************************/
   useEffect(() => {
     fetchOrders(dateRange.start, dateRange.end, currentPage);
@@ -476,23 +494,19 @@ const OrderListFull = ({ isAdmin }) => {
   /*****************************************************
    * Handlers
    *****************************************************/
-  // Search input change => store in state
   const handleSearchInputChange = (e) => {
     setSearchInput(e.target.value);
   };
 
-  // Search field change => reset page, input
   const handleSearchFieldChange = (e) => {
     setSearchField(e.target.value);
     setSearchInput('');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
-    // We reset fetch flags to ensure a fresh fetch
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
   };
 
-  // Handle pressing Enter in search box
   const handleSearchKeyDown = (e) => {
     if (e.key === 'Enter') {
       setCurrentPage(1);
@@ -502,12 +516,10 @@ const OrderListFull = ({ isAdmin }) => {
     }
   };
 
-  // Handle accordion expansion
   const handleAccordionChange = (panel) => (event, isExpanded) => {
     setExpanded(isExpanded ? panel : false);
   };
 
-  // Handle 'All' tag click
   const handleAllTagClick = () => {
     setActiveTag('all');
     setDateRange({
@@ -522,13 +534,11 @@ const OrderListFull = ({ isAdmin }) => {
     setOnlyIncludeSelectedVariants(false);
     setSingleVariantOnly(false);
     setSingleItemCountOnly(false);
-    // Reset fetch flags
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
     hasFetchedCacData.current = false;
   };
 
-  // Handle custom date change
   const handleCustomDateChange = (newStart, newEnd) => {
     setDateRange({
       start: newStart ? newStart.startOf('day') : null,
@@ -537,13 +547,11 @@ const OrderListFull = ({ isAdmin }) => {
     setActiveTag(newStart && newEnd ? 'customRange' : activeTag);
     setCurrentPage(1);
     setProblematicCurrentPage(1);
-    // Reset fetch flags
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
     hasFetchedCacData.current = false;
   };
 
-  // Handle single day change for 'Custom Day'
   const handleCustomDayChange = (newDate) => {
     setSingleDate(newDate.startOf('day'));
     setDateRange({
@@ -553,13 +561,11 @@ const OrderListFull = ({ isAdmin }) => {
     setActiveTag('custom');
     setCurrentPage(1);
     setProblematicCurrentPage(1);
-    // Reset fetch flags
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
     hasFetchedCacData.current = false;
   };
 
-  // Handle 'This Month' and 'Last Month' selection
   const handleMonthSelection = (type) => {
     let start, end;
     if (type === 'thisMonth') {
@@ -574,44 +580,35 @@ const OrderListFull = ({ isAdmin }) => {
     setDateRange({ start, end });
     setCurrentPage(1);
     setProblematicCurrentPage(1);
-    // Reset fetch flags
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
     hasFetchedCacData.current = false;
   };
 
-  // Handle filters drawer toggle
   const toggleFiltersDrawer = (open) => () => {
     setIsFiltersDrawerOpen(open);
   };
 
-  // Apply filters from the drawer
   const applyFilters = () => {
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     setIsFiltersDrawerOpen(false);
-    // Reset fetch flags
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
     hasFetchedCacData.current = false;
   };
 
-  // Handle problematic filter changes
   const handleProblematicFilterChange = (filter) => () => {
     setSelectedProblematicFilter(prev => (prev === filter ? '' : filter));
     setProblematicCurrentPage(1);
-    // Reset fetch flags
     hasFetchedProblematicOrders.current = false;
   };
 
-  // Handle problematic pagination
   const handleProblematicPaginationChange = (event, value) => {
     setProblematicCurrentPage(value);
-    // Reset fetch flags
     hasFetchedProblematicOrders.current = false;
   };
 
-  // Function to sync Shiprocket orders
   const handleSyncShiprocketOrders = async () => {
     setSyncing(true);
     setSyncResult(null);
@@ -636,7 +633,6 @@ const OrderListFull = ({ isAdmin }) => {
         setSyncResult(`Shiprocket Orders Created: ${data.created}, Failed: ${data.failed}`);
         setSyncDetails(data.details || []);
         setOpenSyncDetails(true);
-        // Refresh orders with current page
         fetchOrders(dateRange.start, dateRange.end, currentPage);
       } else {
         console.error('Error syncing Shiprocket orders:', data.message);
@@ -650,19 +646,16 @@ const OrderListFull = ({ isAdmin }) => {
     }
   };
 
-  // Handle UTM filter changes
   const handleUTMFilterChange = (field) => (event) => {
     setSelectedUTMFilters(prev => ({
       ...prev,
       [field]: event.target.value,
     }));
-    // Reset fetch flags
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
     hasFetchedCacData.current = false;
   };
 
-  // Handle Reset Filters
   const handleResetFilters = () => {
     setShiprocketFilter('');
     setPaymentStatusFilter('');
@@ -686,8 +679,6 @@ const OrderListFull = ({ isAdmin }) => {
     setOnlyIncludeSelectedVariants(false);
     setSingleVariantOnly(false);
     setSingleItemCountOnly(false);
-
-    // Reset fetch flags
     hasFetchedOrders.current = false;
     hasFetchedProblematicOrders.current = false;
     hasFetchedCacData.current = false;
@@ -698,12 +689,7 @@ const OrderListFull = ({ isAdmin }) => {
    *****************************************************/
   return (
     <Container sx={{ marginBottom: '2rem', width: '100%', padding: '2rem 1rem' }}>
-      <Typography
-        variant="h4"
-        color="primary"
-        align="center"
-        sx={{ marginBottom: '1.5rem' }}
-      >
+      <Typography variant="h4" color="primary" align="center" sx={{ marginBottom: '1.5rem' }}>
         Orders Dashboard
       </Typography>
 
@@ -774,23 +760,8 @@ const OrderListFull = ({ isAdmin }) => {
       </Box>
 
       {/* Search and Filter Section */}
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        marginBottom="20px"
-        flexWrap="wrap"
-        gap="1rem"
-      >
-        {/* Search Fields */}
-        <Box
-          display={{ xs: 'flex', md: 'flex' }}
-          flexDirection={{ xs: 'column', md: 'row' }}
-          alignItems={{ xs: 'stretch', md: 'center' }}
-          gap={{ xs: '1rem', md: '10px' }}
-          flexGrow={1}
-          width={{ xs: '100%', md: 'auto' }}
-        >
+      <Box display="flex" justifyContent="space-between" alignItems="center" marginBottom="20px" flexWrap="wrap" gap="1rem">
+        <Box display={{ xs: 'flex', md: 'flex' }} flexDirection={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'stretch', md: 'center' }} gap={{ xs: '1rem', md: '10px' }} flexGrow={1} width={{ xs: '100%', md: 'auto' }}>
           <TextField
             select
             label="Search by"
@@ -836,8 +807,6 @@ const OrderListFull = ({ isAdmin }) => {
             }}
           />
         </Box>
-
-        {/* Filters Button */}
         <Box>
           <Button variant="contained" color="primary" onClick={toggleFiltersDrawer(true)}>
             Filters
@@ -846,11 +815,7 @@ const OrderListFull = ({ isAdmin }) => {
       </Box>
 
       {/* Filters Drawer */}
-      <Drawer
-        anchor="right"
-        open={isFiltersDrawerOpen}
-        onClose={toggleFiltersDrawer(false)}
-      >
+      <Drawer anchor="right" open={isFiltersDrawerOpen} onClose={toggleFiltersDrawer(false)}>
         <FiltersDrawer
           shiprocketFilter={shiprocketFilter}
           setShiprocketFilter={setShiprocketFilter}
@@ -932,6 +897,8 @@ const OrderListFull = ({ isAdmin }) => {
         cacLoading={cacLoading}
         cacError={cacError}
         utmCounts={orderData.utmCounts}
+        rat={revenueAfterTax}
+        roas={roas}
       />
 
       {/* Pagination for Main Orders */}
@@ -942,7 +909,6 @@ const OrderListFull = ({ isAdmin }) => {
           onChange={(event, value) => {
             setCurrentPage(value);
             setProblematicCurrentPage(1);
-            // Reset fetch flags
             hasFetchedOrders.current = false;
             hasFetchedProblematicOrders.current = false;
           }}
@@ -959,8 +925,7 @@ const OrderListFull = ({ isAdmin }) => {
             Problematic Orders
           </Typography>
           <Typography variant="subtitle1" gutterBottom sx={{ color: 'white' }}>
-            Total Problematic Orders: {problematicOrderData.totalOrders} | Total Items:{' '}
-            {problematicOrderData.totalItems}
+            Total Problematic Orders: {problematicOrderData.totalOrders} | Total Items: {problematicOrderData.totalItems}
           </Typography>
 
           {problematicLoading ? (
@@ -979,13 +944,7 @@ const OrderListFull = ({ isAdmin }) => {
           ) : (
             <Box>
               {problematicOrderData.orders.map(order => (
-                <CustomerCard
-                  key={order._id}
-                  order={order}
-                  expanded={expanded}
-                  handleChange={handleAccordionChange}
-                  isAdmin={isAdmin}
-                />
+                <CustomerCard key={order._id} order={order} expanded={expanded} handleChange={handleAccordionChange} isAdmin={isAdmin} />
               ))}
               <Pagination
                 count={problematicOrderData.totalPages}
@@ -1019,22 +978,13 @@ const OrderListFull = ({ isAdmin }) => {
         onClose={() => setVariantSnackbar({ ...variantSnackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert
-          onClose={() => setVariantSnackbar({ ...variantSnackbar, open: false })}
-          severity={variantSnackbar.severity}
-          sx={{ width: '100%' }}
-        >
+        <Alert onClose={() => setVariantSnackbar({ ...variantSnackbar, open: false })} severity={variantSnackbar.severity} sx={{ width: '100%' }}>
           {variantSnackbar.message}
         </Alert>
       </Snackbar>
 
       {/* Sync Details Dialog */}
-      <Dialog
-        open={openSyncDetails}
-        onClose={() => setOpenSyncDetails(false)}
-        fullWidth
-        maxWidth="md"
-      >
+      <Dialog open={openSyncDetails} onClose={() => setOpenSyncDetails(false)} fullWidth maxWidth="md">
         <DialogTitle>Sync Shiprocket Orders Details</DialogTitle>
         <DialogContent>
           {syncDetails.length === 0 ? (
@@ -1067,22 +1017,17 @@ const OrderListFull = ({ isAdmin }) => {
                         <strong>Order ID:</strong> {detail.orderId}
                       </Typography>
                       <Typography>
-                        <strong>Delivery Status Response:</strong>{' '}
-                        {detail.deliveryStatusResponse}
+                        <strong>Delivery Status Response:</strong> {detail.deliveryStatusResponse}
                       </Typography>
                       {isAdmin && (
                         <>
                           <Typography>
                             <strong>Revenue:</strong> ₹
-                            {detail.revenue.toLocaleString('en-IN', {
-                              minimumFractionDigits: 2,
-                            })}
+                            {detail.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </Typography>
                           <Typography>
                             <strong>Discount:</strong> ₹
-                            {detail.discount.toLocaleString('en-IN', {
-                              minimumFractionDigits: 2,
-                            })}
+                            {detail.discount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </Typography>
                         </>
                       )}

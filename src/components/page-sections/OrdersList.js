@@ -1,5 +1,3 @@
-// /components/page-sections/OrdersList.js
-
 import React, { memo, useEffect } from 'react';
 import {
   Box,
@@ -19,12 +17,12 @@ import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import StarRateIcon from '@mui/icons-material/StarRate';
 import CustomerCard from '../cards/CustomerCard';
 
-// Define neutral dark color palette
+// Define neutral dark color palette, including new colors for RAT and ROAS
 const neutralDarkColors = {
   orders: {
-    background: '#424242', // Dark Grey
-    text: '#FFFFFF',       // White
-    icon: '#FFFFFF',       // White
+    background: '#424242',
+    text: '#FFFFFF',
+    icon: '#FFFFFF',
   },
   items: {
     background: '#424242',
@@ -32,7 +30,7 @@ const neutralDarkColors = {
     icon: '#FFFFFF',
   },
   grossSales: {
-    background: '#616161', // Medium Grey
+    background: '#616161',
     text: '#FFFFFF',
     icon: '#FFFFFF',
   },
@@ -56,13 +54,23 @@ const neutralDarkColors = {
     text: '#FFFFFF',
     icon: '#FFFFFF',
   },
-  metaCAC: { // New color for Meta CAC
-    background: '#424242', // Dark Blue
+  metaCAC: {
+    background: '#424242',
     text: '#FFFFFF',
     icon: '#FFFFFF',
   },
-  overallCAC: { // New color for Overall CAC
-    background: '#424242', // Blue Grey
+  overallCAC: {
+    background: '#424242',
+    text: '#FFFFFF',
+    icon: '#FFFFFF',
+  },
+  rat: {
+    background: '#424242',
+    text: '#FFFFFF',
+    icon: '#FFFFFF',
+  },
+  roas: {
+    background: '#616161',
     text: '#FFFFFF',
     icon: '#FFFFFF',
   },
@@ -78,12 +86,9 @@ const StyledChip = styled(Box)(({ color }) => ({
   borderRadius: '8px',
   fontWeight: 500,
   fontSize: '0.9rem',
-  // Allow label to wrap onto multiple lines
   whiteSpace: 'normal',
   wordBreak: 'break-word',
-  // Remove any width constraints
   width: '100%',
-  // Optional: Add subtle border for better distinction
   border: `1px solid ${color.background}`,
 }));
 
@@ -91,7 +96,7 @@ const OrdersList = ({
   orders = [],
   loading = false,
   expanded = null,
-  handleChange = () => { },
+  handleChange = () => {},
   totalOrders = 0,
   grossSales = 0,
   revenue = 0,
@@ -105,34 +110,27 @@ const OrdersList = ({
   cacLoading = false,
   cacError = null,
   utmCounts = {},
+  rat = 0,
+  roas = 0,
 }) => {
   const { metaOrders = 0, instagramBioOrders = 0 } = utmCounts;
-
   const { spend } = cacData;
-
-  // Calculate Meta CAC and Overall CAC with error handling
   const inorganicMetaOrders = metaOrders - instagramBioOrders;
-  console.log({ inorganicMetaOrders, metaOrders, instagramBioOrders });
-  const calculatedMetaCAC = inorganicMetaOrders > 0
-    ? (spend / inorganicMetaOrders).toFixed(2)
-    : 'N/A';
-console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
-  const calculatedOverallCAC = totalOrders > 0
-    ? (spend / totalOrders).toFixed(2)
-    : 'N/A';
+  const calculatedMetaCAC =
+    inorganicMetaOrders > 0 ? (spend / inorganicMetaOrders).toFixed(2) : 'N/A';
+  const calculatedOverallCAC =
+    totalOrders > 0 ? (spend / totalOrders).toFixed(2) : 'N/A';
+
   useEffect(() => {
     console.warn({ spend, inorganicMetaOrders, totalOrders });
+  }, [spend, inorganicMetaOrders, totalOrders]);
 
-
-  }, [spend, inorganicMetaOrders, totalOrders])
-  // Define chip data with detailed tooltips and formulas
+  // Define chip data with tooltips and formulas, including new RAT and ROAS chips
   const chipData = [
     {
       label: `Orders: ${totalOrders?.toLocaleString('en-IN')}`,
       icon: (
-        <ShoppingCartIcon
-          sx={{ color: neutralDarkColors.orders.icon, marginRight: '0.5rem' }}
-        />
+        <ShoppingCartIcon sx={{ color: neutralDarkColors.orders.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.orders,
       tooltip: (
@@ -150,9 +148,7 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
     {
       label: `Items: ${totalItems?.toLocaleString('en-IN')}`,
       icon: (
-        <InventoryIcon
-          sx={{ color: neutralDarkColors.items.icon, marginRight: '0.5rem' }}
-        />
+        <InventoryIcon sx={{ color: neutralDarkColors.items.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.items,
       tooltip: (
@@ -170,12 +166,7 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
     isAdmin && {
       label: `Gross Sales: ₹${grossSales?.toLocaleString('en-IN')}`,
       icon: (
-        <CurrencyRupeeIcon
-          sx={{
-            color: neutralDarkColors.grossSales.icon,
-            marginRight: '0.5rem',
-          }}
-        />
+        <CurrencyRupeeIcon sx={{ color: neutralDarkColors.grossSales.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.grossSales,
       tooltip: (
@@ -196,12 +187,7 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
     {
       label: `Discounts: ₹${sumTotalDiscount?.toLocaleString('en-IN')}`,
       icon: (
-        <DiscountIcon
-          sx={{
-            color: neutralDarkColors.discounts.icon,
-            marginRight: '0.5rem',
-          }}
-        />
+        <DiscountIcon sx={{ color: neutralDarkColors.discounts.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.discounts,
       tooltip: (
@@ -222,12 +208,7 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
     isAdmin && {
       label: `Revenue: ₹${revenue?.toLocaleString('en-IN')}`,
       icon: (
-        <AttachMoneyIcon
-          sx={{
-            color: neutralDarkColors.revenue.icon,
-            marginRight: '0.5rem',
-          }}
-        />
+        <AttachMoneyIcon sx={{ color: neutralDarkColors.revenue.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.revenue,
       tooltip: (
@@ -246,13 +227,9 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
       isVisible: true,
     },
     {
-      label: `AOV: ₹${aov?.toLocaleString('en-IN', {
-        minimumFractionDigits: 2,
-      })}`,
+      label: `AOV: ₹${aov?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       icon: (
-        <StarRateIcon
-          sx={{ color: neutralDarkColors.aov.icon, marginRight: '0.5rem' }}
-        />
+        <StarRateIcon sx={{ color: neutralDarkColors.aov.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.aov,
       tooltip: (
@@ -273,12 +250,7 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
     isAdmin && {
       label: `Discount Rate: ${discountRate.toFixed(2)}%`,
       icon: (
-        <DiscountIcon
-          sx={{
-            color: neutralDarkColors.discountRate.icon,
-            marginRight: '0.5rem',
-          }}
-        />
+        <DiscountIcon sx={{ color: neutralDarkColors.discountRate.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.discountRate,
       tooltip: (
@@ -296,16 +268,11 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
       ),
       isVisible: true,
     },
-    // **Meta CAC Chip**
+    // Meta CAC Chip
     {
       label: `Meta CAC: ₹${calculatedMetaCAC}`,
       icon: (
-        <AttachMoneyIcon
-          sx={{
-            color: neutralDarkColors.metaCAC.icon,
-            marginRight: '0.5rem',
-          }}
-        />
+        <AttachMoneyIcon sx={{ color: neutralDarkColors.metaCAC.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.metaCAC,
       tooltip: (
@@ -323,16 +290,11 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
       ),
       isVisible: true,
     },
-    // **Overall CAC Chip**
+    // Overall CAC Chip
     {
       label: `Overall CAC: ₹${calculatedOverallCAC}`,
       icon: (
-        <AttachMoneyIcon
-          sx={{
-            color: neutralDarkColors.overallCAC.icon,
-            marginRight: '0.5rem',
-          }}
-        />
+        <AttachMoneyIcon sx={{ color: neutralDarkColors.overallCAC.icon, marginRight: '0.5rem' }} />
       ),
       color: neutralDarkColors.overallCAC,
       tooltip: (
@@ -350,7 +312,51 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
       ),
       isVisible: true,
     },
-  ].filter(Boolean); // Remove false values if not admin
+    // RAT Chip (Revenue After Tax)
+    {
+      label: `RAT: ₹${rat?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+      icon: (
+        <CurrencyRupeeIcon sx={{ color: neutralDarkColors.rat.icon, marginRight: '0.5rem' }} />
+      ),
+      color: neutralDarkColors.rat,
+      tooltip: (
+        <>
+          <Typography variant="subtitle2" gutterBottom>
+            Revenue After Tax (RAT)
+          </Typography>
+          <Typography variant="body2">
+            Calculated as Revenue - (Revenue * 18%).
+          </Typography>
+          <Typography variant="body2">
+            <strong>Formula:</strong> RAT = Revenue - (Revenue * 0.18)
+          </Typography>
+        </>
+      ),
+      isVisible: true,
+    },
+    // ROAS Chip (Return On Ad Spend)
+    {
+      label: `ROAS: ${roas ? roas.toFixed(2) : 0}`,
+      icon: (
+        <AttachMoneyIcon sx={{ color: neutralDarkColors.roas.icon, marginRight: '0.5rem' }} />
+      ),
+      color: neutralDarkColors.roas,
+      tooltip: (
+        <>
+          <Typography variant="subtitle2" gutterBottom>
+            Return On Ad Spend (ROAS)
+          </Typography>
+          <Typography variant="body2">
+            Calculated as Revenue After Tax divided by Spend.
+          </Typography>
+          <Typography variant="body2">
+            <strong>Formula:</strong> ROAS = RAT / Spend
+          </Typography>
+        </>
+      ),
+      isVisible: true,
+    },
+  ].filter(Boolean);
 
   return (
     <Box>
@@ -364,35 +370,32 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
         }}
       >
         <Grid container spacing={3}>
-          {!loading ? (
-            chipData.map((chip, index) => (
-              <Grid key={index} item xs={12} sm={6} md={4} lg={3}>
-                <Tooltip title={chip.tooltip} arrow placement="top">
-                  <StyledChip color={chip.color}>
-                    {chip.icon}
-                    <Typography variant="body2" component="span">
-                      {chip.label}
-                    </Typography>
-                  </StyledChip>
-                </Tooltip>
-              </Grid>
-            ))
-          ) : (
-            // Render Skeletons while loading
-            chipData.map((_, index) => (
-              <Grid key={index} item xs={12} sm={6} md={4} lg={3}>
-                <Skeleton
-                  variant="rectangular"
-                  height={40}
-                  sx={{
-                    borderRadius: '8px',
-                    opacity: 0.7,
-                    backgroundColor: '#3c3c3c', // Darker skeleton for dark mode
-                  }}
-                />
-              </Grid>
-            ))
-          )}
+          {!loading
+            ? chipData.map((chip, index) => (
+                <Grid key={index} item xs={12} sm={6} md={4} lg={3}>
+                  <Tooltip title={chip.tooltip} arrow placement="top">
+                    <StyledChip color={chip.color}>
+                      {chip.icon}
+                      <Typography variant="body2" component="span">
+                        {chip.label}
+                      </Typography>
+                    </StyledChip>
+                  </Tooltip>
+                </Grid>
+              ))
+            : chipData.map((_, index) => (
+                <Grid key={index} item xs={12} sm={6} md={4} lg={3}>
+                  <Skeleton
+                    variant="rectangular"
+                    height={40}
+                    sx={{
+                      borderRadius: '8px',
+                      opacity: 0.7,
+                      backgroundColor: '#3c3c3c',
+                    }}
+                  />
+                </Grid>
+              ))}
         </Grid>
       </Box>
 
@@ -400,7 +403,6 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
 
       {/* Orders List */}
       {loading ? (
-        // Render Skeletons while loading
         Array.from(new Array(ITEMS_PER_PAGE)).map((_, index) => (
           <Skeleton
             key={index}
@@ -414,23 +416,14 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
           />
         ))
       ) : orders.length === 0 ? (
-        // No orders found message
         <Typography variant="body1" sx={{ color: '#B0B0B0' }}>
           No orders found.
         </Typography>
       ) : (
-        // Render list of orders
         orders.map((order) => (
-          <CustomerCard
-            key={order._id}
-            order={order}
-            expanded={expanded}
-            handleChange={handleChange}
-            isAdmin={isAdmin}
-          />
+          <CustomerCard key={order._id} order={order} expanded={expanded} handleChange={handleChange} isAdmin={isAdmin} />
         ))
       )}
-      {/* Display CAC Error if any */}
       {cacError && (
         <Box sx={{ marginTop: '1rem' }}>
           <Alert severity="error">{cacError}</Alert>
@@ -440,5 +433,4 @@ console.log({inorganicMetaOrders, metaOrders, instagramBioOrders});
   );
 };
 
-// Use memo to prevent unnecessary re-renders
 export default memo(OrdersList);

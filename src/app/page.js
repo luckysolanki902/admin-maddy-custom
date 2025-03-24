@@ -6,6 +6,7 @@ import StatusContainer from '@/components/page-sections/home/StatusContainer';
 import DepartmentLinks from "@/components/page-sections/home/DepartmentLinks";
 import styles from './page.module.css';
 import Target from '@/components/page-sections/home/Target';
+import RecentCommits from "@/components/page-sections/home/RecentCommits";
 
 export default function Home() {
   return (
@@ -26,6 +27,7 @@ export default function Home() {
           />
           <StatusContainer />
           <DepartmentLinks />
+          <RecentCommits repoName={'maddycustom-production'} repoOwner={'Maddy-Custom'} />
         </div>
       </SignedIn>
     </>

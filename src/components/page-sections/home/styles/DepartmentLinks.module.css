@@ -1,0 +1,103 @@
+/* Grid layout for Department Links */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 40px;
+    width: 80%;
+    max-width: 800px;
+    margin: 20px;
+  }
+  
+  /* Department Container */
+  .department {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  /* Generic Department Box */
+  .box {
+    background-color: #444;
+    margin: 30px;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;
+    font-size: 1.6rem;
+    font-weight: 300;
+    font-family: 'Jost', sans-serif;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    height: 180px;
+  }
+  
+  .box:hover {
+    transform: translateY(-5px);
+  }
+  
+  /* Goals Box */
+  .goals {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    font-size: 1.3rem;
+    margin-left: 40px;
+    border-radius: 0.4rem;
+    text-align: center;
+    width: 110px;
+    height: 70px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: all 0.3s ease-in-out;
+  }
+  
+  /* Department-Specific Shadows */
+  .marketingBox {
+    box-shadow: 0px 0px 11.34px rgba(255, 255, 0, 0.4);
+  }
+  
+  .designBox {
+    box-shadow: 0px 0px 11.34px rgba(0, 255, 229, 0.4);
+  }
+  
+  .webdBox {
+    box-shadow: 0px 0px 11.34px rgba(255, 89, 144, 0.4);
+  }
+  
+  .productionBox {
+    box-shadow: 0px 0px 11.34px rgba(255, 255, 255, 0.4);
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 600px) {
+    .goals {
+      width: 55px;
+      height: 30px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .box {
+      padding: 20px;
+      font-size: 1.2rem;
+      height: 100px;
+      width: 30vw;
+      border-radius: 0.6rem;
+    }
+    .grid {
+      width: 100%;
+      gap: 25px 15px;
+    }
+    .goals {
+      width: 55px;
+      height: 30px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+  }
+  

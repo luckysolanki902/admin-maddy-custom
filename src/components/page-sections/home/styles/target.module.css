@@ -1,0 +1,126 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    margin: 0 auto;
+    padding: 0;
+  }
+  
+  /* The main card */
+  .card {
+    position: relative;
+    background-color: #464646;
+    padding: 2rem;
+    border-radius: 1rem;
+    width: 400px;
+    margin: 2rem auto;
+    text-align: center;
+    color: #fff;
+    font-family: 'Jost', sans-serif;
+    box-shadow: 0 0 25px #22FEE6; /* teal glow */
+    transition: box-shadow 0.3s ease;
+  }
+  
+  .card:hover {
+    box-shadow: 0 0 35px #22FEE6;
+  }
+  
+  /* Range container: "6.5 - 7 Lakh" */
+  .range {
+    font-size: 1.2rem;
+    font-weight: 300;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1rem;
+  }
+  
+  .maxValue {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Current revenue text */
+  .currentRevenue {
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: flex-end;
+    font-weight: 600;
+  }
+  
+  /* The smaller "Current revenue" label inside it */
+  .currentRevenue span {
+    font-size: 1rem;
+    font-weight: 200;
+  }
+  
+  /* Date display */
+  .date {
+    color: #22FEE6;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    font-weight: 200;
+  }
+  
+  /* Timer container */
+  .timer {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* Timer digits */
+  .timerSegment {
+    border: 1px solid white;
+    color: #22FEE6;
+    padding: 0.5rem 1rem;
+    min-width: 50px;
+    text-align: center;
+    font-size: 1.5rem;
+    font-family: 'Jost', sans-serif;
+  }
+  
+  /* Party icon in bottom-left corner */
+  .partyIcon {
+    position: absolute;
+    bottom: -35px;
+    left: -65px;
+    width: 160px;
+    height: 160px;
+    object-fit: contain;
+  }
+  
+  /* RESPONSIVE STYLES */
+  @media (max-width: 700px) {
+    .card {
+      width: 80%;
+      padding: 1.5rem;
+    }
+  
+    .maxValue {
+      font-size: 2rem;
+    }
+  
+    .currentRevenue {
+      font-size: 1.2rem;
+    }
+  
+    .timerSegment {
+      font-size: 1.2rem;
+      padding: 0.3rem 0.8rem;
+    }
+  
+    .partyIcon {
+      width: 100px;
+      height: 100px;
+      bottom: -20px;
+      left: -40px;
+    }
+  }
+  

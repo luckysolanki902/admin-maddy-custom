@@ -1,0 +1,61 @@
+/* Header Component Styles */
+.heading {
+    font-size: 3.9rem;
+    font-family: 'Jost', sans-serif;
+    font-weight: 300;
+    margin-bottom: 0.5rem;
+    text-align: center;
+  }
+  
+  .subheading {
+    font-size: 1.1rem;
+    font-family: 'Jost', sans-serif;
+    font-weight: 300;
+    margin-bottom: 2rem;
+    color: #bbb;
+    text-align: center;
+  }
+  
+  /* Colored Spans for Heading */
+  .love {
+    color: yellow;
+    font-weight: 200;
+    cursor: pointer;
+  }
+  
+  .your {
+    color: cyan;
+    font-weight: 200;
+    cursor: pointer;
+  }
+  
+  .work {
+    color: lightgray;
+    font-weight: 200;
+    cursor: pointer;
+  }
+  
+  /* Input Field Styles */
+  .inputContainer {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+  
+  .inputField {
+    margin: 2rem 0;
+  }
+  
+  @media (max-width: 768px) {
+    .heading {
+      width: 100%;
+      font-size: 2.5rem;
+      text-align: left;
+    }
+    .subheading {
+      width: 100%;
+      font-size: 1rem;
+      text-align: left;
+    }
+  }
+  

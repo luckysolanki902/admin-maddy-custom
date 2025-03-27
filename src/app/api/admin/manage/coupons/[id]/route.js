@@ -99,3 +99,32 @@ export async function PUT(request, { params }) {
         return new Response(JSON.stringify({ error: errorMessage, details: error.errors || error.message }), { status: 500 });
     }
 }
+
+export async function DELETE(request, { params }) {
+    const { id } = await params;
+    console.log(`Received DELETE request for coupon ID: ${id}`);
+
+    // Validate ObjectId format
+    if (!ObjectId.isValid(id)) {
+        console.warn(`DELETE validation failed: Invalid coupon ID format (${id}).`);
+        return new Response(JSON.stringify({ error: 'Invalid coupon ID format.' }), { status: 400 });
+    }
+
+    try {
+        await connectToDatabase();
+        const deletedCoupon = await Coupon.findByIdAndDelete(id);
+
+        if (!deletedCoupon) {
+            console.warn(`DELETE validation failed: Coupon not found (${id}).`);
+            return new Response(JSON.stringify({ error: 'Coupon not found.' }), { status: 404 });
+        }
+
+        console.log('Successfully deleted coupon:', deletedCoupon);
+
+        return new Response(JSON.stringify(deletedCoupon), { status: 200 });
+    } catch (error) {
+        console.error('Error deleting coupon:', error);
+        return new Response(JSON.stringify({ error: 'Failed to delete coupon.' }), { status: 500 });
+    }
+}
+

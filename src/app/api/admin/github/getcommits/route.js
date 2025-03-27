@@ -69,7 +69,11 @@ export async function GET() {
         const data = await resp.json();
         const featureBranches = data
           .map((b) => b.name)
-          .filter((branchName) => !['main', 'develop', 'feature/custom-stickers'].includes(branchName));
+          .filter(
+            (branchName) =>
+              !['main', 'develop', 'feature/custom-stickers'].includes(branchName) &&
+              !branchName.startsWith('Merge')
+          );
         console.debug(`Fetched ${featureBranches.length} feature branches for ${owner}/${name}`);
         return featureBranches;
       } catch (error) {

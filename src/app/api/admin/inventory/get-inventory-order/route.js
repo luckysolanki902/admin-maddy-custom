@@ -23,20 +23,6 @@ export async function GET(req) {
   await connectToDatabase();
 
   try {
-    // Aggregation pipeline explanation:
-    // 1. Filter orders by createdAt within the date range.
-    // 2. Unwind order items.
-    // 3. Lookup product details from the "products" collection.
-    // 4. Lookup option details from the "options" collection (if the item has an option).
-    // 5. Create an "optionDetail" field as the first option (if any).
-    // 6. Define effective fields based on whether an option was ordered:
-    //    - effectiveSKU: use option.sku if exists, otherwise the item's sku.
-    //    - effectiveImage: use the first image from the option if exists.
-    //    - effectiveOptionDetails: the option's details (map) if exists.
-    //    - effectiveName: product name.
-    // 7. Only include items where either the product or the option has inventoryData.
-    // 8. Group by effectiveSKU and aggregate order count and total quantity.
-    // 9. Sort by totalQuantity descending.
     const pipeline = [
       {
         $match: {
@@ -47,7 +33,7 @@ export async function GET(req) {
       { $unwind: '$items' },
       {
         $lookup: {
-          from: 'products', // Ensure this matches your collection name
+          from: 'products',
           localField: 'items.product',
           foreignField: '_id',
           as: 'productDetails'
@@ -62,13 +48,11 @@ export async function GET(req) {
           as: 'optionDetails'
         }
       },
-      // Create a single field for option details if present
       {
         $addFields: {
           optionDetail: { $arrayElemAt: ['$optionDetails', 0] }
         }
       },
-      // Define effective fields based on whether an option was ordered
       {
         $addFields: {
           effectiveSKU: {
@@ -80,9 +64,14 @@ export async function GET(req) {
           },
           effectiveImage: {
             $cond: [
-              { $ifNull: ['$optionDetail', false] },
+              {
+                $and: [
+                  { $ifNull: ['$optionDetail', false] },
+                  { $eq: [{ $size: '$productDetails.images' }, 0] }
+                ]
+              },
               { $arrayElemAt: ['$optionDetail.images', 0] },
-              null
+              { $arrayElemAt: ['$productDetails.images', 0] }
             ]
           },
           effectiveOptionDetails: {
@@ -95,7 +84,6 @@ export async function GET(req) {
           effectiveName: '$productDetails.name'
         }
       },
-      // Only include items that are inventory-based via the product or the option
       {
         $match: {
           $or: [
@@ -138,3 +126,4 @@ export async function GET(req) {
     );
   }
 }
+

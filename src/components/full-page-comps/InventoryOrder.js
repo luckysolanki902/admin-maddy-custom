@@ -123,6 +123,7 @@ const DownloadInventoryOrders = () => {
         throw new Error(errorData.message || 'Error fetching data.');
       }
       const result = await res.json();
+      console.log(result);
       setData(result.orders);
       setTotalOrders(result.totalOrders);
       setTotalItems(result.totalItems);

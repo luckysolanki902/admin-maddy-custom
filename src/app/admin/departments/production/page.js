@@ -11,6 +11,7 @@ export default function Production() {
     { text: 'ProductInfo Tabs', link: '/admin/manage/product-info' },
     { text: 'Review Manager', link: '/admin/manage/reviews' },
     { text: 'Download Inventory Orders Data', link: '/admin/download/download-inventory-orders' },
+    { text: 'Manage Customer Queries', link: '/admin/manage/customer-support' },
 
   ];
 

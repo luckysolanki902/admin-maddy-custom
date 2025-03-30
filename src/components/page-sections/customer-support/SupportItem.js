@@ -75,11 +75,7 @@ const SupportItem = ({ support, onUpdate }) => {
           ) : (
             <span>Being resolved by:</span>
           )}
-          {support.status === 'resolved' || support.status === 'pending' ? (
-              <Chip label={support.resolvedBy} size="small" />
-            ) : (
-            <Chip label="Support Team" size="small" />
-            )}
+          Support Team
         </Typography>
         <Stack direction="row" spacing={1} mt={2}>
           {support.mobile && (

@@ -22,7 +22,7 @@ export default function Home() {
             maxValue="7"
             month="03"
             year="2025"
-            deadlineRaw="2025-03-31"
+            deadlineRaw="2025-04-01"
             partyIconUrl="assets/icons/party.png"
           />
           <StatusContainer />

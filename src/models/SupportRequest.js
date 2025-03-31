@@ -15,15 +15,25 @@ const SupportRequestSchema = new mongoose.Schema(
     resolvedBy: {
       type: String,
       enum: ['ai', 'support team'],
+      default: 'ai',
     },
     department: {
       type: String,
       enum: ['production', 'marketing'],
       default: 'production',
     },
+    // New field to store the AI's response
+    aiResponse: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );
+
+if(mongoose.models.SupportRequest){
+  delete mongoose.models.SupportRequest
+}
 
 export default mongoose.models.SupportRequest ||
   mongoose.model('SupportRequest', SupportRequestSchema);

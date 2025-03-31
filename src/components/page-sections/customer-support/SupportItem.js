@@ -17,7 +17,7 @@ import EmailIcon from '@mui/icons-material/Email';
 const AnimatedCard = animated(Card);
 
 const SupportItem = ({ support, onUpdate }) => {
-    const springProps = useSpring({ opacity: 1, config: { tension: 1000 }, reset: true });
+  const springProps = useSpring({ opacity: 1, config: { tension: 1000 }, reset: true });
 
   const handleDepartmentChange = (dept) => {
     onUpdate(support._id, { department: dept });
@@ -71,12 +71,16 @@ const SupportItem = ({ support, onUpdate }) => {
           sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}
         >
           {support.status === 'resolved' ? (
-            <span>Resolved by:</span>
+            <>
+              <span>Resolved by:</span> {support.resolvedBy}
+            </>
           ) : (
-            <span>Being resolved by:</span>
+            <>
+              <span>Being resolved by:</span> Support Team
+            </>
           )}
-          Support Team
         </Typography>
+
         <Stack direction="row" spacing={1} mt={2}>
           {support.mobile && (
             <Tooltip title="Chat on WhatsApp">

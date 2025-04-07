@@ -222,7 +222,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     size="small"
                     sx={{ marginLeft: '0px' }}
                   >
-                    <Link style={{ display:'flex', alignItems: 'center', justifyContent:'center'}} href={`https://wa.me/${order.address?.receiverPhoneNumber}`} target='_blank'>
+                    <Link style={{ display:'flex', alignItems: 'center', justifyContent:'center'}} href={`https://wa.me/91${order.address?.receiverPhoneNumber}`} target='_blank'>
                       <WhatsApp fontSize="small" sx={{ color: 'rgb(200, 200, 200)' }} />
                     </Link>
                   </IconButton>

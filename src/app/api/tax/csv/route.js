@@ -52,10 +52,10 @@ export async function GET(request) {
       const receiverState = (order.address?.state || '').toUpperCase();
       let igst = 0, cgst = 0, sgst = 0;
       if (receiverState.toLowerCase().trim() === 'uttar pradesh') {
-        cgst = billAmount * 0.09;
-        sgst = billAmount * 0.09;
+        cgst = billAmount * 9/118; 
+        sgst = billAmount * 9/118;
       } else {
-        igst = billAmount * 0.18;
+        igst = billAmount * 18/118;
       }
       const grossAmount = billAmount - igst - cgst - sgst;
 

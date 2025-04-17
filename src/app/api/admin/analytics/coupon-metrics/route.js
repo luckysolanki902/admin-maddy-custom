@@ -10,27 +10,33 @@ export async function GET(req) {
     await connectToDatabase();
     const { searchParams } = new URL(req.url);
 
+    // Earliest allowed start (Apr 6, 2025 IST 00:00)
+    const MIN_START = dayjs('2025-04-06').startOf('day');
+
+    // Parse and clamp startDate
     const startParam = searchParams.get('startDate');
-    const endParam   = searchParams.get('endDate');
+    let startDate = MIN_START;
+    if (startParam) {
+      const parsed = dayjs(startParam);
+      if (parsed.isAfter(MIN_START)) {
+        startDate = parsed.startOf('day');
+      }
+    }
 
-    // Clamp startDate to not be earlier than 2023-04-01
-    const clampedStart = startParam
-      ? (dayjs(startParam).isBefore(dayjs('2023-04-01'))
-          ? dayjs('2023-04-01')
-          : dayjs(startParam))
-      : null;
+    // Parse endDate or default to now (end of today)
+    const endParam = searchParams.get('endDate');
+    const endDate = endParam
+      ? dayjs(endParam).endOf('day')
+      : dayjs(Date.now()).endOf('day');
 
-    // Build match for paid orders
+    // Build match filter
     const match = {
       paymentStatus: { $in: ['paidPartially','allPaid','allToBePaidCod'] },
+      createdAt: {
+        $gte: startDate.toDate(),
+        $lte: endDate.toDate(),
+      },
     };
-
-    if (clampedStart && endParam) {
-      match.createdAt = {
-        $gte: clampedStart.startOf('day').toDate(),
-        $lte: dayjs(endParam).endOf('day').toDate(),
-      };
-    }
 
     const [result] = await Order.aggregate([
       { $match: match },
@@ -67,15 +73,14 @@ export async function GET(req) {
             },
             {
               $project: {
-                _id:0,
-                usageCount:1,
-                totalDiscount:1,
-                averageDiscount:1
+                _id: 0,
+                usageCount:     1,
+                totalDiscount:  1,
+                averageDiscount:1,
               },
             },
           ],
           dailyAverages: [
-            // 1) group by IST date + coupon
             {
               $group: {
                 _id: {
@@ -88,24 +93,21 @@ export async function GET(req) {
                   },
                   coupon: '$couponApplied.couponCode'
                 },
-                avgDisc:     { $avg: '$couponApplied.discountAmount' },
-                usageCount:  { $sum: 1 }
+                avgDisc:    { $avg: '$couponApplied.discountAmount' },
+                usageCount: { $sum: 1 }
               }
             },
-            // 2) pivot into { date, averages: { CODE: avg, … } }
             {
               $group: {
                 _id: '$_id.date',
-                averages: {
-                  $push: { k: '$_id.coupon', v: '$avgDisc' }
-                }
+                averages: { $push: { k: '$_id.coupon', v: '$avgDisc' } }
               }
             },
             {
               $project: {
                 _id: 0,
-                date: '$_id',
-                averages: { $arrayToObject: '$averages' }
+                date:    '$_id',
+                averages:{ $arrayToObject: '$averages' }
               }
             },
             { $sort: { date: 1 } }
@@ -116,7 +118,9 @@ export async function GET(req) {
 
     const byCoupon      = result.byCoupon      || [];
     const overall       = (result.overall && result.overall[0]) || {
-      usageCount:0, totalDiscount:0, averageDiscount:0
+      usageCount:0,
+      totalDiscount:0,
+      averageDiscount:0
     };
     const dailyAverages = result.dailyAverages || [];
 

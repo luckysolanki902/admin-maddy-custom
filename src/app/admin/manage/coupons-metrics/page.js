@@ -135,6 +135,16 @@ export default function CouponStatsPage() {
       >
         Coupon Usage Dashboard
       </Typography>
+<Typography
+  variant="body1"
+  align="left"
+  sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 1 }}
+>
+  *Only coupons after 6 April are shown here
+</Typography>
+
+
+      
 
       <DateRangeChips
         activeTag={activeTag}

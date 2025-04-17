@@ -39,8 +39,8 @@ export default function CouponStatsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedCoupons, setSelectedCoupons] = useState([]);
-
   const [customDate, setCustomDate] = useState(dayjs());
+
   // Palette for bars/lines
   const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#413ea0'];
 
@@ -71,15 +71,18 @@ export default function CouponStatsPage() {
 
   // Filtered data for bar chart
   const barData = useMemo(
-    () => data?.byCoupon.filter((c) => selectedCoupons.includes(c.couponCode)) || [],
+    () =>
+      data?.byCoupon.filter((c) =>
+        selectedCoupons.includes(c.couponCode)
+      ) || [],
     [data, selectedCoupons]
   );
 
-  // Transform dailyAverages for line chart
+  // Transform dailyUsage for line chart
   const lineData = useMemo(() => {
     if (!data) return [];
-    return data.dailyAverages
-      .map((entry) => ({ date: entry.date, ...entry.averages }))
+    return data.dailyUsage
+      .map((entry) => ({ date: entry.date, ...entry.counts }))
       .filter((entry) =>
         selectedCoupons.some((code) => entry[code] !== undefined)
       );
@@ -135,16 +138,13 @@ export default function CouponStatsPage() {
       >
         Coupon Usage Dashboard
       </Typography>
-<Typography
-  variant="body1"
-  align="left"
-  sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 1 }}
->
-  *Only coupons after 6 April are shown here
-</Typography>
-
-
-      
+      <Typography
+        variant="body1"
+        align="left"
+        sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 1 }}
+      >
+        *Only coupons after 6 April are shown here
+      </Typography>
 
       <DateRangeChips
         activeTag={activeTag}
@@ -152,7 +152,7 @@ export default function CouponStatsPage() {
         setDateRange={setDateRange}
         handleAllTagClick={handleAllTagClick}
         handleCustomDayChange={handleCustomDayChange}
-        handleCustomDateChange={null}   // not used here
+        handleCustomDateChange={null}
         handleMonthSelection={handleMonthSelection}
       />
 
@@ -216,7 +216,9 @@ export default function CouponStatsPage() {
               label={c.couponCode}
               onClick={() => toggleCoupon(c.couponCode)}
               color={
-                selectedCoupons.includes(c.couponCode) ? 'primary' : 'default'
+                selectedCoupons.includes(c.couponCode)
+                  ? 'primary'
+                  : 'default'
               }
               sx={{ mb: 1 }}
             />
@@ -252,10 +254,10 @@ export default function CouponStatsPage() {
         )}
       </Box>
 
-      {/* Line chart: avg discount over time */}
+      {/* Line chart: usage count over time */}
       <Box mt={5} sx={{ height: 300 }}>
         <Typography variant="h6" gutterBottom>
-          Avg. Discount Over Time
+          Usage Count Over Time
         </Typography>
         {loading ? (
           <Skeleton variant="rectangular" width="100%" height={300} />

@@ -1,9 +1,7 @@
-// /app/api/admin/analytics/coupon-metrics/route.js
-
+// File: /app/api/admin/analytics/coupon-metrics/route.js
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import dayjs from 'dayjs';
-
 
 export async function GET(req) {
   try {
@@ -13,7 +11,7 @@ export async function GET(req) {
     // Earliest allowed start (Apr 6, 2025 IST 00:00)
     const MIN_START = dayjs('2025-04-06').startOf('day');
 
-    // Parse and clamp startDate
+    // Parse & clamp startDate
     const startParam = searchParams.get('startDate');
     let startDate = MIN_START;
     if (startParam) {
@@ -27,9 +25,9 @@ export async function GET(req) {
     const endParam = searchParams.get('endDate');
     const endDate = endParam
       ? dayjs(endParam).endOf('day')
-      : dayjs(Date.now()).endOf('day');
+      : dayjs().endOf('day');
 
-    // Build match filter
+    // Match only paid or partially‑paid orders
     const match = {
       paymentStatus: { $in: ['paidPartially','allPaid','allToBePaidCod'] },
       createdAt: {
@@ -38,7 +36,7 @@ export async function GET(req) {
       },
     };
 
-    const [result] = await Order.aggregate([
+    const [ result ] = await Order.aggregate([
       { $match: match },
       { $unwind: '$couponApplied' },
       {
@@ -80,7 +78,7 @@ export async function GET(req) {
               },
             },
           ],
-          dailyAverages: [
+          dailyUsage: [           // <-- renamed facet
             {
               $group: {
                 _id: {
@@ -93,21 +91,22 @@ export async function GET(req) {
                   },
                   coupon: '$couponApplied.couponCode'
                 },
-                avgDisc:    { $avg: '$couponApplied.discountAmount' },
                 usageCount: { $sum: 1 }
               }
             },
             {
               $group: {
                 _id: '$_id.date',
-                averages: { $push: { k: '$_id.coupon', v: '$avgDisc' } }
+                counts: {
+                  $push: { k: '$_id.coupon', v: '$usageCount' }
+                }
               }
             },
             {
               $project: {
                 _id: 0,
-                date:    '$_id',
-                averages:{ $arrayToObject: '$averages' }
+                date:   '$_id',
+                counts: { $arrayToObject: '$counts' }
               }
             },
             { $sort: { date: 1 } }
@@ -116,16 +115,16 @@ export async function GET(req) {
       }
     ]);
 
-    const byCoupon      = result.byCoupon      || [];
-    const overall       = (result.overall && result.overall[0]) || {
-      usageCount:0,
-      totalDiscount:0,
-      averageDiscount:0
+    const byCoupon   = result.byCoupon      || [];
+    const overall    = (result.overall && result.overall[0]) || {
+      usageCount: 0,
+      totalDiscount: 0,
+      averageDiscount: 0
     };
-    const dailyAverages = result.dailyAverages || [];
+    const dailyUsage = result.dailyUsage   || [];
 
     return new Response(
-      JSON.stringify({ overall, byCoupon, dailyAverages }),
+      JSON.stringify({ overall, byCoupon, dailyUsage }),
       {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

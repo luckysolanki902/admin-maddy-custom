@@ -2,7 +2,6 @@
 
 import { connectToDatabase } from '@/lib/db';
 import CampaignLog from '@/models/CampaignLog';
-import mongoose from 'mongoose';
 
 export async function GET(req) {
   try {
@@ -15,7 +14,7 @@ export async function GET(req) {
     // Only include logs from "aisensy" for the two campaign names with successfulCount > 0.
     const matchStage = {
       source: 'aisensy',
-      campaignName: { $in: ['abandoned-cart-first-campaign', 'abandoned-cart-second-campaign'] },
+      campaignName: { $in: ['abandoned-cart-first-campaign', 'abandoned-cart-second-campaign', 'abandonedcart_rem1', 'abandonedcart_rem2'] },
       successfulCount: { $gt: 0 }
     };
 
@@ -42,7 +41,7 @@ export async function GET(req) {
                   $and: [
                     { $eq: ['$user', '$$userId'] },
                     { $gt: ['$createdAt', '$$campaignDate'] },
-                    { $not: { $in: ["$deliveryStatus", ["pending", "cancelled"]] } }                  ]
+                    { $in: ["$deliveryStatus", ['paidPartially', 'allPaid', 'allToBePaidCod']] }]
                 }
               }
             },

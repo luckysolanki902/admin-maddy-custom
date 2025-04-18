@@ -431,7 +431,6 @@ export default function ProductBulkUpload() {
 
     // Call bulk API endpoint to insert products
     try {
-      console.log("Uploading products:", products);
       const res = await fetch("/api/admin/manage/bulk-products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

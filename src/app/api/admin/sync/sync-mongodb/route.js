@@ -12,7 +12,6 @@ export async function GET() {
     // Step 1: Drop ALL collections in test DB
     const testCollections = await testConnection.db.listCollections().toArray();
     for (const { name } of testCollections) {
-      console.log(`Dropping test collection: ${name}`);
       try {
         await testConnection.db.dropCollection(name);
       } catch (err) {
@@ -23,19 +22,15 @@ export async function GET() {
     // Step 2: Copy all collections from prod DB
     const prodCollections = await prodConnection.db.listCollections().toArray();
     const totalCollections = prodCollections.length;
-    console.log(`Syncing ${totalCollections} collections from production to test database`);
 
     for (const [index, { name }] of prodCollections.entries()) {
-      console.log(`Syncing collection ${name} (${index + 1}/${totalCollections})`);
       const prodData = await prodConnection.db.collection(name).find().toArray();
 
       if (prodData.length > 0) {
         await testConnection.db.collection(name).insertMany(prodData);
-        console.log(`Inserted ${prodData.length} documents into ${name}`);
       } else {
         // Create empty collection if prod has it but it's empty
         await testConnection.db.createCollection(name);
-        console.log(`Created empty collection ${name}`);
       }
     }
 

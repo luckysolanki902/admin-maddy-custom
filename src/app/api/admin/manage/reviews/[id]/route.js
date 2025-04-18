@@ -10,7 +10,6 @@ import { ObjectId } from 'mongodb';
 // Update a review by ID
 export async function PUT(request, { params }) {
     const { id } =await  params;
-    console.log(`Updating review ID: ${id}`);
 
     if (!ObjectId.isValid(id)) {
         console.warn('Validation failed: Invalid review ID format.');
@@ -40,7 +39,6 @@ export async function PUT(request, { params }) {
 // Delete a review by ID
 export async function DELETE(request, { params }) {
     const { id } = await params;
-    console.log(`Deleting review ID: ${id}`);
 
     if (!ObjectId.isValid(id)) {
         console.warn('Validation failed: Invalid review ID format.');
@@ -66,7 +64,6 @@ export async function DELETE(request, { params }) {
 
 // Fetch categories for review scope
 // export async function GET_CATEGORIES() {
-//     console.log('Fetching categories for reviews');
 //     try {
 //         await connectToDatabase();
 //         const categories = await SpecificCategory.find();
@@ -80,7 +77,6 @@ export async function DELETE(request, { params }) {
 // Fetch variants for a specific category
 export async function GET_VARIANTS(request, { params }) {
     const { categoryId } = await params;
-    console.log(`Fetching variants for category ID: ${categoryId}`);
 
     if (!ObjectId.isValid(categoryId)) {
         console.warn('Validation failed: Invalid category ID format.');
@@ -100,7 +96,6 @@ export async function GET_VARIANTS(request, { params }) {
 // Fetch products for a specific variant
 export async function GET_PRODUCTS(request, { params }) {
     const { variantId } = await params;
-    console.log(`Fetching products for variant ID: ${variantId}`);
 
     if (!ObjectId.isValid(variantId)) {
         console.warn('Validation failed: Invalid variant ID format.');

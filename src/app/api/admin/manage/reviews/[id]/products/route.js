@@ -7,7 +7,6 @@ import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
 export async function GET(request, { params }) {
     const { id } = await params;
-    console.log(`Fetching products for variant ID: ${id}`);
 
     if (!ObjectId.isValid(id)) {
         console.warn('Validation failed: Invalid variant ID format.');

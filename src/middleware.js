@@ -35,8 +35,8 @@ export default clerkMiddleware(
     return NextResponse.next();
   },
 
-  // Helpful console output while you dial things in
-  { debug: process.env.NODE_ENV === 'development' }
+  // // Helpful console output while you dial things in
+  // { debug: process.env.NODE_ENV === 'development' }
 );
 
 /**

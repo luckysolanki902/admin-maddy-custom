@@ -1,35 +1,24 @@
 // src/pages/edit-product.js
 
-'use client';
+"use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  Snackbar,
-  IconButton,
-  Drawer,
-  CircularProgress,
-  Grid,
-  Alert,
-} from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import { useMediaQuery } from '@mui/material';
-import CategorySelectorWrapper from '@/components/page-sections/product-edit-page/CategorySelectorWrapper';
-import ProductThumbnailSlider from '@/components/page-sections/product-edit-page/ProductThumbnailSlider';
-import ProductImageCarousel from '@/components/page-sections/product-edit-page/ProductImageCarousel';
-import DesignTemplateImage from '@/components/page-sections/product-edit-page/DesignTemplateImage';
-import ProductEditForm from '@/components/page-sections/product-edit-page/ProductEditForm';
-import SortFilterDrawer from '@/components/page-sections/product-edit-page/SortFilterDrawer';
-import TagDialog from '@/components/page-sections/product-edit-page/TagDialog';
-import VariantNameConflictDialog from '@/components/page-sections/common/VariantNameConflictDialog';
-import { joinURLs } from '@/lib/utils/generalFunctions';
+import React, { useEffect, useState, useCallback } from "react";
+import { Box, Typography, Button, Snackbar, Drawer, CircularProgress, Alert } from "@mui/material";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import { useMediaQuery } from "@mui/material";
+import CategorySelectorWrapper from "@/components/page-sections/product-edit-page/CategorySelectorWrapper";
+import ProductThumbnailSlider from "@/components/page-sections/product-edit-page/ProductThumbnailSlider";
+import ProductImageCarousel from "@/components/page-sections/product-edit-page/ProductImageCarousel";
+import DesignTemplateImage from "@/components/page-sections/product-edit-page/DesignTemplateImage";
+import ProductEditForm from "@/components/page-sections/product-edit-page/ProductEditForm";
+import SortFilterDrawer from "@/components/page-sections/product-edit-page/SortFilterDrawer";
+import TagDialog from "@/components/page-sections/product-edit-page/TagDialog";
+import VariantNameConflictDialog from "@/components/page-sections/common/VariantNameConflictDialog";
+import { nanoid } from "nanoid";
 
 const EditProductPage = () => {
   // State for category and variant selection
-  const [selection, setSelection] = useState({ category: '', variant: '' });
+  const [selection, setSelection] = useState({ category: "", variant: "" });
 
   // State for fetched products
   const [products, setProducts] = useState([]);
@@ -49,25 +38,25 @@ const EditProductPage = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Design template image
-  const [designTemplateImage, setDesignTemplateImage] = useState('');
+  const [designTemplateImage, setDesignTemplateImage] = useState("");
 
   // Loading states for form submission
   const [loading, setLoading] = useState(false);
 
   // Snackbar states
   const [successAlert, setSuccessAlert] = useState(false);
-  const [errorAlert, setErrorAlert] = useState('');
+  const [errorAlert, setErrorAlert] = useState("");
 
   // Dialog for adding a new tag
   const [openDialog, setOpenDialog] = useState(false);
-  const [tagDialogError, setTagDialogError] = useState('');
-  const [newTag, setNewTag] = useState('');
+  const [tagDialogError, setTagDialogError] = useState("");
+  const [newTag, setNewTag] = useState("");
 
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Sorting and Filtering states
-  const [sortOption, setSortOption] = useState('');
+  const [sortOption, setSortOption] = useState("");
   const [filterAvailable, setFilterAvailable] = useState(false);
 
   // Dialog for uniqueness conflicts
@@ -75,23 +64,23 @@ const EditProductPage = () => {
   const [conflictingProducts, setConflictingProducts] = useState([]);
 
   // Media query for responsive design
-  const isLaptop = useMediaQuery('(min-width:1024px)');
+  const isLaptop = useMediaQuery("(min-width:1024px)");
 
   // CloudFront Base URL
-  const cloudfrontBaseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || '';
+  const cloudfrontBaseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || "";
 
   // Fetch unique main tags
   const fetchUniqueMainTags = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/manage/product/get/unique-tags');
+      const res = await fetch("/api/admin/manage/product/get/unique-tags");
       const data = await res.json();
       if (res.ok) {
         setUniqueMainTags(data.uniqueMainTags);
       } else {
-        console.error('Error fetching unique main tags:', data.error);
+        console.error("Error fetching unique main tags:", data.error);
       }
     } catch (err) {
-      console.error('Error fetching unique main tags:', err.message);
+      console.error("Error fetching unique main tags:", err.message);
     }
   }, []);
 
@@ -107,21 +96,21 @@ const EditProductPage = () => {
 
     setLoadingProducts(true);
     try {
-      const res = await fetch('/api/admin/manage/product/get/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/admin/manage/product/get/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category, variant }),
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to fetch products');
+        throw new Error(errorData.error || "Failed to fetch products");
       }
 
       const data = await res.json();
       setProducts(data.products);
     } catch (error) {
-      console.error('Error fetching products:', error.message);
+      console.error("Error fetching products:", error.message);
       setErrorAlert(error.message);
     } finally {
       setLoadingProducts(false);
@@ -130,11 +119,11 @@ const EditProductPage = () => {
   }, [selection]);
 
   // Memoized selection change handler to prevent infinite loops
-  const handleSelectionChange = useCallback((newSelection) => {
+  const handleSelectionChange = useCallback(newSelection => {
     setSelection(newSelection);
     setSelectedProduct(null); // Reset selected product when selection changes
     setCarouselImages([]);
-    setDesignTemplateImage('');
+    setDesignTemplateImage("");
   }, []);
 
   // Fetch unique main tags on mount
@@ -148,139 +137,179 @@ const EditProductPage = () => {
   }, [fetchProducts, sortOption, filterAvailable]);
 
   // Handle selecting a product to edit via thumbnail click
-  const handleThumbnailClick = (product) => {
+  const handleThumbnailClick = product => {
     setSelectedProduct(product);
-    setCarouselImages(product.images || []);
+    setCarouselImages(product.images ?? []);
     setCurrentImageIndex(0);
-    setDesignTemplateImage(product.designTemplate?.imageUrl || '');
+    setDesignTemplateImage(product.designTemplate?.imageUrl ?? "");
   };
 
   // New function to handle image upload using presigned URLs
-  const handleImageUpload = async (file, type) => {
+  const handleImageUpdate = async (type, action, file, idx, reorderedImages) => {
     if (!selectedProduct) return;
-    
-    // Determine the existing image path based on type
-    let existingImagePath = '';
-    if (type === 'main') {
-      existingImagePath = carouselImages[currentImageIndex];
-    } else if (type === 'design') {
-      existingImagePath = designTemplateImage;
-    }
-  
-    if (!existingImagePath) {
-      setErrorAlert('No image available to replace.');
-      return;
-    }
-  
-    // Define the full path for the new image (remove any leading slashes)
-    const fullPath = existingImagePath.replace(/^\/+/, '');
-  
+
+    const currProductId = selectedProduct._id;
+    // remove any leading slashes for design
+    // for main, new path = product-images-2/(10 length alphanumeric string + file name extension) or null (for delete)
+
+    const newImagePath =
+      type === "design"
+        ? designTemplateImage.replace(/^\/+/, "")
+        : action === "delete" || action === "reorder"
+        ? null
+        : `product-images-2/${nanoid(10) + file.name.substring(file.name.lastIndexOf(".")).toLowerCase()}`;
+
     // Request a presigned URL from the server
     let presignedUrl, url;
-    try {
-      const res = await fetch('/api/admin/aws/generate-presigned-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullPath, fileType: file.type }),
-      });
-  
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to get presigned URL');
+    if (type === "design" || action === "add" || action === "replace") {
+      try {
+        const res = await fetch("/api/admin/aws/generate-presigned-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fullPath: newImagePath, fileType: file.type }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message ?? "Failed to get presigned URL");
+        }
+
+        ({ presignedUrl, url } = await res.json());
+      } catch (error) {
+        console.error("Error generating presigned URL:", error.message);
+        setErrorAlert(error.message);
+        return;
       }
-  
-      const data = await res.json();
-      presignedUrl = data.presignedUrl;
-      url = data.url;
-    } catch (error) {
-      console.error('Error generating presigned URL:', error.message);
-      setErrorAlert(error.message);
-      return;
+
+      // Upload the file directly to S3 using the presigned URL
+      try {
+        const uploadResponse = await fetch(presignedUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type,
+          },
+          body: file, // Send the file directly
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload image to S3");
+        }
+      } catch (error) {
+        console.error("Error uploading image to S3:", error.message);
+        setErrorAlert(error.message);
+        return;
+      }
     }
-  
-    // Upload the file directly to S3 using the presigned URL
-    try {
-      const uploadResponse = await fetch(presignedUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type,
-        },
-        body: file, // Send the file directly
-      });
-  
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload image to S3');
+
+    // update database
+    if (type === "main") {
+      try {
+        const res = await fetch(`/api/testing/product-images/${currProductId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newImagePath, idx, action, reorderedImages }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message ?? "Failed to update product images in database");
+        }
+      } catch (error) {
+        console.error("Error updating product images in database", error.message);
+        setErrorAlert(error.message);
+        return;
       }
-  
-      // Successfully uploaded the image
-      setSuccessAlert(true);
-  
-      // Update the UI immediately by appending a timestamp to bust the cache
-      const cacheBuster = `?t=${Date.now()}`;
-      const updatedUrl = `${fullPath}${cacheBuster}`;
-  
-      if (type === 'main') {
-        // Update the carouselImages array with the new image URL
-        const updatedImages = [...carouselImages];
-        updatedImages[currentImageIndex] = updatedUrl;
-        setCarouselImages(updatedImages);
-      } else if (type === 'design') {
-        // Update the designTemplateImage with the new image URL
-        setDesignTemplateImage(`${url}${cacheBuster}`);
-      }
-    } catch (error) {
-      console.error('Error uploading image to S3:', error.message);
-      setErrorAlert(error.message);
-      return;
+    }
+    // Successfully uploaded the image
+    setSuccessAlert(true);
+
+    // Update the UI immediately by appending a timestamp to bust the cache
+    const cacheBuster = `?t=${Date.now()}`;
+
+    if (type === "main") {
+      // Update the carouselImages array with the new image URL
+
+      setProducts(prevProducts =>
+        prevProducts.map(product => {
+          if (product._id !== currProductId) {
+            return product;
+          }
+          let updatedImages = product.images;
+
+          if (action === "reorder") {
+            updatedImages = reorderedImages;
+          } else if (action === "delete") {
+            updatedImages = updatedImages.filter((_img, i) => i !== idx);
+          } else if (action === "add" || action === "replace") {
+            updatedImages.splice(idx, action === "replace" ? 1 : 0, newImagePath);
+          }
+
+          setCarouselImages(updatedImages); // Update the carousel images in the UI
+          return { ...product, images: updatedImages };
+        })
+      );
+
+      // for (const product of products) {
+      //   if (product._id === currProductId) {
+      //     handleThumbnailClick(product); // Update the selected product in the UI
+      //     break;
+      //   }
+      // }
+    } else if (type === "design") {
+      // Update the designTemplateImage with the new image URL
+      setDesignTemplateImage(`${url}${cacheBuster}`);
     }
   };
-  
 
   // Modify the existing handleImageEdit to use the new upload function
-  const handleImageEdit = async (type) => {
+  const handleImageEdit = async (type, action, setLoading, idx, reorderedImages) => {
     if (!selectedProduct) return;
 
     // Open a file picker dialog with appropriate file type restrictions
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = type === 'main' ? 'image/jpeg,image/png' : 'image/png'; // Allow more types if needed
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    let file = null;
 
-      // Enforce file type restrictions
-      const validTypes = type === 'main' ? ['image/jpeg', 'image/png'] : ['image/png'];
-      if (!validTypes.includes(file.type)) {
-        setErrorAlert(
-          `Invalid file type. Please upload a ${type === 'main' ? 'JPG or PNG' : 'PNG'
-          } file.`
-        );
-        return;
-      }
+    if (action == "add" || action === "replace") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = type === "main" ? "image/jpeg,image/png" : "image/png"; // Allow more types if needed
+      input.onchange = async e => {
+        file = e.target.files[0];
+        if (!file) return;
 
-      // Optionally, enforce file size limits client-side
-      const maxSizeInBytes = type === 'main' ? 5 * 1024 * 1024 : 10 * 1024 * 1024; // 5MB for main, 10MB for design
-      if (file.size > maxSizeInBytes) {
-        setErrorAlert(
-          `File size exceeds the limit of ${type === 'main' ? '15MB' : '10MB'
-          }. Please choose a smaller file.`
-        );
-        return;
-      }
+        // Enforce file type restrictions
+        const validTypes = type === "main" ? ["image/jpeg", "image/png"] : ["image/png"];
+        if (!validTypes.includes(file.type)) {
+          setErrorAlert(`Invalid file type. Please upload a ${type === "main" ? "JPG or PNG" : "PNG"} file.`);
+          return;
+        }
 
-      // Proceed to upload the image
-      await handleImageUpload(file, type);
-    };
-    input.click();
+        // Optionally, enforce file size limits client-side
+        const maxSizeInBytes = type === "main" ? 5 * 1024 * 1024 : 10 * 1024 * 1024; // 5MB for main, 10MB for design
+        if (file.size > maxSizeInBytes) {
+          setErrorAlert(`File size exceeds the limit of ${type === "main" ? "15MB" : "10MB"}. Please choose a smaller file.`);
+          return;
+        }
+        handleUpdate();
+      };
+      input.click();
+    } else {
+      handleUpdate();
+    }
+
+    async function handleUpdate() {
+      setLoading(true);
+      await handleImageUpdate(type, action, file, idx, reorderedImages);
+      setLoading(false);
+    }
   };
 
   // Handle Sorting Change
-  const handleSortChange = (event) => {
+  const handleSortChange = event => {
     setSortOption(event.target.value);
   };
 
   // Handle Filtering Change
-  const handleFilterChange = (event) => {
+  const handleFilterChange = event => {
     setFilterAvailable(event.target.checked);
   };
 
@@ -290,13 +319,13 @@ const EditProductPage = () => {
 
     // Apply Filtering
     if (filterAvailable) {
-      processedProducts = processedProducts.filter((product) => product.available);
+      processedProducts = processedProducts.filter(product => product.available);
     }
 
     // Apply Sorting
-    if (sortOption === 'dateCreated') {
+    if (sortOption === "dateCreated") {
       processedProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    } else if (sortOption === 'displayOrder') {
+    } else if (sortOption === "displayOrder") {
       processedProducts.sort((a, b) => a.displayOrder - b.displayOrder);
     }
 
@@ -305,29 +334,25 @@ const EditProductPage = () => {
 
   // Carousel Navigation Handlers
   const handlePrevImage = () => {
-    setCurrentImageIndex((prevIndex) =>
-      prevIndex === 0 ? carouselImages.length - 1 : prevIndex - 1
-    );
+    setCurrentImageIndex(prevIndex => (prevIndex === 0 ? carouselImages.length - 1 : prevIndex - 1));
   };
 
   const handleNextImage = () => {
-    setCurrentImageIndex((prevIndex) =>
-      prevIndex === carouselImages.length - 1 ? 0 : prevIndex + 1
-    );
+    setCurrentImageIndex(prevIndex => (prevIndex === carouselImages.length - 1 ? 0 : prevIndex + 1));
   };
 
   // Handle form changes
-  const handleFormChange = (formData) => {
+  const handleFormChange = formData => {
     // This can be used if you need to handle form changes globally
   };
 
   // Handle form submission
-  const handleFormSubmit = async (formData) => {
+  const handleFormSubmit = async formData => {
     const { name, title, mainTag, price, displayOrder, available, nameChanged, titleChanged } = formData;
 
     // Prevent submission if name is changed but title is not
     if (nameChanged && !titleChanged) {
-      setErrorAlert('Please update the title when changing the name.');
+      setErrorAlert("Please update the title when changing the name.");
       return;
     }
 
@@ -335,10 +360,10 @@ const EditProductPage = () => {
 
     try {
       // Perform uniqueness check
-      const uniquenessRes = await fetch('/api/admin/manage/product/check-unique', {
-        method: 'POST',
+      const uniquenessRes = await fetch("/api/admin/manage/product/check-unique", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           variantId: selection.variant,
@@ -350,7 +375,7 @@ const EditProductPage = () => {
 
       if (!uniquenessRes.ok) {
         const errorData = await uniquenessRes.json();
-        throw new Error(errorData.error || 'Failed to check uniqueness');
+        throw new Error(errorData.error || "Failed to check uniqueness");
       }
 
       const uniquenessData = await uniquenessRes.json();
@@ -364,8 +389,8 @@ const EditProductPage = () => {
 
       // Proceed to submit the form
       const res = await fetch(`/api/admin/manage/product/edit/${selectedProduct._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           title,
@@ -380,19 +405,17 @@ const EditProductPage = () => {
         const data = await res.json();
         setSuccessAlert(true);
         // Update the product in the products list
-        setProducts((prevProducts) =>
-          prevProducts.map((prod) => (prod._id === data.product._id ? data.product : prod))
-        );
+        setProducts(prevProducts => prevProducts.map(prod => (prod._id === data.product._id ? data.product : prod)));
         // Update selected product
         setSelectedProduct(data.product);
         setCarouselImages(data.product.images || []);
-        setDesignTemplateImage(data.product.designTemplate?.imageUrl || '');
+        setDesignTemplateImage(data.product.designTemplate?.imageUrl || "");
       } else {
         const errorData = await res.json();
-        setErrorAlert(errorData.error || 'Error editing product');
+        setErrorAlert(errorData.error || "Error editing product");
       }
     } catch (error) {
-      console.error('Error editing product:', error.message);
+      console.error("Error editing product:", error.message);
       setErrorAlert(error.message);
     } finally {
       setLoading(false);
@@ -402,32 +425,32 @@ const EditProductPage = () => {
   // Handle opening and closing of the new tag dialog
   const handleOpenDialog = () => {
     setOpenDialog(true);
-    setNewTag('');
-    setTagDialogError('');
+    setNewTag("");
+    setTagDialogError("");
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
-    setNewTag('');
-    setTagDialogError('');
+    setNewTag("");
+    setTagDialogError("");
   };
 
   const handleAddNewTag = async () => {
-    if (newTag.trim() === '') {
-      setTagDialogError('Tag name cannot be empty.');
+    if (newTag.trim() === "") {
+      setTagDialogError("Tag name cannot be empty.");
       return;
     }
 
     // Check if the tag already exists
     if (uniqueMainTags.includes(newTag)) {
-      setErrorAlert('Tag already exists.');
+      setErrorAlert("Tag already exists.");
       handleCloseDialog();
       return;
     }
 
     // Add the new tag to the mainTag state and uniqueMainTags
-    setUniqueMainTags((prevTags) => [...prevTags, newTag]);
-    setSelectedProduct((prevProduct) => ({
+    setUniqueMainTags(prevTags => [...prevTags, newTag]);
+    setSelectedProduct(prevProduct => ({
       ...prevProduct,
       mainTags: [...prevProduct.mainTags, newTag],
     }));
@@ -435,14 +458,7 @@ const EditProductPage = () => {
   };
 
   return (
-    <Box
-      p={4}
-      maxWidth="1200px"
-      margin="0 auto"
-      display="flex"
-      flexDirection="column"
-      position="relative"
-    >
+    <Box p={4} maxWidth="1200px" margin="0 auto" display="flex" flexDirection="column" position="relative">
       {/* Heading */}
       <Typography variant="h4" gutterBottom>
         Edit Product
@@ -457,11 +473,7 @@ const EditProductPage = () => {
 
       {/* Sort & Filter Button */}
       <Box display="flex" justifyContent="flex-end" mt={2}>
-        <Button
-          variant="outlined"
-          startIcon={<FilterListIcon />}
-          onClick={() => setIsDrawerOpen(true)}
-        >
+        <Button variant="outlined" startIcon={<FilterListIcon />} onClick={() => setIsDrawerOpen(true)}>
           Sort & Filter
         </Button>
       </Box>
@@ -475,14 +487,15 @@ const EditProductPage = () => {
               {/* Main Image Carousel */}
               <Box>
                 <Typography variant="h6" gutterBottom>
-                  {carouselImages.length > 1 ? 'Product Images' : 'Product Image'}
+                  {carouselImages.length > 1 ? "Product Images" : "Product Image"}
                 </Typography>
                 <ProductImageCarousel
                   carouselImages={carouselImages}
+                  setCarouselImages={setCarouselImages}
                   currentImageIndex={currentImageIndex}
                   onPrevImage={handlePrevImage}
                   onNextImage={handleNextImage}
-                  onEditImage={() => handleImageEdit('main')}
+                  onEditImage={handleImageEdit}
                   cloudfrontBaseUrl={cloudfrontBaseUrl}
                   available={selectedProduct.available}
                 />
@@ -495,7 +508,7 @@ const EditProductPage = () => {
                 </Typography>
                 <DesignTemplateImage
                   imageUrl={designTemplateImage}
-                  onEditImage={() => handleImageEdit('design')}
+                  onEditImage={() => handleImageEdit("design")}
                   cloudfrontBaseUrl={cloudfrontBaseUrl}
                   available={selectedProduct.available}
                 />
@@ -515,13 +528,7 @@ const EditProductPage = () => {
             </Box>
           </>
         ) : (
-          <Box
-            display="flex"
-            justifyContent="center"
-            alignItems="center"
-            height="100%"
-            flexDirection="column"
-          >
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%" flexDirection="column">
             {initialLoading ? (
               <>
                 <CircularProgress />
@@ -535,9 +542,7 @@ const EditProductPage = () => {
                   Please select a product from the thumbnail slider below to edit.
                 </Typography>
                 {!loadingProducts && products.length === 0 && (
-                  <Typography variant="body1">
-                    No products found for the selected category and variant.
-                  </Typography>
+                  <Typography variant="body1">No products found for the selected category and variant.</Typography>
                 )}
               </>
             )}
@@ -571,9 +576,9 @@ const EditProductPage = () => {
         open={successAlert}
         autoHideDuration={3000}
         onClose={() => setSuccessAlert(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert onClose={() => setSuccessAlert(false)} severity="success" sx={{ width: '100%' }}>
+        <Alert onClose={() => setSuccessAlert(false)} severity="success" sx={{ width: "100%" }}>
           Operation completed successfully!
         </Alert>
       </Snackbar>
@@ -582,10 +587,10 @@ const EditProductPage = () => {
       <Snackbar
         open={!!errorAlert}
         autoHideDuration={6000}
-        onClose={() => setErrorAlert('')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        onClose={() => setErrorAlert("")}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert onClose={() => setErrorAlert('')} severity="error" sx={{ width: '100%' }}>
+        <Alert onClose={() => setErrorAlert("")} severity="error" sx={{ width: "100%" }}>
           {errorAlert}
         </Alert>
       </Snackbar>

@@ -1,14 +1,14 @@
 // /models/Product.js
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 function toTitleCase(str) {
-  if (!str) return '';
+  if (!str) return "";
   return str
     .toLowerCase()
-    .split(' ')
+    .split(" ")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+    .join(" ");
 }
 
 const ProductSchema = new mongoose.Schema(
@@ -18,7 +18,7 @@ const ProductSchema = new mongoose.Schema(
       required: true,
       maxlength: 200,
       index: true,
-      set: toTitleCase, 
+      set: toTitleCase,
     },
     images: [
       {
@@ -48,24 +48,24 @@ const ProductSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-     
+
       required: true,
       index: true,
     },
     subCategory: {
       type: String,
-     
+
       required: true,
       index: true,
     },
     specificCategory: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'SpecificCategory',
+      ref: "SpecificCategory",
       index: true,
     },
     specificCategoryVariant: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'SpecificCategoryVariant',
+      ref: "SpecificCategoryVariant",
       index: true,
     },
     deliveryCost: {
@@ -80,17 +80,17 @@ const ProductSchema = new mongoose.Schema(
       index: true,
     },
     //options available for the product
-optionsAvailable: {
-  type: Boolean,
-  default: false,
-},
+    optionsAvailable: {
+      type: Boolean,
+      default: false,
+    },
     sku: {
       type: String,
       unique: true,
       required: false,
       index: true,
     },
-    designTemplate:{
+    designTemplate: {
       designCode: {
         type: String,
         required: false,
@@ -98,14 +98,14 @@ optionsAvailable: {
       imageUrl: {
         type: String,
         required: false,
-      }
+      },
     },
 
     displayOrder: {
       type: Number,
       index: true,
     },
-    
+
     available: {
       type: Boolean,
       default: true,
@@ -113,29 +113,29 @@ optionsAvailable: {
     productSource: {
       type: String,
       required: true,
-      enum: ['inhouse', 'marketplace'],
+      enum: ["inhouse", "marketplace"],
       index: true,
     },
     brand: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Brand',
+      ref: "Brand",
       required: false,
       index: true,
     },
     inventoryData: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Inventory',
+      ref: "Inventory",
     },
   },
   { timestamps: true }
 );
 
 // Pre-save hook to ensure pageSlug starts with a "/"
-ProductSchema.pre('save', function(next) {
-  if (this.pageSlug && !this.pageSlug.startsWith('/')) {
-    this.pageSlug = '/' + this.pageSlug;
+ProductSchema.pre("save", function (next) {
+  if (this.pageSlug && !this.pageSlug.startsWith("/")) {
+    this.pageSlug = "/" + this.pageSlug;
   }
   next();
 });
 
-module.exports = mongoose.models.Product || mongoose.model('Product', ProductSchema);
+module.exports = mongoose.models.Product || mongoose.model("Product", ProductSchema);

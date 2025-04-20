@@ -3,7 +3,10 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Box, Typography, Button, Snackbar, Drawer, CircularProgress, Alert } from "@mui/material";
+import { 
+  Box, Typography, Button, Snackbar, Drawer, CircularProgress, Alert,
+  FormControl, InputLabel, Select, MenuItem 
+} from "@mui/material";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import { useMediaQuery } from "@mui/material";
 import CategorySelectorWrapper from "@/components/page-sections/product-edit-page/CategorySelectorWrapper";
@@ -43,10 +46,15 @@ const EditProductPage = () => {
   // Loading states for form submission
   const [loading, setLoading] = useState(false);
 
+  // Options state for products without images
+  const [options, setOptions] = useState([]);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [optionDetails, setOptionDetails] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState(null);
   // Snackbar states
   const [successAlert, setSuccessAlert] = useState(false);
   const [errorAlert, setErrorAlert] = useState("");
-
   // Dialog for adding a new tag
   const [openDialog, setOpenDialog] = useState(false);
   const [tagDialogError, setTagDialogError] = useState("");
@@ -84,6 +92,62 @@ const EditProductPage = () => {
     }
   }, []);
 
+  // Fetch options for a product without images
+  const fetchProductOptions = useCallback(async (productId) => {
+    if (!productId) return;
+    
+    setLoadingOptions(true);
+    try {
+      const res = await fetch(`/api/admin/manage/product/get/${productId}/options`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to fetch product options");
+      }
+      
+      const data = await res.json();
+      const options = data.options.map(({ optionDetails }) =>
+        Object.values(optionDetails)[0]
+      );
+      setOptionDetails(data.options);
+
+      setOptions(options); 
+
+    } catch (error) {
+      console.error("Error fetching product options:", error.message);
+      setErrorAlert(error.message);
+    } finally {
+      setLoadingOptions(false);
+    }
+  }, [setErrorAlert]);
+
+  // Handle option selection
+  const handleOptionSelect = useCallback(async (idx) => {
+    if (idx == null || !selectedProduct) return;
+
+    // 2) Pull the exact option object
+    const opt = options[idx];
+    if (!opt) return;
+
+    // 3) Update your dropdown state
+    setSelectedOptionIndex(idx);
+    setSelectedOption(opt);
+    // 4) Show the spinner
+    setLoading(true);
+    try {
+      
+      // If images are returned, update the carouselImages state
+      if (optionDetails[idx].images && optionDetails[idx].images.length > 0) {
+        setCarouselImages(optionDetails[idx].images);
+        setCurrentImageIndex(0);
+      }
+    } catch (error) {
+      console.error("Error fetching images for option:", error.message);
+      setErrorAlert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedProduct, setCarouselImages, setCurrentImageIndex, setProducts, setSelectedProduct, setErrorAlert, setLoading]);
+
   // Fetch products based on category and variant selection
   const fetchProducts = useCallback(async () => {
     const { category, variant } = selection;
@@ -108,6 +172,7 @@ const EditProductPage = () => {
       }
 
       const data = await res.json();
+
       setProducts(data.products);
     } catch (error) {
       console.error("Error fetching products:", error.message);
@@ -124,6 +189,8 @@ const EditProductPage = () => {
     setSelectedProduct(null); // Reset selected product when selection changes
     setCarouselImages([]);
     setDesignTemplateImage("");
+    setOptions([]);
+    setSelectedOption(null);
   }, []);
 
   // Fetch unique main tags on mount
@@ -137,27 +204,52 @@ const EditProductPage = () => {
   }, [fetchProducts, sortOption, filterAvailable]);
 
   // Handle selecting a product to edit via thumbnail click
-  const handleThumbnailClick = product => {
+  const handleThumbnailClick = useCallback(product => {
     setSelectedProduct(product);
     setCarouselImages(product.images ?? []);
     setCurrentImageIndex(0);
     setDesignTemplateImage(product.designTemplate?.imageUrl ?? "");
-  };
+    
+    // If the product has no images, fetch options
+    if (!product.images || product.images.length === 0) {
+      fetchProductOptions(product._id);
+    }
+  }, [setSelectedProduct, setCarouselImages, setCurrentImageIndex, setDesignTemplateImage, fetchProductOptions]);
 
+  const getMainDirectoryPath = fullPath => {
+    const parts = fullPath.split('/');
+    // remove the last segment (the filename)
+    parts.pop();
+    // re‑join and add the trailing slash
+    return parts.join('/') + '/';
+  }
+
+  const getOptionDirectoryPath = fullPath => {
+    const parts = fullPath.split('/');
+    // remove the last segment (the filename)
+    const last=parts.pop();
+    const name=last.split("-")[0];
+    const option=last.split("-")[1];
+    return parts.join('/') + "/" + name + "-" + option + "-";
+  }
+  
   // New function to handle image upload using presigned URLs
   const handleImageUpdate = async (type, action, file, idx, reorderedImages) => {
+    // console.log("tuuupe", file);
     if (!selectedProduct) return;
 
     const currProductId = selectedProduct._id;
+
     // remove any leading slashes for design
     // for main, new path = product-images-2/(10 length alphanumeric string + file name extension) or null (for delete)
-
+    const path= type=="option"? getOptionDirectoryPath(optionDetails[selectedOptionIndex].images[0]) : type=="main"? getMainDirectoryPath(selectedProduct.images[0]):"";
+    console.log("koo", designTemplateImage, designTemplateImage.split('?')[0].replace(/^\/+/, ""));
     const newImagePath =
       type === "design"
-        ? designTemplateImage.replace(/^\/+/, "")
+        ? designTemplateImage.split('?')[0].replace(/^\/+/, "")
         : action === "delete" || action === "reorder"
         ? null
-        : `product-images-2/${nanoid(10) + file.name.substring(file.name.lastIndexOf(".")).toLowerCase()}`;
+        : `${path}${nanoid(10) + file.name.substring(file.name.lastIndexOf(".")).toLowerCase()}`;
 
     // Request a presigned URL from the server
     let presignedUrl, url;
@@ -202,9 +294,29 @@ const EditProductPage = () => {
     }
 
     // update database
-    if (type === "main") {
+    if (type === "main" && action!="replace") {
       try {
-        const res = await fetch(`/api/testing/product-images/${currProductId}`, {
+        const res = await fetch(`/api/admin/manage/product/edit/images/product/${currProductId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newImagePath, idx, action, reorderedImages }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message ?? "Failed to update product images in database");
+        }
+      } catch (error) {
+        console.error("Error updating product images in database", error.message);
+        setErrorAlert(error.message);
+        return;
+      }
+    }
+
+    if (type === "option" && action!="replace") {
+      try {
+        const currOptionId = optionDetails[selectedOptionIndex]._id || null;
+        const res = await fetch(`/api/admin/manage/product/edit/images/option/${currOptionId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ newImagePath, idx, action, reorderedImages }),
@@ -255,16 +367,47 @@ const EditProductPage = () => {
       //     break;
       //   }
       // }
+    }else if (type === "option") {
+      // Update the carouselImages array with the new image URL
+      const currOptionId = optionDetails[selectedOptionIndex]._id || null;
+
+      setOptionDetails(prev =>
+        prev.map(option => {
+          if (option._id !== currOptionId) {
+            return option;
+          }
+          let updatedImages = option.images;
+
+          if (action === "reorder") {
+            updatedImages = reorderedImages;
+          } else if (action === "delete") {
+            updatedImages = updatedImages.filter((_img, i) => i !== idx);
+          } else if (action === "add" || action === "replace") {
+            updatedImages.splice(idx, action === "replace" ? 1 : 0, newImagePath);
+          }
+
+          setCarouselImages(updatedImages); // Update the carousel images in the UI
+          return { ...option, images: updatedImages };
+        })
+      );
+
+      // for (const product of products) {
+      //   if (product._id === currProductId) {
+      //     handleThumbnailClick(product); // Update the selected product in the UI
+      //     break;
+      //   }
+      // }
     } else if (type === "design") {
       // Update the designTemplateImage with the new image URL
-      setDesignTemplateImage(`${url}${cacheBuster}`);
+      console.log("design", url);
+      console.log("ddd", selectedProduct.designTemplate?.imageUrl);
+      setDesignTemplateImage(`${selectedProduct.designTemplate?.imageUrl}${cacheBuster}`);
     }
   };
 
   // Modify the existing handleImageEdit to use the new upload function
-  const handleImageEdit = async (type, action, setLoading, idx, reorderedImages) => {
+  const handleImageEdit = async (type, action, idx, reorderedImages) => {
     if (!selectedProduct) return;
-
     // Open a file picker dialog with appropriate file type restrictions
     let file = null;
 
@@ -481,52 +624,124 @@ const EditProductPage = () => {
       {/* Main Editing Area */}
       <Box flex={1} mt={4} display="flex" gap={4}>
         {selectedProduct ? (
-          <>
-            {/* Images Section */}
-            <Box display="flex" flexDirection="column" gap={2} width="30%">
-              {/* Main Image Carousel */}
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  {carouselImages.length > 1 ? "Product Images" : "Product Image"}
-                </Typography>
-                <ProductImageCarousel
-                  carouselImages={carouselImages}
-                  setCarouselImages={setCarouselImages}
-                  currentImageIndex={currentImageIndex}
-                  onPrevImage={handlePrevImage}
-                  onNextImage={handleNextImage}
-                  onEditImage={handleImageEdit}
-                  cloudfrontBaseUrl={cloudfrontBaseUrl}
-                  available={selectedProduct.available}
-                />
+          selectedProduct.images.length > 0 ? (
+            <>
+              {/* Images Section */}
+              <Box display="flex" flexDirection="column" gap={2} width="30%">
+                {/* Main Image Carousel */}
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    {carouselImages.length > 1 ? "Product Images" : "Product Image"}
+                  </Typography>
+                  <ProductImageCarousel
+                    carouselImages={carouselImages}
+                    setCarouselImages={setCarouselImages}
+                    currentImageIndex={currentImageIndex}
+                    onPrevImage={handlePrevImage}
+                    onNextImage={handleNextImage}
+                    handleImageUpdate={handleImageUpdate} // Pass this function directly
+                    cloudfrontBaseUrl={cloudfrontBaseUrl}
+                    available={selectedProduct.available}
+                    type="main" // Specify the type
+                  />
+                </Box>
+
+                {/* Design Template Image */}
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Template
+                  </Typography>
+                  <DesignTemplateImage
+                    imageUrl={designTemplateImage}
+                    onEditImage={() => handleImageEdit("design", "replace", )}
+                    cloudfrontBaseUrl={cloudfrontBaseUrl}
+                    available={selectedProduct.available}
+                  />
+                </Box>
               </Box>
 
-              {/* Design Template Image */}
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Template
-                </Typography>
-                <DesignTemplateImage
-                  imageUrl={designTemplateImage}
-                  onEditImage={() => handleImageEdit("design")}
-                  cloudfrontBaseUrl={cloudfrontBaseUrl}
-                  available={selectedProduct.available}
+              {/* Editable Fields */}
+              <Box flex={1}>
+                <ProductEditForm
+                  selectedProduct={selectedProduct}
+                  uniqueMainTags={uniqueMainTags}
+                  onFormChange={handleFormChange}
+                  onAddNewTag={handleOpenDialog}
+                  loading={loading}
+                  onSubmit={handleFormSubmit}
                 />
               </Box>
-            </Box>
+            </>
+          ) : (
+            <>
+              {/* Options Dropdown and Template Section when no images */}
+              <Box display="flex" flexDirection="column" gap={2} width="30%">
+                {/* Options Dropdown */}
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Options
+                  </Typography>
+                  {loadingOptions ? (
+                    <CircularProgress size={24} />
+                  ) : (<>
+                    <FormControl fullWidth>
+                      <InputLabel id="options-select-label">Select Option</InputLabel>
+                      <Select
+                        labelId="options-select-label"
+                        id="options-select"
+                        value={selectedOptionIndex ?? ''}
+                        label="Select Option"
+                        onChange={e => handleOptionSelect(Number(e.target.value))}
+                      >
+                        {options.map((opt, idx) => (
+                          <MenuItem key={opt} value={idx}>
+                            {`${opt}`}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <ProductImageCarousel
+                      carouselImages={carouselImages}
+                      setCarouselImages={setCarouselImages}
+                      currentImageIndex={currentImageIndex}
+                      onPrevImage={handlePrevImage}
+                      onNextImage={handleNextImage}
+                      handleImageUpdate={handleImageUpdate} 
+                      cloudfrontBaseUrl={cloudfrontBaseUrl}
+                      available={selectedProduct.available}
+                      type="option"
+                      state={selectedOption}
+                    /></>
+                  )}
+                </Box>
+                
+                {/* Design Template Image - shown even before option selection */}
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Template
+                  </Typography>
+                  <DesignTemplateImage
+                    imageUrl={designTemplateImage}
+                    onEditImage={() => handleImageEdit("design")}
+                    cloudfrontBaseUrl={cloudfrontBaseUrl}
+                    available={selectedProduct.available}
+                  />
+                </Box>
+              </Box>
 
-            {/* Editable Fields */}
-            <Box flex={1}>
-              <ProductEditForm
-                selectedProduct={selectedProduct}
-                uniqueMainTags={uniqueMainTags}
-                onFormChange={handleFormChange}
-                onAddNewTag={handleOpenDialog}
-                loading={loading}
-                onSubmit={handleFormSubmit}
-              />
-            </Box>
-          </>
+              {/* Editable Fields */}
+              <Box flex={1}>
+                <ProductEditForm
+                  selectedProduct={selectedProduct}
+                  uniqueMainTags={uniqueMainTags}
+                  onFormChange={handleFormChange}
+                  onAddNewTag={handleOpenDialog}
+                  loading={loading}
+                  onSubmit={handleFormSubmit}
+                />
+              </Box>
+            </>
+          )
         ) : (
           <Box display="flex" justifyContent="center" alignItems="center" height="100%" flexDirection="column">
             {initialLoading ? (

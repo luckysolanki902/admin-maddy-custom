@@ -19,18 +19,64 @@ import EditIcon from "@mui/icons-material/Edit";
 import { joinURLs } from "@/lib/utils/generalFunctions";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
-export default function DialogBox({ available, carouselImages, setCarouselImages, onEditImage, cloudfrontBaseUrl }) {
+export default function EditImagesDialog({ 
+  available, 
+  carouselImages, 
+  setCarouselImages, 
+  cloudfrontBaseUrl,
+  type = "main", // Default to main if not specified
+  handleImageUpdate // Pass this function directly instead of onEditImage
+}) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTargetIndex, setDeleteTargetIndex] = useState(null);
+  
+  const timeoutRef = useRef(null);
 
   const handleClickOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTargetIndex, setDeleteTargetIndex] = useState(null);
-
-  const [loading, setLoading] = useState(false);
-
-  const timeoutRef = useRef(null);
+  // Handle image edit action (replace, add, delete) inside the dialog
+  const handleImageEdit = async (action, idx, reorderedImages) => {
+    if (action === "add" || action === "replace") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = type === "main" ? "image/jpeg,image/png" : "image/png";
+      
+      input.onchange = async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Validate file type
+        const validTypes = type === "main" ? ["image/jpeg", "image/png"] : ["image/png"];
+        if (!validTypes.includes(file.type)) {
+          // You might want to add some error handling here
+          alert(`Invalid file type. Please upload a ${type === "main" ? "JPG or PNG" : "PNG"} file.`);
+          return;
+        }
+        
+        // Validate file size
+        const maxSizeInBytes = type === "main" ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
+        if (file.size > maxSizeInBytes) {
+          alert(`File size exceeds the limit of ${type === "main" ? "15MB" : "10MB"}. Please choose a smaller file.`);
+          return;
+        }
+        
+        // Handle the update
+        setLoading(true);
+        await handleImageUpdate(type, action, file, idx, reorderedImages);
+        setLoading(false);
+      };
+      
+      input.click();
+    } else {
+      // For delete and reorder actions
+      setLoading(true);
+      await handleImageUpdate(type, action, null, idx, reorderedImages);
+      setLoading(false);
+    }
+  };
 
   const handleDragEnd = result => {
     if (!result.destination || result.source.index === result.destination.index) return;
@@ -46,7 +92,7 @@ export default function DialogBox({ available, carouselImages, setCarouselImages
       clearTimeout(timeoutRef.current);
     }
     timeoutRef.current = setTimeout(() => {
-      onEditImage("main", "reorder", setLoading, null, reorderedImages);
+      handleImageEdit("reorder", null, reorderedImages);
     }, 2000);
   };
 
@@ -66,7 +112,6 @@ export default function DialogBox({ available, carouselImages, setCarouselImages
             backgroundColor: available ? "rgba(200,200,200,0.7)" : "rgba(255,255,255,0.9)",
           },
         }}
-        // disabled={available}
       >
         <EditIcon />
       </IconButton>
@@ -74,7 +119,7 @@ export default function DialogBox({ available, carouselImages, setCarouselImages
       <Dialog open={open} onClose={handleClose}>
         <DialogTitle>
           <Box display="flex" alignItems="center" gap={1}>
-            Edit Images
+            Edit {type === "option" ? "Option" : "Product"} Images
             {loading && <CircularProgress size={20} color="primary" />}
           </Box>
         </DialogTitle>
@@ -107,7 +152,7 @@ export default function DialogBox({ available, carouselImages, setCarouselImages
                                   component="label"
                                   size="small"
                                   disabled={loading}
-                                  onClick={() => onEditImage("main", "replace", setLoading, idx)}
+                                  onClick={() => handleImageEdit("replace", idx)}
                                 >
                                   <Edit fontSize="small" />
                                 </IconButton>
@@ -118,7 +163,7 @@ export default function DialogBox({ available, carouselImages, setCarouselImages
                                     setDeleteTargetIndex(idx);
                                     setDeleteDialogOpen(true);
                                   }}
-                                  disabled={loading}
+                                  disabled={loading || carouselImages.length <= 1}
                                 >
                                   {carouselImages.length > 1 && <Delete fontSize="small" />}
                                 </IconButton>
@@ -147,7 +192,7 @@ export default function DialogBox({ available, carouselImages, setCarouselImages
                     component="label"
                     sx={{ cursor: "pointer" }}
                   >
-                    <IconButton onClick={() => onEditImage("main", "add", setLoading, carouselImages.length)} disabled={loading}>
+                    <IconButton onClick={() => handleImageEdit("add", carouselImages.length)} disabled={loading}>
                       <Add fontSize="large" />
                     </IconButton>
                   </Box>
@@ -173,7 +218,7 @@ export default function DialogBox({ available, carouselImages, setCarouselImages
             color="error"
             onClick={() => {
               if (deleteTargetIndex !== null) {
-                onEditImage("main", "delete", setLoading, deleteTargetIndex);
+                handleImageEdit("delete", deleteTargetIndex);
               }
               setDeleteDialogOpen(false);
               setDeleteTargetIndex(null);

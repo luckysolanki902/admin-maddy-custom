@@ -91,17 +91,23 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: `A product with the title '${titleCaseTitle}' already exists for this variant.` }, { status: 400 });
     }
 
-    // Update product fields
-    product.name = titleCaseName;
-    product.title = titleCaseTitle;
-    product.mainTags = [mainTag];
-    product.price = price;
-    product.displayOrder = displayOrder;
-    product.pageSlug = newSlug;
+    // If images are provided, directly set them to the product's images field
+    const updatePayload = {
+      name: titleCaseName,
+      title: titleCaseTitle,
+      mainTags: [mainTag],
+      price,
+      displayOrder,
+      pageSlug: newSlug,
+    };
 
-    await product.save();
+    const updated = await Product.findByIdAndUpdate(
+      productId,
+      { $set: updatePayload },
+      { new: true }
+    ).lean();
 
-    return NextResponse.json({ message: 'Product details updated', product }, {
+    return NextResponse.json({ message: 'Product details updated', product: updated }, {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

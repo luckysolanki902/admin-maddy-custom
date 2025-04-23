@@ -11,7 +11,7 @@ import {
   Skeleton,
   Stack,
   TextField,
-  Paper
+  Paper,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
@@ -25,9 +25,10 @@ import {
   Legend,
   LineChart,
   Line,
-  CartesianGrid
+  CartesianGrid,
 } from 'recharts';
 import dayjs from 'dayjs';
+
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 
 export default function CouponStatsPage() {
@@ -108,13 +109,17 @@ export default function CouponStatsPage() {
   // DateRangeChips handlers
   const handleAllTagClick = () => {
     setActiveTag('all');
-    setDateRange({ start: null, end: null });
+    setDateRange({ start: dayjs('2021-04-06').startOf('day'), end: dayjs().endOf('day') });
   };
+
   const handleCustomDayChange = (date) => {
-    setCustomDate(date);
-    setActiveTag('custom');
-    setDateRange({ start: date.startOf('day'), end: date.endOf('day') });
+    if (date && date.isValid()) {
+      setCustomDate(date);
+      setActiveTag('custom');
+      setDateRange({ start: date.startOf('day'), end: date.endOf('day') });
+    }
   };
+
   const handleMonthSelection = (tag) => {
     let start, end;
     if (tag === 'thisMonth') {
@@ -143,7 +148,7 @@ export default function CouponStatsPage() {
         align="left"
         sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 1 }}
       >
-        *Only coupons after 6 April are shown here
+        *Only coupons after 6 April 2021 are shown here
       </Typography>
 
       <DateRangeChips
@@ -161,6 +166,7 @@ export default function CouponStatsPage() {
           label="Pick a day"
           value={customDate}
           onChange={handleCustomDayChange}
+          minDate={dayjs('2021-04-06')}
           renderInput={(params) => (
             <TextField {...params} sx={{ mt: 2 }} fullWidth />
           )}

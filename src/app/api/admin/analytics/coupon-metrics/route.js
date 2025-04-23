@@ -1,42 +1,38 @@
-// File: /app/api/admin/analytics/coupon-metrics/route.js
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
-import dayjs from 'dayjs';
 
 export async function GET(req) {
   try {
     await connectToDatabase();
     const { searchParams } = new URL(req.url);
 
-    // Earliest allowed start (Apr 6, 2025 IST 00:00)
-    const MIN_START = dayjs('2025-04-06').startOf('day');
+    // Earliest allowed start (Apr 6, 2021 00:00:00)
+    const MIN_START = new Date('2021-04-06T00:00:00Z');
 
     // Parse & clamp startDate
     const startParam = searchParams.get('startDate');
     let startDate = MIN_START;
     if (startParam) {
-      const parsed = dayjs(startParam);
-      if (parsed.isAfter(MIN_START)) {
-        startDate = parsed.startOf('day');
+      const parsed = new Date(startParam);
+      if (parsed > MIN_START) {
+        startDate = parsed;
       }
     }
 
     // Parse endDate or default to now (end of today)
     const endParam = searchParams.get('endDate');
-    const endDate = endParam
-      ? dayjs(endParam).endOf('day')
-      : dayjs().endOf('day');
+    const endDate = endParam ? new Date(endParam) : new Date();
 
-    // Match only paid or partially‑paid orders
+    // Match only paid or partially-paid orders
     const match = {
-      paymentStatus: { $in: ['paidPartially','allPaid','allToBePaidCod'] },
+      paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
       createdAt: {
-        $gte: startDate.toDate(),
-        $lte: endDate.toDate(),
+        $gte: startDate,
+        $lte: endDate,
       },
     };
 
-    const [ result ] = await Order.aggregate([
+    const [result] = await Order.aggregate([
       { $match: match },
       { $unwind: '$couponApplied' },
       {
@@ -45,18 +41,18 @@ export async function GET(req) {
             {
               $group: {
                 _id: '$couponApplied.couponCode',
-                usageCount:     { $sum: 1 },
-                totalDiscount:  { $sum: '$couponApplied.discountAmount' },
-                averageDiscount:{ $avg: '$couponApplied.discountAmount' },
+                usageCount: { $sum: 1 },
+                totalDiscount: { $sum: '$couponApplied.discountAmount' },
+                averageDiscount: { $avg: '$couponApplied.discountAmount' },
               },
             },
             {
               $project: {
                 _id: 0,
-                couponCode:     '$_id',
-                usageCount:     1,
-                totalDiscount:  1,
-                averageDiscount:1,
+                couponCode: '$_id',
+                usageCount: 1,
+                totalDiscount: 1,
+                averageDiscount: 1,
               },
             },
           ],
@@ -64,21 +60,21 @@ export async function GET(req) {
             {
               $group: {
                 _id: null,
-                usageCount:     { $sum: 1 },
-                totalDiscount:  { $sum: '$couponApplied.discountAmount' },
-                averageDiscount:{ $avg: '$couponApplied.discountAmount' },
+                usageCount: { $sum: 1 },
+                totalDiscount: { $sum: '$couponApplied.discountAmount' },
+                averageDiscount: { $avg: '$couponApplied.discountAmount' },
               },
             },
             {
               $project: {
                 _id: 0,
-                usageCount:     1,
-                totalDiscount:  1,
-                averageDiscount:1,
+                usageCount: 1,
+                totalDiscount: 1,
+                averageDiscount: 1,
               },
             },
           ],
-          dailyUsage: [           // <-- renamed facet
+          dailyUsage: [
             {
               $group: {
                 _id: {
@@ -86,42 +82,41 @@ export async function GET(req) {
                     $dateToString: {
                       format: '%Y-%m-%d',
                       date: '$createdAt',
-                      timezone: 'Asia/Kolkata'
-                    }
+                    },
                   },
-                  coupon: '$couponApplied.couponCode'
+                  coupon: '$couponApplied.couponCode',
                 },
-                usageCount: { $sum: 1 }
-              }
+                usageCount: { $sum: 1 },
+              },
             },
             {
               $group: {
                 _id: '$_id.date',
                 counts: {
-                  $push: { k: '$_id.coupon', v: '$usageCount' }
-                }
-              }
+                  $push: { k: '$_id.coupon', v: '$usageCount' },
+                },
+              },
             },
             {
               $project: {
                 _id: 0,
-                date:   '$_id',
-                counts: { $arrayToObject: '$counts' }
-              }
+                date: '$_id',
+                counts: { $arrayToObject: '$counts' },
+              },
             },
-            { $sort: { date: 1 } }
-          ]
-        }
-      }
+            { $sort: { date: 1 } },
+          ],
+        },
+      },
     ]);
 
-    const byCoupon   = result.byCoupon      || [];
-    const overall    = (result.overall && result.overall[0]) || {
+    const byCoupon = result.byCoupon || [];
+    const overall = (result.overall && result.overall[0]) || {
       usageCount: 0,
       totalDiscount: 0,
-      averageDiscount: 0
+      averageDiscount: 0,
     };
-    const dailyUsage = result.dailyUsage   || [];
+    const dailyUsage = result.dailyUsage || [];
 
     return new Response(
       JSON.stringify({ overall, byCoupon, dailyUsage }),

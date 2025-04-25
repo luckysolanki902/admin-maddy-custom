@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Card, CardContent, Typography, Box, Divider, Tooltip, Switch, IconButton } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import OffersFormDialog from "./OfferFormDialog";

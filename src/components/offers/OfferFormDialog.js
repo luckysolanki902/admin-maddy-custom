@@ -73,6 +73,21 @@ export default function OffersFormDialog({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (!isCreateNewOffer) {
+      setTimeout(
+        () =>
+          setFormData({
+            ...oldData,
+            couponCodes: [],
+            validFrom: oldData.validFrom.slice(0, 10),
+            validUntil: oldData.validUntil.slice(0, 10),
+          }),
+        500
+      );
+    }
+  }, [isCreateNewOffer, oldData, open]);
+
+  useEffect(() => {
     function setConditionMessage() {
       const newConditionMessage = !formData.conditions[0].type // when no condition set
         ? ""
@@ -141,7 +156,6 @@ export default function OffersFormDialog({
     const data = await res.json();
 
     setOffers(prevOffers => prevOffers.map(offer => (offer._id === oldData._id ? data : offer)));
-    setFormData(prev => ({ ...prev, couponCodes: [] }));
   }
 
   async function handleSubmit() {
@@ -670,14 +684,14 @@ export default function OffersFormDialog({
               },
             }}
           />
-          {i >= (oldData?.couponCodes.length ?? 0) && (
+          {i >= (oldData?.couponCodes.length ?? 1) && (
             <Tooltip title="Click here to remove this coupon code" disableInteractive>
               <IconButton
                 disabled={submitting}
                 onClick={() => {
                   setFormData(prev => ({
                     ...prev,
-                    couponCodes: prev.couponCodes.filter((_, idx) => idx !== i - oldData.couponCodes.length),
+                    couponCodes: prev.couponCodes.filter((_, idx) => idx !== i - (oldData?.couponCodes.length ?? 0)),
                   }));
                 }}
                 sx={{ mt: "1.2rem" }}

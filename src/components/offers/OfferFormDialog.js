@@ -89,11 +89,11 @@ export default function OffersFormDialog({
 
   useEffect(() => {
     function setConditionMessage() {
-      const newConditionMessage = !formData.conditions[0].type // when no condition set
+      const newConditionMessage = !formData?.conditions[0]?.type // when no condition set
         ? ""
         : (formData.conditions[1]?.type // when both conditions (cart_value and first_order) set
             ? `Order for the first time and add items worth ₹${
-                formData.conditions[0].type === "cart_value"
+                formData.conditions[0]?.type === "cart_value"
                   ? formData.conditions[0].value || "XX"
                   : formData.conditions[1].value || "XX"
               }`

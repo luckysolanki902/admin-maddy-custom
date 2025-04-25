@@ -82,9 +82,9 @@ export default function OfferCard({ offerData, setOffers, setErrorAlert, setSucc
           opacity: 0.16,
         }}
       >
-        {offerData.actions[0].type === "discount_percent"
-          ? `${offerData.actions[0].discountValue || "XX"}% OFF`
-          : `₹${offerData.actions[0].discountValue || "XX"} OFF`}
+        {offerData?.actions[0]?.type === "discount_percent"
+          ? `${offerData?.actions[0]?.discountValue || "XX"}% OFF`
+          : `₹${offerData?.actions[0]?.discountValue || "XX"} OFF`}
       </Box>
 
       {/* toggle active and edit button*/}
@@ -184,10 +184,10 @@ export default function OfferCard({ offerData, setOffers, setErrorAlert, setSucc
         {/* Discount Value */}
         <Box sx={{ textAlign: "center" }}>
           <Typography variant="h5" sx={{ fontWeight: "bold", color: "white" }}>
-            {offerData.actions[0].type === "discount_fixed"
-              ? `₹${offerData.actions[0].discountValue || "XX"} `
-              : offerData.actions[0].type === "discount_percent"
-              ? `${offerData.actions[0].discountValue || "XX"}% `
+            {offerData?.actions[0]?.type === "discount_fixed"
+              ? `₹${offerData?.actions[0]?.discountValue || "XX"} `
+              : offerData?.actions[0]?.type === "discount_percent"
+              ? `${offerData?.actions[0]?.discountValue || "XX"}% `
               : "₹XX "}
             <span style={{ fontSize: "0.8rem", fontWeight: "normal" }}>OFF</span>
           </Typography>

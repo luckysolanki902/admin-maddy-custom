@@ -81,14 +81,14 @@ export default function ManageOffers() {
       }
 
       if (filterOption.discountType !== "any") {
-        filteredData = filteredData.filter(offer => filterOption.discountType === offer.actions[0].type);
+        filteredData = filteredData.filter(offer => filterOption.discountType === offer?.actions[0]?.type);
       }
 
       if (filterOption.conditionType !== "any") {
         filteredData = filteredData.filter(offer =>
           filterOption.conditionType === "both"
             ? offer.conditions.length === 2
-            : offer.conditions.some(condition => filterOption.conditionType === condition.type)
+            : offer.conditions.some(condition => filterOption.conditionType === condition?.type)
         );
       }
 

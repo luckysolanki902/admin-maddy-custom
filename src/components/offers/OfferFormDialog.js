@@ -685,7 +685,7 @@ export default function OffersFormDialog({
               },
             }}
           />
-          {i >= (oldData?.couponCodes.length ?? 1) && (
+          {i >= (oldData?.couponCodes.length ?? 0) && (!isCreateNewOffer || formData.couponCodes.length > 1) && (
             <Tooltip title="Click here to remove this coupon code" disableInteractive>
               <IconButton
                 disabled={submitting}

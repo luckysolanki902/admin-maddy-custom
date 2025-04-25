@@ -7,7 +7,6 @@ import { ObjectId } from 'mongodb';
 // Handle PUT and DELETE requests for a specific coupon
 export async function PUT(request, { params }) {
     const { id } = await params;
-    console.log(`Received PUT request for coupon ID: ${id}`);
 
     // Validate ObjectId format
     if (!ObjectId.isValid(id)) {
@@ -19,18 +18,15 @@ export async function PUT(request, { params }) {
         await connectToDatabase();
 
         const data = await request.json();
-        console.log(`PUT request data for ID ${id}:`, data);
 
         // Remove '_id' from updateFields if present
         if ('_id' in data) {
-            console.log('Removing _id from update data.');
             delete data._id;
         }
 
         // Ensure code is uppercase if provided
         if (data.code) {
             data.code = data.code.toUpperCase();
-            console.log(`Updating code to: ${data.code}`);
         }
 
         // Validate discountType if provided
@@ -39,7 +35,6 @@ export async function PUT(request, { params }) {
                 console.warn(`PUT validation failed: Invalid discount type (${data.discountType}).`);
                 return new Response(JSON.stringify({ error: 'Invalid discount type.' }), { status: 400 });
             }
-            console.log(`Updating discountType to: ${data.discountType}`);
         }
 
         // Parse and validate dates if provided
@@ -50,7 +45,6 @@ export async function PUT(request, { params }) {
                 return new Response(JSON.stringify({ error: 'Invalid validFrom date format.' }), { status: 400 });
             }
             data.validFrom = parsedValidFrom;
-            console.log(`Updating validFrom to: ${parsedValidFrom}`);
         }
         if (data.validUntil) {
             const parsedValidUntil = new Date(data.validUntil);
@@ -59,12 +53,10 @@ export async function PUT(request, { params }) {
                 return new Response(JSON.stringify({ error: 'Invalid validUntil date format.' }), { status: 400 });
             }
             data.validUntil = parsedValidUntil;
-            console.log(`Updating validUntil to: ${parsedValidUntil}`);
         }
 
         // Manual Validation: Ensure validUntil > validFrom if both are provided
         if (data.validFrom && data.validUntil) {
-            console.log(`Validating dates: validFrom (${data.validFrom}) < validUntil (${data.validUntil})`);
             if (data.validUntil <= data.validFrom) {
                 console.warn('PUT validation failed: validUntil is not after validFrom.');
                 return new Response(JSON.stringify({ error: 'Valid Until date must be after Valid From date.' }), { status: 400 });
@@ -83,7 +75,6 @@ export async function PUT(request, { params }) {
             return new Response(JSON.stringify({ error: 'Coupon not found.' }), { status: 404 });
         }
 
-        console.log('Successfully updated coupon:', updatedCoupon);
 
         return new Response(JSON.stringify(updatedCoupon), { status: 200 });
     } catch (error) {
@@ -102,7 +93,6 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
     const { id } = await params;
-    console.log(`Received DELETE request for coupon ID: ${id}`);
 
     // Validate ObjectId format
     if (!ObjectId.isValid(id)) {
@@ -119,7 +109,6 @@ export async function DELETE(request, { params }) {
             return new Response(JSON.stringify({ error: 'Coupon not found.' }), { status: 404 });
         }
 
-        console.log('Successfully deleted coupon:', deletedCoupon);
 
         return new Response(JSON.stringify(deletedCoupon), { status: 200 });
     } catch (error) {

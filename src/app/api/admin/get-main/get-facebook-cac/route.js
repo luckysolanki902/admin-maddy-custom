@@ -57,7 +57,6 @@ export async function POST(req) {
 
     const url = `https://graph.facebook.com/v17.0/act_${AD_ACCOUNT_ID}/insights?fields=spend,actions&access_token=${ACCESS_TOKEN}&action_breakdowns=action_type&time_range=${timeRange}`;
 
-    console.log(`get-facebook-cac: Fetching data from Facebook API: ${url}`);
     
     // Fetch Data from Meta Ads API
     const response = await fetch(url);

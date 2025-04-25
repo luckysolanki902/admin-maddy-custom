@@ -29,12 +29,10 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
 
   // Log the received data for debugging
   useEffect(() => {
-    console.log('Received data in ReturningPayingUsersChart:', data);
   }, [data]);
 
   // Format period labels based on the date range and period format
   const formatPeriodLabel = (period) => {
-    console.log('Debug period:', period); // Debugging line
 
     if (!period) {
       return 'No Date';

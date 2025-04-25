@@ -1,8 +1,7 @@
-// /app/api/analytics/main/retargeted-customers/route.js
+// /app/api/admin/analytics/main/retargeted-customers/route.js
 
 import { connectToDatabase } from '@/lib/db';
 import CampaignLog from '@/models/CampaignLog';
-import mongoose from 'mongoose';
 
 export async function GET(req) {
   try {
@@ -10,16 +9,21 @@ export async function GET(req) {
 
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+    const endDate   = searchParams.get('endDate');
 
-    // Only include logs from "aisensy" for the two campaign names with successfulCount > 0.
+    // Base filter: only aisensy campaigns with >0 successes
     const matchStage = {
       source: 'aisensy',
-      campaignName: { $in: ['abandoned-cart-first-campaign', 'abandoned-cart-second-campaign'] },
+      campaignName: {
+        $in: [
+          'abandoned-cart-first-campaign',
+          'abandoned-cart-second-campaign',
+          'abandonedcart_rem1',
+          'abandonedcart_rem2'
+        ]
+      },
       successfulCount: { $gt: 0 }
     };
-
-    // Filter by updatedAt if a date range is provided.
     if (startDate && endDate) {
       matchStage.updatedAt = {
         $gte: new Date(startDate),
@@ -27,80 +31,112 @@ export async function GET(req) {
       };
     }
 
-    const aggregationPipeline = [
+    const pipeline = [
       { $match: matchStage },
+
+      // lookup first post‑send order
       {
-        // Lookup orders placed by the same user after the campaign log's updatedAt,
-        // and where the order's deliveryStatus is neither "pending" nor "cancelled".
         $lookup: {
-          from: 'orders', // Make sure this matches your orders collection name.
-          let: { userId: '$user', campaignDate: '$createdAt' },
+          from: 'orders',
+          let: { uid: '$user', sentAt: '$createdAt' },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ['$user', '$$userId'] },
-                    { $gt: ['$createdAt', '$$campaignDate'] },
-                    { $not: { $in: ["$deliveryStatus", ["pending", "cancelled"]] } }                  ]
+                    { $eq: ['$user', '$$uid'] },
+                    { $gt: ['$createdAt', '$$sentAt'] },
+                    {
+                      $in: [
+                        '$paymentStatus',
+                        ['paidPartially', 'allPaid', 'allToBePaidCod']
+                      ]
+                    }
+                  ]
                 }
               }
             },
             { $sort: { createdAt: 1 } },
             { $limit: 1 }
           ],
-          as: 'ordersAfterCampaign'
+          as: 'ordersAfter'
         }
       },
+
+      // flag whether that first lookup exists
       {
-        // Mark each log as "purchased" if at least one order exists after the campaign.
         $addFields: {
-          purchased: { $gt: [{ $size: '$ordersAfterCampaign' }, 0] }
+          purchased: { $gt: [{ $size: '$ordersAfter' }, 0] }
         }
       },
+
+      // compute a date string
       {
-        // Project the date (from updatedAt) along with the "purchased" flag.
-        $project: {
-          date: { $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' } },
-          purchased: 1
-        }
-      },
-      {
-        // Group by day.
-        $group: {
-          _id: '$date',
-          sentCount: { $sum: 1 },
-          purchasedCount: { $sum: { $cond: ['$purchased', 1, 0] } }
-        }
-      },
-      {
-        // Compute nonPurchased count and percentages.
-        $project: {
-          date: '$_id',
-          sentCount: 1,
-          purchasedCount: 1,
-          nonPurchasedCount: { $subtract: ['$sentCount', '$purchasedCount'] },
-          purchasePercentage: {
-            $multiply: [{ $divide: ['$purchasedCount', '$sentCount'] }, 100]
-          },
-          nonPurchasePercentage: {
-            $multiply: [{ $divide: [{ $subtract: ['$sentCount', '$purchasedCount'] }, '$sentCount'] }, 100]
+        $addFields: {
+          date: {
+            $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' }
           }
         }
       },
+
+      // group by date + campaignName
+      {
+        $group: {
+          _id: { date: '$date', campaign: '$campaignName' },
+          sentCount: { $sum: 1 },
+          purchasedCount: {
+            $sum: { $cond: ['$purchased', 1, 0] }
+          }
+        }
+      },
+
+      // roll up per‑day totals and embed per‑campaign breakouts
+      {
+        $group: {
+          _id: '$_id.date',
+          campaigns: {
+            $push: {
+              campaignName: '$_id.campaign',
+              sentCount:    '$sentCount',
+              purchasedCount:'$purchasedCount'
+            }
+          },
+          sentCount:      { $sum: '$sentCount' },
+          purchasedCount: { $sum: '$purchasedCount' }
+        }
+      },
+
+      // shape output
+      {
+        $project: {
+          _id:           0,
+          date:          '$_id',
+          sentCount:     1,
+          purchasedCount:1,
+          campaigns:     1
+        }
+      },
+
       { $sort: { date: 1 } }
     ];
 
-    const aggregatedData = await CampaignLog.aggregate(aggregationPipeline);
-    return new Response(JSON.stringify({ retargetedCustomers: aggregatedData }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const data = await CampaignLog.aggregate(pipeline);
+
+    return new Response(
+      JSON.stringify({ retargetedCustomers: data }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   } catch (error) {
-    console.error('Error fetching retargeted customers analytics:', error);
-    return new Response(JSON.stringify({ message: 'Internal Server Error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    console.error(error);
+    return new Response(
+      JSON.stringify({ message: 'Internal Server Error' }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   }
 }

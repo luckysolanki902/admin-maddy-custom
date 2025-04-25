@@ -112,7 +112,6 @@ const DownloadCustomersData = ({ dateRange, activeTag }) => {
     const [pageSize, setPageSize] = useState(10);
     const [tableLoading, setTableLoading] = useState(false);
 
-    console.log(customers)
 
     // Download State
     const [isDownloading, setIsDownloading] = useState(false);

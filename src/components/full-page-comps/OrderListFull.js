@@ -288,7 +288,7 @@ const OrderListFull = ({ isAdmin }) => {
    *****************************************************/
   useEffect(() => {
     if (isAdmin) {
-      const newRevenueAfterTax = orderData.revenue - orderData.revenue * 0.18;
+      const newRevenueAfterTax = orderData.revenue - orderData.revenue * 18/118;
       setRevenueAfterTax(newRevenueAfterTax);
     } else {
       setRevenueAfterTax(0);

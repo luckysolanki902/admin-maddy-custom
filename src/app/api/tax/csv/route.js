@@ -83,14 +83,6 @@ export async function GET(request) {
       monthlyBillAmount[month] = (monthlyBillAmount[month] || 0) + billAmount;
     });
 
-    console.log('Monthly revenue:');
-    Object.entries(monthlyRevenue).forEach(([month, revenue]) => console.log(`${month}: ${revenue.toFixed(2)}`));
-    console.log('Monthly orders:');
-    Object.entries(monthlyOrders).forEach(([month, orders]) => console.log(`${month}: ${orders}`));
-    console.log('Monthly gross amount:');
-    Object.entries(monthlyGrossAmount).forEach(([month, gross]) => console.log(`${month}: ${gross.toFixed(2)}`));
-    console.log('Monthly bill amount:');
-    Object.entries(monthlyBillAmount).forEach(([month, bill]) => console.log(`${month}: ${bill.toFixed(2)}`));
 
     const csvString = rows.join('\n');
 

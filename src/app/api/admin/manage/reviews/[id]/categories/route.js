@@ -7,7 +7,6 @@ import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
 
 export async function GET_CATEGORIES() {
-    console.log('Fetching categories for reviews');
     try {
         await connectToDatabase();
         const categories = await SpecificCategory.find();

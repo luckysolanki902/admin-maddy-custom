@@ -48,7 +48,6 @@ export async function GET(req) {
 
     const revenueData = await Order.aggregate(aggregationPipeline);
     const currentRevenue = revenueData.length > 0 ? revenueData[0].currentRevenue : 0;
-console.log({currentRevenue, targetEndDate: endDate.toDate()})
     return new Response(
       JSON.stringify({ currentRevenue, targetEndDate: endDate.toDate() }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }

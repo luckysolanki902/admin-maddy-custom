@@ -3,7 +3,7 @@ import React from 'react';
 
 export default function Marketing() {
   const optionsWithLinks = [
-    { text: 'Manage Coupons', link: '/admin/manage/coupons' },
+    { text: 'Coupon Metrics', link: '/admin/manage/coupons-metrics' },
     { text: 'Orders Dashboard', link: '/admin/manage/orders/order-list' },
     { text: 'Product Based Sales Analysis', link: '/admin/manage/data-analysis/sales/product-based' },
     { text: 'Analytics Dashboard', link: '/admin/analytics' },

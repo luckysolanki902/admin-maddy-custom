@@ -55,7 +55,6 @@ export const GET = async () => {
 
       // Save the updated variant document
       return variant.save();
-    // console.log(var)
     });
 
     // Wait for all updates to complete

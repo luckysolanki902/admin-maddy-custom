@@ -182,7 +182,8 @@ export default function OffersFormDialog({
       (formData.actions[0].type === "discount_percent" && formData.discountCap === ""),
     formData.conditions.some(({ type, value }) => !type || !value),
     !formData.name || !formData.validFrom || !formData.validUntil || invalidDateRange,
-    isCreateNewOffer && formData.couponCodes.some(cc => !cc),
+    formData.couponCodes.some(cc => !cc),
+    false,
   ];
 
   const disableNextButton =

@@ -24,7 +24,6 @@ import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart';
 import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart';
 import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
-import DownloadCustomersData from '@/components/analytics/main/DownloadCustomersData';
 import { styled } from '@mui/material/styles';
 import dayjs from '@/lib/dayjsConfig';
 import Link from 'next/link';
@@ -484,23 +483,6 @@ const AnalyticsDashboard = ({ admin }) => {
             ? "Hide 'Download Customer Data' section"
             : "Show 'Download Customer Data' section"}
         </Button>
-      )}
-      {showDownloadUserDataSection && (
-        <Box sx={{ marginTop: '4rem' }}>
-          {/* Date Range Chips */}
-          <DateRangeChips
-            activeTag={activeTag}
-            setActiveTag={setActiveTag}
-            setDateRange={setDateRange}
-            setCurrentPage={() => { }}
-            setProblematicCurrentPage={() => { }}
-            handleAllTagClick={handleAllTagClick}
-            handleCustomDayChange={handleCustomDayChange}
-            handleCustomDateChange={handleCustomDateChange}
-            handleMonthSelection={handleMonthSelection}
-          />
-          <DownloadCustomersData dateRange={dateRange} activeTag={activeTag} />
-        </Box>
       )}
     </Container>
   );

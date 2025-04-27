@@ -70,6 +70,13 @@
   .productionBox {
     box-shadow: 0px 0px 11.34px rgba(255, 255, 255, 0.4);
   }
+
+  .financeBox {
+    /* // greenish money type shadow */
+    box-shadow: 0px 0px 11.34px rgba(144, 238, 144, 0.4);
+    
+  }
+
   
   /* Responsive Design */
   @media (max-width: 600px) {

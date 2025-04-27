@@ -424,11 +424,6 @@ const OrdersList = ({
           <CustomerCard key={order._id} order={order} expanded={expanded} handleChange={handleChange} isAdmin={isAdmin} />
         ))
       )}
-      {cacError && (
-        <Box sx={{ marginTop: '1rem' }}>
-          <Alert severity="error">{cacError}</Alert>
-        </Box>
-      )}
     </Box>
   );
 };

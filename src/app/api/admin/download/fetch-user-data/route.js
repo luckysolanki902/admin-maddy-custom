@@ -4,7 +4,7 @@ import Order from '@/models/Order';
 import SpecificCategory from '@/models/SpecificCategory';
 import Product from '@/models/Product';
 
-await connectToDatabase();
+connectToDatabase();
 
 export async function GET(req) {
   try {
@@ -284,3 +284,4 @@ export async function GET(req) {
     return NextResponse.json({ message: 'Server error' }, { status: 500 });
   }
 }
+

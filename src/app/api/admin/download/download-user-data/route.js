@@ -60,7 +60,7 @@ export async function GET(req) {
     // Base match
     match.paymentStatus = { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] };
 
-    const pipeline= [{ $match: match }];
+    const pipeline = [{ $match: match }];
 
     // Populate user
     pipeline.push({ $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } });
@@ -252,7 +252,7 @@ export async function GET(req) {
     }
 
     // Sorting (on projected keys)
-    const sortMap: Record = {
+    const sortMap = {
       fullName: 'Full Name',
       phoneNumber: 'Phone Number',
       firstName: 'First Name',
@@ -274,7 +274,6 @@ export async function GET(req) {
       });
     }
 
-
     // Build CSV
     const customers = await Order.aggregate(pipeline).exec();
     if (!customers.length) {
@@ -294,3 +293,4 @@ export async function GET(req) {
     return NextResponse.json({ message: 'Server error' }, { status: 500 });
   }
 }
+

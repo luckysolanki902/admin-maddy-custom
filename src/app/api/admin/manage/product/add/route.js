@@ -34,6 +34,7 @@ export async function POST(req) {
       freebies,
       sku,
       designTemplate,
+      productSource,
       images,
     } = data;
 
@@ -56,6 +57,7 @@ export async function POST(req) {
       'freebies',
       'sku',
       'designTemplate',
+      'productSource',
       'images',
     ];
 
@@ -134,6 +136,7 @@ export async function POST(req) {
       stock,
       freebies,
       sku,
+      productSource,
       designTemplate,
     });
 

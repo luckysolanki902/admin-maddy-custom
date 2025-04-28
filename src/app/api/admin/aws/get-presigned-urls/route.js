@@ -19,13 +19,10 @@ export async function GET(request) {
 
 async function handleGetPresignedUrls(request) {
   try {
-    console.log("📢 Connecting to database...");
     await connectToDatabase();
-    console.log("✅ Connected to database.");
 
     const { searchParams } = new URL(request.url);
     const token = searchParams.get("token");
-    console.log("🔍 Extracted token from query:", token);
 
     if (!token) {
       console.warn("⚠️ Missing token in query parameters.");
@@ -35,7 +32,6 @@ async function handleGetPresignedUrls(request) {
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
-      console.log("✅ Token verified successfully:", decoded);
     } catch (err) {
       console.error("❌ Invalid or expired token:", err.message);
       return NextResponse.json({ message: "Invalid or expired token." }, { status: 401 });
@@ -55,16 +51,12 @@ async function handleGetPresignedUrls(request) {
       return NextResponse.json({ message: "Invalid date format in token." }, { status: 400 });
     }
 
-    console.log(`📅 Date range parsed: ${start.toISOString()} → ${end.toISOString()}`);
 
-    console.log("📦 Counting total paid orders...");
     const totalOrders = await Order.countDocuments({
       createdAt: { $gte: start, $lte: end },
       "paymentDetails.amountPaidOnline": { $gt: 0 },
     });
-    console.log(`✅ Total paid orders: ${totalOrders}`);
 
-    console.log("📦 Calculating total items sold...");
     const totalItemsAgg = await Order.aggregate([
       {
         $match: {
@@ -76,9 +68,7 @@ async function handleGetPresignedUrls(request) {
       { $group: { _id: null, totalItems: { $sum: "$items.quantity" } } },
     ]);
     const totalItems = totalItemsAgg[0] ? totalItemsAgg[0].totalItems : 0;
-    console.log(`✅ Total items sold: ${totalItems}`);
 
-    console.log("🖼️ Aggregating images data...");
     const imagesData = await Order.aggregate([
       {
         $match: {
@@ -122,9 +112,7 @@ async function handleGetPresignedUrls(request) {
       },
       { $sort: { count: -1 } },
     ]);
-    console.log(`✅ Aggregated ${imagesData.length} images.`);
 
-    console.log("🔗 Generating presigned URLs...");
     const imagesWithPresignedUrls = await Promise.all(
       imagesData.map(async item => {
         const { sku, specificCategoryVariant, imageUrl } = item._id;
@@ -145,7 +133,6 @@ async function handleGetPresignedUrls(request) {
             "getObject"
           );
           const presignedUrl = presignedUrlObj.presignedUrl;
-          console.log(`✅ Presigned URL generated for SKU: ${sku}`);
           return {
             sku,
             specificCategoryVariant,
@@ -166,7 +153,6 @@ async function handleGetPresignedUrls(request) {
       })
     );
 
-    console.log("🏁 Successfully prepared response.");
     return NextResponse.json({ totalOrders, totalItems, images: imagesWithPresignedUrls }, { status: 200 });
 
   } catch (error) {

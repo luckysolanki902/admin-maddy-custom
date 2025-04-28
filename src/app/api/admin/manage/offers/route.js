@@ -40,8 +40,8 @@ export async function POST(req) {
       description: description.trim(),
       conditionMessage,
       showAsCard,
-      validFrom,
-      validUntil,
+      validFrom: new Date(validFrom),
+      validUntil: new Date(validUntil),
       couponCodes,
       autoApply,
       conditions: conditions.map(({ type, value }) => ({

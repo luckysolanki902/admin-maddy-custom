@@ -38,8 +38,8 @@ export async function PATCH(req, { params }) {
             description: description.trim(),
             showAsCard,
             autoApply,
-            validFrom,
-            validUntil,
+            validFrom: new Date(validFrom),
+            validUntil: new Date(validUntil),
             conditionMessage,
             discountCap,
             conditions: {

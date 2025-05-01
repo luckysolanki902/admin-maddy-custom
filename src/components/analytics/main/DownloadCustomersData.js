@@ -1,78 +1,48 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Container,
-  Typography,
-  Box,
-  Stack,
-  Paper,
-  Grid,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  FormControl,
-  FormControlLabel,
-  Checkbox,
-  Slider,
-  TextField,
-  Button,
-  Chip,
-  Divider,
-  CircularProgress,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TableContainer,
-  TablePagination,
-  TableSortLabel,
+  Container, Typography, Box, Button, Divider, CircularProgress,
+  Drawer, IconButton, Stack, TextField,
+  Accordion, AccordionSummary, AccordionDetails,
+  FormControlLabel, Checkbox, Chip, Slider,
+  Table, TableHead, TableRow, TableCell,
+  TableBody, TableContainer, TablePagination,
+  TableSortLabel, Tabs, Tab
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import dayjs from 'dayjs';
-import * as FileSaver from 'file-saver';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
-
-const availableColumns = [
-  { label: 'Full Name', value: 'fullName', default: true },
-  { label: 'Phone Number', value: 'phoneNumber', default: true },
-  { label: 'First Name', value: 'firstName' },
-  { label: 'Last Name', value: 'lastName' },
-  { label: 'City', value: 'city' },
-  { label: 'Item Purchase Counts', value: 'itemPurchaseCounts' },
-  { label: 'Total Amount Spent', value: 'totalAmountSpent' },
-  { label: 'UTM Source', value: 'utmSource' },
-  { label: 'UTM Medium', value: 'utmMedium' },
-  { label: 'UTM Campaign', value: 'utmCampaign' },
-  { label: 'Specific Category', value: 'specificCategory' },
-  { label: 'Order Count', value: 'orderCount' },
-];
-
-const availableItems = [
-  'Graphic Helmets',
-  'Full Bike Wraps',
-  'Tank Wraps',
-  'Bonnet Wraps',
-  'Window Pillar Wraps',
-];
+import * as FileSaver from 'file-saver';
+import dayjs from 'dayjs';
 
 export default function DownloadCustomersData() {
-  // Date filter
+  // Mode
+  const [mode, setMode] = useState('users');
+  const handleModeChange = (_, v) => setMode(v);
+
+  // Drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const toggleDrawer = () => setDrawerOpen(o => !o);
+
+  // Available categories
+  const [availableCategories, setAvailableCategories] = useState([]);
+  useEffect(() => {
+    fetch('/api/admin/get-main/get-all-spec-cat')
+      .then(r => r.json())
+      .then(d => setAvailableCategories(d.categories || []));
+    console.log({ availableCategories });
+  }, []);
+
+  // Filters & states
   const [activeTag, setActiveTag] = useState('all');
   const [dateRange, setDateRange] = useState({ start: null, end: null });
-
-  // Columns & tags
-  const [selectedColumns, setSelectedColumns] = useState(
-    availableColumns.filter(c => c.default).map(c => c.value)
-  );
+  const [selectedColumns, setSelectedColumns] = useState([]);
   const [tags, setTags] = useState('');
-
-  // Item filter
   const [applyItemFilter, setApplyItemFilter] = useState(false);
   const [items, setItems] = useState([]);
-
-  // Loyalty filter
+  const [applyVehicleFilter, setApplyVehicleFilter] = useState(false);
+  const [vehicles, setVehicles] = useState([]);
   const [applyLoyaltyFilter, setApplyLoyaltyFilter] = useState(false);
   const [loyaltyFilters, setLoyaltyFilters] = useState({
     minAmountSpent: { checked: false, value: 0 },
@@ -80,423 +50,452 @@ export default function DownloadCustomersData() {
     minItemsCount: { checked: false, value: 0 },
   });
 
-  // Table & download state
+  // Table & pagination
   const [customers, setCustomers] = useState([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [tableLoading, setTableLoading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Sorting
   const [sortConfig, setSortConfig] = useState({ field: '', order: 'asc' });
-  const handleSort = (field) => {
-    const isAsc = sortConfig.field === field && sortConfig.order === 'asc';
-    setSortConfig({ field, order: isAsc ? 'desc' : 'asc' });
+  const handleSort = f => {
+    const asc = sortConfig.field === f && sortConfig.order === 'asc';
+    setSortConfig({ field: f, order: asc ? 'desc' : 'asc' });
   };
 
-  // Whenever filters or sorting change, reset to page 0
-  useEffect(() => {
-    setPage(0);
-  }, [
-    activeTag,
-    dateRange.start,
-    dateRange.end,
-    selectedColumns.join(','),
-    applyItemFilter,
-    items.join(','),
-    applyLoyaltyFilter,
-    JSON.stringify(loyaltyFilters),
-    tags,
-    sortConfig.field,
-    sortConfig.order,
+  // Reset page on filter/sort change
+  useEffect(() => setPage(0), [
+    mode, activeTag, dateRange.start, dateRange.end,
+    applyItemFilter, JSON.stringify(items),
+    applyVehicleFilter, JSON.stringify(vehicles),
+    applyLoyaltyFilter, JSON.stringify(loyaltyFilters),
+    tags, selectedColumns.join(','), sortConfig.field, sortConfig.order
   ]);
 
-  // Fetch table data
+  // Fetch data
   useEffect(() => {
-    async function fetchData() {
-      setTableLoading(true);
+    (async () => {
+      setLoading(true);
       try {
         const query = {
-          start: dateRange.start,
-          end: dateRange.end,
-          activeTag,
-          columns: selectedColumns,
-          tags,
-          applyItemFilter,
-          items,
+          mode,
+          start: dateRange.start, end: dateRange.end, activeTag,
+          columns: selectedColumns, tags,
+          applyItemFilter, items,
+          applyVehicleFilter, vehicles,
           applyLoyaltyFilter,
           loyalty: {
             minAmountSpent: loyaltyFilters.minAmountSpent.checked
-              ? loyaltyFilters.minAmountSpent.value
-              : null,
+              ? loyaltyFilters.minAmountSpent.value : null,
             minNumberOfOrders: loyaltyFilters.minNumberOfOrders.checked
-              ? loyaltyFilters.minNumberOfOrders.value
-              : null,
+              ? loyaltyFilters.minNumberOfOrders.value : null,
             minItemsCount: loyaltyFilters.minItemsCount.checked
-              ? loyaltyFilters.minItemsCount.value
-              : null,
+              ? loyaltyFilters.minItemsCount.value : null,
           },
-          page: page + 1,
-          pageSize: rowsPerPage,
-          sortField: sortConfig.field,
-          sortOrder: sortConfig.order,
+          page: page + 1, pageSize: rowsPerPage,
+          sortField: sortConfig.field, sortOrder: sortConfig.order
         };
-
         const res = await fetch(
-          `/api/admin/download/fetch-user-data?query=${encodeURIComponent(
-            JSON.stringify(query)
-          )}`
+          `/api/admin/download/fetch-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
         );
-        const data = await res.json();
-        setCustomers(data.customers || []);
-        setTotalRecords(data.totalRecords || 0);
+        const json = await res.json();
+        setCustomers(json.customers || []);
+        setTotalRecords(json.totalRecords || 0);
       } catch (e) {
         console.error(e);
       } finally {
-        setTableLoading(false);
+        setLoading(false);
       }
-    }
-
-    fetchData();
+    })();
   }, [
-    activeTag,
-    dateRange.start,
-    dateRange.end,
-    selectedColumns,
-    applyItemFilter,
-    items,
-    applyLoyaltyFilter,
-    loyaltyFilters,
-    tags,
-    page,
-    rowsPerPage,
-    sortConfig,
+    mode, activeTag, dateRange, selectedColumns, tags,
+    applyItemFilter, items,
+    applyVehicleFilter, vehicles,
+    applyLoyaltyFilter, loyaltyFilters,
+    page, rowsPerPage, sortConfig
   ]);
 
   // Download CSV
   const handleDownloadCSV = async () => {
-    setIsDownloading(true);
+    setDownloading(true);
     try {
       const query = {
-        start: dateRange.start,
-        end: dateRange.end,
-        activeTag,
-        columns: selectedColumns,
-        tags,
-        applyItemFilter,
-        items,
+        mode,
+        start: dateRange.start, end: dateRange.end, activeTag,
+        columns: selectedColumns, tags,
+        applyItemFilter, items,
+        applyVehicleFilter, vehicles,
         applyLoyaltyFilter,
         loyalty: {
           minAmountSpent: loyaltyFilters.minAmountSpent.checked
-            ? loyaltyFilters.minAmountSpent.value
-            : null,
+            ? loyaltyFilters.minAmountSpent.value : null,
           minNumberOfOrders: loyaltyFilters.minNumberOfOrders.checked
-            ? loyaltyFilters.minNumberOfOrders.value
-            : null,
+            ? loyaltyFilters.minNumberOfOrders.value : null,
           minItemsCount: loyaltyFilters.minItemsCount.checked
-            ? loyaltyFilters.minItemsCount.value
-            : null,
+            ? loyaltyFilters.minItemsCount.value : null,
         },
-        sortField: sortConfig.field,
-        sortOrder: sortConfig.order,
+        sortField: sortConfig.field, sortOrder: sortConfig.order
       };
-
       const res = await fetch(
-        `/api/admin/download/download-user-data?query=${encodeURIComponent(
-          JSON.stringify(query)
-        )}`
+        `/api/admin/download/download-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
       );
       const blob = await res.blob();
-      FileSaver.saveAs(blob, 'customers_data.csv');
+      FileSaver.saveAs(blob, `${mode === 'orders' ? 'orders' : 'users'}_data.csv`);
     } catch (e) {
       console.error(e);
     } finally {
-      setIsDownloading(false);
+      setDownloading(false);
     }
   };
+
+  // Column definitions
+  const availableColumns = useMemo(() => [
+    { label: 'Order ID', value: 'orderId' },
+    { label: 'Full Name', value: 'fullName' },
+    { label: 'Phone Number', value: 'phoneNumber' },
+    { label: 'City', value: 'city' },
+    { label: 'Item Purchase Counts', value: 'itemPurchaseCounts' },
+    { label: 'Total Amount Spent', value: 'totalAmountSpent' },
+    { label: 'UTM Source', value: 'utmSource' },
+    { label: 'UTM Medium', value: 'utmMedium' },
+    { label: 'UTM Campaign', value: 'utmCampaign' },
+    { label: 'Specific Category', value: 'specificCategory' },
+    { label: 'Order Count', value: 'orderCount' },
+  ], []);
+
+  // Default columns on mode change
+  useEffect(() => {
+    setSelectedColumns(
+      availableColumns
+        .filter(c => mode === 'orders'
+          ? ['orderId', 'fullName', 'phoneNumber'].includes(c.value)
+          : ['fullName', 'phoneNumber', 'orderCount'].includes(c.value))
+        .map(c => c.value)
+    );
+  }, [mode, availableColumns]);
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Typography variant="h4" align="center" gutterBottom>
-        Download Customer Data
+        {mode === 'orders' ? 'Download Orders Data' : 'Download Users Data'}
       </Typography>
 
-      <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
-        <Stack spacing={3}>
-          <DateRangeChips
-            activeTag={activeTag}
-            hideCustomChips={true}
-            setActiveTag={setActiveTag}
-            setDateRange={({ start, end }) => setDateRange({ start, end })}
-            setCurrentPage={() => setPage(0)}
-            setProblematicCurrentPage={() => {}}
-            handleAllTagClick={() => {
-              setActiveTag('all');
-              setDateRange({ start: null, end: null });
-            }}
-            handleCustomDayChange={() => {}}
-            handleCustomDateChange={() => {}}
-            handleMonthSelection={(tag) => {
-              let start, end;
-              if (tag === 'thisMonth') {
-                start = dayjs().startOf('month');
-                end = dayjs().endOf('month');
-              } else {
-                start = dayjs().subtract(1, 'month').startOf('month');
-                end = dayjs().subtract(1, 'month').endOf('month');
-              }
-              setActiveTag(tag);
-              setDateRange({ start: start.toDate(), end: end.toDate() });
-            }}
-          />
+      {/* Mode + Filters + Download */}
+      <Box sx={{ display: { xs: 'block', md: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box sx={{ mb: { xs: 2, md: 0 } }}>
+          <Tabs value={mode} onChange={handleModeChange}>
+            <Tab label="Users Mode" value="users" />
+            <Tab label="Orders Mode" value="orders" />
+          </Tabs>
+        </Box>
+        <Box>
 
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>Select Columns</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <FormControl component="fieldset">
-                <Grid container spacing={1}>
-                  {availableColumns.map((col) => (
-                    <Grid item xs={6} sm={4} md={3} key={col.value}>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={selectedColumns.includes(col.value)}
-                            onChange={() =>
-                              setSelectedColumns((prev) =>
-                                prev.includes(col.value)
-                                  ? prev.filter((c) => c !== col.value)
-                                  : [...prev, col.value]
-                              )
-                            }
-                          />
-                        }
-                        label={col.label}
-                      />
-                    </Grid>
-                  ))}
-                </Grid>
-              </FormControl>
-            </AccordionDetails>
-          </Accordion>
+<Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box
+            sx={{
+              display: 'inline',
+              cursor: 'pointer',
+              padding: '0px 8px',
+              borderRadius: '8px',
+              mr: 1,
+              '&:hover': {
+                backgroundColor: 'rgba(245, 245, 245, 0.1)',
+              },
+            }}
+            onClick={toggleDrawer}
+          >
+            Filters
+            <IconButton disableRipple><FilterListIcon /></IconButton>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleDownloadCSV}
+            disabled={downloading}
+          >
+            {downloading ? 'Preparing CSV…' : 'Download CSV'}
+          </Button>
+          </Box>
+        </Box>
+      </Box>
+      <Divider />
 
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>Item Filter</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={applyItemFilter}
-                    onChange={(e) => setApplyItemFilter(e.target.checked)}
-                  />
-                }
-                label="Apply Item Filter"
-              />
-              {applyItemFilter && (
-                <Box sx={{ mt: 2 }}>
-                  {availableItems.map((item) => (
+      {/* Bottom Drawer with Accordions */}
+      <Drawer
+        anchor="bottom"
+        open={drawerOpen}
+        onClose={toggleDrawer}
+        PaperProps={{ sx: { borderRadius: '16px 16px 0 0' } }}
+      >
+        <Box p={2} maxHeight="70vh" overflow="auto" style={{ overflowX: 'hidden' }}>
+          <Divider sx={{ width: '20%', maxWidth: 350, borderRadius: 2, mb: 2, mx: 'auto', height: '0.4rem', backgroundColor: 'rgba(200,200,200)', display: { xs: 'block', md: 'none' } }} />
+          <Stack spacing={2}>
+
+            {/* Date Range */}
+            <Accordion defaultExpanded>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Date Range</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <DateRangeChips
+                  activeTag={activeTag}
+                  hideCustomChips
+                  setActiveTag={setActiveTag}
+                  setDateRange={({ start, end }) => setDateRange({ start, end })}
+                  handleAllTagClick={() => { setActiveTag('all'); setDateRange({ start: null, end: null }); }}
+                  handleMonthSelection={tag => {
+                    let s, e;
+                    if (tag === 'thisMonth') { s = dayjs().startOf('month'); e = dayjs().endOf('month'); }
+                    else { s = dayjs().subtract(1, 'month').startOf('month'); e = dayjs().subtract(1, 'month').endOf('month'); }
+                    setActiveTag(tag);
+                    setDateRange({ start: s.toDate(), end: e.toDate() });
+                  }}
+                />
+              </AccordionDetails>
+            </Accordion>
+
+            {/* Columns */}
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Select Columns</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box display="flex" flexWrap="wrap" gap={1}>
+                  {availableColumns.map(col => (
                     <Chip
-                      key={item}
-                      label={item}
+                      key={col.value}
+                      label={col.label}
                       clickable
-                      onClick={() =>
-                        setItems((prev) =>
-                          prev.includes(item)
-                            ? prev.filter((i) => i !== item)
-                            : [...prev, item]
-                        )
-                      }
-                      sx={{
-                        m: 0.5,
-                        bgcolor: items.includes(item)
-                          ? 'primary.main'
-                          : 'grey.300',
-                        color: items.includes(item) ? 'white' : 'black',
+                      color={selectedColumns.includes(col.value) ? 'primary' : 'default'}
+                      onClick={() => {
+                        setSelectedColumns(prev =>
+                          prev.includes(col.value)
+                            ? prev.filter(v => v !== col.value)
+                            : [...prev, col.value]
+                        );
                       }}
                     />
                   ))}
                 </Box>
-              )}
-            </AccordionDetails>
-          </Accordion>
+              </AccordionDetails>
+            </Accordion>
 
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>Customer Loyalty Filter</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={applyLoyaltyFilter}
-                    onChange={(e) =>
-                      setApplyLoyaltyFilter(e.target.checked)
-                    }
-                  />
-                }
-                label="Apply Loyalty Filter"
-              />
-              {applyLoyaltyFilter && (
-                <Stack spacing={2} sx={{ mt: 2 }}>
-                  {['minAmountSpent', 'minNumberOfOrders', 'minItemsCount'].map(
-                    (key) => (
+            {/* Search Tag */}
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Global Search</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <TextField
+                  label="Search across name, phone, city, product…"
+                  value={tags}
+                  onChange={e => setTags(e.target.value)}
+                  fullWidth
+                />
+              </AccordionDetails>
+            </Accordion>
+
+            {/* Category Filter */}
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Filter by Specific Category</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={applyItemFilter}
+                      onChange={e => setApplyItemFilter(e.target.checked)}
+                    />
+                  }
+                  label="Enable Category Filter"
+                />
+                {applyItemFilter && (
+                  <Box mt={1}>
+                    {availableCategories.map(cat => (
+                      <Chip
+                        key={cat._id}
+                        label={cat.name}
+                        clickable
+                        color={items.includes(cat._id) ? 'primary' : 'default'}
+                        onClick={() => setItems(prev =>
+                          prev.includes(cat._id)
+                            ? prev.filter(x => x !== cat._id)
+                            : [...prev, cat._id]
+                        )}
+                        sx={{ m: 0.5 }}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </AccordionDetails>
+            </Accordion>
+
+            {/* Vehicle Filter */}
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Filter by Vehicle</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={applyVehicleFilter}
+                      onChange={e => setApplyVehicleFilter(e.target.checked)}
+                    />
+                  }
+                  label="Enable Vehicle Filter"
+                />
+                {applyVehicleFilter && (
+                  <Box>
+                    {['bike', 'car'].map(v => (
+                      <FormControlLabel
+                        key={v}
+                        control={
+                          <Checkbox
+                            checked={vehicles.includes(v)}
+                            onChange={() => setVehicles(prev =>
+                              prev.includes(v)
+                                ? prev.filter(x => x !== v)
+                                : [...prev, v]
+                            )}
+                          />
+                        }
+                        label={v.charAt(0).toUpperCase() + v.slice(1)}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </AccordionDetails>
+            </Accordion>
+
+            {/* Loyalty Filter */}
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography>Customer Loyalty</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={applyLoyaltyFilter}
+                      onChange={e => setApplyLoyaltyFilter(e.target.checked)}
+                    />
+                  }
+                  label="Enable Loyalty Filter"
+                />
+                {applyLoyaltyFilter && (
+                  <Stack spacing={2} mt={1}>
+                    {['minAmountSpent', 'minNumberOfOrders', 'minItemsCount'].map(key => (
                       <Box key={key}>
                         <FormControlLabel
                           control={
                             <Checkbox
                               checked={loyaltyFilters[key].checked}
-                              onChange={() =>
-                                setLoyaltyFilters((prev) => ({
-                                  ...prev,
-                                  [key]: {
-                                    ...prev[key],
-                                    checked: !prev[key].checked,
-                                  },
-                                }))
-                              }
+                              onChange={() => setLoyaltyFilters(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], checked: !prev[key].checked }
+                              }))}
                             />
                           }
-                          label={
-                            key === 'minAmountSpent'
-                              ? 'Minimum Amount Spent'
-                              : key === 'minNumberOfOrders'
-                              ? 'Minimum Number of Orders'
-                              : 'Minimum Items Purchased'
-                          }
+                          label={{
+                            minAmountSpent: 'Min Amount Spent',
+                            minNumberOfOrders: 'Min # of Orders',
+                            minItemsCount: 'Min Items Purchased'
+                          }[key]}
                         />
                         {loyaltyFilters[key].checked && (
-                          <Box sx={{ px: 3 }}>
-                            {key === 'minAmountSpent' ? (
-                              <>
-                                <Slider
-                                  min={0}
-                                  max={20000}
-                                  step={500}
-                                  value={loyaltyFilters[key].value}
-                                  onChange={(e, v) =>
-                                    setLoyaltyFilters((prev) => ({
-                                      ...prev,
-                                      [key]: { ...prev[key], value: v },
-                                    }))
-                                  }
-                                  valueLabelDisplay="auto"
-                                />
-                                <Typography>
-                                  ₹{loyaltyFilters[key].value}
-                                </Typography>
-                              </>
-                            ) : (
-                              <TextField
-                                type="number"
-                                fullWidth
+                          key === 'minAmountSpent' ? (
+                            <>
+                              <Slider
+                                min={0} max={20000} step={500}
                                 value={loyaltyFilters[key].value}
-                                onChange={(e) =>
-                                  setLoyaltyFilters((prev) => ({
-                                    ...prev,
-                                    [key]: {
-                                      ...prev[key],
-                                      value: Number(e.target.value),
-                                    },
-                                  }))
-                                }
-                                InputProps={{ inputProps: { min: 0 } }}
+                                onChange={(e, v) => setLoyaltyFilters(prev => ({
+                                  ...prev, [key]: { ...prev[key], value: v }
+                                }))}
+                                valueLabelDisplay="auto"
                               />
-                            )}
-                          </Box>
+                              <Typography>₹{loyaltyFilters[key].value}</Typography>
+                            </>
+                          ) : (
+                            <TextField
+                              type="number" fullWidth
+                              value={loyaltyFilters[key].value}
+                              onChange={e => setLoyaltyFilters(prev => ({
+                                ...prev, [key]: { ...prev[key], value: +e.target.value }
+                              }))}
+                              inputProps={{ min: 0 }}
+                            />
+                          )
                         )}
                       </Box>
-                    )
-                  )}
-                </Stack>
-              )}
-            </AccordionDetails>
-          </Accordion>
-        </Stack>
-      </Paper>
+                    ))}
+                  </Stack>
+                )}
+              </AccordionDetails>
+            </Accordion>
 
-      <Box textAlign="center" sx={{ mb: 4 }}>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={<FileDownloadIcon />}
-          onClick={handleDownloadCSV}
-          disabled={isDownloading}
-        >
-          {isDownloading ? 'Preparing CSV…' : 'Download CSV'}
-        </Button>
-      </Box>
-      <Divider sx={{ mb: 4 }} />
-
-      {tableLoading ? (
-        <Box textAlign="center" sx={{ py: 10 }}>
-          <CircularProgress />
+          </Stack>
         </Box>
+      </Drawer>
+
+      {/* Data Table */}
+      {loading ? (
+        <Box textAlign="center" py={10}><CircularProgress /></Box>
       ) : (
-        <Paper elevation={2}>
-          <TableContainer>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  {selectedColumns.map((col) => {
-                    const colDef = availableColumns.find(c => c.value === col);
-                    return (
-                      <TableCell
-                        key={col}
-                        sortDirection={sortConfig.field === col ? sortConfig.order : false}
+        <TableContainer>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                {mode === 'orders' && <TableCell>Order ID</TableCell>}
+                {selectedColumns.map(col => {
+                  if (mode === 'orders' && col === 'orderId') return null;
+                  const label = availableColumns.find(c => c.value === col)?.label;
+                  return (
+                    <TableCell key={col} sortDirection={sortConfig.field === col ? sortConfig.order : false}>
+                      <TableSortLabel
+                        active={sortConfig.field === col}
+                        direction={sortConfig.order}
+                        onClick={() => handleSort(col)}
                       >
-                        <TableSortLabel
-                          active={sortConfig.field === col}
-                          direction={sortConfig.order}
-                          onClick={() => handleSort(col)}
-                        >
-                          {colDef?.label || col}
-                        </TableSortLabel>
-                      </TableCell>
-                    );
+                        {label}
+                      </TableSortLabel>
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {customers.length ? customers.map((row, i) => (
+                <TableRow key={i}>
+                  {mode === 'orders' && <TableCell>{row['Order ID'] || row.orderId}</TableCell>}
+                  {selectedColumns.map(col => {
+                    if (mode === 'orders' && col === 'orderId') return null;
+                    const val = row[availableColumns.find(c => c.value === col)?.label] || row[col];
+                    return <TableCell key={col}>{val != null ? val.toString() : '—'}</TableCell>;
                   })}
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {customers.length ? (
-                  customers.map((row, idx) => (
-                    <TableRow key={idx} hover>
-                      {selectedColumns.map(col => {
-                        const label = availableColumns.find(c => c.value === col)?.label;
-                        return (
-                          <TableCell key={col}>
-                            {row[label] != null ? row[label].toString() : '—'}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={selectedColumns.length} align="center">
-                      No records found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={selectedColumns.length + (mode === 'orders' ? 1 : 0)} align="center">
+                    No records found.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
           <TablePagination
             component="div"
             count={totalRecords}
             page={page}
-            onPageChange={(_, newPage) => setPage(newPage)}
+            onPageChange={(_, n) => setPage(n)}
             rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(e) => {
-              setRowsPerPage(+e.target.value);
-              setPage(0);
-            }}
+            onRowsPerPageChange={e => { setRowsPerPage(+e.target.value); setPage(0); }}
             rowsPerPageOptions={[10, 25, 50, 100]}
           />
-        </Paper>
+        </TableContainer>
       )}
     </Container>
   );

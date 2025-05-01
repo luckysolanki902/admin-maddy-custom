@@ -107,6 +107,12 @@ const SpecificCategorySchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    vehicles: [
+      {
+        type: String,
+        enum: ["bike", "car"],
+      },
+    ],
     extraFields: {
       type: [ExtraFieldSchema],
       default: [],

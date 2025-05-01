@@ -10,43 +10,49 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get('query');
-    if (!q) return NextResponse.json({ message: 'Missing query' }, { status: 400 });
+    if (!q) {
+      return NextResponse.json({ message: 'Missing query' }, { status: 400 });
+    }
 
     const {
-      mode = 'users',
+      mode = 'users',         // 'users' or 'orders'
       start, end, activeTag,
-      columns, tags,
+      columns, tags,          // global search term
       applyItemFilter, items = [],
       applyVehicleFilter, vehicles = [],
       applyLoyaltyFilter, loyalty = {},
       page = 1, pageSize = 10,
-      sortField, sortOrder
+      sortField, sortOrder,
     } = JSON.parse(q);
 
-    // 1) Base match: only paid-ish orders
+    // 1) Base match: only “paid” statuses
     const match = { paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] } };
     if (activeTag !== 'all' && start && end) {
       match.createdAt = { $gte: new Date(start), $lte: new Date(end) };
     }
 
-    // 2) Item filter by category-ID
+    // 2) Category-by-ID filter
     if (applyItemFilter && items.length) {
       const prodIds = await Product.find({ specificCategory: { $in: items } }).distinct('_id');
-      if (!prodIds.length) return NextResponse.json({ customers: [], totalRecords: 0 });
+      if (!prodIds.length) {
+        return NextResponse.json({ customers: [], totalRecords: 0 });
+      }
       match['items.product'] = { $in: prodIds };
     }
 
     // 3) Vehicle filter
     if (applyVehicleFilter && vehicles.length) {
-      const cats = await SpecificCategory.find({ vehicles: { $in: vehicles } }).select('_id');
-      const prodIds = await Product.find({ specificCategory: { $in: cats.map(c=>c._id) } }).distinct('_id');
-      if (!prodIds.length) return NextResponse.json({ customers: [], totalRecords: 0 });
+      const cats = await SpecificCategory.find({ vehicles: { $in: vehicles } }).select('_id').lean();
+      const prodIds = await Product.find({ specificCategory: { $in: cats.map(c => c._id) } }).distinct('_id');
+      if (!prodIds.length) {
+        return NextResponse.json({ customers: [], totalRecords: 0 });
+      }
       match['items.product'] = match['items.product']
         ? { $in: prodIds.filter(id => match['items.product'].$in.includes(id)) }
         : { $in: prodIds };
     }
 
-    // 4) Build initial pipeline
+    // 4) Build pipeline
     const pipeline = [{ $match: match }];
 
     // 5) Join user & products
@@ -61,23 +67,34 @@ export async function GET(req) {
           as: 'productDetails'
         }
       },
+      // compute itemsSum, category IDs, product names per order
       {
         $addFields: {
-          itemsSum: { $sum: '$items.quantity' },
+          itemsSum: {
+            $reduce: {
+              input: '$items',
+              initialValue: 0,
+              in: { $add: ['$$value', '$$this.quantity'] }
+            }
+          },
           specificCategoryIds: {
             $reduce: {
               input: '$productDetails',
               initialValue: [],
               in: { $setUnion: ['$$value', ['$$this.specificCategory']] }
             }
-          }
+          },
+          productNames: { $map: {
+            input: '$productDetails',
+            as: 'pd',
+            in: '$$pd.name'
+          }}
         }
       }
     );
 
-    // 6) Branch: Users vs Orders mode
     if (mode === 'users') {
-      // group by user
+      // 6a) Group by user, accumulate arrays of category IDs & product names
       pipeline.push(
         {
           $group: {
@@ -85,62 +102,56 @@ export async function GET(req) {
             orderCount: { $sum: 1 },
             totalAmountSpent: { $sum: '$totalAmount' },
             itemPurchaseCounts: { $sum: '$itemsSum' },
-            firstDoc: { $first: '$$ROOT' }
+            fullName: { $first: '$user.name' },
+            phoneNumber: { $first: { $toString: '$user.phoneNumber' } },
+            city: { $first: '$address.city' },
+            utmSource: { $first: '$utmDetails.source' },
+            utmMedium: { $first: '$utmDetails.medium' },
+            utmCampaign: { $first: '$utmDetails.campaign' },
+            specificCategoryIdsArr: { $push: '$specificCategoryIds' },
+            productNamesArr: { $push: '$productNames' }
           }
         },
-        {
-          $replaceRoot: {
-            newRoot: {
-              userId: '$_id',
-              orderCount: 1,
-              totalAmountSpent: 1,
-              itemPurchaseCounts: 1,
-              doc: '$firstDoc'
-            }
-          }
-        },
+        // 6b) Flatten all category-ID arrays into one
         {
           $addFields: {
-            fullName: '$doc.user.name',
-            phoneNumber: '$doc.user.phoneNumber',
-            city: '$doc.doc.address.city',
-            utmSource: '$doc.utmDetails.source',
-            utmMedium: '$doc.utmDetails.medium',
-            utmCampaign: '$doc.utmDetails.campaign',
-            addressLine1: '$doc.address.addressLine1',
-            addressLine2: '$doc.address.addressLine2',
-            receiverName: '$doc.address.receiverName',
-            receiverPhoneNumber: '$doc.address.receiverPhoneNumber',
-            specificCategoryIds: '$doc.specificCategoryIds',
-            productNames: '$doc.productDetails.name'
+            specificCategoryIds: {
+              $reduce: {
+                input: '$specificCategoryIdsArr',
+                initialValue: [],
+                in: { $setUnion: ['$$value', '$$this'] }
+              }
+            },
+            productNames: {
+              $reduce: {
+                input: '$productNamesArr',
+                initialValue: [],
+                in: { $setUnion: ['$$value', '$$this'] }
+              }
+            }
           }
         }
       );
+
     } else {
-      // Orders mode: keep each order
+      // 6c) Orders mode: each document stays as an order
       pipeline.push({
         $addFields: {
           orderId: '$_id',
           fullName: '$user.name',
-          phoneNumber: '$user.phoneNumber',
+          phoneNumber: { $toString: '$user.phoneNumber' },
           city: '$address.city',
           orderCount: 1,
           totalAmountSpent: '$totalAmount',
           itemPurchaseCounts: '$itemsSum',
           utmSource: '$utmDetails.source',
           utmMedium: '$utmDetails.medium',
-          utmCampaign: '$utmDetails.campaign',
-          addressLine1: '$address.addressLine1',
-          addressLine2: '$address.addressLine2',
-          receiverName: '$address.receiverName',
-          receiverPhoneNumber: '$address.receiverPhoneNumber',
-          specificCategoryIds: '$specificCategoryIds',
-          productNames: '$productDetails.name'
+          utmCampaign: '$utmDetails.campaign'
         }
       });
     }
 
-    // 7) Lookup category names
+    // 7) Lookup category names and build comma-string
     pipeline.push(
       {
         $lookup: {
@@ -169,16 +180,18 @@ export async function GET(req) {
       }
     );
 
-    // 8) Loyalty filter
+    // 8) Loyalty filter on the real aggregated fields
     if (applyLoyaltyFilter) {
       const ands = [];
       if (loyalty.minAmountSpent != null) ands.push({ totalAmountSpent: { $gte: loyalty.minAmountSpent } });
       if (loyalty.minNumberOfOrders != null) ands.push({ orderCount: { $gte: loyalty.minNumberOfOrders } });
       if (loyalty.minItemsCount != null) ands.push({ itemPurchaseCounts: { $gte: loyalty.minItemsCount } });
-      if (ands.length) pipeline.push({ $match: { $and: ands } });
+      if (ands.length) {
+        pipeline.push({ $match: { $and: ands } });
+      }
     }
 
-    // 9) **Global searchTerm** across _all_ relevant fields
+    // 9) Global searchTerm across *all* major fields
     if (tags) {
       const regex = new RegExp(tags, 'i');
       pipeline.push({
@@ -191,17 +204,13 @@ export async function GET(req) {
             { utmSource: regex },
             { utmMedium: regex },
             { utmCampaign: regex },
-            { addressLine1: regex },
-            { addressLine2: regex },
-            { receiverName: regex },
-            { receiverPhoneNumber: regex },
             { productNames: regex }
           ]
         }
       });
     }
 
-    // 10) Projection by selected columns
+    // 10) Project only the selected columns
     const proj = {};
     if (Array.isArray(columns) && columns.length) {
       for (const col of columns) {
@@ -222,6 +231,7 @@ export async function GET(req) {
         }
       }
     } else {
+      // sensible defaults
       proj['Full Name'] = '$fullName';
       proj['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
       proj['Order Count'] = '$orderCount';
@@ -241,22 +251,23 @@ export async function GET(req) {
       utmMedium: 'UTM Medium',
       utmCampaign: 'UTM Campaign',
       specificCategory: 'Specific Category',
-      orderCount: 'Order Count'
+      orderCount: 'Order Count',
     };
     if (sortField && sortMap[sortField]) {
-      pipeline.push({ $sort: { [sortMap[sortField]]: sortOrder === 'desc' ? -1 : 1 } });
+      pipeline.push({
+        $sort: { [sortMap[sortField]]: sortOrder === 'desc' ? -1 : 1 }
+      });
     }
 
     // 12) Faceted pagination
-    const skip = (Number(page) - 1) * Number(pageSize);
+    const skip = (page - 1) * pageSize;
     pipeline.push({
       $facet: {
-        customers: [{ $skip: skip }, { $limit: Number(pageSize) }],
+        customers: [{ $skip: skip }, { $limit: pageSize }],
         totalRecords: [{ $count: 'count' }]
       }
     });
 
-    // Execute
     const results = await Order.aggregate(pipeline).exec();
     const customers = results[0]?.customers || [];
     const totalRecordsCount = results[0]?.totalRecords[0]?.count || 0;

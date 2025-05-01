@@ -76,6 +76,9 @@ export default function DownloadCustomersData() {
 
   // Fetch data
   useEffect(() => {
+    if (mode === 'orders' && !selectedColumns.includes('orderId')) {
+      return;
+    }
     (async () => {
       setLoading(true);
       try {
@@ -192,31 +195,31 @@ export default function DownloadCustomersData() {
         </Box>
         <Box>
 
-<Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Box
-            sx={{
-              display: 'inline',
-              cursor: 'pointer',
-              padding: '0px 8px',
-              borderRadius: '8px',
-              mr: 1,
-              '&:hover': {
-                backgroundColor: 'rgba(245, 245, 245, 0.1)',
-              },
-            }}
-            onClick={toggleDrawer}
-          >
-            Filters
-            <IconButton disableRipple><FilterListIcon /></IconButton>
-          </Box>
-          <Button
-            variant="contained"
-            startIcon={<FileDownloadIcon />}
-            onClick={handleDownloadCSV}
-            disabled={downloading}
-          >
-            {downloading ? 'Preparing CSV…' : 'Download CSV'}
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box
+              sx={{
+                display: 'inline',
+                cursor: 'pointer',
+                padding: '0px 8px',
+                borderRadius: '8px',
+                mr: 1,
+                '&:hover': {
+                  backgroundColor: 'rgba(245, 245, 245, 0.1)',
+                },
+              }}
+              onClick={toggleDrawer}
+            >
+              Filters
+              <IconButton disableRipple><FilterListIcon /></IconButton>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<FileDownloadIcon />}
+              onClick={handleDownloadCSV}
+              disabled={downloading}
+            >
+              {downloading ? 'Preparing CSV…' : 'Download CSV'}
+            </Button>
           </Box>
         </Box>
       </Box>

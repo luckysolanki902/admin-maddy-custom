@@ -34,44 +34,44 @@ export async function GET(req) {
         }
       },
 
-      // 5️⃣ Count how many items per (component, pageType)
+      // 5️⃣ Count how many items per (pageType, component)
       {
         $group: {
           _id: {
-            component: '$items.insertionDetails.component',
-            pageType:  '$items.insertionDetails.pageType'
+            pageType: '$items.insertionDetails.pageType',
+            component: '$items.insertionDetails.component'
           },
           count: { $sum: 1 }
         }
       },
 
-      // 6️⃣ Regroup by component, collecting {k, v} pairs for arrayToObject
+      // 6️⃣ Regroup by pageType, collecting {k, v} pairs for arrayToObject
       {
         $group: {
-          _id:    '$_id.component',
+          _id: '$_id.pageType',
           kvPairs: {
             $push: {
-              k: '$_id.pageType',
+              k: '$_id.component',
               v: '$count'
             }
           }
         }
       },
 
-      // 7️⃣ Build a `counts` object and output { component, counts }
+      // 7️⃣ Build a `counts` object and output { pageType, counts }
       {
         $project: {
-          _id:       0,
-          component: '$_id',
-          counts:    { $arrayToObject: '$kvPairs' }
+          _id: 0,
+          pageType: '$_id',
+          counts: { $arrayToObject: '$kvPairs' }
         }
       }
     ];
 
     const raw = await Order.aggregate(pipeline);
 
-    // 8️⃣ Flatten for the chart: { component, pageTypeA: n, pageTypeB: n, … }
-    const cartSources = raw.map(r => ({ component: r.component, ...r.counts }));
+    // 8️⃣ Flatten for the chart: { pageType, componentA: n, componentB: n, … }
+    const cartSources = raw.map(r => ({ pageType: r.pageType, ...r.counts }));
 
     return new Response(JSON.stringify({ cartSources }), {
       status: 200,

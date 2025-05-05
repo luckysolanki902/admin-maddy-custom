@@ -157,9 +157,7 @@ const CartSourcesChart = ({ data, loading }) => {
     const theme = useTheme();
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
 
-    if (loading) {
-        return <Skeleton variant="rectangular" height={450} />;
-    }
+
 
     // Get all unique components across the dataset
     const components = Array.from(
@@ -179,7 +177,7 @@ const CartSourcesChart = ({ data, loading }) => {
                 p: 4,
                 borderRadius: 3,
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-                minHeight: 450
+                minHeight: 520
             }}
         >
             <Typography

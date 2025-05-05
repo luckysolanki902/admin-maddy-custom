@@ -222,7 +222,7 @@ export default function AnalyticsDashboard({ admin = false }) {
       {/* ============ PANELS ============ */}
 
       {/* Snapshot */}
-      <Box id="panel-snapshot" sx={{ scrollMarginTop: 100, mb: 6 }}>
+      <Box id="panel-snapshot" sx={{ scrollMarginTop: 180, mb: 6 }}>
         <Typography variant="h5" sx={{ mb: 2 }}>Snapshot</Typography>
         <Grid container spacing={4}>
           <Grid item xs={12} md={6}>
@@ -235,7 +235,7 @@ export default function AnalyticsDashboard({ admin = false }) {
       </Box>
 
       {/* Product Insights */}
-      <Box id="panel-products" sx={{ scrollMarginTop: 100, mb: 6 }}>
+      <Box id="panel-products" sx={{ scrollMarginTop: 180, mb: 6 }}>
         <Typography variant="h5" sx={{ mb: 2 }}>Product Insights</Typography>
         <LazyCard height={550}>
           <VariantSalesChart data={variantSales} />
@@ -243,7 +243,7 @@ export default function AnalyticsDashboard({ admin = false }) {
       </Box>
 
       {/* Traffic & Engagement */}
-      <Box id="panel-traffic" sx={{ scrollMarginTop: 100, mb: 6 }}>
+      <Box id="panel-traffic" sx={{ scrollMarginTop: 180, mb: 6 }}>
         <Typography variant="h5" sx={{ mb: 2 }}>Traffic & Engagement</Typography>
         <Grid container spacing={4}>
           <Grid item xs={12} md={6}>
@@ -264,7 +264,7 @@ export default function AnalyticsDashboard({ admin = false }) {
 
       {/* Revenue (admin only) */}
       {admin && (
-        <Box id="panel-revenue" sx={{ scrollMarginTop: 100, mb: 6 }}>
+        <Box id="panel-revenue" sx={{ scrollMarginTop: 180, mb: 6 }}>
           <Typography variant="h5" sx={{ mb: 2 }}>Revenue</Typography>
           <Grid container spacing={4}>
             <Grid item xs={12} md={6}>
@@ -281,7 +281,7 @@ export default function AnalyticsDashboard({ admin = false }) {
       )}
 
       {/* Utilities */}
-      <Box id="panel-tools" sx={{ scrollMarginTop: 100 }}>
+      <Box id="panel-tools" sx={{ scrollMarginTop: 180 }}>
         <Typography variant="h5" sx={{ mb: 2 }}>Utilities</Typography>
         <LazyCard height={110}>
           <Button

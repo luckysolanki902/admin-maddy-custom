@@ -1,6 +1,8 @@
-// ReturningPayingUsersChart.jsx
+// /components/analytics/main/ReturningPayingUsersChart.js
 
-import React, { useEffect } from 'react';
+'use client';
+
+import React, { useState, useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -9,35 +11,52 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Area,
+  AreaChart
 } from 'recharts';
-import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme, Chip } from '@mui/material';
 import dayjs from '@/lib/dayjsConfig'; // Centralized Day.js import
 
-const COLORS = ['#2D7EE8'];
+// Color palette for the chart to match the theme
+const COLORS = {
+  primary: '#60A5FA',  // vibrant blue
+  highlight: '#A78BFA', // purple
+  accent: '#F472B6',   // pink
+  success: '#34D399',  // emerald
+};
 
 const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+
+  // Calculate total users and growth
+  const totalUsers = useMemo(() => 
+    data.reduce((acc, item) => acc + item.returningPayingUsersCount, 0), 
+    [data]
+  );
+  
+  // Calculate growth compared to previous similar period if data available
+  const previousPeriodTotal = useMemo(() => {
+    if (data.length <= 5) return 0;
+    const halfPoint = Math.floor(data.length / 2);
+    const firstHalf = data.slice(0, halfPoint).reduce((acc, item) => acc + item.returningPayingUsersCount, 0);
+    const secondHalf = data.slice(halfPoint).reduce((acc, item) => acc + item.returningPayingUsersCount, 0);
+    return { firstHalf, secondHalf, growth: ((secondHalf - firstHalf) / firstHalf * 100) };
+  }, [data]);
 
   // Determine if the date range is valid
   const isValidDateRange = startDate && endDate;
 
-  // Calculate the difference in days using Math.ceil to align with the backend
+  // Calculate the difference in days
   const daysDifference = isValidDateRange
     ? Math.ceil(dayjs(endDate).diff(dayjs(startDate), 'millisecond') / (1000 * 60 * 60 * 24))
     : null;
 
-  // Log the received data for debugging
-  useEffect(() => {
-  }, [data]);
-
-  // Format period labels based on the date range and period format
+  // Format period labels based on the date range
   const formatPeriodLabel = (period) => {
-
-    if (!period) {
-      return 'No Date';
-    }
-
+    if (!period) return 'No Date';
+    
     try {
       if (isValidDateRange) {
         if (daysDifference < 7) {
@@ -46,22 +65,18 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
           if (parsedDate.isValid()) {
             return parsedDate.format('MMM D');
           } else {
-            // Attempt fallback parsing without strict mode
+            // Attempt fallback parsing
             const fallback = dayjs(period);
             return fallback.isValid() ? fallback.format('MMM D') : 'Invalid Date';
           }
         } else {
           // Weekly data (format: YYYY-WW)
           const [year, week] = period.split('-W');
-          if (!year || !week) {
-            return 'Invalid Week';
-          }
-
+          if (!year || !week) return 'Invalid Week';
+          
           const weekNumber = parseInt(week, 10);
-          if (isNaN(weekNumber)) {
-            return 'Invalid Week Number';
-          }
-
+          if (isNaN(weekNumber)) return 'Invalid Week Number';
+          
           const startOfWeek = dayjs()
             .year(year)
             .isoWeek(weekNumber)
@@ -72,16 +87,15 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
             .isoWeek(weekNumber)
             .endOf('isoWeek')
             .format('MMM D');
-
+            
           return `${startOfWeek} - ${endOfWeek}`;
         }
       } else {
-        // 'All' tag: Monthly data (format: YYYY-MM)
+        // Monthly data (format: YYYY-MM)
         const parsedMonth = dayjs(period, 'YYYY-MM', true); // Strict parsing
         if (parsedMonth.isValid()) {
           return parsedMonth.format('MMM YYYY');
         } else {
-          // Attempt fallback parsing without strict mode
           const fallback = dayjs(period);
           return fallback.isValid() ? fallback.format('MMM YYYY') : 'Invalid Month';
         }
@@ -94,103 +108,352 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
 
   // Custom Tooltip Component
   const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const formattedLabel = formatPeriodLabel(label);
-      const value = payload[0].value;
-      return (
-        <Box
-          sx={{
-            backgroundColor: '#333',
-            borderRadius: '8px',
-            padding: '0.5rem 1rem',
-            color: 'white',
+    if (!active || !payload?.length) return null;
+    
+    const formattedLabel = formatPeriodLabel(label);
+    const value = payload[0].value;
+    
+    // If we have neighboring data points, calculate growth
+    const currentIndex = data.findIndex(d => d.period === label);
+    let growth = null;
+    
+    if (currentIndex > 0) {
+      const prevValue = data[currentIndex - 1].returningPayingUsersCount;
+      if (prevValue > 0) {
+        growth = ((value - prevValue) / prevValue) * 100;
+      }
+    }
+    
+    return (
+      <Box
+        sx={{
+          backgroundColor: 'rgba(17, 24, 39, 0.95)',
+          backdropFilter: 'blur(8px)',
+          p: 2.5,
+          borderRadius: '12px',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+          color: 'white',
+          minWidth: 200,
+          position: 'relative',
+          '&:before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '2px',
+            background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+          }
+        }}
+      >
+        <Typography 
+          variant="subtitle2" 
+          sx={{ 
+            mb: 1.5, 
+            color: '#FFF',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            pb: 1
           }}
         >
-          <Typography variant="body2">{formattedLabel}</Typography>
-          <Typography variant="body1">{`${value} Users`}</Typography>
+          {formattedLabel}
+        </Typography>
+        
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            mb: 1,
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            p: 0.8,
+            borderRadius: 1
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: COLORS.primary,
+                mr: 1.5,
+                boxShadow: `0 0 10px ${COLORS.primary}40`
+              }}
+            />
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontSize: '0.85rem',
+                color: '#EEE'
+              }}
+            >
+              Returning Customers
+            </Typography>
+          </Box>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              color: '#FFF'
+            }}
+          >
+            {value}
+          </Typography>
         </Box>
-      );
-    }
-
-    return null;
+        
+        {growth !== null && (
+          <Box 
+            sx={{ 
+              mt: 1.5, 
+              pt: 1.5,
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+          >
+            <Typography variant="body2" sx={{ color: '#CCC', fontSize: '0.85rem' }}>
+              Change from previous
+            </Typography>
+            <Chip
+              label={`${growth > 0 ? '+' : ''}${growth.toFixed(1)}%`}
+              size="small"
+              sx={{
+                backgroundColor: growth > 0 ? 'rgba(52, 211, 153, 0.2)' : 'rgba(244, 114, 182, 0.2)',
+                color: growth > 0 ? '#34D399' : '#F472B6',
+                fontWeight: 600,
+                fontSize: '0.75rem'
+              }}
+            />
+          </Box>
+        )}
+      </Box>
+    );
   };
 
   return (
     <Box
       sx={{
         width: '100%',
-        backgroundColor: '#2C2C2C',
-        padding: '1.5rem',
-        borderRadius: '12px',
-        boxShadow: 3,
-        transition: 'transform 0.3s',
-        position: 'relative',
-        minHeight: 450,
+        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
+        p: 4,
+        borderRadius: 3,
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+        minHeight: 450
       }}
     >
-      {/* Chart Title and Total Users */}
+      {/* Chart Title and Summary Stats */}
       <Box
-        sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        sx={{ 
+          display: 'flex', 
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          justifyContent: 'space-between', 
+          alignItems: isSmallScreen ? 'flex-start' : 'center',
+          mb: 3
+        }}
       >
         <Typography
           variant="h6"
-          gutterBottom
-          sx={{ color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
-          // onClick={() => {
-          //   // Navigate to detailed page
-          //   window.location.href = 'admin/analytics/returning-paying-users';
-          // }}
+          sx={{ 
+            color: 'white', 
+            fontWeight: 600, 
+            fontSize: isSmallScreen ? '1.1rem' : '1.25rem',
+            mb: isSmallScreen ? 2 : 0
+          }}
         >
           Users Re-ordering Over Time
         </Typography>
 
-        {/* Total Returning Paying Users Chip */}
-        <Typography
-          variant="body1"
-          sx={{
-            color: 'white',
-            fontWeight: 'bold',
-            fontSize: isSmallScreen ? '0.85rem' : '1rem',
-            backgroundColor: 'rgb(50, 50, 50)',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
+        {/* Stats Pills */}
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            gap: 2, 
+            flexWrap: 'wrap',
           }}
         >
-          Total: {data.reduce((acc, item) => acc + item.returningPayingUsersCount, 0)}
-        </Typography>
+          <Box
+            sx={{
+              backgroundColor: 'rgba(96, 165, 250, 0.15)',
+              borderRadius: '10px',
+              padding: '8px 15px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              Total
+            </Typography>
+            <Typography variant="subtitle1" sx={{ color: COLORS.primary, fontWeight: 'bold' }}>
+              {totalUsers}
+            </Typography>
+          </Box>
+          
+          {previousPeriodTotal.firstHalf > 0 && (
+            <Box
+              sx={{
+                backgroundColor: previousPeriodTotal.growth > 0 
+                  ? 'rgba(52, 211, 153, 0.15)'
+                  : 'rgba(244, 114, 182, 0.15)',
+                borderRadius: '10px',
+                padding: '8px 15px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Growth
+              </Typography>
+              <Typography 
+                variant="subtitle1" 
+                sx={{ 
+                  color: previousPeriodTotal.growth > 0 ? COLORS.success : COLORS.accent,
+                  fontWeight: 'bold'
+                }}
+              >
+                {previousPeriodTotal.growth > 0 ? '+' : ''}{previousPeriodTotal.growth.toFixed(1)}%
+              </Typography>
+            </Box>
+          )}
+        </Box>
       </Box>
 
-      {/* Line Chart */}
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+      {/* Main Chart */}
+      <ResponsiveContainer width="100%" height={350}>
+        <AreaChart 
+          data={data}
+          margin={{ 
+            top: 10, 
+            right: 20, 
+            left: isSmallScreen ? 5 : 15, 
+            bottom: isSmallScreen ? 30 : 20 
+          }}
+          onMouseMove={(e) => {
+            if (e.activePayload) {
+              setHoveredPoint(e.activePayload[0].payload);
+            }
+          }}
+          onMouseLeave={() => setHoveredPoint(null)}
+        >
+          <defs>
+            <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.8}/>
+              <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          
+          <CartesianGrid 
+            strokeDasharray="3 3" 
+            stroke="rgba(255, 255, 255, 0.1)"
+            vertical={false}
+          />
+          
           <XAxis
             dataKey="period"
-            stroke="#fff"
-            tickFormatter={(label) => formatPeriodLabel(label)}
+            stroke="#AAA"
+            tick={{ fill: '#EEE', fontSize: isSmallScreen ? 11 : 13 }}
+            tickFormatter={(period) => formatPeriodLabel(period)}
             interval={isSmallScreen ? 'preserveStartEnd' : 0}
+            tickLine={false}
+            axisLine={{ strokeWidth: 0.5 }}
+            angle={isSmallScreen ? -45 : 0}
+            textAnchor={isSmallScreen ? 'end' : 'middle'}
+            height={isSmallScreen ? 60 : 30}
           />
+          
           <YAxis
-            stroke="#fff"
+            stroke="#AAA"
+            tick={{ fill: '#EEE' }}
+            tickLine={false}
+            axisLine={{ strokeWidth: 0.5 }}
             allowDecimals={false}
-            label={{
-              value: 'Returning Paying Users',
-              angle: -90,
-              position: 'insideLeft',
-              fill: 'white',
-            }}
           />
+          
           <Tooltip content={<CustomTooltip />} />
-          <Line
+          
+          <Area
             type="monotone"
             dataKey="returningPayingUsersCount"
-            stroke={COLORS[0]}
+            name="Returning Customers"
+            stroke={COLORS.primary}
             strokeWidth={2}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
+            fill="url(#colorGradient)"
+            activeDot={{ 
+              r: 6, 
+              strokeWidth: 2,
+              stroke: '#FFF'
+            }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
+      
+      {/* Bottom Section - Context Info */}
+      <Box
+        sx={{
+          mt: 2,
+          pt: 2,
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          display: 'flex',
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          justifyContent: 'space-between',
+          alignItems: isSmallScreen ? 'flex-start' : 'center',
+          gap: 2
+        }}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            color: 'rgba(255, 255, 255, 0.6)',
+            fontStyle: 'italic',
+            fontSize: '0.9rem',
+            flex: 1
+          }}
+        >
+          {isValidDateRange && daysDifference < 7 
+            ? "Daily view shows users who made repeat purchases on specific dates"
+            : "Tracking users who return to make additional purchases over time"}
+        </Typography>
+
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            py: 0.75,
+            px: 1.5,
+            borderRadius: 2
+          }}
+        >
+          <Box 
+            sx={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: COLORS.highlight,
+              boxShadow: `0 0 10px ${COLORS.highlight}40`
+            }}
+          />
+          <Typography variant="caption" sx={{ color: '#EEE' }}>
+            {isValidDateRange && daysDifference < 7 
+              ? 'Daily repeat purchases'
+              : daysDifference >= 30
+                ? 'Monthly repeat customers' 
+                : 'Weekly repeat customers'
+            }
+          </Typography>
+        </Box>
+      </Box>
     </Box>
   );
 };

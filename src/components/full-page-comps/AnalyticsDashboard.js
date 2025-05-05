@@ -8,475 +8,292 @@ import {
   Grid,
   Typography,
   Box,
-  Skeleton,
-  TextField,
-  Button
+  Button,
+  Tab,
+  Tabs,
+  Skeleton
 } from '@mui/material';
-import { LocalizationProvider } from '@mui/x-date-pickers';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { styled, alpha, useTheme } from '@mui/material/styles';
+import dayjs from '@/lib/dayjsConfig';
+import { useRouter } from 'next/navigation';
+import { useInView } from 'react-intersection-observer';
+import { useSpring, animated } from '@react-spring/web';
+
 import SalesSourcesChart from '@/components/analytics/main/SalesSourcesChart';
+import CartSourcesChart from '@/components/analytics/main/CartSourcesChart';
 import ReturningPayingUsersChart from '@/components/analytics/main/ReturningPayingUsersChart';
 import VariantSalesChart from '@/components/analytics/main/VariantSalesChart';
+import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
 import AbandonedCartsChart from '@/components/analytics/main/AbandonedCartsChart';
 import DailyRevenueChart from '@/components/analytics/main/DailyRevenueChart';
 import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart';
 import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart';
-import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
-import { styled } from '@mui/material/styles';
-import dayjs from '@/lib/dayjsConfig';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
-const LoadingContainer = styled(Box)(() => ({
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  height: '80vh'
+/* ---------- 1.  Fancy sticky navbar ---------- */
+
+const GlassAppBar = styled(Box)(({ theme }) => ({
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  zIndex: 1200,
+  backdropFilter: 'blur(14px)',
+  borderBottom: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+  backgroundColor: 'transparent',
+  width: '100%',
+  padding: '1rem'
 }));
 
-const AnalyticsDashboard = ({ admin }) => {
-  // State for date range selections
+// Custom pill‑style tabs
+const FancyTabs = styled(Tabs)(({ theme }) => ({
+  minHeight: 42,
+  '.MuiTabs-flexContainer': {
+    gap: theme.spacing(1)
+  },
+  marginTop: '1.2rem',
+  marginBottom: '1.2rem',
+  '.MuiTab-root': {
+    minHeight: 32,
+    textTransform: 'none',
+    borderRadius: '999px',
+    paddingInline: '1rem',
+    fontWeight: 600,
+    padding: '0.5rem 1rem',
+    color: alpha(theme.palette.common.white, 0.7),
+    '&.Mui-selected': {
+      color: theme.palette.common.white,
+      background:
+        'linear-gradient(120deg, #A78BFA 0%, #7C3AED 100%)'
+    }
+  },
+  '.MuiTabs-indicator': {
+    display: 'none'
+  }
+}));
+
+/* ---------- 2.  Lazy + animated wrapper ---------- */
+
+function LazyCard({ children, height = 500 }) {
+  const { ref, inView } = useInView({ threshold: 0.15, triggerOnce: true });
+  const styles = useSpring({
+    opacity: inView ? 1 : 0,
+    y: inView ? 0 : 40,
+    config: { tension: 220, friction: 24 }
+  });
+
+  return (
+    <animated.div ref={ref} style={styles}>
+      {inView ? children : <Skeleton variant="rectangular" height={height} />}
+    </animated.div>
+  );
+}
+
+/* ---------- 3.  Component  ---------- */
+
+export default function AnalyticsDashboard({ admin = false }) {
+  const theme = useTheme();
+  const router = useRouter();
+
+  /* ------------ DATE STATE ------------ */
   const [dateRange, setDateRange] = useState({
     start: dayjs().subtract(6, 'day').startOf('day').toDate(),
     end: dayjs().endOf('day').toDate()
   });
   const [activeTag, setActiveTag] = useState('last7days');
 
-  // States for charts that respect date ranges
-  const [salesSources, setSalesSources] = useState([]);
-  const [returningPayingUsers, setReturningPayingUsers] = useState([]);
-  const [variantSales, setVariantSales] = useState([]);
-  const [abandonedCarts, setAbandonedCarts] = useState([]);
-  const [dailyRevenue, setDailyRevenue] = useState([]);
-  const [retargetedCustomers, setRetargetedCustomers] = useState([]);
-
-  // States for independent charts (do not respect date ranges)
-  const [totalRevenue, setTotalRevenue] = useState([]);
-  const [monthlyRevenue, setMonthlyRevenue] = useState([]);
-
+  /* ------------ DATA STATE ------------ */
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showDownloadUserDataSection, setShowDownloadUserDataSection] = useState(false);
-  const router = useRouter()
-  // --- Charts Respecting Date Range ---
+  const [salesSources, setSalesSources] = useState([]);
+  const [cartSources, setCartSources] = useState([]);
+  const [returnUsers, setReturnUsers] = useState([]);
+  const [variantSales, setVariantSales] = useState([]);
+  const [retargeted, setRetargeted] = useState([]);
+  const [abandoned, setAbandoned] = useState([]);
+  const [dailyRev, setDailyRev] = useState([]);
+  const [totalRev, setTotalRev] = useState([]);
+  const [monthlyRev, setMonthlyRev] = useState([]);
 
-  const fetchSalesSources = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/sales-sources?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch sales sources data');
-      const data = await res.json();
-      setSalesSources(data.salesSources);
-    } catch (error) {
-      console.error('Error fetching sales sources:', error);
-      setError('Failed to load sales sources data. Please try again later.');
-    }
+  /* ------------ FETCH HELPERS ------------ */
+  const ranged = async (url) => {
+    const q = new URLSearchParams();
+    if (dateRange.start) q.append('startDate', dateRange.start.toISOString());
+    if (dateRange.end) q.append('endDate', dateRange.end.toISOString());
+    const res = await fetch(`${url}?${q}`);
+    if (!res.ok) throw new Error(url);
+    return res.json();
   };
 
-  const fetchReturningPayingUsers = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/returning-paying-users?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch returning paying users data');
-      const data = await res.json();
-      setReturningPayingUsers(data.returningPayingUsers);
-    } catch (error) {
-      console.error('Error fetching returning paying users:', error);
-      setError('Failed to load returning paying users data. Please try again later.');
-    }
-  };
-
-  const fetchVariantSales = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/variant-sales?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch variant sales data');
-      const data = await res.json();
-      setVariantSales(data.variantSales);
-    } catch (error) {
-      console.error('Error fetching variant sales:', error);
-      setError('Failed to load variant sales data. Please try again later.');
-    }
-  };
-
-  const fetchAbandonedCarts = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/abandoned-carts?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch abandoned carts data');
-      const data = await res.json();
-      setAbandonedCarts(data.abandonedCarts);
-    } catch (error) {
-      console.error('Error fetching abandoned carts:', error);
-      setError('Failed to load abandoned carts data. Please try again later.');
-    }
-  };
-
-  const fetchDailyRevenue = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/daily-revenue?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch daily revenue data');
-      const data = await res.json();
-      setDailyRevenue(data.dailyRevenue);
-    } catch (error) {
-      console.error('Error fetching daily revenue:', error);
-      setError('Failed to load daily revenue data. Please try again later.');
-    }
-  };
-
-  // New: Fetch Retargeted Customers data (charts based on daily percentages)
-  const fetchRetargetedCustomers = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/retargeted-customers?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch retargeted customers data');
-      const data = await res.json();
-      setRetargetedCustomers(data.retargetedCustomers);
-    } catch (error) {
-      console.error('Error fetching retargeted customers:', error);
-      setError('Failed to load retargeted customers data. Please try again later.');
-    }
-  };
-
-  // --- Independent Charts (Do Not Respect Date Range) ---
-
-  const fetchTotalRevenueIndependent = async () => {
-    try {
-      const res = await fetch(`/api/admin/analytics/main/total-revenue`);
-      if (!res.ok) throw new Error('Failed to fetch total revenue data');
-      const data = await res.json();
-      setTotalRevenue(data.totalRevenue);
-    } catch (error) {
-      console.error('Error fetching total revenue:', error);
-      setError('Failed to load total revenue data. Please try again later.');
-    }
-  };
-
-  const fetchMonthlyRevenueIndependent = async () => {
-    try {
-      const res = await fetch(`/api/admin/analytics/main/monthly-revenue`);
-      if (!res.ok) throw new Error('Failed to fetch monthly revenue data');
-      const data = await res.json();
-      setMonthlyRevenue(data.monthlyRevenue);
-    } catch (error) {
-      console.error('Error fetching monthly revenue:', error);
-      setError('Failed to load monthly revenue data. Please try again later.');
-    }
-  };
-
-  // --- Combined Fetching ---
-
-  const fetchChartsRespectingDateRange = async () => {
+  const loadRange = async () => {
     setLoading(true);
     setError('');
     try {
-      await Promise.all([
-        fetchSalesSources(),
-        fetchReturningPayingUsers(),
-        fetchVariantSales(),
-        fetchAbandonedCarts(),
-        fetchDailyRevenue(),
-        fetchRetargetedCustomers()
+      const [
+        src, cs, ru, vs, rt, ab
+      ] = await Promise.all([
+        ranged('/api/admin/analytics/main/sales-sources'),
+        ranged('/api/admin/analytics/main/cart-sources'),
+        ranged('/api/admin/analytics/main/returning-paying-users'),
+        ranged('/api/admin/analytics/main/variant-sales'),
+        ranged('/api/admin/analytics/main/retargeted-customers'),
+        ranged('/api/admin/analytics/main/abandoned-carts')
       ]);
-    } catch (error) {
-      // Individual fetch functions handle errors
-    } finally {
-      setLoading(false);
-    }
+      setSalesSources(src.salesSources);
+      setCartSources(cs.cartSources);
+      setReturnUsers(ru.returningPayingUsers);
+      setVariantSales(vs.variantSales);
+      setRetargeted(rt.retargetedCustomers);
+      setAbandoned(ab.abandonedCarts);
+    } catch (e) { console.error(e); setError('Failed loading charts'); }
+    finally { setLoading(false); }
   };
 
-  const fetchIndependentCharts = async () => {
+  const loadIndependent = async () => {
     try {
-      await Promise.all([
-        fetchTotalRevenueIndependent(),
-        fetchMonthlyRevenueIndependent()
+      const [tot, mon, daily] = await Promise.all([
+        fetch('/api/admin/analytics/main/total-revenue').then(r => r.json()),
+        fetch('/api/admin/analytics/main/monthly-revenue').then(r => r.json()),
+        ranged('/api/admin/analytics/main/daily-revenue')
       ]);
-    } catch (error) {
-      // Individual fetch functions handle errors
-    }
+      setTotalRev(tot.totalRevenue);
+      setMonthlyRev(mon.monthlyRevenue);
+      setDailyRev(daily.dailyRevenue);
+    } catch (e) { console.error(e); }
   };
 
-  // --- Fetch All Data on Component Mount and on Date Range Change ---
+  useEffect(() => { loadIndependent(); }, []);
+  useEffect(() => { loadRange(); /* eslint-disable-next-line */ }, [dateRange]);
 
-  useEffect(() => {
-    fetchIndependentCharts();
-    fetchChartsRespectingDateRange();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange]);
+  /* ------------ NAV TABS ------------ */
+  const tabs = [
+    { key: 'snapshot', label: 'Snapshot' },
+    { key: 'products', label: 'Product Insights' },
+    { key: 'traffic', label: 'Traffic & Engagement' },
+    admin && { key: 'revenue', label: 'Revenue' },
+    { key: 'tools', label: 'Utilities' }
+  ].filter(Boolean);
 
-  // --- Handlers for Date Range Chips ---
+  const [tabIdx, setTabIdx] = useState(0);
+  const activeKey = tabs[tabIdx].key;
 
-  const handleAllTagClick = () => {
-    setActiveTag('all');
-    setDateRange({ start: null, end: null });
+  const scrollTo = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+  useEffect(() => scrollTo(`panel-${activeKey}`), [activeKey]);
 
-  const handleMonthSelection = (tag) => {
-    const now = dayjs();
-    let start, end;
-    if (tag === 'thisMonth') {
-      start = now.startOf('month').toDate();
-      end = now.endOf('month').toDate();
-    } else if (tag === 'lastMonth') {
-      const lastMonth = now.subtract(1, 'month');
-      start = lastMonth.startOf('month').toDate();
-      end = lastMonth.endOf('month').toDate();
-    }
-    setActiveTag(tag);
-    setDateRange({ start, end });
-  };
-
-  const handleCustomDayChange = (newDate) => {
-    if (!newDate) return;
-    const start = newDate.startOf('day').toDate();
-    const end = newDate.endOf('day').toDate();
-    setActiveTag('custom');
-    setDateRange({ start, end });
-  };
-
-  const handleCustomDateChange = (newStart, newEnd) => {
-    if (!newStart || !newEnd) return;
-    setActiveTag('customRange');
-    setDateRange({
-      start: newStart.startOf('day').toDate(),
-      end: newEnd.endOf('day').toDate()
-    });
-  };
-
-  // --- Display Error if Any ---
-
+  /* ------------ ERROR ------------ */
   if (error) {
     return (
-      <Container
-        maxWidth="xl"
-        sx={{ padding: '2rem 1rem', backgroundColor: '#121212', minHeight: '100vh' }}
-      >
-        <Typography variant="h4" color="error" gutterBottom>
-          {error}
-        </Typography>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Typography variant="h4" color="error">{error}</Typography>
       </Container>
     );
   }
 
+  /* ------------ RENDER ------------ */
   return (
-    <Container
-      maxWidth="xl"
-      sx={{ padding: '2rem 1rem', backgroundColor: '#121212', minHeight: '100vh' }}
-    >
-      <Typography variant="h4" color="primary" gutterBottom>
-        Analytics Dashboard
-      </Typography>
+    <Container maxWidth="xl" sx={{ pb: 8, pt: 30 }}>
+      {/* Top bar */}
+      <GlassAppBar>
+        {/* <Typography variant="h4" sx={{ pl: 2, pt: 1, fontWeight: 700 }}>
+          Analytics Dashboard
+        </Typography> */}
+        <FancyTabs
+          value={tabIdx}
+          onChange={(_, v) => setTabIdx(v)}
+          variant="scrollable"
+          allowScrollButtonsMobile
+        >
+          {tabs.map(t => <Tab key={t.key} label={t.label} />)}
+        </FancyTabs>
+        {/* Range chips */}
+        <Box >
+          <DateRangeChips
+            activeTag={activeTag}
+            setActiveTag={setActiveTag}
+            setDateRange={setDateRange}
+          />
+        </Box>
+      </GlassAppBar>
 
-      {/* Date Range Chips */}
-      <DateRangeChips
-        activeTag={activeTag}
-        setActiveTag={setActiveTag}
-        setDateRange={setDateRange}
-        setCurrentPage={() => { }}
-        setProblematicCurrentPage={() => { }}
-        handleAllTagClick={handleAllTagClick}
-        handleCustomDayChange={handleCustomDayChange}
-        handleCustomDateChange={handleCustomDateChange}
-        handleMonthSelection={handleMonthSelection}
-      />
 
-      {/* Formatted Date Display */}
-      <Box sx={{ marginBottom: '1rem' }}>
-        {activeTag === 'custom' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            {`Analytics for ${dayjs(dateRange.start).format('MMMM D, YYYY, dddd')}`}
-          </Typography>
-        )}
-        {activeTag === 'customRange' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            {`Analytics from ${dayjs(dateRange.start).format('MMMM D, YYYY')} to ${dayjs(dateRange.end).format('MMMM D, YYYY')}`}
-          </Typography>
-        )}
-        {activeTag === 'today' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics for today ({dayjs(dateRange.start).format('MMMM D, YYYY, dddd')})
-          </Typography>
-        )}
-        {activeTag === 'yesterday' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics for yesterday ({dayjs().subtract(1, 'day').format('MMMM D, YYYY, dddd')})
-          </Typography>
-        )}
-        {activeTag === 'last7days' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics from last 7 days ({dayjs().subtract(6, 'day').format('MMMM D, YYYY, dddd')} to {dayjs().format('MMMM D, YYYY, dddd')})
-          </Typography>
-        )}
-        {activeTag === 'last30days' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics from last 30 days ({dayjs().subtract(29, 'day').format('MMMM D, YYYY, dddd')} to {dayjs().format('MMMM D, YYYY, dddd')})
-          </Typography>
-        )}
-        {activeTag === 'thisMonth' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics for this month ({dayjs(dateRange.start).format('MMMM D, YYYY')} to {dayjs(dateRange.end).format('MMMM D, YYYY')})
-          </Typography>
-        )}
-        {activeTag === 'lastMonth' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics for last month ({dayjs(dateRange.start).format('MMMM D, YYYY')} to {dayjs(dateRange.end).format('MMMM D, YYYY')})
-          </Typography>
-        )}
-        {activeTag === 'all' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            All Analytics
-          </Typography>
-        )}
+
+      {/* ============ PANELS ============ */}
+
+      {/* Snapshot */}
+      <Box id="panel-snapshot" sx={{ scrollMarginTop: 100, mb: 6 }}>
+        <Typography variant="h5" sx={{ mb: 2 }}>Snapshot</Typography>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={6}>
+            <LazyCard><SalesSourcesChart data={salesSources} /></LazyCard>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <LazyCard><CartSourcesChart data={cartSources} loading={loading} /></LazyCard>
+          </Grid>
+        </Grid>
       </Box>
 
-      {/* Custom Date Pickers */}
-      {(activeTag === 'custom' || activeTag === 'customRange') && (
-        <Box display="flex" justifyContent="center" marginBottom="1rem" gap="1rem">
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            {activeTag === 'custom' ? (
-              <DatePicker
-                label="Select Date"
-                value={dayjs(dateRange.start)}
-                onChange={(newValue) => handleCustomDayChange(newValue)}
-                renderInput={(params) => <TextField {...params} size="small" />}
-              />
-            ) : (
-              <>
-                <DatePicker
-                  label="Start Date"
-                  value={dayjs(dateRange.start)}
-                  onChange={(newValue) => handleCustomDateChange(newValue, dayjs(dateRange.end))}
-                  renderInput={(params) => <TextField {...params} size="small" />}
-                />
-                <DatePicker
-                  label="End Date"
-                  value={dayjs(dateRange.end)}
-                  onChange={(newValue) => handleCustomDateChange(dayjs(dateRange.start), newValue)}
-                  renderInput={(params) => <TextField {...params} size="small" />}
-                />
-              </>
-            )}
-          </LocalizationProvider>
+      {/* Product Insights */}
+      <Box id="panel-products" sx={{ scrollMarginTop: 100, mb: 6 }}>
+        <Typography variant="h5" sx={{ mb: 2 }}>Product Insights</Typography>
+        <LazyCard height={550}>
+          <VariantSalesChart data={variantSales} />
+        </LazyCard>
+      </Box>
+
+      {/* Traffic & Engagement */}
+      <Box id="panel-traffic" sx={{ scrollMarginTop: 100, mb: 6 }}>
+        <Typography variant="h5" sx={{ mb: 2 }}>Traffic & Engagement</Typography>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={6}>
+            <LazyCard><ReturningPayingUsersChart
+              data={returnUsers}
+              startDate={dateRange.start}
+              endDate={dateRange.end}
+            /></LazyCard>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <LazyCard><RetargetedCustomersChart data={retargeted} /></LazyCard>
+          </Grid>
+          <Grid item xs={12}>
+            <LazyCard height={500}><AbandonedCartsChart data={abandoned} /></LazyCard>
+          </Grid>
+        </Grid>
+      </Box>
+
+      {/* Revenue (admin only) */}
+      {admin && (
+        <Box id="panel-revenue" sx={{ scrollMarginTop: 100, mb: 6 }}>
+          <Typography variant="h5" sx={{ mb: 2 }}>Revenue</Typography>
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={6}>
+              <LazyCard><DailyRevenueChart data={dailyRev} /></LazyCard>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <LazyCard><TotalRevenueChart data={totalRev} /></LazyCard>
+            </Grid>
+            <Grid item xs={12}>
+              <LazyCard><MonthlyRevenueChart data={monthlyRev} /></LazyCard>
+            </Grid>
+          </Grid>
         </Box>
       )}
 
-      {/* Charts Grid */}
-      <Grid container spacing={4} sx={{ marginTop: '1rem' }}>
-        {/* Sales Sources */}
-        <Grid item xs={12} md={6}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <SalesSourcesChart data={salesSources} />
-          )}
-        </Grid>
-
-        {/* Returning Paying Users */}
-        <Grid item xs={12} md={6}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <ReturningPayingUsersChart
-              data={returningPayingUsers}
-              startDate={dateRange.start}
-              endDate={dateRange.end}
-            />
-          )}
-        </Grid>
-
-        {/* Variant Sales */}
-        <Grid item xs={12}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <VariantSalesChart data={variantSales} />
-          )}
-        </Grid>
-
-        {/* Abandoned Carts */}
-        <Grid item xs={12}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <Link href="/admin/analytics/abandoned-cart-users">
-              <AbandonedCartsChart data={abandonedCarts} />
-            </Link>
-          )}
-        </Grid>
-
-        {/* Retargeted Customers */}
-        <Grid item xs={12}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <RetargetedCustomersChart data={retargetedCustomers} />
-          )}
-        </Grid>
-
-        {admin && (
-          <>
-            {/* Daily Revenue */}
-            <Grid item xs={12} md={6}>
-              {loading ? (
-                <Skeleton variant="rectangular" height={500} />
-              ) : (
-                <DailyRevenueChart data={dailyRevenue} />
-              )}
-            </Grid>
-
-            {/* Total Revenue */}
-            <Grid item xs={12} md={6}>
-              {loading ? (
-                <Skeleton variant="rectangular" height={500} />
-              ) : (
-                <TotalRevenueChart data={totalRevenue} />
-              )}
-            </Grid>
-
-            {/* Monthly Revenue */}
-            <Grid item xs={12}>
-              {loading ? (
-                <Skeleton variant="rectangular" height={500} />
-              ) : (
-                <MonthlyRevenueChart data={monthlyRevenue} />
-              )}
-            </Grid>
-          </>
-        )}
-      </Grid>
-
-
-      <Button
-        onClick={() => {router.push('/admin/download/download-customer-data')}}
-        sx={{ marginTop: '2rem' }}
-        fullWidth
-        variant="outlined"
-      >
-        {"Go to 'Download Customer Data' page"}
-      </Button>
+      {/* Utilities */}
+      <Box id="panel-tools" sx={{ scrollMarginTop: 100 }}>
+        <Typography variant="h5" sx={{ mb: 2 }}>Utilities</Typography>
+        <LazyCard height={110}>
+          <Button
+            onClick={() => router.push('/admin/download/download-customer-data')}
+            variant="outlined"
+            fullWidth
+            sx={{ py: 2, fontWeight: 600 }}
+          >
+            Go to <span style={{ fontWeight: 'bold', color: 'rgba(255, 255, 255, 0.7)' }}>“</span>Download Customer Data<span style={{ fontWeight: 'bold', color: 'rgba(255, 255, 255, 0.7)' }}>”</span> page
+          </Button>
+        </LazyCard>
+      </Box>
     </Container>
   );
-};
-
-export default AnalyticsDashboard;
+}

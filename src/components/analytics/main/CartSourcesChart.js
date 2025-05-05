@@ -29,44 +29,126 @@ const COLORS = [
 const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
 
+    const total = payload.reduce((sum, entry) => sum + entry.value, 0);
+
     return (
         <Box
             sx={{
-                backgroundColor: 'rgba(0, 0, 0, 0.85)',
-                p: 2,
-                borderRadius: 2,
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                backdropFilter: 'blur(8px)',
+                p: 2.5,
+                borderRadius: '12px',
+                border: '1px solid rgba(99, 102, 241, 0.2)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
                 color: 'white',
-                minWidth: 180
+                minWidth: 200,
+                position: 'relative',
+                '&:before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '2px',
+                    background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
+                    borderTopLeftRadius: '12px',
+                    borderTopRightRadius: '12px',
+                }
             }}
         >
-            <Typography variant="subtitle2" sx={{ mb: 1, color: '#CCC' }}>
+            <Typography 
+                variant="subtitle2" 
+                sx={{ 
+                    mb: 1.5, 
+                    color: '#FFF',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                    pb: 1
+                }}
+            >
                 {label}
             </Typography>
-            {payload.map((entry) => (
+            {payload.map((entry, index) => (
                 <Box 
                     key={entry.name} 
                     sx={{ 
                         display: 'flex', 
                         alignItems: 'center', 
-                        mb: 0.5 
+                        justifyContent: 'space-between',
+                        mb: 1,
+                        backgroundColor: index % 2 === 0 ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                        p: 0.8,
+                        borderRadius: 1,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.06)'
+                        }
                     }}
                 >
-                    <Box
-                        sx={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            backgroundColor: entry.fill,
-                            mr: 1
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Box
+                            sx={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                backgroundColor: entry.fill,
+                                mr: 1.5,
+                                boxShadow: `0 0 10px ${entry.fill}40`
+                            }}
+                        />
+                        <Typography 
+                            variant="body2" 
+                            sx={{ 
+                                fontSize: '0.85rem',
+                                color: '#EEE'
+                            }}
+                        >
+                            {entry.name}
+                        </Typography>
+                    </Box>
+                    <Typography 
+                        variant="body2" 
+                        sx={{ 
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            color: '#FFF'
                         }}
-                    />
-                    <Typography variant="body2">
-                        {entry.name}: {entry.value}
+                    >
+                        {entry.value}
                     </Typography>
                 </Box>
             ))}
+            <Box
+                sx={{
+                    mt: 1.5,
+                    pt: 1.5,
+                    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                }}
+            >
+                <Typography 
+                    variant="body2" 
+                    sx={{ 
+                        color: '#CCC',
+                        fontSize: '0.85rem'
+                    }}
+                >
+                    Total
+                </Typography>
+                <Typography 
+                    variant="body2" 
+                    sx={{ 
+                        color: '#FFF',
+                        fontWeight: 600,
+                        fontSize: '0.9rem'
+                    }}
+                >
+                    {total}
+                </Typography>
+            </Box>
         </Box>
     );
 };
@@ -93,7 +175,7 @@ const CartSourcesChart = ({ data, loading }) => {
         <Box
             sx={{
                 width: '100%',
-                backgroundColor: '#2C2C2C',
+                background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
                 p: 4,
                 borderRadius: 3,
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',

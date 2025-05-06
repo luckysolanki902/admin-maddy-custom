@@ -1,27 +1,120 @@
 // /components/page-sections/common-utils/DateRangeChips.js
 
 import React from 'react';
-import { Box, Chip, Stack } from '@mui/material';
+import { Box, Chip, Stack, alpha } from '@mui/material';
 import dayjs from 'dayjs';
 
+/**
+ * Enhanced date range selector with clickable chips for common date ranges
+ * All chips are now properly functional and optimized for performance
+ */
 const DateRangeChips = ({
   activeTag,
   setActiveTag,
   setDateRange,
-  setCurrentPage,
-  setProblematicCurrentPage,
+  setCurrentPage = () => {}, // Optional
+  setProblematicCurrentPage = () => {}, // Optional
   handleAllTagClick,
   handleCustomDayChange,
   handleCustomDateChange,
   handleMonthSelection,
-  hideCustomChips
+  hideCustomChips = false
 }) => {
   // Handlers for predefined ranges
   const handlePredefinedRange = (tag, start, end) => {
     setActiveTag(tag);
     setDateRange({ start, end });
-    setCurrentPage(1);
-    setProblematicCurrentPage(1);
+    // Reset pagination if relevant
+    if (setCurrentPage) setCurrentPage(1);
+    if (setProblematicCurrentPage) setProblematicCurrentPage(1);
+  };
+
+  // Handle chip click
+  const handleChipClick = (chipId) => {
+    switch (chipId) {
+      case 'today':
+        handlePredefinedRange(
+          'today', 
+          dayjs().startOf('day').toDate(), 
+          dayjs().endOf('day').toDate()
+        );
+        break;
+      case 'yesterday':
+        const yesterday = dayjs().subtract(1, 'day');
+        handlePredefinedRange(
+          'yesterday', 
+          yesterday.startOf('day').toDate(), 
+          yesterday.endOf('day').toDate()
+        );
+        break;
+      case 'thisMonth':
+        if (handleMonthSelection) {
+          handleMonthSelection('thisMonth');
+        } else {
+          handlePredefinedRange(
+            'thisMonth', 
+            dayjs().startOf('month').toDate(), 
+            dayjs().endOf('day').toDate()
+          );
+        }
+        break;
+      case 'lastMonth':
+        if (handleMonthSelection) {
+          handleMonthSelection('lastMonth');
+        } else {
+          const lastMonth = dayjs().subtract(1, 'month');
+          handlePredefinedRange(
+            'lastMonth', 
+            lastMonth.startOf('month').toDate(), 
+            lastMonth.endOf('month').toDate()
+          );
+        }
+        break;
+      case 'last7days':
+        handlePredefinedRange(
+          'last7days', 
+          dayjs().subtract(6, 'day').startOf('day').toDate(), 
+          dayjs().endOf('day').toDate()
+        );
+        break;
+      case 'last30days':
+        handlePredefinedRange(
+          'last30days', 
+          dayjs().subtract(29, 'day').startOf('day').toDate(), 
+          dayjs().endOf('day').toDate()
+        );
+        break;
+      case 'all':
+        if (handleAllTagClick) {
+          handleAllTagClick();
+        } else {
+          handlePredefinedRange(
+            'all', 
+            dayjs('2020-01-01').startOf('day').toDate(), 
+            dayjs().endOf('day').toDate()
+          );
+        }
+        break;
+      case 'custom':
+        if (handleCustomDayChange) {
+          handleCustomDayChange(dayjs());
+        } else {
+          setActiveTag('custom');
+        }
+        break;
+      case 'customRange':
+        if (handleCustomDateChange) {
+          handleCustomDateChange(
+            dayjs().subtract(7, 'day'), 
+            dayjs()
+          );
+        } else {
+          setActiveTag('customRange');
+        }
+        break;
+      default:
+        break;
+    }
   };
 
   return (
@@ -30,93 +123,57 @@ const DateRangeChips = ({
         display: 'flex',
         overflowX: 'auto',
         width: '100%',
-        marginTop: '1rem',
-        paddingBottom: '1rem',
+        paddingBottom: '0.5rem',
+        '&::-webkit-scrollbar': {
+          height: '8px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          borderRadius: '8px',
+          backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.25)',
+          }
+        },
+        '&::-webkit-scrollbar-track': {
+          backgroundColor: 'rgba(0, 0, 0, 0.1)',
+          borderRadius: '8px',
+        },
+        scrollbarWidth: 'thin',
       }}
     >
       <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-start', whiteSpace: 'nowrap' }}>
-        {/* Existing Chips */}
-        <Chip
-          label="Today"
-          onClick={() => {
-            const todayStart = dayjs().startOf('day');
-            const todayEnd = dayjs().endOf('day');
-            handlePredefinedRange('today', todayStart, todayEnd);
-          }}
-          variant={activeTag === 'today' ? 'filled' : 'outlined'}
-          color={activeTag === 'today' ? 'primary' : 'default'}
-        />
-        <Chip
-          label="Yesterday"
-          onClick={() => {
-            const yesterday = dayjs().subtract(1, 'day');
-            handlePredefinedRange('yesterday', yesterday.startOf('day'), yesterday.endOf('day'));
-          }}
-          variant={activeTag === 'yesterday' ? 'filled' : 'outlined'}
-          color={activeTag === 'yesterday' ? 'primary' : 'default'}
-        />
-
-        <Chip
-          label="This Month"
-          onClick={() => handleMonthSelection('thisMonth')}
-          variant={activeTag === 'thisMonth' ? 'filled' : 'outlined'}
-          color={activeTag === 'thisMonth' ? 'primary' : 'default'}
-        />
-        <Chip
-          label="Last Month"
-          onClick={() => handleMonthSelection('lastMonth')}
-          variant={activeTag === 'lastMonth' ? 'filled' : 'outlined'}
-          color={activeTag === 'lastMonth' ? 'primary' : 'default'}
-        />
-        <Chip
-          label="Last 7 Days"
-          onClick={() => {
-            const start = dayjs().subtract(6, 'day').startOf('day');
-            const end = dayjs().endOf('day');
-            handlePredefinedRange('last7days', start, end);
-          }}
-          variant={activeTag === 'last7days' ? 'filled' : 'outlined'}
-          color={activeTag === 'last7days' ? 'primary' : 'default'}
-        />
-        <Chip
-          label="Last 30 Days"
-          onClick={() => {
-            const start = dayjs().subtract(29, 'day').startOf('day');
-            const end = dayjs().endOf('day');
-            handlePredefinedRange('last30days', start, end);
-          }}
-          variant={activeTag === 'last30days' ? 'filled' : 'outlined'}
-          color={activeTag === 'last30days' ? 'primary' : 'default'}
-        />
-
-        <Chip
-          label="All"
-          onClick={handleAllTagClick}
-          variant={activeTag === 'all' ? 'filled' : 'outlined'}
-          color={activeTag === 'all' ? 'primary' : 'default'}
-        />
-        {!hideCustomChips &&
-          <>
-            <Chip
-              label="Custom Day"
-              onClick={() => {
-                setActiveTag('custom');
-                // The actual date selection is handled outside the chips
-              }}
-              variant={activeTag === 'custom' ? 'filled' : 'outlined'}
-              color={activeTag === 'custom' ? 'primary' : 'default'}
-            />
-            <Chip
-              label="Custom Range"
-              onClick={() => {
-                setActiveTag('customRange');
-                // The actual date range selection is handled outside the chips
-              }}
-              variant={activeTag === 'customRange' ? 'filled' : 'outlined'}
-              color={activeTag === 'customRange' ? 'primary' : 'default'}
-            />
-          </>
-        }
+        {/* Date Range Chips */}
+        {[
+          { id: 'today', label: 'Today' },
+          { id: 'yesterday', label: 'Yesterday' },
+          { id: 'thisMonth', label: 'This Month' },
+          { id: 'lastMonth', label: 'Last Month' },
+          { id: 'last7days', label: 'Last 7 Days' },
+          { id: 'last30days', label: 'Last 30 Days' },
+          { id: 'all', label: 'All' },
+          !hideCustomChips && { id: 'custom', label: 'Custom Day' },
+          !hideCustomChips && { id: 'customRange', label: 'Custom Range' }
+        ].filter(Boolean).map((chip) => (
+          <Chip
+            key={chip.id}
+            label={chip.label}
+            onClick={() => handleChipClick(chip.id)}
+            variant={activeTag === chip.id ? 'filled' : 'outlined'}
+            color={activeTag === chip.id ? 'primary' : 'default'}
+            sx={{
+              transition: 'all 0.2s ease',
+              fontWeight: activeTag === chip.id ? 500 : 400,
+              boxShadow: activeTag === chip.id ? 
+                theme => `0 2px 8px ${alpha(theme.palette.primary.main, 0.25)}` : 'none',
+              '&:hover': {
+                borderColor: theme => alpha(theme.palette.primary.main, 0.5),
+                backgroundColor: activeTag === chip.id ? 
+                  theme => theme.palette.primary.main : 
+                  theme => alpha(theme.palette.primary.main, 0.04)
+              }
+            }}
+          />
+        ))}
       </Stack>
     </Box>
   );

@@ -53,68 +53,129 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
     ? Math.ceil(dayjs(endDate).diff(dayjs(startDate), 'millisecond') / (1000 * 60 * 60 * 24))
     : null;
 
-  // Format period labels based on the date range
-  const formatPeriodLabel = (period) => {
-    if (!period) return 'No Date';
-    
-    try {
-      if (isValidDateRange) {
-        if (daysDifference < 7) {
-          // Daily data (format: YYYY-MM-DD)
-          const parsedDate = dayjs(period, 'YYYY-MM-DD', true); // Strict parsing
-          if (parsedDate.isValid()) {
-            return parsedDate.format('MMM D');
-          } else {
-            // Attempt fallback parsing
-            const fallback = dayjs(period);
-            return fallback.isValid() ? fallback.format('MMM D') : 'Invalid Date';
-          }
-        } else {
-          // Weekly data (format: YYYY-WW)
-          const [year, week] = period.split('-W');
-          if (!year || !week) return 'Invalid Week';
-          
-          const weekNumber = parseInt(week, 10);
-          if (isNaN(weekNumber)) return 'Invalid Week Number';
-          
-          const startOfWeek = dayjs()
-            .year(year)
-            .isoWeek(weekNumber)
-            .startOf('isoWeek')
-            .format('MMM D');
-          const endOfWeek = dayjs()
-            .year(year)
-            .isoWeek(weekNumber)
-            .endOf('isoWeek')
-            .format('MMM D');
-            
-          return `${startOfWeek} - ${endOfWeek}`;
-        }
-      } else {
-        // Monthly data (format: YYYY-MM)
-        const parsedMonth = dayjs(period, 'YYYY-MM', true); // Strict parsing
-        if (parsedMonth.isValid()) {
-          return parsedMonth.format('MMM YYYY');
-        } else {
-          const fallback = dayjs(period);
-          return fallback.isValid() ? fallback.format('MMM YYYY') : 'Invalid Month';
-        }
+  // Process data with intelligent x-axis labels
+  const processedData = useMemo(() => {
+    // First sort data by period
+    const sortedData = [...data].sort((a, b) => {
+      // Parse dates/periods consistently
+      const periodA = a.period;
+      const periodB = b.period;
+      
+      // Try to compare by common format patterns
+      if (periodA.includes('-') && periodB.includes('-')) {
+        return dayjs(periodA).isValid() && dayjs(periodB).isValid() 
+          ? dayjs(periodA).diff(dayjs(periodB))
+          : periodA.localeCompare(periodB);
       }
-    } catch (error) {
-      console.error('Error formatting period label:', error);
-      return 'Invalid Date';
-    }
-  };
+      
+      return periodA.localeCompare(periodB);
+    });
+
+    // Determine label strategy based on data characteristics
+    const getDisplayFormat = () => {
+      if (isValidDateRange) {
+        if (daysDifference < 14) return 'daily';
+        if (daysDifference < 60) return 'weekly';
+        return 'monthly';
+      }
+      
+      // Without date range, guess based on period format
+      const samplePeriod = sortedData[0]?.period || '';
+      if (samplePeriod.match(/^\d{4}-\d{2}-\d{2}$/)) return 'daily';
+      if (samplePeriod.match(/^\d{4}-W\d{1,2}$/)) return 'weekly';
+      return 'monthly';
+    };
+    
+    const displayFormat = getDisplayFormat();
+    let lastMonth = '';
+    let lastWeek = '';
+    
+    return sortedData.map((item, index) => {
+      const { period } = item;
+      let displayLabel = '';
+      let fullLabel = '';
+      
+      // Parse the period based on format
+      try {
+        if (displayFormat === 'daily') {
+          const date = dayjs(period);
+          if (!date.isValid()) throw new Error('Invalid daily date');
+
+          // Only show month name at first date of month or first in dataset
+          const currentMonth = date.format('MMM');
+          if (currentMonth !== lastMonth || index === 0) {
+            displayLabel = date.format('MMM D');
+            lastMonth = currentMonth;
+          } else if (index % 3 === 0) {
+            // Show every third date for readability
+            displayLabel = date.format('D');
+          } else {
+            displayLabel = '';
+          }
+          
+          fullLabel = date.format('MMMM D, YYYY');
+        }
+        else if (displayFormat === 'weekly') {
+          // Handle week format: YYYY-WNN
+          const weekMatch = period.match(/^(\d{4})-W(\d{1,2})$/);
+          if (weekMatch) {
+            const year = parseInt(weekMatch[1], 10);
+            const week = parseInt(weekMatch[2], 10);
+            
+            const weekStart = dayjs().year(year).isoWeek(week).startOf('isoWeek');
+            const weekEnd = weekStart.clone().endOf('isoWeek');
+            
+            // Show month when it changes
+            const monthLabel = weekStart.format('MMM');
+            if (monthLabel !== lastMonth || index === 0) {
+              displayLabel = `${monthLabel} W${week}`;
+              lastMonth = monthLabel;
+            } else {
+              displayLabel = `W${week}`;
+            }
+            
+            fullLabel = `${weekStart.format('MMM D')} - ${weekEnd.format('MMM D, YYYY')}`;
+          } else {
+            // Fallback for non-standard formats
+            displayLabel = period;
+            fullLabel = period;
+          }
+        }
+        else { // Monthly
+          const date = dayjs(period, 'YYYY-MM');
+          if (date.isValid()) {
+            displayLabel = date.format('MMM YYYY');
+            fullLabel = date.format('MMMM YYYY');
+          } else {
+            displayLabel = period;
+            fullLabel = period;
+          }
+        }
+      } catch (error) {
+        // Fallback for any parsing errors
+        displayLabel = period;
+        fullLabel = period;
+      }
+      
+      return {
+        ...item,
+        originalPeriod: period,
+        period: displayLabel, // Replace with our display format
+        fullLabel: fullLabel  // For tooltip
+      };
+    });
+  }, [data, daysDifference, isValidDateRange]);
 
   // Custom Tooltip Component
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
     
-    const formattedLabel = formatPeriodLabel(label);
+    // Use the full label from processed data
+    const formattedLabel = payload[0]?.payload?.fullLabel || label;
     const value = payload[0].value;
     
-    // If we have neighboring data points, calculate growth
-    const currentIndex = data.findIndex(d => d.period === label);
+    // Calculate growth same as before
+    const currentIndex = data.findIndex(d => d.period === payload[0]?.payload?.originalPeriod);
     let growth = null;
     
     if (currentIndex > 0) {
@@ -331,7 +392,7 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
       {/* Main Chart */}
       <ResponsiveContainer width="100%" height={350}>
         <AreaChart 
-          data={data}
+          data={processedData}
           margin={{ 
             top: 10, 
             right: 20, 
@@ -361,14 +422,26 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
           <XAxis
             dataKey="period"
             stroke="#AAA"
-            tick={{ fill: '#EEE', fontSize: isSmallScreen ? 11 : 13 }}
-            tickFormatter={(period) => formatPeriodLabel(period)}
-            interval={isSmallScreen ? 'preserveStartEnd' : 0}
+            tick={(props) => {
+              const { x, y, payload } = props;
+              
+              // Only render if we have a label
+              if (!payload.value) return null;
+              
+              return (
+                <text
+                  x={x}
+                  y={y + 10}
+                  textAnchor="middle"
+                  fill="#EEE"
+                  fontSize={isSmallScreen ? 11 : 13}
+                >
+                  {payload.value}
+                </text>
+              );
+            }}
             tickLine={false}
             axisLine={{ strokeWidth: 0.5 }}
-            angle={isSmallScreen ? -45 : 0}
-            textAnchor={isSmallScreen ? 'end' : 'middle'}
-            height={isSmallScreen ? 60 : 30}
           />
           
           <YAxis

@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -17,6 +17,7 @@ import {
   Button,
   Fade
 } from '@mui/material';
+import dayjs from '@/lib/dayjsConfig';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -219,6 +220,47 @@ const RetargetedCustomersChart = ({ data }) => {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
 
+  // Process data for cleaner x-axis labels
+  const processedData = useMemo(() => {
+    // First, sort data by date
+    const sortedData = [...data].sort((a, b) => {
+      return new Date(a.date) - new Date(b.date);
+    });
+    
+    // Extract date information
+    return sortedData.map((entry) => {
+      const date = dayjs(entry.date);
+      
+      // Create custom display formats for different date intervals
+      let displayDate;
+      
+      // If we have more than 10 data points, condense the labels
+      if (sortedData.length > 10) {
+        if (date.date() === 1 || date.date() === 15) {
+          // Show only 1st and 15th of each month when we have many points
+          displayDate = date.format('MMM D');
+        } else {
+          // For other dates, check if it's Monday (for weekly representation)
+          if (date.day() === 1) { // Monday
+            displayDate = date.format('DD');
+          } else {
+            displayDate = '';  // Empty string for dates we want to hide
+          }
+        }
+      } else {
+        // For fewer points, show all dates in a nice format
+        displayDate = date.format('MMM D');
+      }
+      
+      return {
+        ...entry,
+        originalDate: entry.date, // Keep original for tooltip
+        date: displayDate, // Replace with our display format
+        fullDate: date.format('MMM D, YYYY'),
+      };
+    });
+  }, [data]);
+
   // find the maxima
   const maxPurchased = data.reduce(
     (mx, d) => Math.max(mx, d.purchasedCount),
@@ -235,11 +277,6 @@ const RetargetedCustomersChart = ({ data }) => {
   const yMax = yMaxRaw < 10
     ? 10
     : Math.ceil(yMaxRaw / 10) * 10;
-
-  // limit to ~7 X-axis ticks
-  const tickInterval = data.length > 7
-    ? Math.floor(data.length / 7)
-    : 0;
 
   return (
     <Box sx={{
@@ -314,8 +351,8 @@ const RetargetedCustomersChart = ({ data }) => {
 
       <ResponsiveContainer width="100%" height={330}>
         <AreaChart
-          data={data}
-          margin={{ top: 10, right: 20, bottom: isSmall ? 60 : 30, left: 10 }}
+          data={processedData}
+          margin={{ top: 10, right: 20, bottom: isSmall ? 30 : 20, left: 10 }}
         >
           <defs>
             <linearGradient id="sentGradient" x1="0" y1="0" x2="0" y2="1">
@@ -331,11 +368,23 @@ const RetargetedCustomersChart = ({ data }) => {
           <XAxis
             dataKey="date"
             stroke="#AAA"
-            tick={{ fill: '#EEE', fontSize: isSmall ? 10 : 12 }}
-            interval={tickInterval}
-            angle={isSmall ? -45 : 0}
-            textAnchor={isSmall ? 'end' : 'middle'}
-            height={isSmall ? 50 : 30}
+            tick={props => {
+              const { x, y, payload } = props;
+              // Only render ticks that have a display value
+              if (!payload.value) return null;
+              
+              return (
+                <text 
+                  x={x} 
+                  y={y + 10} 
+                  textAnchor="middle" 
+                  fill="#EEE"
+                  fontSize={isSmall ? 11 : 13}
+                >
+                  {payload.value}
+                </text>
+              );
+            }}
             axisLine={{ strokeWidth: 0.5 }}
             tickLine={false}
           />
@@ -346,7 +395,14 @@ const RetargetedCustomersChart = ({ data }) => {
             axisLine={{ strokeWidth: 0.5 }}
             tickLine={false}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip 
+            content={<CustomTooltip />} 
+            labelFormatter={(label, entries) => {
+              // Use the full date from the data point for the tooltip
+              const dataPoint = entries[0]?.payload;
+              return dataPoint?.fullDate || label;
+            }}
+          />
           
           {/* Show sent count area only when showSent is true */}
           {showSent && (

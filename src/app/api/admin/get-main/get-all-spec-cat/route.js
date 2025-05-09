@@ -1,4 +1,4 @@
-// app/api/get-main/get-all-spec-cat/route.js
+// /api/admin/get-main/get-all-spec-cat/route.js
 import { connectToDatabase } from "@/lib/db";
 import SpecificCategory from "@/models/SpecificCategory";
 import { NextResponse } from "next/server";
@@ -10,7 +10,7 @@ export async function GET() {
 
     // Fetch all categories
     const categories = await SpecificCategory.find({}, "_id name productInfoTabs").lean();
-
+console.log({categories})
     if (!categories.length) {
       return NextResponse.json(
         { message: "No categories found", categories: [] },

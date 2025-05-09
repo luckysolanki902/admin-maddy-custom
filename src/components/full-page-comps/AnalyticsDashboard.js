@@ -2,508 +2,915 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   Container,
   Grid,
   Typography,
   Box,
-  Skeleton,
-  TextField,
-  Button
+  Button,
+  Tab,
+  Tabs,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stack,
+  CircularProgress
 } from '@mui/material';
-import { LocalizationProvider } from '@mui/x-date-pickers';
+import { styled, alpha, useTheme } from '@mui/material/styles';
+import dayjs from '@/lib/dayjsConfig';
+import { useRouter } from 'next/navigation';
+import { useInView } from 'react-intersection-observer';
+import { useSpring, animated } from '@react-spring/web';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import SalesSourcesChart from '@/components/analytics/main/SalesSourcesChart';
+import CartSourcesChart from '@/components/analytics/main/CartSourcesChart';
 import ReturningPayingUsersChart from '@/components/analytics/main/ReturningPayingUsersChart';
 import VariantSalesChart from '@/components/analytics/main/VariantSalesChart';
+import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
 import AbandonedCartsChart from '@/components/analytics/main/AbandonedCartsChart';
 import DailyRevenueChart from '@/components/analytics/main/DailyRevenueChart';
 import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart';
 import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart';
-import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
-import DownloadCustomersData from '@/components/analytics/main/DownloadCustomersData';
-import { styled } from '@mui/material/styles';
-import dayjs from '@/lib/dayjsConfig';
-import Link from 'next/link';
+import DetailedChartSkeleton from '@/components/analytics/common/DetailedChartSkeleton';
 
-const LoadingContainer = styled(Box)(() => ({
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  height: '80vh'
+/* ---------- 1.  Fancy sticky navbar ---------- */
+const GlassAppBar = styled(Box)(({ theme }) => ({
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  zIndex: 1200,
+  backdropFilter: 'blur(20px)',
+  borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+  background: 'transparent',
+  boxShadow: `0 8px 32px ${alpha('#000', 0.2)}`,
+  padding: '12px 0',
+  transition: 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
+  transform: 'translateY(0)',
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '2px',
+    background: `linear-gradient(90deg, 
+      ${alpha(theme.palette.primary.main, 0)}, 
+      ${alpha(theme.palette.primary.main, 0.5)}, 
+      ${alpha(theme.palette.primary.main, 0)})`,
+  },
+  '&.hidden': {
+    transform: 'translateY(-100%)'
+  },
+  '.date-range-section': {
+    background: alpha(theme.palette.background.paper, 0.07),
+    borderTop: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+    marginTop: '15px',
+    padding: '8px 16px',
+    paddingBottom: '-13px',
+    borderBottomLeftRadius: '8px',
+    borderBottomRightRadius: '8px',
+  },
 }));
 
-const AnalyticsDashboard = ({ admin }) => {
-  // State for date range selections
+// Custom pill-style tabs with animations
+const FancyTabs = styled(Tabs)(({ theme }) => ({
+  minHeight: 48,
+  '& .MuiTabs-scroller': {
+    padding: '0 16px'
+  },
+  '& .MuiTab-root': {
+    color: alpha('#fff', 0.7),
+    minHeight: 48,
+    padding: '12px 24px',
+    fontWeight: 500,
+    textTransform: 'none',
+    borderRadius: '8px',
+    margin: '0 4px',
+    transition: 'all 0.2s ease',
+    '&:hover:not(.Mui-selected)': {
+      backgroundColor: alpha(theme.palette.primary.main, 0.08),
+      color: '#fff'
+    },
+    '&.Mui-selected': {
+      color: '#000',
+      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.dark, 0.95)} 100%)`,
+      boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.25)}`,
+    }
+  },
+  '& .MuiTabs-indicator': {
+    display: 'none'
+  }
+}));
+
+/* ---------- 2.  Lazy + animated wrapper ---------- */
+function LazyCard({ children, height = 500, loading = false, variant = 'bars', theme = 'blue' }) {
+  const { ref, inView } = useInView({ threshold: 0.15, triggerOnce: true });
+  const styles = useSpring({
+    opacity: inView ? 1 : 0,
+    y: inView ? 0 : 40,
+    config: { tension: 260, friction: 24 }
+  });
+
+  return (
+    <animated.div ref={ref} style={styles}>
+      {inView ? (
+        <Box sx={{ position: 'relative' }}>
+          {loading ? (
+            <DetailedChartSkeleton
+              height={height}
+              variant={variant}
+              theme={theme}
+            />
+          ) : children}
+        </Box>
+      ) : (
+        <DetailedChartSkeleton
+          height={height}
+          variant={variant}
+          theme={theme}
+        />
+      )}
+    </animated.div>
+  );
+}
+
+/* ---------- 3.  Section wrapper ---------- */
+function Section({ id, title, children, onVisible }) {
+  const { ref, inView } = useInView({
+    threshold: 0.1,
+    triggerOnce: false
+  });
+
+  useEffect(() => {
+    if (inView && onVisible) {
+      onVisible();
+    }
+  }, [inView, onVisible]);
+
+  const slideIn = useSpring({
+    opacity: inView ? 1 : 0,
+    transform: inView ? 'translateY(0)' : 'translateY(40px)',
+    config: { tension: 280, friction: 60 }
+  });
+
+  return (
+    <Box id={id} ref={ref} sx={{ scrollMarginTop: 100, mb: 6 }}>
+      <animated.div style={slideIn}>
+        <Typography 
+          variant="h5" 
+          sx={{ 
+            mb: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            '&::after': {
+              content: '""',
+              flex: 1,
+              height: '2px',
+              background: theme => `linear-gradient(90deg, 
+                ${alpha(theme.palette.primary.main, 0.5)}, 
+                ${alpha(theme.palette.primary.main, 0)})`
+            }
+          }}
+        >
+          {title}
+        </Typography>
+        {children}
+      </animated.div>
+    </Box>
+  );
+}
+
+/* ---------- 4.  Component  ---------- */
+
+export default function AnalyticsDashboard({ admin = false }) {
+  const theme = useTheme();
+  const router = useRouter();
+  
+  // Cache mechanism to prevent redundant API calls
+  const dataCache = useRef({});
+  const sectionLastFetched = useRef({});
+  const fetchDebounceTimers = useRef({});
+  const activeRequest = useRef(false);
+
+  /* ------------ NAV TABS ------------ */
+  const tabs = useMemo(() => [
+    { key: 'snapshot', label: 'Snapshot' },
+    { key: 'products', label: 'Product Insights' },
+    { key: 'traffic', label: 'Traffic & Engagement' },
+    admin && { key: 'revenue', label: 'Revenue' },
+    { key: 'tools', label: 'Utilities' }
+  ].filter(Boolean), [admin]);
+
+  const [tabIdx, setTabIdx] = useState(0);
+  const activeKey = tabs[tabIdx].key;
+
+  /* ------------ NAVBAR STATE ------------ */
+  const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+  const [lastScroll, setLastScroll] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScroll = window.scrollY;
+      setIsNavbarVisible(lastScroll > currentScroll || currentScroll < 100);
+      setLastScroll(currentScroll);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScroll]);
+
+  /* ------------ DATE PICKER STATE ------------ */
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [rangePickerOpen, setRangePickerOpen] = useState(false);
+  const [tempDateRange, setTempDateRange] = useState({
+    start: dayjs().subtract(6, 'day').startOf('day').toDate(),
+    end: dayjs().endOf('day').toDate()
+  });
+
+  /* ------------ DATE STATE ------------ */
   const [dateRange, setDateRange] = useState({
     start: dayjs().subtract(6, 'day').startOf('day').toDate(),
     end: dayjs().endOf('day').toDate()
   });
   const [activeTag, setActiveTag] = useState('last7days');
-
-  // States for charts that respect date ranges
-  const [salesSources, setSalesSources] = useState([]);
-  const [returningPayingUsers, setReturningPayingUsers] = useState([]);
-  const [variantSales, setVariantSales] = useState([]);
-  const [abandonedCarts, setAbandonedCarts] = useState([]);
-  const [dailyRevenue, setDailyRevenue] = useState([]);
-  const [retargetedCustomers, setRetargetedCustomers] = useState([]);
-
-  // States for independent charts (do not respect date ranges)
-  const [totalRevenue, setTotalRevenue] = useState([]);
-  const [monthlyRevenue, setMonthlyRevenue] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showDownloadUserDataSection, setShowDownloadUserDataSection] = useState(false);
-
-  // --- Charts Respecting Date Range ---
-
-  const fetchSalesSources = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/sales-sources?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch sales sources data');
-      const data = await res.json();
-      setSalesSources(data.salesSources);
-    } catch (error) {
-      console.error('Error fetching sales sources:', error);
-      setError('Failed to load sales sources data. Please try again later.');
-    }
-  };
-
-  const fetchReturningPayingUsers = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/returning-paying-users?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch returning paying users data');
-      const data = await res.json();
-      setReturningPayingUsers(data.returningPayingUsers);
-    } catch (error) {
-      console.error('Error fetching returning paying users:', error);
-      setError('Failed to load returning paying users data. Please try again later.');
-    }
-  };
-
-  const fetchVariantSales = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/variant-sales?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch variant sales data');
-      const data = await res.json();
-      setVariantSales(data.variantSales);
-    } catch (error) {
-      console.error('Error fetching variant sales:', error);
-      setError('Failed to load variant sales data. Please try again later.');
-    }
-  };
-
-  const fetchAbandonedCarts = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/abandoned-carts?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch abandoned carts data');
-      const data = await res.json();
-      setAbandonedCarts(data.abandonedCarts);
-    } catch (error) {
-      console.error('Error fetching abandoned carts:', error);
-      setError('Failed to load abandoned carts data. Please try again later.');
-    }
-  };
-
-  const fetchDailyRevenue = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/daily-revenue?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch daily revenue data');
-      const data = await res.json();
-      setDailyRevenue(data.dailyRevenue);
-    } catch (error) {
-      console.error('Error fetching daily revenue:', error);
-      setError('Failed to load daily revenue data. Please try again later.');
-    }
-  };
-
-  // New: Fetch Retargeted Customers data (charts based on daily percentages)
-  const fetchRetargetedCustomers = async () => {
-    try {
-      const query = new URLSearchParams();
-      if (dateRange.start) query.append('startDate', dateRange.start.toISOString());
-      if (dateRange.end) query.append('endDate', dateRange.end.toISOString());
-
-      const res = await fetch(`/api/admin/analytics/main/retargeted-customers?${query.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch retargeted customers data');
-      const data = await res.json();
-      setRetargetedCustomers(data.retargetedCustomers);
-    } catch (error) {
-      console.error('Error fetching retargeted customers:', error);
-      setError('Failed to load retargeted customers data. Please try again later.');
-    }
-  };
-
-  // --- Independent Charts (Do Not Respect Date Range) ---
-
-  const fetchTotalRevenueIndependent = async () => {
-    try {
-      const res = await fetch(`/api/admin/analytics/main/total-revenue`);
-      if (!res.ok) throw new Error('Failed to fetch total revenue data');
-      const data = await res.json();
-      setTotalRevenue(data.totalRevenue);
-    } catch (error) {
-      console.error('Error fetching total revenue:', error);
-      setError('Failed to load total revenue data. Please try again later.');
-    }
-  };
-
-  const fetchMonthlyRevenueIndependent = async () => {
-    try {
-      const res = await fetch(`/api/admin/analytics/main/monthly-revenue`);
-      if (!res.ok) throw new Error('Failed to fetch monthly revenue data');
-      const data = await res.json();
-      setMonthlyRevenue(data.monthlyRevenue);
-    } catch (error) {
-      console.error('Error fetching monthly revenue:', error);
-      setError('Failed to load monthly revenue data. Please try again later.');
-    }
-  };
-
-  // --- Combined Fetching ---
-
-  const fetchChartsRespectingDateRange = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      await Promise.all([
-        fetchSalesSources(),
-        fetchReturningPayingUsers(),
-        fetchVariantSales(),
-        fetchAbandonedCarts(),
-        fetchDailyRevenue(),
-        fetchRetargetedCustomers()
-      ]);
-    } catch (error) {
-      // Individual fetch functions handle errors
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchIndependentCharts = async () => {
-    try {
-      await Promise.all([
-        fetchTotalRevenueIndependent(),
-        fetchMonthlyRevenueIndependent()
-      ]);
-    } catch (error) {
-      // Individual fetch functions handle errors
-    }
-  };
-
-  // --- Fetch All Data on Component Mount and on Date Range Change ---
-
-  useEffect(() => {
-    fetchIndependentCharts();
-    fetchChartsRespectingDateRange();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  
+  const dateRangeKey = useMemo(() => {
+    return `${dayjs(dateRange.start).format('YYYY-MM-DD')}_${dayjs(dateRange.end).format('YYYY-MM-DD')}`;
   }, [dateRange]);
 
-  // --- Handlers for Date Range Chips ---
+  /* ------------ VISIBILITY TRACKING ------------ */
+  const [visibleSections, setVisibleSections] = useState({
+    snapshot: false,
+    products: false,
+    traffic: false,
+    revenue: false,
+    tools: false
+  });
 
-  const handleAllTagClick = () => {
-    setActiveTag('all');
-    setDateRange({ start: null, end: null });
-  };
+  /* ------------ DATA STATE ------------ */
+  const [loading, setLoading] = useState(true);
+  const [sectionLoading, setSectionLoading] = useState({
+    snapshot: true,
+    products: true,
+    traffic: true,
+    revenue: true
+  });
+  const [error, setError] = useState('');
+  const [salesSources, setSalesSources] = useState([]);
+  const [cartSources, setCartSources] = useState([]);
+  const [returnUsers, setReturnUsers] = useState([]);
+  const [variantSales, setVariantSales] = useState([]);
+  const [retargeted, setRetargeted] = useState([]);
+  const [abandoned, setAbandoned] = useState([]);
+  const [dailyRev, setDailyRev] = useState([]);
+  const [totalRev, setTotalRev] = useState([]);
+  const [monthlyRev, setMonthlyRev] = useState([]);
+  const [isUpdatingData, setIsUpdatingData] = useState(false);
 
-  const handleMonthSelection = (tag) => {
-    const now = dayjs();
-    let start, end;
-    if (tag === 'thisMonth') {
-      start = now.startOf('month').toDate();
-      end = now.endOf('month').toDate();
-    } else if (tag === 'lastMonth') {
-      const lastMonth = now.subtract(1, 'month');
-      start = lastMonth.startOf('month').toDate();
-      end = lastMonth.endOf('month').toDate();
+  /* ------------ FETCH HELPERS ------------ */
+  const ranged = useCallback(async (url) => {
+    const q = new URLSearchParams();
+    if (dateRange.start) q.append('startDate', dateRange.start.toISOString());
+    if (dateRange.end) q.append('endDate', dateRange.end.toISOString());
+    
+    const fullUrl = `${url}?${q}`;
+    const cacheKey = `${url}_${dateRangeKey}`;
+    
+    // Return cached data if available
+    if (dataCache.current[cacheKey]) {
+      return dataCache.current[cacheKey];
     }
-    setActiveTag(tag);
-    setDateRange({ start, end });
-  };
+    
+    const res = await fetch(fullUrl);
+    if (!res.ok) throw new Error(url);
+    const data = await res.json();
+    
+    // Cache the result
+    dataCache.current[cacheKey] = data;
+    return data;
+  }, [dateRange, dateRangeKey]);
 
-  const handleCustomDayChange = (newDate) => {
-    if (!newDate) return;
-    const start = newDate.startOf('day').toDate();
-    const end = newDate.endOf('day').toDate();
-    setActiveTag('custom');
-    setDateRange({ start, end });
-  };
+  // Non-date range fetch with caching
+  const fetchCached = useCallback(async (url) => {
+    // Return cached data if available
+    if (dataCache.current[url]) {
+      return dataCache.current[url];
+    }
+    
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(url);
+    const data = await res.json();
+    
+    // Cache the result
+    dataCache.current[url] = data;
+    return data;
+  }, []);
 
-  const handleCustomDateChange = (newStart, newEnd) => {
-    if (!newStart || !newEnd) return;
-    setActiveTag('customRange');
-    setDateRange({
-      start: newStart.startOf('day').toDate(),
-      end: newEnd.endOf('day').toDate()
+  // Helper to check if a section needs updating
+  const shouldUpdateSection = useCallback((section) => {
+    // If never fetched before, should update
+    if (!sectionLastFetched.current[section]) return true;
+    
+    const lastFetchDateKey = sectionLastFetched.current[section];
+    // If date range changed since last fetch, should update
+    if (lastFetchDateKey !== dateRangeKey) return true;
+    
+    // Otherwise, no need to update
+    return false;
+  }, [dateRangeKey]);
+
+  // Load data for a specific section
+  const loadSection = useCallback(async (section) => {
+    // Skip if section is already loaded for current date range
+    if (!shouldUpdateSection(section)) {
+      return;
+    }
+    
+    // Clear any pending debounce timer for this section
+    if (fetchDebounceTimers.current[section]) {
+      clearTimeout(fetchDebounceTimers.current[section]);
+    }
+    
+    // Set a debounce timer to prevent rapid consecutive calls
+    fetchDebounceTimers.current[section] = setTimeout(async () => {
+      setSectionLoading(prev => ({ ...prev, [section]: true }));
+      
+      try {
+        switch(section) {
+          case 'snapshot':
+            const [src, cs] = await Promise.all([
+              ranged('/api/admin/analytics/main/sales-sources'),
+              ranged('/api/admin/analytics/main/cart-sources')
+            ]);
+            setSalesSources(src.salesSources);
+            setCartSources(cs.cartSources);
+            break;
+          case 'products':
+            const vs = await ranged('/api/admin/analytics/main/variant-sales');
+            setVariantSales(vs.variantSales);
+            break;
+          case 'traffic':
+            const [ru, rt, ab] = await Promise.all([
+              ranged('/api/admin/analytics/main/returning-paying-users'),
+              ranged('/api/admin/analytics/main/retargeted-customers'),
+              ranged('/api/admin/analytics/main/abandoned-carts')
+            ]);
+            setReturnUsers(ru.returningPayingUsers);
+            setRetargeted(rt.retargetedCustomers);
+            setAbandoned(ab.abandonedCarts);
+            break;
+          case 'revenue':
+            const [tot, mon, daily] = await Promise.all([
+              fetchCached('/api/admin/analytics/main/total-revenue'),
+              fetchCached('/api/admin/analytics/main/monthly-revenue'),
+              ranged('/api/admin/analytics/main/daily-revenue')
+            ]);
+            setTotalRev(tot.totalRevenue);
+            setMonthlyRev(mon.monthlyRevenue);
+            setDailyRev(daily.dailyRevenue);
+            break;
+        }
+        // Mark this section as fetched with current date range
+        sectionLastFetched.current[section] = dateRangeKey;
+      } catch (e) {
+        console.error(`Failed loading ${section}:`, e);
+        setError(`Failed loading ${section} charts`);
+      } finally {
+        setSectionLoading(prev => ({ ...prev, [section]: false }));
+      }
+    }, 300); // 300ms debounce
+  }, [ranged, fetchCached, dateRangeKey, shouldUpdateSection]);
+
+  // Load all visible sections
+  const loadVisibleSections = useCallback(async () => {
+    if (isUpdatingData || activeRequest.current) return; // Prevent multiple concurrent updates
+    
+    activeRequest.current = true;
+    setIsUpdatingData(true);
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Initial load of active tab section
+      const activeSection = tabs[tabIdx].key;
+      if (shouldUpdateSection(activeSection)) {
+        await loadSection(activeSection);
+      }
+      
+      // Also load any sections that are visible through scrolling
+      const visibleSectionKeys = Object.entries(visibleSections)
+        .filter(([_, isVisible]) => isVisible)
+        .map(([key]) => key);
+        
+      await Promise.all(
+        visibleSectionKeys
+          .filter(section => section !== activeSection && shouldUpdateSection(section))
+          .map(section => loadSection(section))
+      );
+    } catch (e) { 
+      console.error(e); 
+      setError('Failed loading charts'); 
+    } finally {
+      setLoading(false);
+      setIsUpdatingData(false);
+      activeRequest.current = false;
+    }
+  }, [tabs, tabIdx, visibleSections, loadSection, shouldUpdateSection, isUpdatingData]);
+
+  // When date range changes, reload data with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Clear all section caches when date range changes
+      Object.keys(sectionLastFetched.current).forEach(key => {
+        if (sectionLastFetched.current[key] !== dateRangeKey) {
+          // Mark sections as needing refresh but don't immediately fetch
+          sectionLastFetched.current[key] = null;
+        }
+      });
+      
+      loadVisibleSections();
+    }, 500); // 500ms debounce on date range change
+    
+    return () => clearTimeout(timer);
+  }, [dateRangeKey, loadVisibleSections]);
+  
+  // When tab changes, make sure the section is loaded (only if not already loaded)
+  useEffect(() => {
+    const currentSection = tabs[tabIdx].key;
+    if (shouldUpdateSection(currentSection) && !isUpdatingData && !activeRequest.current) {
+      loadSection(currentSection);
+    }
+  }, [tabIdx, tabs, loadSection, shouldUpdateSection, isUpdatingData]);
+
+  // Load data when a section comes into view (with better debounce handling)
+  const handleSectionVisible = useCallback((section) => {
+    setVisibleSections(prev => {
+      // Only trigger a state update if the visibility changed
+      if (prev[section] === true) return prev;
+      return { ...prev, [section]: true };
     });
-  };
+    
+    if (shouldUpdateSection(section) && !isUpdatingData && !activeRequest.current) {
+      loadSection(section);
+    }
+  }, [shouldUpdateSection, loadSection, isUpdatingData]);
 
-  // --- Display Error if Any ---
+  // Clear cache when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear all debounce timers on unmount
+      Object.values(fetchDebounceTimers.current).forEach(timer => {
+        if (timer) clearTimeout(timer);
+      });
+    };
+  }, []);
 
+  // Handle month selection for DateRangeChips
+  const handleMonthSelection = useCallback((monthType) => {
+    let startDate, endDate;
+    
+    if (monthType === 'thisMonth') {
+      startDate = dayjs().startOf('month').toDate();
+      endDate = dayjs().endOf('day').toDate();
+    } else if (monthType === 'lastMonth') {
+      startDate = dayjs().subtract(1, 'month').startOf('month').toDate();
+      endDate = dayjs().subtract(1, 'month').endOf('month').toDate();
+    }
+    
+    setDateRange({ start: startDate, end: endDate });
+    setActiveTag(monthType);
+  }, []);
+
+  // Handle "All" date range click
+  const handleAllTagClick = useCallback(() => {
+    setDateRange({
+      start: dayjs('2024-11-20').startOf('day').toDate(),
+      end: dayjs().endOf('day').toDate()
+    });
+    setActiveTag('all');
+  }, []);
+
+  const handleCustomDayChange = useCallback((date) => {
+    setDatePickerOpen(true);
+    setTempDateRange({
+      start: date.startOf('day').toDate(),
+      end: date.endOf('day').toDate()
+    });
+  }, []);
+  
+  const handleCustomDateChange = useCallback((start, end) => {
+    setRangePickerOpen(true);
+    setTempDateRange({
+      start: start.startOf('day').toDate(),
+      end: end.endOf('day').toDate()
+    });
+  }, []);
+
+  const scrollTo = useCallback((id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  useEffect(() => {
+    scrollTo(`panel-${activeKey}`);
+  }, [activeKey, scrollTo]);
+
+  /* ------------ ERROR ------------ */
   if (error) {
     return (
-      <Container
-        maxWidth="xl"
-        sx={{ padding: '2rem 1rem', backgroundColor: '#121212', minHeight: '100vh' }}
-      >
-        <Typography variant="h4" color="error" gutterBottom>
-          {error}
-        </Typography>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box sx={{ 
+          p: 4, 
+          borderRadius: 3, 
+          bgcolor: 'rgba(220, 38, 38, 0.1)', 
+          textAlign: 'center',
+          border: '1px solid rgba(220, 38, 38, 0.2)'
+        }}>
+          <Typography variant="h5" color="error" sx={{ mb: 2 }}>
+            {error}
+          </Typography>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={() => loadVisibleSections()}
+            sx={{ mt: 1 }}
+          >
+            Retry
+          </Button>
+        </Box>
       </Container>
     );
   }
 
+  /* ------------ RENDER ------------ */
   return (
-    <Container
-      maxWidth="xl"
-      sx={{ padding: '2rem 1rem', backgroundColor: '#121212', minHeight: '100vh' }}
-    >
-      <Typography variant="h4" color="primary" gutterBottom>
-        Analytics Dashboard
-      </Typography>
-
-      {/* Date Range Chips */}
-      <DateRangeChips
-        activeTag={activeTag}
-        setActiveTag={setActiveTag}
-        setDateRange={setDateRange}
-        setCurrentPage={() => { }}
-        setProblematicCurrentPage={() => { }}
-        handleAllTagClick={handleAllTagClick}
-        handleCustomDayChange={handleCustomDayChange}
-        handleCustomDateChange={handleCustomDateChange}
-        handleMonthSelection={handleMonthSelection}
-      />
-
-      {/* Formatted Date Display */}
-      <Box sx={{ marginBottom: '1rem' }}>
-        {activeTag === 'custom' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            {`Analytics for ${dayjs(dateRange.start).format('MMMM D, YYYY, dddd')}`}
-          </Typography>
-        )}
-        {activeTag === 'customRange' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            {`Analytics from ${dayjs(dateRange.start).format('MMMM D, YYYY')} to ${dayjs(dateRange.end).format('MMMM D, YYYY')}`}
-          </Typography>
-        )}
-        {activeTag === 'today' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics for today ({dayjs(dateRange.start).format('MMMM D, YYYY, dddd')})
-          </Typography>
-        )}
-        {activeTag === 'yesterday' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics for yesterday ({dayjs().subtract(1, 'day').format('MMMM D, YYYY, dddd')})
-          </Typography>
-        )}
-        {activeTag === 'last7days' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics from last 7 days ({dayjs().subtract(6, 'day').format('MMMM D, YYYY, dddd')} to {dayjs().format('MMMM D, YYYY, dddd')})
-          </Typography>
-        )}
-        {activeTag === 'last30days' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics from last 30 days ({dayjs().subtract(29, 'day').format('MMMM D, YYYY, dddd')} to {dayjs().format('MMMM D, YYYY, dddd')})
-          </Typography>
-        )}
-        {activeTag === 'thisMonth' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics for this month ({dayjs(dateRange.start).format('MMMM D, YYYY')} to {dayjs(dateRange.end).format('MMMM D, YYYY')})
-          </Typography>
-        )}
-        {activeTag === 'lastMonth' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            Analytics for last month ({dayjs(dateRange.start).format('MMMM D, YYYY')} to {dayjs(dateRange.end).format('MMMM D, YYYY')})
-          </Typography>
-        )}
-        {activeTag === 'all' && (
-          <Typography variant="subtitle1" sx={{ color: 'white' }}>
-            All Analytics
-          </Typography>
-        )}
-      </Box>
-
-      {/* Custom Date Pickers */}
-      {(activeTag === 'custom' || activeTag === 'customRange') && (
-        <Box display="flex" justifyContent="center" marginBottom="1rem" gap="1rem">
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            {activeTag === 'custom' ? (
-              <DatePicker
-                label="Select Date"
-                value={dayjs(dateRange.start)}
-                onChange={(newValue) => handleCustomDayChange(newValue)}
-                renderInput={(params) => <TextField {...params} size="small" />}
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Container maxWidth="xl" sx={{ pb: 8, pt: 30 }}>
+        {/* Top bar */}
+        <GlassAppBar className={!isNavbarVisible ? 'hidden' : ''}>
+          <FancyTabs
+            value={tabIdx}
+            onChange={(_, v) => setTabIdx(v)}
+            variant="scrollable"
+            allowScrollButtonsMobile
+          >
+            {tabs.map(t => (
+              <Tab 
+                key={t.key} 
+                label={t.label}
+                sx={{
+                  position: 'relative',
+                  '&::after': sectionLoading[t.key] ? {
+                    content: '""',
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 2,
+                    background: theme => `linear-gradient(90deg, 
+                      ${alpha(theme.palette.primary.main, 0)} 0%,
+                      ${alpha(theme.palette.primary.main, 0.5)} 50%,
+                      ${alpha(theme.palette.primary.main, 0)} 100%)`,
+                    animation: 'loading 1.5s infinite',
+                    '@keyframes loading': {
+                      '0%': { transform: 'translateX(-100%)' },
+                      '100%': { transform: 'translateX(100%)' }
+                    }
+                  } : {}
+                }}
               />
-            ) : (
-              <>
-                <DatePicker
-                  label="Start Date"
-                  value={dayjs(dateRange.start)}
-                  onChange={(newValue) => handleCustomDateChange(newValue, dayjs(dateRange.end))}
-                  renderInput={(params) => <TextField {...params} size="small" />}
-                />
-                <DatePicker
-                  label="End Date"
-                  value={dayjs(dateRange.end)}
-                  onChange={(newValue) => handleCustomDateChange(dayjs(dateRange.start), newValue)}
-                  renderInput={(params) => <TextField {...params} size="small" />}
-                />
-              </>
-            )}
-          </LocalizationProvider>
-        </Box>
-      )}
-
-      {/* Charts Grid */}
-      <Grid container spacing={4} sx={{ marginTop: '1rem' }}>
-        {/* Sales Sources */}
-        <Grid item xs={12} md={6}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <SalesSourcesChart data={salesSources} />
-          )}
-        </Grid>
-
-        {/* Returning Paying Users */}
-        <Grid item xs={12} md={6}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <ReturningPayingUsersChart
-              data={returningPayingUsers}
-              startDate={dateRange.start}
-              endDate={dateRange.end}
+            ))}
+          </FancyTabs>
+          {/* Range chips */}
+          <Box className="date-range-section" >
+            <DateRangeChips
+              activeTag={activeTag}
+              setActiveTag={setActiveTag}
+              setDateRange={setDateRange}
+              setCurrentPage={() => {}} // Not needed for this component
+              setProblematicCurrentPage={() => {}} // Not needed for this component
+              handleAllTagClick={handleAllTagClick}
+              handleCustomDayChange={handleCustomDayChange}
+              handleCustomDateChange={handleCustomDateChange}
+              handleMonthSelection={handleMonthSelection}
             />
-          )}
-        </Grid>
+          </Box>
+        </GlassAppBar>
 
-        {/* Variant Sales */}
-        <Grid item xs={12}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <VariantSalesChart data={variantSales} />
-          )}
-        </Grid>
-
-        {/* Abandoned Carts */}
-        <Grid item xs={12}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <Link href="/admin/analytics/abandoned-cart-users">
-              <AbandonedCartsChart data={abandonedCarts} />
-            </Link>
-          )}
-        </Grid>
-
-        {/* Retargeted Customers */}
-        <Grid item xs={12}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={500} />
-          ) : (
-            <RetargetedCustomersChart data={retargetedCustomers} />
-          )}
-        </Grid>
-
-        {admin && (
-          <>
-            {/* Daily Revenue */}
-            <Grid item xs={12} md={6}>
-              {loading ? (
-                <Skeleton variant="rectangular" height={500} />
-              ) : (
-                <DailyRevenueChart data={dailyRevenue} />
-              )}
-            </Grid>
-
-            {/* Total Revenue */}
-            <Grid item xs={12} md={6}>
-              {loading ? (
-                <Skeleton variant="rectangular" height={500} />
-              ) : (
-                <TotalRevenueChart data={totalRevenue} />
-              )}
-            </Grid>
-
-            {/* Monthly Revenue */}
-            <Grid item xs={12}>
-              {loading ? (
-                <Skeleton variant="rectangular" height={500} />
-              ) : (
-                <MonthlyRevenueChart data={monthlyRevenue} />
-              )}
-            </Grid>
-          </>
-        )}
-      </Grid>
-
-      {/* Download Customers Data Section */}
-      {loading ? (
-        <Skeleton
-          variant="rectangular"
-          sx={{ marginTop: '2rem', borderRadius: '0.4rem' }}
-          height={40}
-        />
-      ) : (
-        <Button
-          onClick={() => setShowDownloadUserDataSection(!showDownloadUserDataSection)}
-          sx={{ marginTop: '2rem' }}
-          fullWidth
-          variant="outlined"
+        {/* Date Picker Dialog */}
+        <Dialog 
+          open={datePickerOpen || rangePickerOpen} 
+          onClose={() => {
+            setDatePickerOpen(false);
+            setRangePickerOpen(false);
+          }}
+          PaperProps={{
+            sx: {
+              background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
+              borderRadius: 3,
+              border: theme => `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+              minWidth: rangePickerOpen ? 400 : 320
+            }
+          }}
         >
-          {showDownloadUserDataSection
-            ? "Hide 'Download Customer Data' section"
-            : "Show 'Download Customer Data' section"}
-        </Button>
-      )}
-      {showDownloadUserDataSection && (
-        <Box sx={{ marginTop: '4rem' }}>
-          {/* Date Range Chips */}
-          <DateRangeChips
-            activeTag={activeTag}
-            setActiveTag={setActiveTag}
-            setDateRange={setDateRange}
-            setCurrentPage={() => { }}
-            setProblematicCurrentPage={() => { }}
-            handleAllTagClick={handleAllTagClick}
-            handleCustomDayChange={handleCustomDayChange}
-            handleCustomDateChange={handleCustomDateChange}
-            handleMonthSelection={handleMonthSelection}
-          />
-          <DownloadCustomersData dateRange={dateRange} activeTag={activeTag} />
-        </Box>
-      )}
-    </Container>
-  );
-};
+          <DialogTitle sx={{ color: 'white' }}>
+            {rangePickerOpen ? 'Select Date Range' : 'Select Date'}
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 2 }}>
+              {rangePickerOpen ? (
+                <Stack spacing={2}>
+                  <DatePicker
+                    label="Start Date"
+                    value={dayjs(tempDateRange.start)}
+                    onChange={(newValue) => {
+                      if (newValue) {
+                        setTempDateRange(prev => ({
+                          ...prev,
+                          start: newValue.startOf('day').toDate()
+                        }));
+                      }
+                    }}
+                    maxDate={dayjs(tempDateRange.end)}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        sx: {
+                          '& .MuiInputBase-root': {
+                            color: 'white'
+                          },
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: 'rgba(255, 255, 255, 0.2)'
+                          },
+                          '& .MuiIconButton-root': {
+                            color: 'white'
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                          }
+                        }
+                      }
+                    }}
+                  />
+                  <DatePicker
+                    label="End Date"
+                    value={dayjs(tempDateRange.end)}
+                    onChange={(newValue) => {
+                      if (newValue) {
+                        setTempDateRange(prev => ({
+                          ...prev,
+                          end: newValue.endOf('day').toDate()
+                        }));
+                      }
+                    }}
+                    minDate={dayjs(tempDateRange.start)}
+                    maxDate={dayjs()}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        sx: {
+                          '& .MuiInputBase-root': {
+                            color: 'white'
+                          },
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: 'rgba(255, 255, 255, 0.2)'
+                          },
+                          '& .MuiIconButton-root': {
+                            color: 'white'
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </Stack>
+              ) : (
+                <DatePicker
+                  value={dayjs(tempDateRange.start)}
+                  onChange={(newValue) => {
+                    if (newValue) {
+                      setTempDateRange({
+                        start: newValue.startOf('day').toDate(),
+                        end: newValue.endOf('day').toDate()
+                      });
+                    }
+                  }}
+                  maxDate={dayjs()}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      sx: {
+                        '& .MuiInputBase-root': {
+                          color: 'white'
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: 'rgba(255, 255, 255, 0.2)'
+                        },
+                        '& .MuiIconButton-root': {
+                          color: 'white'
+                        },
+                        '& .MuiInputLabel-root': {
+                          color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                      }
+                    }
+                  }}
+                />
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button 
+              onClick={() => {
+                setDatePickerOpen(false);
+                setRangePickerOpen(false);
+              }}
+              sx={{ color: 'rgba(255,255,255,0.7)' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setDateRange(tempDateRange);
+                setActiveTag(rangePickerOpen ? 'customRange' : 'custom');
+                setDatePickerOpen(false);
+                setRangePickerOpen(false);
+              }}
+              variant="contained"
+              color="primary"
+            >
+              Apply
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-export default AnalyticsDashboard;
+        {/* Loading indicator for data changes */}
+        {isUpdatingData && (
+          <Box
+            sx={{
+              position: 'fixed',
+              bottom: 20,
+              right: 20,
+              zIndex: 2000,
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: alpha('#111827', 0.9),
+              backdropFilter: 'blur(8px)',
+              padding: '8px 16px',
+              borderRadius: 20,
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(96, 165, 250, 0.2)',
+              transition: 'all 0.2s ease',
+              gap: 1.5
+            }}
+          >
+            <CircularProgress size={20} thickness={4} sx={{ color: '#60A5FA' }} />
+            <Typography variant="body2" sx={{ color: '#FFF', fontWeight: 500 }}>
+              Updating data...
+            </Typography>
+          </Box>
+        )}
+
+        {/* ============ PANELS ============ */}
+
+        {/* Snapshot */}
+        <Section 
+          id="panel-snapshot" 
+          title="Snapshot" 
+          onVisible={() => handleSectionVisible('snapshot')}
+        >
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={6}>
+              <LazyCard loading={sectionLoading.snapshot} variant="pie" theme="blue">
+                <SalesSourcesChart data={salesSources} />
+              </LazyCard>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <LazyCard loading={sectionLoading.snapshot} variant="pie" theme="green">
+                <CartSourcesChart data={cartSources} />
+              </LazyCard>
+            </Grid>
+          </Grid>
+        </Section>
+
+        {/* Product Insights */}
+        <Section 
+          id="panel-products" 
+          title="Product Insights" 
+          onVisible={() => handleSectionVisible('products')}
+        >
+          <LazyCard height={550} loading={sectionLoading.products} variant="bars" theme="purple">
+            <VariantSalesChart data={variantSales} />
+          </LazyCard>
+        </Section>
+
+        {/* Traffic & Engagement */}
+        <Section 
+          id="panel-traffic" 
+          title="Traffic & Engagement" 
+          onVisible={() => handleSectionVisible('traffic')}
+        >
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={6}>
+              <LazyCard loading={sectionLoading.traffic} variant="line" theme="blue">
+                <ReturningPayingUsersChart
+                  data={returnUsers}
+                  startDate={dateRange.start}
+                  endDate={dateRange.end}
+                />
+              </LazyCard>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <LazyCard loading={sectionLoading.traffic} variant="line" theme="green">
+                <RetargetedCustomersChart data={retargeted} />
+              </LazyCard>
+            </Grid>
+            <Grid item xs={12}>
+              <LazyCard height={500} loading={sectionLoading.traffic} variant="area" theme="amber">
+                <AbandonedCartsChart data={abandoned} />
+              </LazyCard>
+            </Grid>
+          </Grid>
+        </Section>
+
+        {/* Revenue (admin only) */}
+        {admin && (
+          <Section 
+            id="panel-revenue" 
+            title="Revenue" 
+            onVisible={() => handleSectionVisible('revenue')}
+          >
+            <Grid container spacing={4}>
+              <Grid item xs={12} md={6}>
+                <LazyCard loading={sectionLoading.revenue} variant="bars" theme="blue">
+                  <DailyRevenueChart data={dailyRev} />
+                </LazyCard>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <LazyCard loading={sectionLoading.revenue} variant="area" theme="green">
+                  <TotalRevenueChart data={totalRev} />
+                </LazyCard>
+              </Grid>
+              <Grid item xs={12}>
+                <LazyCard loading={sectionLoading.revenue} variant="combo" theme="purple">
+                  <MonthlyRevenueChart data={monthlyRev} />
+                </LazyCard>
+              </Grid>
+            </Grid>
+          </Section>
+        )}
+
+        {/* Utilities */}
+        <Section 
+          id="panel-tools" 
+          title="Utilities" 
+          onVisible={() => handleSectionVisible('tools')}
+        >
+          <LazyCard height={110}>
+            <Box 
+              sx={{
+                borderRadius: 2,
+                p: 2,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2
+              }}
+            >
+              <Button
+                onClick={() => router.push('/admin/download/download-customer-data')}
+                variant="outlined"
+                fullWidth
+                sx={{ 
+                  py: 2,
+                  fontWeight: 600,
+                  borderColor: theme => alpha(theme.palette.primary.main, 0.3),
+                  background: theme => `linear-gradient(135deg, ${alpha('#1F2937', 0.8)} 0%, ${alpha('#111827', 0.9)} 100%)`,
+                  '&:hover': {
+                    borderColor: theme => alpha(theme.palette.primary.main, 0.5),
+                    background: theme => `linear-gradient(135deg, ${alpha('#1F2937', 0.9)} 0%, ${alpha('#111827', 1)} 100%)`
+                  },
+                  transition: 'all 0.3s ease'
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="button" sx={{ fontWeight: 600 }}>
+                    Download Customer Data
+                  </Typography>
+                </Box>
+              </Button>
+            </Box>
+          </LazyCard>
+        </Section>
+      </Container>
+    </LocalizationProvider>
+  );
+}

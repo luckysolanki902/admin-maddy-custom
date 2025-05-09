@@ -1,5 +1,5 @@
 // /models/SpecificCategory.js
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const ExtraFieldSchema = new mongoose.Schema({
   fieldName: {
@@ -9,7 +9,7 @@ const ExtraFieldSchema = new mongoose.Schema({
   },
   fieldType: {
     type: String,
-    enum: ['String', 'Number'],
+    enum: ["String", "Number"],
     required: true,
   },
   question: {
@@ -55,7 +55,7 @@ const LetterMappingGroupSchema = new mongoose.Schema({
   question: {
     type: String,
     trim: true,
-    default: '',
+    default: "",
   },
 
   thumbnailRequired: {
@@ -95,18 +95,24 @@ const SpecificCategorySchema = new mongoose.Schema(
     },
     subCategory: {
       type: String,
-      enum: ['Bike Wraps', 'Car Wraps', 'Safety'],
+      enum: ["Bike Wraps", "Car Wraps", "Safety"],
       required: true,
       index: true,
     },
     category: {
       type: String,
-      enum: ['Wraps', 'Accessories'],
+      enum: ["Wraps", "Accessories"],
     },
     available: {
       type: Boolean,
       default: true,
     },
+    vehicles: [
+      {
+        type: String,
+        enum: ["bike", "car"],
+      },
+    ],
     extraFields: {
       type: [ExtraFieldSchema],
       default: [],
@@ -114,21 +120,21 @@ const SpecificCategorySchema = new mongoose.Schema(
     // review fetch source
     reviewFetchSource: {
       type: String,
-      enum: ['variant', 'product', 'specCat'],
-      default: 'variant',
-      lowercase: true
+      enum: ["variant", "product", "specCat"],
+      default: "variant",
+      lowercase: true,
     },
     productInfoTabs: [
       {
         title: {
           type: String,
-          enum: ['Description', 'How to Apply']
+          enum: ["Description", "How to Apply"],
         },
         fetchSource: {
           type: String,
-          enum: ['Variant', 'SpecCat', 'Product']
-        }
-      }
+          enum: ["Variant", "SpecCat", "Product"],
+        },
+      },
     ],
 
     // NEW FIELDS FOR LETTER MAPPING LOGIC
@@ -147,6 +153,4 @@ const SpecificCategorySchema = new mongoose.Schema(
 if (mongoose.models.SpecificCategory) {
   delete mongoose.models.SpecificCategory;
 }
-  module.exports =
-    mongoose.models.SpecificCategory ||
-    mongoose.model('SpecificCategory', SpecificCategorySchema);
+module.exports = mongoose.models.SpecificCategory || mongoose.model("SpecificCategory", SpecificCategorySchema);

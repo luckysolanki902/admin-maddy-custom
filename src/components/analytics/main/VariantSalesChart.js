@@ -11,67 +11,160 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts';
 import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
 
 // Define a palette of professional colors for variants
 const COLORS = [
-  '#1f77b4', // Variant 1 - Blue
-  '#ff7f0e', // Variant 2 - Orange
-  '#2ca02c', // Variant 3 - Green
-  '#d62728', // Variant 4 - Red
-  '#9467bd', // Variant 5 - Purple
-  '#8c564b', // Variant 6 - Brown
-  '#e377c2', // Variant 7 - Pink
-  '#7f7f7f', // Variant 8 - Gray
-  '#bcbd22', // Variant 9 - Olive
-  '#17becf', // Variant 10 - Cyan
-  // Add more colors as needed
+  '#60A5FA',  // vibrant blue
+  '#F472B6',  // pink
+  '#34D399',  // emerald
+  '#A78BFA',  // purple
+  '#FBBF24',  // amber
+  '#F87171',  // red
+  '#38BDF8',  // sky blue
+  '#FB923C',  // orange
+  '#4ADE80',  // green
+  '#C084FC',  // violet
 ];
 
-// Custom Legend Component
-const CustomLegend = ({ dataKeys, variantColors, isSmallScreen }) => {
+// Custom tooltip component
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  
+  // Calculate total sales for this category
+  const total = payload.reduce((sum, entry) => sum + (entry.value || 0), 0);
+  
   return (
     <Box
       sx={{
-        display: 'flex',
-        flexDirection: isSmallScreen ? 'column' : 'row',
-        flexWrap: 'wrap',
-        justifyContent: isSmallScreen ? 'center' : 'flex-start',
-        alignItems: 'center',
-        marginTop: 2,
-        gap: 1,
+        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+        backdropFilter: 'blur(8px)',
+        p: 2.5,
+        borderRadius: '12px',
+        border: '1px solid rgba(99, 102, 241, 0.2)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+        color: 'white',
+        minWidth: 200,
+        position: 'relative',
+        '&:before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '2px',
+          background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
+          borderTopLeftRadius: '12px',
+          borderTopRightRadius: '12px',
+        }
       }}
     >
-      {dataKeys.map((key, index) => (
-        <Box
-          key={`legend-${index}`}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <Box
-            sx={{
-              width: 12,
-              height: 12,
-              backgroundColor: variantColors[key]?.base || COLORS[index % COLORS.length],
-              marginRight: 1,
-            }}
-          />
-          <Typography
-            variant="body2"
-            sx={{
-              color: 'white',
-              fontSize: isSmallScreen ? '0.8rem' : '1rem',
+      <Typography 
+        variant="subtitle2" 
+        sx={{ 
+          mb: 1.5, 
+          color: '#FFF',
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          pb: 1
+        }}
+      >
+        {label}
+      </Typography>
+      
+      {/* Regular variants */}
+      {payload.map((entry, index) => {
+        // Skip 'Total' for now and show at the bottom
+        if (entry.name === 'Total') return null;
+        
+        // Skip entries with zero value
+        if (entry.value === 0) return null;
+        
+        return (
+          <Box 
+            key={entry.name} 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              mb: 1,
+              backgroundColor: index % 2 === 0 ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+              p: 0.8,
+              borderRadius: 1,
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.06)'
+              }
             }}
           >
-            {key}
-          </Typography>
-        </Box>
-      ))}
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: entry.fill,
+                  mr: 1.5,
+                  boxShadow: `0 0 10px ${entry.fill}40`
+                }}
+              />
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontSize: '0.85rem',
+                  color: '#EEE'
+                }}
+              >
+                {entry.name}
+              </Typography>
+            </Box>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                color: '#FFF'
+              }}
+            >
+              {entry.value.toLocaleString('en-IN')}
+            </Typography>
+          </Box>
+        );
+      })}
+      
+      {/* Total sales - show at bottom */}
+      <Box
+        sx={{
+          mt: 1.5,
+          pt: 1.5,
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+      >
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: '#CCC',
+            fontSize: '0.85rem'
+          }}
+        >
+          Total
+        </Typography>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: '#FFF',
+            fontWeight: 600,
+            fontSize: '0.9rem'
+          }}
+        >
+          {total.toLocaleString('en-IN')}
+        </Typography>
+      </Box>
     </Box>
   );
 };
@@ -79,6 +172,21 @@ const CustomLegend = ({ dataKeys, variantColors, isSmallScreen }) => {
 const VariantSalesChart = ({ data }) => {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // Process data for the chart
+  const chartData = useMemo(() => {
+    const groupedData = {};
+
+    data.forEach((item) => {
+      if (!groupedData[item.category]) {
+        groupedData[item.category] = { category: item.category };
+      }
+
+      groupedData[item.category][item.variant] = item.totalSales;
+    });
+
+    return Object.values(groupedData);
+  }, [data]);
 
   // Extract unique variants excluding 'Total'
   const variantNames = useMemo(() => {
@@ -91,186 +199,97 @@ const VariantSalesChart = ({ data }) => {
     return Array.from(variantsSet);
   }, [data]);
 
-  // Assign colors to variants, with 'Total' having a distinct color
-  const variantColors = useMemo(() => {
-    const colorMap = {};
-    variantNames.forEach((variant, index) => {
-      colorMap[variant] = {
-        base: COLORS[index % COLORS.length],
-        gradient: `url(#gradient-${index})`,
-      };
-    });
-    // Assign a distinct color for 'Total'
-    colorMap['Total'] = {
-      base: '#d9534f', // Bootstrap's red color for Total
-      gradient: `url(#gradient-total)`,
-    };
-    return colorMap;
-  }, [variantNames]);
-
-  // Process data for the chart, adding dummy variants for centering
-  const chartData = useMemo(() => {
-    const groupedData = {};
-
-    data.forEach((item) => {
-      if (!groupedData[item.category]) {
-        groupedData[item.category] = { category: item.category };
-      }
-
-      if (item.variant === 'Total') {
-        groupedData[item.category]['Total'] = item.totalSales;
-      } else {
-        groupedData[item.category][item.variant] = item.totalSales;
-      }
-    });
-
-    // Add dummy variants to center single-variant categories
-    Object.keys(groupedData).forEach((category) => {
-      const currentVariants = Object.keys(groupedData[category]).filter(
-        (key) => key !== 'category' && key !== 'Total'
-      );
-      const variantCount = currentVariants.length;
-
-      if (variantCount === 1) {
-        // Add two dummy variants
-        groupedData[category]['Dummy1'] = 0;
-        groupedData[category]['Dummy2'] = 0;
-      } else if (variantCount === 2) {
-        // Add one dummy variant
-        groupedData[category]['Dummy1'] = 0;
-      }
-      // For variantCount >=3, no padding needed
-    });
-
-    return Object.values(groupedData);
-  }, [data]);
-
-  // Prepare list of dataKeys, excluding dummy variants
-  const dataKeys = useMemo(() => {
-    const keys = [...variantNames, 'Total'];
-    return keys;
-  }, [variantNames]);
-
-  // List of dummy variant keys
-  const dummyKeys = useMemo(() => {
-    const keys = [];
-    data.forEach((item) => {
-      if (item.variant === 'Total') return;
-      // Identify dummy variants based on category
-      keys.push('Dummy1');
-      keys.push('Dummy2');
-    });
-    return Array.from(new Set(keys));
-  }, [data]);
-
   return (
     <Box
       sx={{
         width: '100%',
-        backgroundColor: '#2C2C2C',
-        padding: '1.5rem',
-        borderRadius: '12px',
-        boxShadow: 3,
-        transition: 'transform 0.3s',
-        position: 'relative',
-        minHeight: 450,
+        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
+        p: 4,
+        borderRadius: 3,
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+        minHeight: 450
       }}
     >
-      {/* Clickable Heading */}
       <Typography
         variant="h6"
-        gutterBottom
-        sx={{ color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
-        // onClick={() => {
-        //   // Navigate to detailed page
-        //   // window.location.href = '/admin/analytics/variant-sales';
-        // }}
+        sx={{ 
+          color: 'white', 
+          fontWeight: 600, 
+          mb: 3,
+          fontSize: isSmallScreen ? '1.1rem' : '1.25rem'
+        }}
       >
         Variant Sales
       </Typography>
 
-      {/* Bar Chart */}
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={380}>
         <BarChart
           data={chartData}
-          margin={{
-            top: 20,
-            right: 30,
-            left: 20,
-            bottom: isSmallScreen ? 100 : 50, // Increased bottom margin for angled labels
+          margin={{ 
+            top: 10, 
+            right: 30, 
+            left: 0, 
+            bottom: isSmallScreen ? 40 : 20 
           }}
+          barGap={0}
+          barSize={35}
         >
-          {/* Define gradients */}
-          <defs>
-            {variantNames.map((variant, index) => (
-              <linearGradient
-                key={`gradient-${index}`}
-                id={`gradient-${index}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="5%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.8} />
-                <stop offset="95%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.2} />
-              </linearGradient>
-            ))}
-            {/* Gradient for 'Total' */}
-            <linearGradient id="gradient-total" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#d9534f" stopOpacity={0.8} />
-              <stop offset="95%" stopColor="#d9534f" stopOpacity={0.2} />
-            </linearGradient>
-            {/* Gradients for dummy variants (transparent) */}
-            <linearGradient id="gradient-dummy1" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00000000" />
-              <stop offset="100%" stopColor="#00000000" />
-            </linearGradient>
-            <linearGradient id="gradient-dummy2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00000000" />
-              <stop offset="100%" stopColor="#00000000" />
-            </linearGradient>
-          </defs>
-
-          <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+          <CartesianGrid 
+            strokeDasharray="3 3" 
+            stroke="rgba(255, 255, 255, 0.1)" 
+            vertical={false}
+          />
+          
           <XAxis
             dataKey="category"
-            stroke="#fff"
-            tick={{ fill: '#fff' }}
+            stroke="#AAA"
+            tick={{ fill: '#EEE', fontSize: isSmallScreen ? 11 : 13 }}
+            tickLine={false}
+            axisLine={{ strokeWidth: 0.5 }}
             interval={0}
             angle={isSmallScreen ? -45 : 0}
             textAnchor={isSmallScreen ? 'end' : 'middle'}
-            height={isSmallScreen ? 60 : 30} // Increased height for angled labels
+            height={isSmallScreen ? 60 : 30}
           />
-          <YAxis stroke="#fff" allowDecimals={false} />
-          <Tooltip
-            formatter={(value) => value.toLocaleString('en-IN')}
-            contentStyle={{ backgroundColor: '#333', border: 'none', borderRadius: '8px' }}
+          
+          <YAxis 
+            stroke="#AAA" 
+            tick={{ fill: '#EEE' }}
+            tickLine={false}
+            axisLine={{ strokeWidth: 0.5 }}
+            allowDecimals={false}
           />
-          {/* Hide the default legend */}
-          {/* <Legend /> */}
-          {dataKeys.map((key, index) => {
-            // Determine the fill based on whether it's a dummy variant
-            const isDummy = dummyKeys.includes(key);
-            const fill = isDummy
-              ? `url(#gradient-${key.toLowerCase()})`
-              : variantColors[key]?.gradient || `url(#gradient-${index})`;
 
-            return (
-              <Bar
-                key={key}
-                dataKey={key}
-                fill={fill}
-                name={key}
-                // Hide dummy bars by setting opacity to 0
-                opacity={isDummy ? 0 : 1}
-              />
-            );
-          })}
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+          />
+
+          {/* Render variant bars */}
+          {variantNames.map((variant, index) => (
+            <Bar
+              key={variant}
+              dataKey={variant}
+              stackId="a"
+              name={variant}
+              fill={COLORS[index % COLORS.length]}
+              radius={index === 0 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              isAnimationActive
+              animationDuration={1500}
+              animationBegin={index * 150}
+            />
+          ))}
+          
+          {/* Render Total as separate bar for tooltip purposes but hide it visually */}
+          <Bar
+            dataKey="Total"
+            name="Total"
+            fill="transparent"
+            stackId="b"
+            hide
+          />
         </BarChart>
       </ResponsiveContainer>
-
-      {/* Custom Legend */}
-      <CustomLegend dataKeys={dataKeys} variantColors={variantColors} isSmallScreen={isSmallScreen} />
     </Box>
   );
 };

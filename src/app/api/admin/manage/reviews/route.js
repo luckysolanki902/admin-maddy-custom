@@ -7,7 +7,6 @@ import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
 import Product from '@/models/Product';
 
 export async function GET(request) {
-  console.log('Fetching all reviews');
   try {
     await connectToDatabase();
 
@@ -85,7 +84,6 @@ export async function GET(request) {
 
 // Create a new review
 export async function POST(request) {
-    console.log('Creating a new review');
     try {
         await connectToDatabase();
         const data = await request.json();

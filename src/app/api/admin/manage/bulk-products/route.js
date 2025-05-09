@@ -8,7 +8,6 @@
 //   try {
 //     await connectToDatabase();
 //     const { products } = await request.json();
-//     console.log("Received products:", products.options);
 
 //     if (!products || !Array.isArray(products)) {
 //       return NextResponse.json(
@@ -55,12 +54,10 @@
 //           optionsAvailable: prod.options && Array.isArray(prod.options) && prod.options.length > 0,
 //         };
 
-//         console.log("productData", productData);
 
 //         // Create and save the product document
 //         const newProduct = new Product(productData);
 //         const savedProduct = await newProduct.save();
-//         console.log("Saved Product", savedProduct);
 
 //         // If options data is provided, loop through each option set.
 //         if (productData.optionsAvailable) {
@@ -115,7 +112,6 @@ export async function POST(request) {
   try {
     await connectToDatabase();
     const { products } = await request.json();
-    console.log("Received products:", products);
 
     if (!products || !Array.isArray(products)) {
       return NextResponse.json(
@@ -179,12 +175,10 @@ export async function POST(request) {
           inventoryData: productInventoryRef,
         };
 
-        console.log("Product data:", productData);
 
         // Create and save the Product document.
         const newProduct = new Product(productData);
         const savedProduct = await newProduct.save();
-        console.log("Saved Product:", savedProduct);
 
         // Process each option if provided.
         if (prod.options && Array.isArray(prod.options) && prod.options.length > 0) {

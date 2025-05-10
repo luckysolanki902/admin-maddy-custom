@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema(
   {
+
     // Reference to User
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -11,7 +12,7 @@ const OrderSchema = new mongoose.Schema(
       required: true,
       index: true, // Index for efficient querying
     },
-    
+
     // Computed fields
     itemsCount: {
       type: Number,
@@ -19,7 +20,7 @@ const OrderSchema = new mongoose.Schema(
       index: true, // If you need to query based on itemsCount
     },
     //test
-    
+
     itemsTotal: {
       type: Number,
       default: 0,
@@ -29,12 +30,30 @@ const OrderSchema = new mongoose.Schema(
     // Array of order items
     items: [
       {
+        // Indicates if the order is in-house or from the marketplace
+        itemSource: {
+          type: String,
+          required: true,
+          enum: ['inhouse', 'marketplace'],
+          index: true, // Index for efficient querying
+        },
+        brand: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Brand',
+          required: false,
+          index: true,
+        },
         // Reference to Product
         product: {
           type: mongoose.Schema.Types.ObjectId,
           ref: 'Product',
           required: true,
           index: true,
+        },
+        option: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Option',
+          required: false,
         },
         name: {
           type: String,
@@ -58,6 +77,19 @@ const OrderSchema = new mongoose.Schema(
           min: 0,
         },
 
+        thumbnail: {
+          type: String,
+        },
+        insertionDetails: {
+          component: {
+            type: String,
+            default: '',
+          },
+          pageType: {
+            type: String,
+            default: ''
+          }
+        }
       },
     ],
 
@@ -107,7 +139,7 @@ const OrderSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
-    isTestingOrder:{
+    isTestingOrder: {
       type: Boolean,
       default: false
     },
@@ -225,9 +257,20 @@ const OrderSchema = new mongoose.Schema(
       default: 'pending',
       index: true, // Index for efficient querying
     },
+
     actualDeliveryStatus: {
       type: String,
       default: 'pending',
+    },
+
+    shiprocketOrderId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    inventoryDeducted: {
+      type: Boolean,
+      default: false
     },
 
     // Extra fields like bike model:
@@ -273,26 +316,26 @@ const OrderSchema = new mongoose.Schema(
 );
 
 // Pre-save middleware to compute itemsCount and itemsTotal
-OrderSchema.pre('save', function(next) {
+OrderSchema.pre('save', function (next) {
   // Calculate itemsCount as the total quantity of all items
   this.itemsCount = this.items.reduce((count, item) => count + item.quantity, 0);
-  
+
   // Calculate itemsTotal as the sum of (priceAtPurchase * quantity) for all items
   this.itemsTotal = this.items.reduce((total, item) => total + (item.priceAtPurchase * item.quantity), 0);
-  
+
   next();
 });
 
 // Pre middleware for findOneAndUpdate to compute itemsCount and itemsTotal if items are updated
-OrderSchema.pre('findOneAndUpdate', function(next) {
+OrderSchema.pre('findOneAndUpdate', function (next) {
   const update = this.getUpdate();
-  
+
   // Check if 'items' field is being updated
   if (update.items) {
     const items = update.items;
     const itemsCount = items.reduce((count, item) => count + (item.quantity || 1), 0);
     const itemsTotal = items.reduce((total, item) => total + ((item.priceAtPurchase || 0) * (item.quantity || 1)), 0);
-    
+
     // Update the fields in the update object
     this.setUpdate({
       ...update,
@@ -300,7 +343,7 @@ OrderSchema.pre('findOneAndUpdate', function(next) {
       itemsTotal,
     });
   }
-  
+
   next();
 });
 
@@ -309,5 +352,6 @@ if (mongoose.models.Order) {
 }
 // Indexes for better performance
 OrderSchema.index({ 'address.receiverName': 'text', 'address.receiverPhoneNumber': 'text' });
+
 
 module.exports = mongoose.models.Order || mongoose.model('Order', OrderSchema);

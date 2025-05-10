@@ -81,7 +81,6 @@ export async function GET(req) {
     // Build the Facebook Insights API URL for spend (and actions)
     const fbUrl = `https://graph.facebook.com/v17.0/act_${AD_ACCOUNT_ID}/insights?fields=spend,actions&access_token=${ACCESS_TOKEN}&action_breakdowns=action_type&time_range=${timeRangeParam}`;
 
-    console.log(`get-facebook-cac: Fetching data from Facebook API: ${fbUrl}`);
     const fbResponse = await fetch(fbUrl);
     const fbData = await fbResponse.json();
 

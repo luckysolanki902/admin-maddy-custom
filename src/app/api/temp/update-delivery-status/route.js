@@ -122,7 +122,6 @@ export async function GET(req) {
             const actualStatus = srOrder.status;
             // Map the raw status to our internal deliveryStatus using our mapping object.
             const normalizedStatus = actualStatus.toLowerCase().replace(/[-_]/g, ' ').trim();
-            console.log({normalizedStatus});
             const mappedStatus = normalizedStatus.startsWith('in transit') 
               ? 'onTheWay' 
               : statusMapping[normalizedStatus] || 'unknown';

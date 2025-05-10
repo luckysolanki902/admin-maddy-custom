@@ -175,6 +175,22 @@ export default function AccessControlPage() {
               <input
                 type="checkbox"
                 style={{marginRight:'5px'}}
+                checked={newPath.rolesAllowed.includes("finance")}
+                onChange={() =>
+                  setNewPath({
+                    ...newPath,
+                    rolesAllowed: newPath.rolesAllowed.includes("finance")
+                      ? newPath.rolesAllowed.filter((r) => r !== "finance")
+                      : [...newPath.rolesAllowed, "finance"],
+                  })
+                }
+              />
+              Finance
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                style={{marginRight:'5px'}}
                 checked={newPath.rolesAllowed.includes("production")}
                 onChange={() =>
                   setNewPath({
@@ -228,7 +244,7 @@ export default function AccessControlPage() {
         <div className={styles.modal}>
           <h3 style={{marginBottom:'10px',fontSize:'20px'}}>Update Roles for {updateRolesForm.pathname}</h3>
           <div className={styles.roleCheckboxes}>
-            {["admin", "developer", "marketing", "designer","production"].map((role) => (
+            {["admin", "developer", "marketing", "designer","production","finance"].map((role) => (
               <label key={role}>
                 <input
                   type="checkbox"

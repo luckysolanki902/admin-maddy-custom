@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -11,149 +11,525 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
+  Area,
+  ComposedChart
 } from 'recharts';
-import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme, alpha, Chip } from '@mui/material';
 import dayjs from 'dayjs';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import { useSpring, animated } from '@react-spring/web';
 
-const LINE_COLOR = '#4a90e2'; // Professional blue color
+const LINE_COLOR = '#60A5FA';
+const POSITIVE_COLOR = '#34D399';
+const NEGATIVE_COLOR = '#F87171';
+
+// Helper functions
+const calculateGrowth = (current, previous) => {
+  if (!previous) return 0;
+  return ((current - previous) / previous) * 100;
+};
+
+// Calculate period-over-period growth
+const calculatePeriodGrowth = (data, currentIndex, periods = 3) => {
+  if (currentIndex < periods) return null;
+  const currentValue = data[currentIndex].totalRevenue;
+  const previousValue = data[currentIndex - periods].totalRevenue;
+  return calculateGrowth(currentValue, previousValue);
+};
+
+// Animated Number Component
+const AnimatedNumber = ({ value }) => {
+  const { number } = useSpring({
+    from: { number: 0 },
+    number: value,
+    delay: 300,
+    config: { mass: 1, tension: 120, friction: 14 }
+  });
+  
+  return (
+    <animated.span>
+      {number.to(n => `₹${n.toLocaleString('en-IN', { 
+        maximumFractionDigits: 0 
+      })}`)}
+    </animated.span>
+  );
+};
 
 // Custom Tooltip Component
 const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <Box
-        sx={{
-          backgroundColor: 'rgba(50, 50, 50, 0.95)',
-          padding: '0.75rem 1.25rem',
-          borderRadius: '12px',
-          color: 'white',
-          boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
-          transition: 'opacity 0.3s ease',
+  if (!active || !payload?.length) return null;
+
+  const currentValue = payload[0].value;
+  const previousValue = payload[0].payload.previousMonthRevenue;
+  const monthlyGrowth = calculateGrowth(currentValue, previousValue);
+  const quarterlyGrowth = payload[0].payload.quarterlyGrowth;
+  const vsAverage = calculateGrowth(currentValue, payload[0].payload.averageRevenue);
+
+  return (
+    <Box
+      sx={{
+        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+        backdropFilter: 'blur(8px)',
+        p: 2.5,
+        borderRadius: '12px',
+        border: '1px solid rgba(96, 165, 250, 0.2)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+        color: 'white',
+        minWidth: 280,
+        position: 'relative',
+        '&:before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '2px',
+          background: `linear-gradient(90deg, 
+            ${alpha(LINE_COLOR, 0.4)}, 
+            ${alpha(LINE_COLOR, 0.8)}, 
+            ${alpha(LINE_COLOR, 0.4)})`,
+          borderTopLeftRadius: '12px',
+          borderTopRightRadius: '12px',
+        }
+      }}
+    >
+      <Typography 
+        variant="subtitle2" 
+        sx={{ 
+          mb: 2,
+          color: '#FFF',
+          fontSize: '1rem',
+          fontWeight: 600,
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          pb: 1
         }}
       >
-        <Typography variant="subtitle2">{`Month: ${dayjs(label).format('MMMM YYYY')}`}</Typography>
-        <Typography variant="subtitle2">{`Total Revenue: ₹${payload[0].value.toLocaleString('en-IN')}`}</Typography>
-      </Box>
-    );
-  }
+        {dayjs(label).format('MMMM YYYY')}
+      </Typography>
 
-  return null;
+      {/* Current Month Revenue */}
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5 }}>
+          Monthly Revenue
+        </Typography>
+        <Typography variant="h6" sx={{ color: '#FFF', fontWeight: 600 }}>
+          ₹{currentValue.toLocaleString('en-IN')}
+        </Typography>
+      </Box>
+
+      {/* Monthly Growth */}
+      <Box sx={{ 
+        mb: 2,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        backgroundColor: monthlyGrowth >= 0 ? alpha(POSITIVE_COLOR, 0.1) : alpha(NEGATIVE_COLOR, 0.1),
+        p: 1,
+        borderRadius: 1
+      }}>
+        {monthlyGrowth >= 0 ? (
+          <TrendingUpIcon sx={{ color: POSITIVE_COLOR }} />
+        ) : (
+          <TrendingDownIcon sx={{ color: NEGATIVE_COLOR }} />
+        )}
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: monthlyGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
+            fontWeight: 600
+          }}
+        >
+          {Math.abs(monthlyGrowth).toFixed(1)}% vs last month
+        </Typography>
+      </Box>
+
+      {/* Performance Metrics */}
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: '1fr 1fr',
+        gap: 2,
+        pt: 2,
+        borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+      }}>
+        <Box>
+          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5 }}>
+            Quarterly Trend
+          </Typography>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              color: quarterlyGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
+              fontWeight: 500 
+            }}
+          >
+            {quarterlyGrowth ? `${quarterlyGrowth.toFixed(1)}%` : 'N/A'}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5 }}>
+            vs Average
+          </Typography>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              color: vsAverage >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
+              fontWeight: 500 
+            }}
+          >
+            {vsAverage.toFixed(1)}%
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
 };
 
 const TotalRevenueChart = ({ data }) => {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const [chartType, setChartType] = useState('area'); // 'line' or 'area'
 
-  // Format data for Recharts
+  // Format data for Recharts with additional metrics
   const formattedData = useMemo(() => {
-    return data.map(entry => ({
-      date: dayjs(entry.date).format('MMM YYYY'),
-      totalRevenue: entry.totalRevenue,
-    }));
+    if (!data || !data.length) return [];
+    
+    let totalRevenue = 0;
+    
+    const enrichedData = data.map((entry, index, arr) => {
+      const previousMonthRevenue = index > 0 ? arr[index - 1].totalRevenue : null;
+      totalRevenue += entry.totalRevenue;
+      
+      return {
+        date: dayjs(entry.date).format('MMM YYYY'),
+        totalRevenue: entry.totalRevenue,
+        previousMonthRevenue,
+        averageRevenue: Math.round(totalRevenue / (index + 1)),
+        quarterlyGrowth: calculatePeriodGrowth(arr, index, 3)
+      };
+    });
+
+    return enrichedData;
   }, [data]);
+
+  // Calculate average for reference line
+  const averageRevenue = useMemo(() => {
+    if (!formattedData.length) return 0;
+    return formattedData.reduce((sum, item) => sum + item.totalRevenue, 0) / formattedData.length;
+  }, [formattedData]);
+
+  // Calculate overall growth from first to last month
+  const overallGrowth = useMemo(() => {
+    if (!formattedData || formattedData.length < 2) return 0;
+    const firstMonth = formattedData[0].totalRevenue;
+    const lastMonth = formattedData[formattedData.length - 1].totalRevenue;
+    return calculateGrowth(lastMonth, firstMonth);
+  }, [formattedData]);
+
+  // Calculate recent growth (last 3 months)
+  const recentGrowth = useMemo(() => {
+    if (!formattedData || formattedData.length < 4) return null;
+    const data = formattedData;
+    const lastThreeMonths = data.slice(-3);
+    const previousThreeMonths = data.slice(-6, -3);
+    
+    const lastThreeSum = lastThreeMonths.reduce((sum, item) => sum + item.totalRevenue, 0);
+    const previousThreeSum = previousThreeMonths.reduce((sum, item) => sum + item.totalRevenue, 0);
+    
+    return calculateGrowth(lastThreeSum, previousThreeSum);
+  }, [formattedData]);
+
+  // Animation for stats cards
+  const statsAnimation = useSpring({
+    from: { opacity: 0, transform: 'translateY(20px)' },
+    to: { opacity: 1, transform: 'translateY(0)' },
+    delay: 300,
+    config: { mass: 1, tension: 120, friction: 14 }
+  });
 
   return (
     <Box
       sx={{
         width: '100%',
-        backgroundColor: '#1F1F1F',
-        padding: '2rem',
-        borderRadius: '16px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.7)',
-        transition: 'transform 0.3s',
+        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
+        p: 4,
+        borderRadius: 3,
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
         minHeight: 500,
         position: 'relative',
-        overflow: 'hidden', // To contain the shadows
+        overflow: 'hidden',
       }}
     >
-      {/* Clickable Heading */}
-      <Typography
-        variant="h5"
-        gutterBottom
-        sx={{
-          color: '#FFFFFF',
-          fontWeight: '700',
-          cursor: 'pointer',
-          marginBottom: '1.5rem',
-        }}
-        // onClick={() => {
-        //   // Navigate to detailed page
-        //   // window.location.href = '/analytics/total-revenue';
-        // }}
-      >
-        Total Revenue
-      </Typography>
-
-      {/* Line Chart */}
-      <ResponsiveContainer width="100%" height={350}>
-        <LineChart
-          data={formattedData}
-          margin={{ top: 20, right: 30, left: 20, bottom: isSmallScreen ? 80 : 60 }}
+      {/* Header with title and toggle */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        mb: 3 
+      }}>
+        <Typography
+          variant="h6"
+          sx={{ color: 'white', fontWeight: 600, fontSize: isSmallScreen ? '1.1rem' : '1.25rem' }}
         >
-          {/* Define gradients and shadow filters */}
-          <defs>
-            {/* Professional Gradient for Line */}
-            <linearGradient id="gradient-total-revenue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#4a90e2" stopOpacity={1} />
-              <stop offset="100%" stopColor="#357ABD" stopOpacity={1} />
-            </linearGradient>
-
-            {/* Drop shadow filter */}
-            <filter id="shadow-total-revenue" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow
-                dx="0"
-                dy="4"
-                stdDeviation="4"
-                floodColor="rgba(0, 0, 0, 0.3)"
-              />
-            </filter>
-          </defs>
-
-          {/* Subtle Background Gradient */}
-          <defs>
-            <linearGradient id="bg-gradient-total" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#1A1A1A" />
-              <stop offset="100%" stopColor="#2C2C2C" />
-            </linearGradient>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#bg-gradient-total)" />
-
-          <CartesianGrid strokeDasharray="4 4" stroke="#444" vertical={false} />
-          <XAxis
-            dataKey="date"
-            stroke="#FFFFFF"
-            tick={{ fill: '#FFFFFF', fontSize: isSmallScreen ? '0.75rem' : '1rem' }}
-            angle={isSmallScreen ? -45 : 0}
-            textAnchor={isSmallScreen ? 'end' : 'middle'}
-            height={isSmallScreen ? 70 : 40}
-            tickLine={false}
-          />
-          <YAxis
-            stroke="#FFFFFF"
-            allowDecimals={false}
-            tick={{ fill: '#FFFFFF', fontSize: isSmallScreen ? '0.75rem' : '1rem' }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <Tooltip content={<CustomTooltip />} />
-
-          <Line
-            type="monotone"
-            dataKey="totalRevenue"
-            name="Total Revenue"
-            stroke="url(#gradient-total-revenue)"
-            strokeWidth={3}
-            dot={false} // Remove all dots
-            activeDot={{
-              r: 6,
-              stroke: '#fff',
-              strokeWidth: 2,
-              fill: '#4a90e2',
+          Total Revenue
+        </Typography>
+        
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Chip
+            label="Area"
+            size="small"
+            color={chartType === 'area' ? 'primary' : 'default'}
+            onClick={() => setChartType('area')}
+            sx={{
+              backgroundColor: chartType === 'area' 
+                ? alpha(theme.palette.primary.main, 0.8) 
+                : alpha('#FFF', 0.05),
+              '&:hover': {
+                backgroundColor: chartType === 'area' 
+                  ? alpha(theme.palette.primary.main, 0.9)
+                  : alpha('#FFF', 0.1),
+              }
             }}
-            filter="url(#shadow-total-revenue)" // Apply shadow
           />
-        </LineChart>
+          <Chip
+            label="Line"
+            size="small"
+            color={chartType === 'line' ? 'primary' : 'default'}
+            onClick={() => setChartType('line')}
+            sx={{
+              backgroundColor: chartType === 'line' 
+                ? alpha(theme.palette.primary.main, 0.8) 
+                : alpha('#FFF', 0.05),
+              '&:hover': {
+                backgroundColor: chartType === 'line' 
+                  ? alpha(theme.palette.primary.main, 0.9)
+                  : alpha('#FFF', 0.1),
+              }
+            }}
+          />
+        </Box>
+      </Box>
+
+      <ResponsiveContainer width="100%" height={350}>
+        {chartType === 'area' ? (
+          <ComposedChart
+            data={formattedData}
+            margin={{ top: 20, right: 30, left: isSmallScreen ? 0 : 20, bottom: 20 }}
+          >
+            <defs>
+              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={LINE_COLOR} stopOpacity={0.5} />
+                <stop offset="95%" stopColor={LINE_COLOR} stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              stroke="#AAA"
+              tick={{ fill: '#EEE', fontSize: isSmallScreen ? 10 : 12 }}
+              tickLine={false}
+              axisLine={{ strokeWidth: 0.5 }}
+            />
+            <YAxis
+              stroke="#AAA"
+              tick={{ fill: '#EEE' }}
+              tickLine={false}
+              axisLine={{ strokeWidth: 0.5 }}
+              width={80}
+            />
+            <Tooltip content={<CustomTooltip />} />
+
+            <ReferenceLine
+              y={averageRevenue}
+              stroke="rgba(255,255,255,0.5)"
+              strokeDasharray="3 3"
+              label={{
+                value: 'Avg',
+                position: 'right',
+                fill: '#EEE',
+                fontSize: 12
+              }}
+            />
+
+            <Area
+              type="monotone"
+              dataKey="totalRevenue"
+              stroke={LINE_COLOR}
+              strokeWidth={3}
+              fillOpacity={1}
+              fill="url(#colorRevenue)"
+            />
+            
+            <Line
+              type="monotone"
+              dataKey="totalRevenue"
+              stroke={LINE_COLOR}
+              strokeWidth={3}
+              dot={false}
+              activeDot={{
+                r: 7,
+                stroke: '#fff',
+                strokeWidth: 2,
+                fill: LINE_COLOR,
+              }}
+            />
+          </ComposedChart>
+        ) : (
+          <LineChart
+            data={formattedData}
+            margin={{ top: 20, right: 30, left: isSmallScreen ? 0 : 20, bottom: 20 }}
+          >
+            <defs>
+              <linearGradient id="gradient-total-revenue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={LINE_COLOR} stopOpacity={1} />
+                <stop offset="100%" stopColor="#3B82F6" stopOpacity={1} />
+              </linearGradient>
+              <filter id="shadow-total-revenue" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor={alpha(LINE_COLOR, 0.3)} />
+              </filter>
+            </defs>
+
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              stroke="#AAA"
+              tick={{ fill: '#EEE', fontSize: isSmallScreen ? 10 : 12 }}
+              tickLine={false}
+              axisLine={{ strokeWidth: 0.5 }}
+            />
+            <YAxis
+              stroke="#AAA"
+              tick={{ fill: '#EEE' }}
+              tickLine={false}
+              axisLine={{ strokeWidth: 0.5 }}
+              width={80}
+            />
+            <Tooltip content={<CustomTooltip />} />
+
+            <ReferenceLine
+              y={averageRevenue}
+              stroke="rgba(255,255,255,0.5)"
+              strokeDasharray="3 3"
+              label={{
+                value: 'Avg',
+                position: 'right',
+                fill: '#EEE',
+                fontSize: 12
+              }}
+            />
+
+            <Line
+              type="monotone"
+              dataKey="totalRevenue"
+              name="Total Revenue"
+              stroke="url(#gradient-total-revenue)"
+              strokeWidth={3}
+              dot={false}
+              activeDot={{
+                r: 7,
+                stroke: '#fff',
+                strokeWidth: 2,
+                fill: LINE_COLOR,
+              }}
+              filter="url(#shadow-total-revenue)"
+            />
+          </LineChart>
+        )}
       </ResponsiveContainer>
+
+      {/* Stats Cards */}
+      <animated.div style={statsAnimation}>
+        <Box 
+          sx={{
+            mt: 3, 
+            pt: 3,
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+            display: 'grid',
+            gridTemplateColumns: isSmallScreen ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 2
+          }}
+        >
+          
+          {/* Latest Month */}
+          <Box sx={{ 
+            p: 2, 
+            borderRadius: 2,
+            backgroundColor: alpha(theme.palette.background.paper, 0.1),
+            backdropFilter: 'blur(10px)'
+          }}>
+            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7) }}>
+              Latest Month
+            </Typography>
+            <Typography variant="h6" sx={{ color: '#FFF', fontWeight: 'bold' }}>
+              {formattedData.length > 0 && (
+                <AnimatedNumber value={formattedData[formattedData.length - 1].totalRevenue} />
+              )}
+            </Typography>
+          </Box>
+          
+          {/* Overall Growth */}
+          <Box sx={{ 
+            p: 2, 
+            borderRadius: 2,
+            backgroundColor: overallGrowth >= 0 
+              ? alpha(POSITIVE_COLOR, 0.1) 
+              : alpha(NEGATIVE_COLOR, 0.1),
+            backdropFilter: 'blur(10px)'
+          }}>
+            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7) }}>
+              Overall Growth
+            </Typography>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                color: overallGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR
+              }}
+            >
+              {overallGrowth >= 0 ? <TrendingUpIcon fontSize="small" /> : <TrendingDownIcon fontSize="small" />}
+              {Math.abs(overallGrowth).toFixed(1)}%
+            </Typography>
+          </Box>
+          
+          {/* Recent Trend */}
+          <Box sx={{ 
+            p: 2, 
+            borderRadius: 2,
+            backgroundColor: recentGrowth >= 0 
+              ? alpha(POSITIVE_COLOR, 0.1) 
+              : alpha(NEGATIVE_COLOR, 0.1),
+            backdropFilter: 'blur(10px)'
+          }}>
+            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7) }}>
+              Recent Trend (3mo)
+            </Typography>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                color: recentGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR
+              }}
+            >
+              {recentGrowth !== null ? (
+                <>
+                  {recentGrowth >= 0 ? <TrendingUpIcon fontSize="small" /> : <TrendingDownIcon fontSize="small" />}
+                  {Math.abs(recentGrowth).toFixed(1)}%
+                </>
+              ) : (
+                'N/A'
+              )}
+            </Typography>
+          </Box>
+        </Box>
+      </animated.div>
     </Box>
   );
 };

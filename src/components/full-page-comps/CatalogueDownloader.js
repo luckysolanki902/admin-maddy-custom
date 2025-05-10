@@ -31,7 +31,6 @@ export default function CatalogueDownloader() {
           setCategories(json.data.categories);
           setVariants(json.data.variants);
           setProducts(json.data.products);
-          console.log(variants)
         }
       } catch (err) {
         console.error('Error fetching data', err);

@@ -55,6 +55,7 @@ export const getPresignedUrl = async (fullPath, fileType = "application/octet-st
 };
 
 export const deleteImageFromS3 = async fullPath => {
+  console.log("fullPath", fullPath);
   const command = new DeleteObjectCommand({
     Bucket: process.env.AWS_BUCKET,
     Key: fullPath.startsWith("/") ? fullPath.slice(1) : fullPath,

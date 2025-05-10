@@ -42,7 +42,7 @@ export const PATCH = async (req, { params }) => {
     )
       .select("images")
       .lean();
-
+    console.log("option", option);
     if (action === "delete" || action === "replace") {
       await deleteImageFromS3(option.images[idx]);
     }

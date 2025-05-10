@@ -9,7 +9,7 @@ const CategorySelectorWrapper = ({ selection, onSelectionChange, loadingProducts
     return null;
   }
 
-  return <CategorySelector onSelectionChange={onSelectionChange} />;
+  return <CategorySelector onSelectionChange={onSelectionChange}  disabled={loadingProducts}/>;
 };
 
 export default CategorySelectorWrapper;

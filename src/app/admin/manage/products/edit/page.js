@@ -239,18 +239,30 @@ const EditProductPage = () => {
     if (!selectedProduct) return;
 
     const currProductId = selectedProduct._id;
+    // console.log("type", type);
 
     // remove any leading slashes for design
     // for main, new path = product-images-2/(10 length alphanumeric string + file name extension) or null (for delete)
-    const path= type=="option"? getOptionDirectoryPath(optionDetails[selectedOptionIndex].images[0]) : type=="main"? getMainDirectoryPath(selectedProduct.images[0]):"";
-    console.log("koo", designTemplateImage, designTemplateImage.split('?')[0].replace(/^\/+/, ""));
+    let path= type=="option"? getOptionDirectoryPath(optionDetails[selectedOptionIndex].images[0]) : type=="main"? getMainDirectoryPath(selectedProduct.images[0]):"";
+    if(type=="design"){
+      // console.log("koo", designTemplateImage, designTemplateImage.split('?')[0].replace(/^\/+/, ""));
+      const templatePath= type=="design"? designTemplateImage.split('?')[0].replace(/^\/+/, "") : null;
+      const ext = templatePath.split('.').pop(); 
+
+      const pathWithoutFilename = templatePath.substring(0, templatePath.lastIndexOf('/') + 1);
+      const newFilename = `${nanoid(10)}.${ext}`;
+      
+      path = `${pathWithoutFilename}${newFilename}`.replace(/^\/+/, "");
+      
+      // console.log("newPath", path);    
+    }
     const newImagePath =
       type === "design"
-        ? designTemplateImage.split('?')[0].replace(/^\/+/, "")
+        ? `${path}`
         : action === "delete" || action === "reorder"
         ? null
         : `${path}${nanoid(10) + file.name.substring(file.name.lastIndexOf(".")).toLowerCase()}`;
-
+    // console.log("newImagePath", newImagePath);
     // Request a presigned URL from the server
     let presignedUrl, url;
     if (type === "design" || action === "add" || action === "replace") {
@@ -268,7 +280,7 @@ const EditProductPage = () => {
 
         ({ presignedUrl, url } = await res.json());
       } catch (error) {
-        console.error("Error generating presigned URL:", error.message);
+        console.error("Error generating presigned URL:", error);
         setErrorAlert(error.message);
         return;
       }
@@ -293,7 +305,6 @@ const EditProductPage = () => {
       }
     }
 
-    // update database
     if (type === "main" && action!="replace") {
       try {
         const res = await fetch(`/api/admin/manage/product/edit/images/product/${currProductId}`, {
@@ -332,12 +343,8 @@ const EditProductPage = () => {
         return;
       }
     }
-    // Successfully uploaded the image
     setSuccessAlert(true);
-
-    // Update the UI immediately by appending a timestamp to bust the cache
-    const cacheBuster = `?t=${Date.now()}`;
-
+    // const cacheBuster = `?t=${Date.now()}`;
     if (type === "main") {
       // Update the carouselImages array with the new image URL
 
@@ -398,16 +405,33 @@ const EditProductPage = () => {
       //   }
       // }
     } else if (type === "design") {
-      // Update the designTemplateImage with the new image URL
-      console.log("design", url);
-      console.log("ddd", selectedProduct.designTemplate?.imageUrl);
-      setDesignTemplateImage(`${selectedProduct.designTemplate?.imageUrl}${cacheBuster}`);
+      try {
+        const currProductId = selectedProduct._id;
+        const res = await fetch(`/api/admin/manage/product/edit/images/template/${currProductId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newImagePath }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message ?? "Failed to update product images in database");
+        }
+      } catch (error) {
+        console.error("Error updating product images in database", error.message);
+        setErrorAlert(error.message);
+        return;
+      }
+      // console.log("design", url);
+      // console.log("ddd", selectedProduct.designTemplate?.imageUrl);
+      setDesignTemplateImage(newImagePath);
     }
   };
 
   // Modify the existing handleImageEdit to use the new upload function
   const handleImageEdit = async (type, action, idx, reorderedImages) => {
     if (!selectedProduct) return;
+    //  console.log("type", type, action);
     // Open a file picker dialog with appropriate file type restrictions
     let file = null;
 
@@ -653,7 +677,7 @@ const EditProductPage = () => {
                   </Typography>
                   <DesignTemplateImage
                     imageUrl={designTemplateImage}
-                    onEditImage={() => handleImageEdit("design", "replace", )}
+                    onEditImage={() => handleImageEdit("design", "replace")}
                     cloudfrontBaseUrl={cloudfrontBaseUrl}
                     available={selectedProduct.available}
                   />
@@ -722,7 +746,7 @@ const EditProductPage = () => {
                   </Typography>
                   <DesignTemplateImage
                     imageUrl={designTemplateImage}
-                    onEditImage={() => handleImageEdit("design")}
+                    onEditImage={() => handleImageEdit("design", "replace")}
                     cloudfrontBaseUrl={cloudfrontBaseUrl}
                     available={selectedProduct.available}
                   />

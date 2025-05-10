@@ -181,7 +181,7 @@ const ProductImageCarousel = ({
           setCarouselImages={setCarouselImages}
           handleImageUpdate={handleImageUpdate} 
           cloudfrontBaseUrl={cloudfrontBaseUrl}
-          type={type}
+          type={type}  
         />
       </span>
     </Box>

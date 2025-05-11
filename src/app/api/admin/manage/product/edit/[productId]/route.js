@@ -15,12 +15,19 @@ export async function PUT(request, { params }) {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-
   try {
-    const { name, title, mainTag, price, displayOrder } = await request.json();
+    const { name, title, mainTag, price, displayOrder, productSource } = await request.json();
 
-    if (!name || !title || !mainTag || typeof price !== 'number' || typeof displayOrder !== 'number') {
+    if (!name || !title || !mainTag || !productSource || typeof price !== 'number' || typeof displayOrder !== 'number') {
       return NextResponse.json({ error: 'All fields are required and must be valid' }, {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // Validate productSource value
+    if (productSource !== 'inhouse' && productSource !== 'marketplace') {
+      return NextResponse.json({ error: 'productSource must be either "inhouse" or "marketplace"' }, {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -89,15 +96,14 @@ export async function PUT(request, { params }) {
 
     if (existingByTitle) {
       return NextResponse.json({ error: `A product with the title '${titleCaseTitle}' already exists for this variant.` }, { status: 400 });
-    }
-
-    // Update product fields
+    }    // Update product fields
     product.name = titleCaseName;
     product.title = titleCaseTitle;
     product.mainTags = [mainTag];
     product.price = price;
     product.displayOrder = displayOrder;
     product.pageSlug = newSlug;
+    product.productSource = productSource;
 
     await product.save();
 

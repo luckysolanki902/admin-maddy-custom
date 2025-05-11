@@ -345,10 +345,9 @@ const EditProductPage = () => {
   const handleFormChange = formData => {
     // This can be used if you need to handle form changes globally
   };
-
   // Handle form submission
   const handleFormSubmit = async formData => {
-    const { name, title, mainTag, price, displayOrder, available, nameChanged, titleChanged } = formData;
+    const { name, title, mainTag, price, displayOrder, available, productSource, nameChanged, titleChanged } = formData;
 
     // Prevent submission if name is changed but title is not
     if (nameChanged && !titleChanged) {
@@ -385,9 +384,7 @@ const EditProductPage = () => {
         setOpenConflictDialog(true);
         setLoading(false);
         return;
-      }
-
-      // Proceed to submit the form
+      }      // Proceed to submit the form
       const res = await fetch(`/api/admin/manage/product/edit/${selectedProduct._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -398,6 +395,7 @@ const EditProductPage = () => {
           price,
           displayOrder,
           available,
+          productSource,
         }),
       });
 

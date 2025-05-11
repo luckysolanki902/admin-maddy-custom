@@ -29,6 +29,7 @@ const ProductEditForm = ({
   const [price, setPrice] = useState(selectedProduct.price);
   const [displayOrder, setDisplayOrder] = useState(selectedProduct.displayOrder);
   const [available, setAvailable] = useState(selectedProduct.available);
+  const [productSource, setProductSource] = useState(selectedProduct.productSource || 'inhouse');
   const [originalName, setOriginalName] = useState(selectedProduct.name);
   const [originalTitle, setOriginalTitle] = useState(selectedProduct.title);
   const [nameChanged, setNameChanged] = useState(false);
@@ -44,6 +45,7 @@ const ProductEditForm = ({
     setPrice(selectedProduct.price);
     setDisplayOrder(selectedProduct.displayOrder);
     setAvailable(selectedProduct.available);
+    setProductSource(selectedProduct.productSource || 'inhouse');
     setOriginalName(selectedProduct.name);
     setOriginalTitle(selectedProduct.title);
     setNameChanged(false);
@@ -55,6 +57,7 @@ const ProductEditForm = ({
       price: selectedProduct.price,
       displayOrder: selectedProduct.displayOrder,
       available: selectedProduct.available,
+      productSource: selectedProduct.productSource || 'inhouse',
       nameChanged: false,
       titleChanged: false,
     });
@@ -63,7 +66,7 @@ const ProductEditForm = ({
 
   // Validation for name and title
   const validateName = (value) => {
-    const invalidChars = /[-\/?]/;
+    const invalidChars = /[-?/]/;
     if (invalidChars.test(value)) {
       setNameError("Name cannot contain '-', '/', or '?'");
       return false;
@@ -95,6 +98,7 @@ const ProductEditForm = ({
       price,
       displayOrder,
       available,
+      productSource,
       nameChanged: value !== originalName,
       titleChanged,
     });
@@ -112,6 +116,7 @@ const ProductEditForm = ({
       price,
       displayOrder,
       available,
+      productSource,
       nameChanged,
       titleChanged: value !== originalTitle,
     });
@@ -126,6 +131,7 @@ const ProductEditForm = ({
       price,
       displayOrder,
       available,
+      productSource,
       nameChanged,
       titleChanged,
     });
@@ -141,6 +147,7 @@ const ProductEditForm = ({
       price: value,
       displayOrder,
       available,
+      productSource,
       nameChanged,
       titleChanged,
     });
@@ -156,6 +163,7 @@ const ProductEditForm = ({
       price,
       displayOrder: value,
       available,
+      productSource,
       nameChanged,
       titleChanged,
     });
@@ -189,6 +197,7 @@ const ProductEditForm = ({
         price,
         displayOrder,
         available: data.product.available,
+        productSource,
         nameChanged,
         titleChanged,
       });
@@ -200,6 +209,22 @@ const ProductEditForm = ({
     }
   };
 
+  const handleProductSourceChange = (e) => {
+    const value = e.target.value;
+    setProductSource(value);
+    onFormChange({
+      name,
+      title,
+      mainTag,
+      price,
+      displayOrder,
+      available,
+      productSource: value,
+      nameChanged,
+      titleChanged,
+    });
+  };
+
   const handleSubmit = () => {
     onSubmit({
       name,
@@ -208,6 +233,7 @@ const ProductEditForm = ({
       price,
       displayOrder,
       available,
+      productSource,
       nameChanged,
       titleChanged,
     });
@@ -217,23 +243,24 @@ const ProductEditForm = ({
     <Box component="form" noValidate autoComplete="off" mb={30}>
       {/* Availability Switch */}
       <Box>
-
-      <FormControlLabel
-        control={
-          <Switch
-          checked={available}
-          onChange={handleAvailabilityToggle}
-          name="available"
-          color="primary"
-          disabled={availabilityLoading}
-          />
-        }
-        label="Available"
+        <FormControlLabel
+          control={
+            <Switch
+              checked={available}
+              onChange={handleAvailabilityToggle}
+              name="available"
+              color="primary"
+              disabled={availabilityLoading}
+            />
+          }
+          label="Available"
         />
-      {availabilityLoading && <CircularProgress size={24} />}
-      <p style={{display: 'inline-block', marginLeft: '5px', textTransform:'uppercase'}}>{selectedProduct?.sku}</p>
-<p>{selectedProduct?.designTemplate?.imageUrl}</p>
-        </Box>
+        {availabilityLoading && <CircularProgress size={24} />}
+        <p style={{ display: 'inline-block', marginLeft: '5px', textTransform: 'uppercase' }}>
+          {selectedProduct?.sku}
+        </p>
+        <p>{selectedProduct?.designTemplate?.imageUrl}</p>
+      </Box>
       {/* Name */}
       <TextField
         label="Product Name"
@@ -279,7 +306,7 @@ const ProductEditForm = ({
           </Select>
         </FormControl>
         <Button onClick={onAddNewTag} sx={{ ml: 2, height: '56px' }}>
-        New Tag
+          New Tag
         </Button>
       </Box>
 
@@ -306,6 +333,21 @@ const ProductEditForm = ({
         margin="normal"
         inputProps={{ min: 0 }}
       />
+
+      {/* Product Source */}
+      <FormControl fullWidth margin="normal">
+        <InputLabel id="product-source-label">Product Source</InputLabel>
+        <Select
+          labelId="product-source-label"
+          id="product-source-selector"
+          value={productSource}
+          label="Product Source"
+          onChange={handleProductSourceChange}
+        >
+          <MenuItem value="inhouse">Inhouse</MenuItem>
+          <MenuItem value="marketplace">Marketplace</MenuItem>
+        </Select>
+      </FormControl>
 
       {/* Submit Button */}
       <Box textAlign="center" mt={4}>

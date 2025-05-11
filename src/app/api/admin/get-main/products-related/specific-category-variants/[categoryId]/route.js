@@ -2,6 +2,7 @@
 
 import { connectToDatabase } from '@/lib/db';
 import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
+import SpecificCategory from '@/models/SpecificCategory';
 
 export async function GET(request, { params }) {
   const { categoryId } = await params;

@@ -1,4 +1,3 @@
-// /src/components/layout/CategorySelector.jsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -15,6 +14,7 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
+  Divider,
   Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -22,7 +22,7 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import ClearIcon from '@mui/icons-material/Clear';
 import { useCategoryContext } from '@/context/CategoryContext';
 
-const CategorySelector = ({
+const BreadcrumbCategorySelector = ({
   onSelectionChange = () => {},
   disabled = false,
   categoryLabel = 'Category',
@@ -52,7 +52,6 @@ const CategorySelector = ({
   // For popover menu state
   const [categoryAnchorEl, setCategoryAnchorEl] = useState(null);
   const [variantAnchorEl, setVariantAnchorEl] = useState(null);
-  
   // Fetch Categories on Mount
   useEffect(() => {
     const fetchCategories = async () => {
@@ -82,69 +81,47 @@ const CategorySelector = ({
     };
 
     fetchCategories();
-  }, [selectedCategory, setSelectedCategoryData]);  // Add a ref to track if we're in the middle of a variant selection process
-  const isSelectingVariant = React.useRef(false);
-  
-  // Fetch Variants when Category Changes - We only need to fetch when the category changes
+  }, [selectedCategory, setSelectedCategoryData]);
+  // Fetch Variants when Category Changes
   useEffect(() => {
-    // Don't fetch if we're just selecting a variant
-    if (isSelectingVariant.current) {
-      return;
-    }
-    
     if (selectedCategory) {
       const fetchVariants = async () => {
         setLoadingVariants(true);
-        setVariants([]); // Clear variants while loading
-        
         try {
           const res = await fetch(
             `/api/admin/get-main/products-related/specific-category-variants/${selectedCategory}`
           );
           const data = await res.json();
-          
           if (res.ok) {
-            // Make sure we set the variants array even if it's empty
-            const variantsData = Array.isArray(data) ? data : [];
-            setVariants(variantsData);
+            setVariants(data);
             setErrorVariants('');
             
-            // If the data array is empty, clear any selected variant
-            if (!variantsData.length) {
-              updateSelection({ category: selectedCategory, variant: '' });
-              setSelectedVariantData(null);
-            }
             // If we have a selected variant ID, find the full variant data
-            else if (selectedVariant) {
-              const foundVariant = variantsData.find(variant => variant._id === selectedVariant);
+            if (selectedVariant) {
+              const foundVariant = data.find(variant => variant._id === selectedVariant);
               if (foundVariant) {
                 setSelectedVariantData(foundVariant);
               } else {
                 // Clear variant selection if the variant is not found in the new category
                 updateSelection({ category: selectedCategory, variant: '' });
-                setSelectedVariantData(null);
                 onSelectionChange({ category: selectedCategory, variant: '' });
               }
             }
           } else {
             setErrorVariants(data.error || 'Failed to fetch variants');
             setVariants([]);
-            setSelectedVariantData(null);
           }
         } catch (error) {
           setErrorVariants(error.message || 'Failed to fetch variants');
           setVariants([]);
-          setSelectedVariantData(null);
         } finally {
-          setLoadingVariants(false); // Always reset loading state when finished
+          setLoadingVariants(false);
         }
       };
 
       fetchVariants();
     } else {
       setVariants([]);
-      setLoadingVariants(false);
-      setSelectedVariantData(null);
       updateSelection({ category: '', variant: '' });
       onSelectionChange({ category: '', variant: '' });
     }
@@ -159,51 +136,41 @@ const CategorySelector = ({
   const handleCategoryClose = () => {
     setCategoryAnchorEl(null);
   };
+
   const handleCategorySelect = (categoryId) => {
-    // Use updateSelection from context to handle state update
-    updateSelection({ category: categoryId, variant: '' });
-    setSelectedVariantData(null); // Clear variant data when category changes
-    // Reset everything to the right of the selected breadcrumb
-    setVariants([]); // Reset variants array when category changes
+    setSelectedCategory(categoryId);
+    setSelectedVariant('');
+    setSelectedVariantData(null);
+    // localStorage.setItem('selectedCategory', categoryId);
+    // localStorage.removeItem('selectedVariant');
     onSelectionChange({ category: categoryId, variant: '' });
     handleCategoryClose();
   };
 
   const handleVariantClick = (event) => {
-    if (!disabled && selectedCategory && !loadingVariants && variants.length > 0) {
+    if (!disabled && selectedCategory && !loadingVariants) {
       setVariantAnchorEl(event.currentTarget);
     }
   };
 
   const handleVariantClose = () => {
     setVariantAnchorEl(null);
-  };  const handleVariantSelect = (variantId) => {
-    // Set the flag to indicate we're selecting a variant (prevents re-fetching)
-    isSelectingVariant.current = true;
-    
-    // Find the variant data directly from our current variants array 
-    const variantData = variants.find(variant => variant._id === variantId);
-    
-    // First set the data directly to avoid any loading state
-    if (variantData) {
-      setSelectedVariantData(variantData);
-    }
-    
-    // Close the popover immediately
-    handleVariantClose();
-    
-    // Update the context
-    updateSelection({ category: selectedCategory, variant: variantId });
+  };
+
+  const handleVariantSelect = (variantId) => {
+    setSelectedVariant(variantId);
+    // localStorage.setItem('selectedVariant', variantId);
     onSelectionChange({ category: selectedCategory, variant: variantId });
-    
-    // Reset the selection flag after a brief delay to allow state updates to complete
-    setTimeout(() => {
-      isSelectingVariant.current = false;
-    }, 50);
+    handleVariantClose();
   };
 
   const handleResetSelection = () => {
-    clearSelection();
+    setSelectedCategory('');
+    setSelectedVariant('');
+    setSelectedCategoryData(null);
+    setSelectedVariantData(null);
+    // localStorage.removeItem('selectedCategory');
+    // localStorage.removeItem('selectedVariant');
     onSelectionChange({ category: '', variant: '' });
     handleCategoryClose();
     handleVariantClose();
@@ -220,17 +187,16 @@ const CategorySelector = ({
         mb: 4, 
         position: 'relative',
         padding: 2,
-        background: 'linear-gradient(145deg, rgba(18,18,30,1) 0%, rgba(30,30,45,1) 100%)',
+        background: 'linear-gradient(145deg, rgba(245,245,245,1) 0%, rgba(255,255,255,1) 100%)',
         borderRadius: 2,
-        boxShadow: '0 4px 15px rgba(0,0,0,0.35)',
-        borderLeft: '4px solid #2196f3',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
+        borderLeft: '4px solid #1976d2',
         transition: 'all 0.3s ease',
         '&:hover': {
-          boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+          boxShadow: '0 6px 20px rgba(0,0,0,0.08)',
           transform: 'translateY(-1px)',
-          borderLeft: '4px solid #64b5f6',
-        },
-        color: 'white'
+          borderLeft: '4px solid #2196f3',
+        }
       }}
     >
       {(errorCategories || errorVariants) && (
@@ -240,13 +206,12 @@ const CategorySelector = ({
       )}
       
       <Breadcrumbs 
-        separator={<NavigateNextIcon fontSize="small" sx={{ color: 'rgba(255,255,255,0.7)' }} />}
+        separator={<NavigateNextIcon fontSize="small" />}
         aria-label="product category navigation"
         sx={{ 
           '& .MuiBreadcrumbs-ol': {
             alignItems: 'center'
-          },
-          color: 'white'
+          } 
         }}
       >
         {/* Category Selection Chip */}        <Chip
@@ -254,72 +219,54 @@ const CategorySelector = ({
           label={selectedCategoryData ? selectedCategoryData.name : categoryLabel}
           onClick={handleCategoryClick}
           disabled={disabled || loadingCategories}
-          icon={loadingCategories ? <CircularProgress size={16} color="inherit" /> : undefined}
+          icon={loadingCategories ? <CircularProgress size={16} /> : undefined}
           sx={{ 
             height: 'auto', 
             padding: '10px 6px',
             borderRadius: '8px',
             transition: 'all 0.2s ease',
-            backgroundColor: selectedCategory ? '#1976d2' : 'rgba(255,255,255,0.15)',
-            color: 'white',
-            boxShadow: selectedCategory ? '0 2px 10px rgba(33, 150, 243, 0.6)' : 'none',
+            boxShadow: selectedCategory ? '0 2px 10px rgba(25, 118, 210, 0.2)' : 'none',
             '&:hover': {
               transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(33, 150, 243, 0.5)',
-              backgroundColor: selectedCategory ? '#1976d2' : 'rgba(255,255,255,0.25)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
             },
             '& .MuiChip-label': {
               fontSize: '1rem',
-              fontWeight: 600,
-              padding: '4px 8px',
-              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+              fontWeight: 500,
+              padding: '4px 8px'
             }
           }}
-        />        {/* Variant Selection Chip - Only show when category is selected */}        {selectedCategory && (          <Chip            color={selectedVariant ? "primary" : "default"}
-            label={
-              // Prevent showing loading state if we already have a selected variant
-              (loadingVariants && !isSelectingVariant.current)
-                ? "Loading variants..." 
-                : (variants.length === 0 && !selectedVariantData)
-                   ? "No variants available" 
-                   : (selectedVariantData ? selectedVariantData.name : variantLabel)
-            }
+        />
+        
+        {/* Variant Selection Chip - Only show when category is selected */}
+        {selectedCategory && (          <Chip
+            color={selectedVariant ? "primary" : "default"}
+            label={selectedVariantData ? selectedVariantData.name : variantLabel}
             onClick={handleVariantClick}
-            disabled={disabled || (loadingVariants && !isSelectingVariant.current) || (variants.length === 0 && !selectedVariantData)}
-            icon={(loadingVariants && !isSelectingVariant.current) ? <CircularProgress size={16} color="inherit" /> : undefined}sx={{ 
+            disabled={!selectedCategory || disabled || loadingVariants}
+            icon={loadingVariants ? <CircularProgress size={16} /> : undefined}
+            sx={{ 
               height: 'auto', 
               padding: '10px 6px',
               borderRadius: '8px',
               transition: 'all 0.2s ease',
-              backgroundColor: loadingVariants 
-                ? 'rgba(255,255,255,0.1)' 
-                : (variants.length === 0 
-                   ? 'rgba(255,255,255,0.05)' 
-                   : (selectedVariant ? '#1976d2' : 'rgba(255,255,255,0.15)')),
-              color: (loadingVariants || variants.length === 0) ? 'rgba(255,255,255,0.5)' : 'white',
-              opacity: (disabled || loadingVariants || variants.length === 0) ? 0.7 : 1,
-              boxShadow: selectedVariant ? '0 2px 10px rgba(33, 150, 243, 0.6)' : 'none',
+              boxShadow: selectedVariant ? '0 2px 10px rgba(25, 118, 210, 0.2)' : 'none',
               '&:hover': {
-                transform: !(disabled || loadingVariants || variants.length === 0) ? 'translateY(-2px)' : 'none',
-                boxShadow: !(disabled || loadingVariants || variants.length === 0) ? '0 4px 12px rgba(33, 150, 243, 0.5)' : 'none',
-                backgroundColor: variants.length === 0 
-                  ? 'rgba(255,255,255,0.05)'
-                  : (selectedVariant ? '#1976d2' : 'rgba(255,255,255,0.25)'),
-                cursor: (disabled || loadingVariants || variants.length === 0) ? 'default' : 'pointer'
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
               },
               '& .MuiChip-label': {
                 fontSize: '1rem',
-                fontWeight: 600,
-                padding: '4px 8px',
-                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                fontWeight: 500,
+                padding: '4px 8px'
               } 
             }}
           />
         )}
-
-        {/* Reset Selection Button */}        {(selectedCategory || selectedVariant) && (
-          <Chip
+          {/* Reset Selection Button */}
+        {(selectedCategory || selectedVariant) && (          <Chip
             label="Reset"
+            color="secondary"
             size="small"
             icon={<ClearIcon fontSize="small" />}
             onClick={handleResetSelection}
@@ -327,14 +274,12 @@ const CategorySelector = ({
               ml: 1,
               height: '28px',
               fontSize: '0.75rem',
-              fontWeight: 600,
-              bgcolor: 'rgba(211, 47, 47, 0.25)',
-              color: '#ff6c6c',
-              boxShadow: '0 2px 8px rgba(211, 47, 47, 0.2)',
+              fontWeight: 500,
+              bgcolor: 'rgba(211, 47, 47, 0.1)',
+              color: 'error.main',
               '&:hover': {
-                bgcolor: 'rgba(211, 47, 47, 0.35)',
+                bgcolor: 'rgba(211, 47, 47, 0.2)',
                 transform: 'scale(1.05)',
-                boxShadow: '0 2px 10px rgba(211, 47, 47, 0.3)',
               },
               transition: 'all 0.2s ease'
             }}
@@ -342,8 +287,7 @@ const CategorySelector = ({
         )}
       </Breadcrumbs>
       
-      {/* Category Selection Popover */}
-      <Popover
+      {/* Category Selection Popover */}      <Popover
         id={categoryId}
         open={categoryOpen}
         anchorEl={categoryAnchorEl}
@@ -360,14 +304,10 @@ const CategorySelector = ({
           timeout: 250
         }}
         PaperProps={{
-          elevation: 6,
+          elevation: 4,
           sx: {
             borderRadius: 2,
             mt: 0.5,
-            backgroundColor: '#1c1c2e',
-            color: 'white',
-            border: '1px solid rgba(255,255,255,0.1)',
-            boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
             animation: 'fadeIn 0.25s ease-in-out',
             '@keyframes fadeIn': {
               '0%': {
@@ -382,14 +322,15 @@ const CategorySelector = ({
           }
         }}
       >
-        <Paper sx={{ maxHeight: 350, width: 280, overflow: 'auto', backgroundColor: '#1c1c2e' }}>          <Typography 
+        <Paper sx={{ maxHeight: 350, width: 280, overflow: 'auto' }}>
+          <Typography 
             variant="subtitle1" 
             sx={{ 
               px: 2, 
               py: 1.5, 
-              borderBottom: '1px solid rgba(255,255,255,0.1)',
-              fontWeight: 600,
-              bgcolor: '#0d47a1', /* Darker blue header */
+              borderBottom: '1px solid #eee',
+              fontWeight: 500,
+              bgcolor: 'primary.light',
               color: 'white' 
             }}
           >
@@ -397,29 +338,24 @@ const CategorySelector = ({
           </Typography>
           <List sx={{ py: 0 }}>
             {categories.map((category) => (
-              <ListItem disablePadding key={category._id} divider sx={{ borderColor: 'rgba(255,255,255,0.1)' }}>                <ListItemButton 
+              <ListItem disablePadding key={category._id} divider>
+                <ListItemButton 
                   onClick={() => handleCategorySelect(category._id)}
                   selected={category._id === selectedCategory}
                   sx={{
                     py: 1.2,
-                    color: 'white',
                     '&.Mui-selected': {
-                      backgroundColor: 'rgba(33, 150, 243, 0.3)',
-                      fontWeight: 600,
+                      backgroundColor: 'rgba(25, 118, 210, 0.08)',
                       '&:hover': {
-                        backgroundColor: 'rgba(33, 150, 243, 0.4)',
+                        backgroundColor: 'rgba(25, 118, 210, 0.12)',
                       }
-                    },
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
                     }
                   }}
                 >
                   <ListItemText 
                     primary={category.name} 
                     primaryTypographyProps={{
-                      fontWeight: category._id === selectedCategory ? 600 : 400,
-                      color: 'white'
+                      fontWeight: category._id === selectedCategory ? 600 : 400
                     }}
                   />
                 </ListItemButton>
@@ -429,8 +365,7 @@ const CategorySelector = ({
         </Paper>
       </Popover>
       
-      {/* Variant Selection Popover */}
-      <Popover
+      {/* Variant Selection Popover */}      <Popover
         id={variantId}
         open={variantOpen}
         anchorEl={variantAnchorEl}
@@ -447,13 +382,10 @@ const CategorySelector = ({
           timeout: 250
         }}
         PaperProps={{
-          elevation: 6,
+          elevation: 4,
           sx: {
             borderRadius: 2,
             mt: 0.5,
-            backgroundColor: '#1c1c2e',
-            border: '1px solid rgba(255,255,255,0.1)',
-            boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
             animation: 'fadeIn 0.25s ease-in-out',
             '@keyframes fadeIn': {
               '0%': {
@@ -468,14 +400,15 @@ const CategorySelector = ({
           }
         }}
       >
-        <Paper sx={{ maxHeight: 350, width: 280, overflow: 'auto', backgroundColor: '#1c1c2e' }}>          <Typography 
+        <Paper sx={{ maxHeight: 350, width: 280, overflow: 'auto' }}>
+          <Typography 
             variant="subtitle1" 
             sx={{ 
               px: 2, 
               py: 1.5, 
-              borderBottom: '1px solid rgba(255,255,255,0.1)',
-              fontWeight: 600,
-              bgcolor: '#0d47a1', /* Darker blue header */
+              borderBottom: '1px solid #eee',
+              fontWeight: 500,
+              bgcolor: 'primary.light',
               color: 'white' 
             }}
           >
@@ -484,29 +417,24 @@ const CategorySelector = ({
           <List sx={{ py: 0 }}>
             {variants.length > 0 ? (
               variants.map((variant) => (
-                <ListItem disablePadding key={variant._id} divider sx={{ borderColor: 'rgba(255,255,255,0.1)' }}>                  <ListItemButton 
+                <ListItem disablePadding key={variant._id} divider>
+                  <ListItemButton 
                     onClick={() => handleVariantSelect(variant._id)}
                     selected={variant._id === selectedVariant}
                     sx={{
                       py: 1.2,
-                      color: 'white',
                       '&.Mui-selected': {
-                        backgroundColor: 'rgba(33, 150, 243, 0.3)',
-                        fontWeight: 600,
+                        backgroundColor: 'rgba(25, 118, 210, 0.08)',
                         '&:hover': {
-                          backgroundColor: 'rgba(33, 150, 243, 0.4)',
+                          backgroundColor: 'rgba(25, 118, 210, 0.12)',
                         }
-                      },
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
                       }
                     }}
                   >
                     <ListItemText 
                       primary={variant.name} 
                       primaryTypographyProps={{
-                        fontWeight: variant._id === selectedVariant ? 600 : 400,
-                        color: 'white'
+                        fontWeight: variant._id === selectedVariant ? 600 : 400
                       }}
                     />
                   </ListItemButton>
@@ -514,7 +442,7 @@ const CategorySelector = ({
               ))
             ) : (
               <ListItem>
-                <ListItemText primary="No variants available" sx={{ color: 'rgba(255,255,255,0.7)' }} />
+                <ListItemText primary="No variants available" />
               </ListItem>
             )}
           </List>
@@ -524,11 +452,11 @@ const CategorySelector = ({
   );
 };
 
-CategorySelector.propTypes = {
+BreadcrumbCategorySelector.propTypes = {
   onSelectionChange: PropTypes.func,
   disabled: PropTypes.bool,
   categoryLabel: PropTypes.string,
   variantLabel: PropTypes.string,
 };
 
-export default CategorySelector;
+export default BreadcrumbCategorySelector;

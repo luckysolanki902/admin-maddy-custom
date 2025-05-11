@@ -1,6 +1,13 @@
-import { Suspense } from "react";
+'use client';
 
-export default function AddProductLayout({ children }) {
-    return  <Suspense fallback={null}>{children}</Suspense>;
+import { Suspense } from "react";
+import CategoryContextWrapper from "@/components/layout/CategoryContextWrapper";
+
+export default function ProductsLayout({ children }) {
+    return (
+      <CategoryContextWrapper>
+        <Suspense fallback={null}>{children}</Suspense>
+      </CategoryContextWrapper>
+    );
   }
   

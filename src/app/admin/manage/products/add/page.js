@@ -354,11 +354,10 @@ const AddProductPage = () => {
   /* ╭──────────────────────────────────────────────────────────╮
      │  RENDER PATHS                                           │
      ╰──────────────────────────────────────────────────────────╯ */
-
-  /* 1. nothing selected yet → show CategorySelector */
+  /* 1. Always show the CategorySelector as breadcrumbs, but only the product form when a variant is selected */
   if (!selectedVariantId) {
     return (
-      <Box p={4}>
+      <Box p={4} maxWidth="900px" margin="0 auto">
         <Typography variant="h4" gutterBottom>
           Add New Product
         </Typography>
@@ -368,25 +367,46 @@ const AddProductPage = () => {
             setSelectedVariantId(variant);
           }}
         />
+        <Box sx={{ mt: 4, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            Please select a category and variant to continue
+          </Typography>
+        </Box>
       </Box>
     );
   }
-
-  /* 2. still loading variant / category → skeleton */
+  /* 2. still loading variant / category → skeleton but still show breadcrumbs */
   if (!specificCategoryVariant || !specificCategory) {
     return (
       <Box p={4} maxWidth="900px" margin="0 auto">
-        <Typography variant="h4" gutterBottom align="center">
+        <Typography variant="h4" gutterBottom>
           Add New Product
         </Typography>
-        <Skeleton variant="rectangular" height={400} />
+        <CategorySelector
+          onSelectionChange={({ category, variant }) => {
+            setSelectedCategoryId(category);
+            setSelectedVariantId(variant);
+          }}
+          disabled={true}
+        />
+        <Skeleton variant="rectangular" height={400} sx={{ mt: 2 }} />
       </Box>
     );
   }
-
   /* 3. main form */
   return (
     <Box p={4} maxWidth="900px" margin="0 auto">
+      {/* Always show the CategorySelector as breadcrumbs for consistent navigation */}
+      <Typography variant="h4" gutterBottom>
+        Add New Product
+      </Typography>
+      <CategorySelector
+        onSelectionChange={({ category, variant }) => {
+          setSelectedCategoryId(category);
+          setSelectedVariantId(variant);
+        }}
+      />
+      
       <div
         style={{
           display: 'flex',

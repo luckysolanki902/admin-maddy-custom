@@ -4,11 +4,7 @@ import React from 'react';
 import CategorySelector from '@/components/layout/CategorySelector';
 
 const CategorySelectorWrapper = ({ selection, onSelectionChange, loadingProducts }) => {
-  // Hide CategorySelector once both category and variant are selected and products are loading/fetched
-  if (loadingProducts || (selection.category && selection.variant)) {
-    return null;
-  }
-
+  // Always display the CategorySelector (which is now a breadcrumb) for persistent navigation
   return <CategorySelector onSelectionChange={onSelectionChange} />;
 };
 

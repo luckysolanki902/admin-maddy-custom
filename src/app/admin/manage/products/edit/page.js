@@ -454,23 +454,24 @@ const EditProductPage = () => {
     }));
     handleCloseDialog();
   };
-
   return (
     <Box p={4} maxWidth="1200px" margin="0 auto" display="flex" flexDirection="column" position="relative">
       {/* Heading */}
-      <Typography variant="h4" gutterBottom>
-        Edit Product
-      </Typography>
-
-      {/* Category Selector */}
-      <CategorySelectorWrapper
-        selection={selection}
-        onSelectionChange={handleSelectionChange}
-        loadingProducts={loadingProducts}
-      />
+      <Box display="flex" flexDirection="column">
+        <Typography variant="h4" gutterBottom>
+          Edit Product
+        </Typography>
+        
+        {/* Category Selector as permanent breadcrumb navigation */}
+        <CategorySelectorWrapper
+          selection={selection}
+          onSelectionChange={handleSelectionChange}
+          loadingProducts={loadingProducts}
+        />
+      </Box>
 
       {/* Sort & Filter Button */}
-      <Box display="flex" justifyContent="flex-end" mt={2}>
+      <Box display="flex" justifyContent="flex-end">
         <Button variant="outlined" startIcon={<FilterListIcon />} onClick={() => setIsDrawerOpen(true)}>
           Sort & Filter
         </Button>

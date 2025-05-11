@@ -1,5 +1,3 @@
-// /app/admin/manage/products/add/page.jsx
-
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -21,32 +19,44 @@ import {
   DialogActions,
   CircularProgress,
   Skeleton,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CloseIcon from '@mui/icons-material/Close';
 import slugify from 'slugify';
+
 import ImageUpload from '@/components/utils/ImageUpload';
 import CategorySelector from '@/components/layout/CategorySelector';
 import VariantNameConflictDialog from '@/components/page-sections/common/VariantNameConflictDialog';
+import OptionForm from '@/components/page-sections/options/OptionForm';
 import { toTitleCase } from '@/lib/utils/generalFunctions';
 
+/*  ╭────────────────────────────────────────────────────────────╮
+    │                ADD  NEW  PRODUCT  PAGE                     │
+    ╰────────────────────────────────────────────────────────────╯ */
+
 const AddProductPage = () => {
-  // State for selected category and variant
+  /* ─────────────── selection (category / variant) ─────────────── */
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [selectedVariantId, setSelectedVariantId] = useState('');
 
+  /* ─────────────── fetched meta data ──────────────────────────── */
   const [specificCategoryVariant, setSpecificCategoryVariant] = useState(null);
   const [specificCategory, setSpecificCategory] = useState(null);
   const [skuSerial, setSkuSerial] = useState(1);
 
-  // Form fields
+  /* ─────────────── product form fields ───────────────────────── */
   const [name, setName] = useState('');
   const [pageSlug, setPageSlug] = useState('');
   const [title, setTitle] = useState('');
   const [mainTag, setMainTag] = useState('');
   const [price, setPrice] = useState(0);
   const [displayOrder, setDisplayOrder] = useState(0);
+  const [productImages, setProductImages] = useState([]);            // multi
+  const [productionTemplateImage, setProductionTemplateImage] = useState(null);
 
-  // Hidden fields
   const [hiddenFields, setHiddenFields] = useState({
     category: '',
     subCategory: '',
@@ -57,302 +67,240 @@ const AddProductPage = () => {
     freebies: { available: false, description: '', image: '' },
   });
 
+  /* ─────────────── UI state ───────────────────────────────────── */
   const [uniqueMainTags, setUniqueMainTags] = useState([]);
-
-  const [productImage, setProductImage] = useState(null);
-  const [productionTemplateImage, setProductionTemplateImage] = useState(null);
-
   const [loading, setLoading] = useState(false);
   const [successAlert, setSuccessAlert] = useState(false);
   const [errorAlert, setErrorAlert] = useState('');
-
-  // Dialog for adding a new tag
   const [openDialog, setOpenDialog] = useState(false);
   const [newTag, setNewTag] = useState('');
-
-  // Dialog for uniqueness conflicts
   const [openConflictDialog, setOpenConflictDialog] = useState(false);
   const [conflictingProducts, setConflictingProducts] = useState([]);
 
-  // Fetch unique main tags
+  /* ─────────────── product just saved (for options) ───────────── */
+  const [savedProduct, setSavedProduct] = useState(null);
+
+  /* ╭──────────────────────────────────────────────────────────╮
+     │  UTILITIES – data‑fetchers                               │
+     ╰──────────────────────────────────────────────────────────╯ */
+
+  /** fetch the list of unique main tags (once) */
   const fetchUniqueMainTags = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/manage/product/get/unique-tags');
       const data = await res.json();
-      if (res.ok) {
-        setUniqueMainTags(data.uniqueMainTags);
-      } else {
-        console.error('Error fetching unique main tags:', data.error);
-      }
+      if (res.ok) setUniqueMainTags(data.uniqueMainTags);
     } catch (err) {
-      console.error('Error fetching unique main tags:', err.message);
+      console.error('unique‑tags:', err.message);
     }
   }, []);
 
-  // Fetch specific category and variant data
+  /** fetch variant + category meta every time variantId changes */
   const fetchSpecificCategoryData = useCallback(async () => {
     if (!selectedVariantId) return;
 
-    // Reset form fields when variantId changes
+    // clear dependent state
     setName('');
     setPageSlug('');
     setTitle('');
     setMainTag('');
     setPrice(0);
     setDisplayOrder(0);
-    setHiddenFields({
-      category: '',
-      subCategory: '',
-      deliveryCost: 100,
-      stock: 1000,
-      available: true,
-      showInSearch: true,
-      freebies: { available: false, description: '', image: '' },
-    });
-    setProductImage(null);
+    setProductImages([]);
     setProductionTemplateImage(null);
     setSkuSerial(1);
     setErrorAlert('');
     setConflictingProducts([]);
     setOpenConflictDialog(false);
+    setSavedProduct(null);
 
     try {
-      // Fetch specific category variant details
-      const resVariant = await fetch(
+      // variant
+      const resVar = await fetch(
         `/api/admin/manage/product/get/get-specific-category-variant/${selectedVariantId}`
       );
-      if (!resVariant.ok) {
-        throw new Error('Failed to fetch specific category variant.');
-      }
-      const variantData = await resVariant.json();
+      if (!resVar.ok) throw new Error('variant fetch failed');
+      const variantData = await resVar.json();
       setSpecificCategoryVariant(variantData);
 
-      // Fetch specific category details
-      const resCategory = await fetch(
+      // category
+      const resCat = await fetch(
         `/api/admin/manage/product/get/get-specific-category/${variantData.specificCategory}`
       );
-      if (!resCategory.ok) {
-        throw new Error('Failed to fetch specific category.');
-      }
-      const categoryData = await resCategory.json();
+      if (!resCat.ok) throw new Error('category fetch failed');
+      const categoryData = await resCat.json();
       setSpecificCategory(categoryData);
 
-      // Update hidden fields with category and subCategory
-      setHiddenFields((prevFields) => ({
-        ...prevFields,
+      // update hidden category fields
+      setHiddenFields((prev) => ({
+        ...prev,
         category: categoryData.category,
         subCategory: categoryData.subCategory,
       }));
     } catch (err) {
-      console.error('Error fetching variant or category:', err.message);
-      alert('Error fetching variant or category details.');
+      console.error(err);
+      alert('Error fetching category / variant.');
     }
   }, [selectedVariantId]);
 
-  // Fetch the latest product to determine SKU serial
+  /** fetch latest product under this variant to pre‑fill defaults */
   const fetchLatestProduct = useCallback(async () => {
-    if (specificCategoryVariant) {
-      try {
-        const res = await fetch(
-          `/api/admin/manage/product/get/get-reference?variantCode=${specificCategoryVariant.variantCode}`
-        );
-        if (!res.ok) {
-          // If no reference product is found, set SKU serial to 1 and return
-          setSkuSerial(1);
-          return;
-        }
+    if (!specificCategoryVariant) return;
+    try {
+      const res = await fetch(
+        `/api/admin/manage/product/get/get-reference?variantCode=${specificCategoryVariant.variantCode}`
+      );
 
-        const latestProduct = await res.json();
-
-        // Prefill fields based on the latest product
-        setPrice(latestProduct.price || 0);
-        setMainTag(latestProduct.mainTags?.[0] || '');
-        setDisplayOrder(latestProduct.displayOrder || 0);
-
-        // Update hidden fields
-        setHiddenFields({
-          category: latestProduct.category || '',
-          subCategory: latestProduct.subCategory || '',
-          deliveryCost: latestProduct.deliveryCost || 100,
-          stock: latestProduct.stock || 1000,
-          available:
-            latestProduct.available !== undefined ? latestProduct.available : true,
-          showInSearch:
-            latestProduct.showInSearch !== undefined
-              ? latestProduct.showInSearch
-              : true,
-          freebies:
-            latestProduct.freebies || { available: false, description: '', image: '' },
-        });
-
-        // Determine the next serial number for SKU
-        const serial = parseInt(
-          latestProduct.sku.replace(specificCategoryVariant.variantCode, ''),
-          10
-        );
-        setSkuSerial(isNaN(serial) ? 1 : serial + 1);
-      } catch (err) {
-        console.error('Error fetching reference product:', err.message);
-        alert('Error fetching reference product.');
+      // no reference product – default skuSerial=1 and done
+      if (!res.ok) {
+        setSkuSerial(1);
+        return;
       }
+
+      const ref = await res.json();
+      setPrice(ref.price || 0);
+      setMainTag(ref.mainTags?.[0] || '');
+      setDisplayOrder(ref.displayOrder || 0);
+      setHiddenFields({
+        category: ref.category || '',
+        subCategory: ref.subCategory || '',
+        deliveryCost: ref.deliveryCost ?? 100,
+        stock: ref.stock ?? 1000,
+        available: ref.available ?? true,
+        showInSearch: ref.showInSearch ?? true,
+        freebies: ref.freebies || { available: false, description: '', image: '' },
+      });
+
+      // sku serial is the numeric suffix after variantCode
+      const serial = parseInt(
+        ref.sku.replace(specificCategoryVariant.variantCode, ''),
+        10
+      );
+      setSkuSerial(Number.isNaN(serial) ? 1 : serial + 1);
+    } catch (err) {
+      console.error('reference fetch:', err.message);
     }
   }, [specificCategoryVariant]);
 
-  // Fetch unique main tags on component mount
-  useEffect(() => {
-    fetchUniqueMainTags();
-  }, [fetchUniqueMainTags]);
+  /* ╭──────────────────────────────────────────────────────────╮
+     │  LIFE CYCLES                                            │
+     ╰──────────────────────────────────────────────────────────╯ */
+  useEffect(() => { fetchUniqueMainTags(); }, [fetchUniqueMainTags]);
+  useEffect(() => { if (selectedVariantId) fetchSpecificCategoryData(); }, [selectedVariantId, fetchSpecificCategoryData]);
+  useEffect(() => { fetchLatestProduct(); }, [fetchLatestProduct]);
 
-  // Handle selection changes from CategorySelector
-  const handleSelectionChange = ({ category, variant }) => {
-    setSelectedCategoryId(category);
-    setSelectedVariantId(variant);
-  };
-
-  // Fetch specific category data when variantId changes
-  useEffect(() => {
-    if (selectedVariantId) {
-      fetchSpecificCategoryData();
-    }
-  }, [selectedVariantId, fetchSpecificCategoryData]);
-
-  // Fetch latest product when specificCategoryVariant changes or after resetting
-  useEffect(() => {
-    fetchLatestProduct();
-  }, [fetchLatestProduct]);
-
-  // Update Title and Page Slug based on Name and Specific Category
+  /* update title + slug when name / meta changes */
   useEffect(() => {
     if (specificCategory && name && specificCategoryVariant) {
-      // Convert name to title case
       const titleCaseName = toTitleCase(name);
-      const constructedTitle = `${titleCaseName} ${specificCategory.name.endsWith('s')
+      const constructed = `${titleCaseName} ${
+        specificCategory.name.endsWith('s')
           ? specificCategory.name.slice(0, -1)
           : specificCategory.name
-        }`;
-      const titleCaseTitle = toTitleCase(constructedTitle);
-      setTitle(titleCaseTitle);
+      }`;
+      setTitle(toTitleCase(constructed));
 
       const slugifiedName = slugify(name, { lower: true, strict: true });
-      const generatedSlug = `${specificCategoryVariant.pageSlug}/${slugifiedName}`;
-      setPageSlug(generatedSlug);
+      setPageSlug(`${specificCategoryVariant.pageSlug}/${slugifiedName}`);
     }
   }, [name, specificCategory, specificCategoryVariant]);
 
+  /* ╭──────────────────────────────────────────────────────────╮
+     │  MAIN SUBMIT (Add Product)                              │
+     ╰──────────────────────────────────────────────────────────╯ */
   const handleFormSubmit = async () => {
-    if (!name || !productImage || !productionTemplateImage || !mainTag) {
+    if (
+      !name ||
+      !productImages.length ||
+      !productionTemplateImage ||
+      !mainTag
+    ) {
       alert('Please fill all required fields.');
       return;
     }
 
     setLoading(true);
-
     try {
-      // Convert name and title to title case
       const titleCaseName = toTitleCase(name);
       const titleCaseTitle = toTitleCase(title);
 
-      // Perform uniqueness check
-      const uniquenessRes = await fetch('/api/admin/manage/product/check-unique', {
+      /* uniqueness check */
+      const uniqRes = await fetch('/api/admin/manage/product/check-unique', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           variantId: selectedVariantId,
           name: titleCaseName,
           title: titleCaseTitle,
         }),
       });
-
-      if (!uniquenessRes.ok) {
-        const errorData = await uniquenessRes.json();
-        throw new Error(errorData.error || 'Failed to check uniqueness');
-      }
-
-      const uniquenessData = await uniquenessRes.json();
-
-      if (uniquenessData.conflict) {
-        // Show the conflict dialog with conflicting products
-        setConflictingProducts(uniquenessData.conflictingProducts);
+      const uniq = await uniqRes.json();
+      if (!uniqRes.ok) throw new Error(uniq.error || 'Unique check failed');
+      if (uniq.conflict) {
+        setConflictingProducts(uniq.conflictingProducts);
         setOpenConflictDialog(true);
         setLoading(false);
         return;
       }
 
-      // Proceed to add the product
-      // Construct SKU
+      /* sku & paths */
       const sku = `${specificCategoryVariant.variantCode}${skuSerial}`;
-
-      // Construct Image Path
-      const imagePath = `products/${hiddenFields.category
+      const basePath = `products/${hiddenFields.category
         .toLowerCase()
         .replace(/\s+/g, '-')}/${hiddenFields.subCategory
-          .toLowerCase()
-          .replace(/\s+/g, '-')}/${specificCategory.name
-            .toLowerCase()
-            .replace(/\s+/g, '-')}/${specificCategoryVariant.variantCode
-              .toLowerCase()
-              .replace(/\s+/g, '-')}/${sku}.jpg`;
+        .toLowerCase()
+        .replace(/\s+/g, '-')}/${specificCategory.name
+        .toLowerCase()
+        .replace(/\s+/g, '-')}/${specificCategoryVariant.variantCode
+        .toLowerCase()
+        .replace(/\s+/g, '-')}`;
 
-      // Construct Design Template Path
+      const imagePaths = productImages.map(
+        (_, i) => `${basePath}/${sku}-${i + 1}.jpg`
+      );
       const designTemplatePath = `${specificCategoryVariant.designTemplateFolderPath}/${sku}.png`;
 
-      // Function to get presigned URL
+      /* helpers for S3 */
       const getPresignedUrl = async (fullPath, fileType) => {
         const res = await fetch('/api/admin/aws/generate-presigned-url', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fullPath, fileType }),
         });
-
         if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || 'Failed to get presigned URL');
+          const e = await res.json().catch(() => ({}));
+          throw new Error(e.message || 'Presign URL failed');
         }
-
-        const data = await res.json();
-        return data;
+        return res.json();
       };
 
-      // Function to upload file to S3 using presigned URL
-      const uploadFileToS3 = async (file, presignedUrl) => {
-        const response = await fetch(presignedUrl, {
+      const uploadFile = async (file, url) => {
+        const r = await fetch(url, {
           method: 'PUT',
-          headers: {
-            'Content-Type': file.type,
-          },
+          headers: { 'Content-Type': file.type },
           body: file,
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to upload file to S3');
-        }
+        if (!r.ok) throw new Error('S3 upload failed');
       };
 
-      // Get presigned URLs for both images
-      const {
-        presignedUrl: productPresignedUrl,
-        url: productImageUrl,
-      } = await getPresignedUrl(imagePath, productImage.type);
-      const {
-        presignedUrl: templatePresignedUrl,
-        url: designTemplateUrl,
-      } = await getPresignedUrl(designTemplatePath, productionTemplateImage.type);
+      /* upload all product images */
+      const signedImgs = await Promise.all(
+        imagePaths.map((p, i) => getPresignedUrl(p, productImages[i].type))
+      );
+      await Promise.all(
+        signedImgs.map(({ presignedUrl }, i) =>
+          uploadFile(productImages[i], presignedUrl)
+        )
+      );
 
-      // Upload both images to S3
-      await uploadFileToS3(productImage, productPresignedUrl);
-      await uploadFileToS3(productionTemplateImage, templatePresignedUrl);
+      /* upload template PNG */
+      const { presignedUrl: tplUrl } = await getPresignedUrl(
+        designTemplatePath,
+        productionTemplateImage.type
+      );
+      await uploadFile(productionTemplateImage, tplUrl);
 
-      // Construct Design Template Object
-      const designTemplateObj = {
-        designCode: sku,
-        imageUrl: designTemplatePath,
-      };
-
-      // Prepare dynamic fields based on reference product
+      /* build payload */
       const productData = {
         name: titleCaseName,
         pageSlug,
@@ -364,333 +312,273 @@ const AddProductPage = () => {
         specificCategoryVariant: specificCategoryVariant._id,
         ...hiddenFields,
         sku,
-        designTemplate: designTemplateObj,
-        images: [`/${imagePath}`],
+        optionsAvailable: false,
+        designTemplate: { designCode: sku, imageUrl: designTemplatePath },
+        images: imagePaths.map((p) => '/' + p),
+        productSource: 'inhouse',
       };
-
-      // Send data to API
-      const res = await fetch('/api/admin/manage/product/add', {
+      console.log('productData', productData);
+      /* save product */
+      const saveRes = await fetch('/api/admin/manage/product/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData),
       });
+      const saved = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saved.error || 'Add product failed');
 
-      if (res.ok) {
-        setSuccessAlert(true);
-        // Reset form fields
-        setName('');
-        setPageSlug('');
-        setTitle('');
-        setMainTag('');
-        setPrice(0);
-        setDisplayOrder(0);
-        setHiddenFields({
-          category: '',
-          subCategory: '',
-          deliveryCost: 100,
-          stock: 1000,
-          available: true,
-          showInSearch: true,
-          freebies: { available: false, description: '', image: '' },
-        });
-        setProductImage(null);
-        setProductionTemplateImage(null);
-        setSkuSerial(skuSerial + 1);
-        setErrorAlert('');
+      /* success! */
+      setSavedProduct(saved);        // expose to OptionForm
+      setSuccessAlert(true);
 
-        // Re-fetch the latest product to update SKU serial and other fields
-        await fetchLatestProduct();
-      } else {
-        const errorText = await res.json();
-        setErrorAlert(errorText.error || 'Error adding product');
-      }
-    } catch (error) {
-      console.error('Error adding product:', error.message);
-      setErrorAlert(error.message);
+      /* reset form (keep category/variant) */
+      setName('');
+      setPageSlug('');
+      setTitle('');
+      setMainTag('');
+      setPrice(0);
+      setDisplayOrder(0);
+      setProductImages([]);
+      setProductionTemplateImage(null);
+      setSkuSerial(skuSerial + 1);
+      setErrorAlert('');
+      await fetchLatestProduct();
+    } catch (err) {
+      console.error(err);
+      setErrorAlert(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle opening and closing of the new tag dialog
-  const handleOpenDialog = () => {
-    setOpenDialog(true);
-    setNewTag('');
-  };
+  /* ╭──────────────────────────────────────────────────────────╮
+     │  RENDER PATHS                                           │
+     ╰──────────────────────────────────────────────────────────╯ */
 
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setNewTag('');
-  };
-
-  const handleAddNewTag = () => {
-    if (newTag.trim() === '') {
-      alert('Tag name cannot be empty.');
-      return;
-    }
-
-    // Check if the tag already exists
-    if (uniqueMainTags.includes(newTag)) {
-      alert('Tag already exists.');
-      setMainTag(newTag);
-      handleCloseDialog();
-      return;
-    }
-
-    // Add the new tag to the mainTag state
-    setMainTag(newTag);
-    // Update the uniqueMainTags state to include the new tag
-    setUniqueMainTags((prevTags) => [...prevTags, newTag]);
-    handleCloseDialog();
-  };
-
-  // Render the form only if a variant is selected
+  /* 1. nothing selected yet → show CategorySelector */
   if (!selectedVariantId) {
     return (
       <Box p={4}>
         <Typography variant="h4" gutterBottom>
           Add New Product
         </Typography>
-        <CategorySelector onSelectionChange={handleSelectionChange} />
+        <CategorySelector
+          onSelectionChange={({ category, variant }) => {
+            setSelectedCategoryId(category);
+            setSelectedVariantId(variant);
+          }}
+        />
       </Box>
     );
   }
 
+  /* 2. still loading variant / category → skeleton */
   if (!specificCategoryVariant || !specificCategory) {
     return (
       <Box p={4} maxWidth="900px" margin="0 auto">
         <Typography variant="h4" gutterBottom align="center">
           Add New Product
         </Typography>
-        <Grid container spacing={4}>
-          {/* Image Upload Skeletons */}
-          <Grid item xs={12} md={6}>
-            <Skeleton variant="rectangular" height={200} />
-            <Typography variant="caption" display="block" mt={1}>
-              Product Image (JPG)
-            </Typography>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Skeleton variant="rectangular" height={200} />
-            <Typography variant="caption" display="block" mt={1}>
-              Production Template Image (PNG)
-            </Typography>
-          </Grid>
-
-          {/* Text Fields Skeleton */}
-          <Grid item xs={12}>
-            <Skeleton variant="text" height={40} />
-          </Grid>
-          <Grid item xs={12}>
-            <Skeleton variant="rectangular" height={56} />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Skeleton variant="text" height={40} />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Skeleton variant="text" height={40} />
-          </Grid>
-          <Grid item xs={12}>
-            <Skeleton variant="rectangular" height={56} />
-          </Grid>
-        </Grid>
+        <Skeleton variant="rectangular" height={400} />
       </Box>
     );
   }
 
+  /* 3. main form */
   return (
     <Box p={4} maxWidth="900px" margin="0 auto">
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '0.6rem', marginBottom: '1rem' }}>
-        <h1>
-          Add New Product
-        </h1>
-        <span>
-          {`${specificCategoryVariant?.name}`}
-        </span>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-end',
+          gap: '0.6rem',
+          marginBottom: '1rem',
+        }}
+      >
+        <h1>Add New Product</h1>
+        <span>{specificCategoryVariant?.name}</span>
       </div>
 
-
+      {/* ───── Product form ───── */}
       <Grid container spacing={4}>
-        {/* Image Uploads */}
-        <Grid item xs={12} md={6}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={60} />
-          ) : (
-            <ImageUpload
-              label="Product Image (JPG)"
-              accept="image/jpeg"
-              onFileSelected={setProductImage}
-              file={productImage}
-            />
-          )}
-        </Grid>
-        <Grid item xs={12} md={6}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={60} />
-          ) : (
-            <ImageUpload
-              label="Production Template Image (PNG)"
-              accept="image/png"
-              onFileSelected={setProductionTemplateImage}
-              file={productionTemplateImage}
-            />
-          )}
+        <Grid item xs={12}>
+          <ImageUpload
+            label="Product Images (JPG)"
+            accept="image/jpeg"
+            multiple
+            files={productImages}
+            onFilesChange={setProductImages}
+            max={5}
+          />
         </Grid>
 
-        {/* Product Name */}
         <Grid item xs={12}>
-          {loading ? (
-            <Skeleton variant="text" height={40} />
-          ) : (
-            <TextField
-              label="Product Name"
-              value={name}
+          <ImageUpload
+            label="Production Template Image (PNG)"
+            accept="image/png"
+            files={productionTemplateImage ? [productionTemplateImage] : []}
+            onFilesChange={(files) =>
+              setProductionTemplateImage(files[0] || null)
+            }
+          />
+        </Grid>
+
+        <Grid item xs={12}>
+          <TextField
+            label="Product Name"
+            value={name}
+            onChange={(e) =>
+              setName(e.target.value.replace(/[-?]/g, ''))
+            }
+            required
+            fullWidth
+            inputProps={{ maxLength: 200 }}
+          />
+        </Grid>
+
+        <Grid item xs={12}>
+          <FormControl fullWidth required>
+            <InputLabel id="main-tag-label">Main Tag</InputLabel>
+            <Select
+              labelId="main-tag-label"
+              value={mainTag}
+              label="Main Tag"
               onChange={(e) => {
-                const value = e.target.value.replace(/[-?]/g, '');
-                setName(value);
+                if (e.target.value === '__create_new__') setOpenDialog(true);
+                else setMainTag(e.target.value);
               }}
-              fullWidth
-              required
-              inputProps={{ maxLength: 200 }}
-            />
-          )}
-        </Grid>
-
-        {/* Main Tag Select */}
-        <Grid item xs={12}>
-          {loading ? (
-            <Skeleton variant="rectangular" height={56} />
-          ) : (
-            <FormControl fullWidth required>
-              <InputLabel id="main-tag-label">Main Tag</InputLabel>
-              <Select
-                labelId="main-tag-label"
-                id="main-tag-select"
-                value={mainTag}
-                label="Main Tag"
-                onChange={(e) => {
-                  if (e.target.value === '__create_new__') {
-                    handleOpenDialog();
-                  } else {
-                    setMainTag(e.target.value);
-                  }
-                }}
-              >
-                {uniqueMainTags.map((tag) => (
-                  <MenuItem key={tag} value={tag}>
-                    {tag}
-                  </MenuItem>
-                ))}
-                {/* Option to create a new tag */}
-                <MenuItem value="__create_new__" sx={{ fontStyle: 'italic' }}>
-                  Add New Tag
+            >
+              {uniqueMainTags.map((tag) => (
+                <MenuItem key={tag} value={tag}>
+                  {tag}
                 </MenuItem>
-              </Select>
-            </FormControl>
-          )}
+              ))}
+              <MenuItem value="__create_new__" sx={{ fontStyle: 'italic' }}>
+                Add New Tag
+              </MenuItem>
+            </Select>
+          </FormControl>
         </Grid>
 
-        {/* Price */}
         <Grid item xs={12} sm={6}>
-          {loading ? (
-            <Skeleton variant="text" height={40} />
-          ) : (
-            <TextField
-              label="Price"
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(parseFloat(e.target.value))}
-              fullWidth
-              required
-              inputProps={{ min: 0, step: '0.01' }}
-            />
-          )}
+          <TextField
+            label="Price"
+            type="number"
+            value={price}
+            inputProps={{ min: 0, step: '0.01' }}
+            onChange={(e) => setPrice(parseFloat(e.target.value))}
+            required
+            fullWidth
+          />
         </Grid>
 
-        {/* Display Order */}
         <Grid item xs={12} sm={6}>
-          {loading ? (
-            <Skeleton variant="text" height={40} />
-          ) : (
-            <TextField
-              label="Display Order"
-              type="number"
-              value={displayOrder}
-              onChange={(e) => setDisplayOrder(parseInt(e.target.value, 10))}
-              fullWidth
-              required
-              inputProps={{ min: 0 }}
-            />
-          )}
+          <TextField
+            label="Display Order"
+            type="number"
+            value={displayOrder}
+            inputProps={{ min: 0 }}
+            onChange={(e) => setDisplayOrder(parseInt(e.target.value, 10))}
+            required
+            fullWidth
+          />
         </Grid>
 
-        {/* Submit Button */}
         <Grid item xs={12}>
           <Box textAlign="center">
             <Button
               variant="contained"
-              color="primary"
               onClick={handleFormSubmit}
               disabled={loading}
               size="large"
               startIcon={loading && <CircularProgress size={24} />}
             >
-              {loading ? 'Adding...' : 'Add Product'}
+              {loading ? 'Adding…' : 'Add Product'}
             </Button>
           </Box>
         </Grid>
       </Grid>
 
-      {/* Success Snackbar */}
+      {/* ───── Options accordion (after product saved) ───── */}
+      {savedProduct && (
+        <Accordion defaultExpanded sx={{ mt: 4 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6">
+              Options for “{savedProduct.name}”
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <OptionForm
+              product={savedProduct}
+              baseSku={savedProduct.sku}
+              serial={1}
+              onAdded={() => setSuccessAlert(true)}
+            />
+          </AccordionDetails>
+        </Accordion>
+      )}
+
+      {/* ───── alerts / dialogs ───── */}
       <Snackbar
         open={successAlert}
         autoHideDuration={3000}
         onClose={() => setSuccessAlert(false)}
-        message="Product added successfully!"
+        message="Saved!"
         action={
-          <IconButton size="small" color="inherit" onClick={() => setSuccessAlert(false)}>
+          <IconButton size="small" onClick={() => setSuccessAlert(false)}>
             <CloseIcon fontSize="small" />
           </IconButton>
         }
       />
-
-      {/* Error Snackbar */}
       <Snackbar
         open={!!errorAlert}
-        autoHideDuration={3000}
+        autoHideDuration={4000}
         onClose={() => setErrorAlert('')}
         message={errorAlert}
         action={
-          <IconButton size="small" color="inherit" onClick={() => setErrorAlert('')}>
+          <IconButton size="small" onClick={() => setErrorAlert('')}>
             <CloseIcon fontSize="small" />
           </IconButton>
         }
       />
 
-      {/* Dialog for Adding New Tag */}
-      <Dialog open={openDialog} onClose={handleCloseDialog}>
+      {/* add‑new‑tag dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
         <DialogTitle>Add New Tag</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
             label="New Tag Name"
-            type="text"
             fullWidth
-            variant="standard"
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button onClick={handleAddNewTag} disabled={newTag.trim() === ''}>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              if (!newTag.trim()) return;
+              if (uniqueMainTags.includes(newTag)) {
+                alert('Tag already exists.');
+                setMainTag(newTag);
+              } else {
+                setUniqueMainTags((prev) => [...prev, newTag]);
+                setMainTag(newTag);
+              }
+              setNewTag('');
+              setOpenDialog(false);
+            }}
+            disabled={!newTag.trim()}
+          >
             Add
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Dialog for Uniqueness Conflicts */}
+      {/* uniqueness‑conflict dialog */}
       <VariantNameConflictDialog
         open={openConflictDialog}
         onClose={() => setOpenConflictDialog(false)}

@@ -9,7 +9,6 @@ import {
   TableHead,
   TableRow,
   Button,
-  TextField,
   Stack,
   Alert,
   CircularProgress,
@@ -19,6 +18,11 @@ import {
   Tooltip,
   Snackbar,
   IconButton,
+  Dialog,
+  AppBar,
+  Toolbar,
+  Slide,
+  TableContainer,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -30,12 +34,20 @@ import dayjs from 'dayjs';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import Image from 'next/image';
+import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 
 const DownloadProductionTemplates = () => {
-  const [selectedDateTag, setSelectedDateTag] = useState('today');
-  const [customDate, setCustomDate] = useState('');
+  // Update state for DateRangeChips
+  const [activeTag, setActiveTag] = useState('today');
+  const [dateRange, setDateRange] = useState({
+    start: dayjs().startOf('day'),
+    end: dayjs().endOf('day')
+  });
+  
+  // Keep these for API compatibility
   const [startDate, setStartDate] = useState(dayjs().startOf('day').toISOString());
   const [endDate, setEndDate] = useState(dayjs().endOf('day').toISOString());
+  
   const [imagesData, setImagesData] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
@@ -48,39 +60,6 @@ const DownloadProductionTemplates = () => {
 
   const CLOUDFRONT_BASEURL = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL;
   const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-
-  // Function to compute startDate and endDate based on selectedDateTag
-  const computeDateRange = (dateTag, customDateValue) => {
-    let start, end;
-    const now = dayjs();
-
-    if (dateTag === 'today') {
-      start = now.startOf('day').toISOString();
-      end = now.endOf('day').toISOString();
-    } else if (dateTag === 'yesterday') {
-      const yesterday = now.subtract(1, 'day');
-      start = yesterday.startOf('day').toISOString();
-      end = yesterday.endOf('day').toISOString();
-    } else if (dateTag === 'custom') {
-      const specificDate = dayjs(customDateValue, 'YYYY-MM-DD');
-      if (!specificDate.isValid()) {
-        return { start: null, end: null };
-      }
-      start = specificDate.startOf('day').toISOString();
-      end = specificDate.endOf('day').toISOString();
-    }
-
-    return { start, end };
-  };
-
-  // Update startDate and endDate when selectedDateTag or customDate changes
-  useEffect(() => {
-    const { start, end } = computeDateRange(selectedDateTag, customDate);
-    if (start && end) {
-      setStartDate(start);
-      setEndDate(end);
-    }
-  }, [selectedDateTag, customDate]);
 
   // Function to fetch images data with presigned URLs and totals
   const fetchImagesData = useCallback(async () => {
@@ -235,6 +214,54 @@ const DownloadProductionTemplates = () => {
     setSnackbarOpen(false);
   };
 
+  // Update startDate and endDate when dateRange changes
+  useEffect(() => {
+    if (dateRange.start && dateRange.end) {
+      // Check if dateRange.start is a dayjs object or a Date object
+      const start = typeof dateRange.start.toISOString === 'function' 
+        ? dateRange.start.toISOString() 
+        : dayjs(dateRange.start).toISOString();
+      
+      const end = typeof dateRange.end.toISOString === 'function'
+        ? dateRange.end.toISOString()
+        : dayjs(dateRange.end).toISOString();
+      
+      setStartDate(start);
+      setEndDate(end);
+    }
+  }, [dateRange]);
+
+  // DateRangeChips handlers
+  const handleAllTagClick = () => {
+    setActiveTag('all');
+    const newRange = {
+      start: dayjs('1970-01-01').startOf('day'),
+      end: dayjs().endOf('day')
+    };
+    setDateRange(newRange);
+  };
+
+  const handleCustomDayChange = (date) => {
+    setActiveTag('custom');
+    setDateRange({
+      start: date.startOf('day'),
+      end: date.endOf('day')
+    });
+  };
+
+  const handleMonthSelection = (tag) => {
+    let start, end;
+    if (tag === 'thisMonth') {
+      start = dayjs().startOf('month');
+      end = dayjs().endOf('month');
+    } else if (tag === 'pastMonth' || tag === 'lastMonth') {
+      start = dayjs().subtract(1, 'month').startOf('month');
+      end = dayjs().subtract(1, 'month').endOf('month');
+    }
+    setActiveTag(tag);
+    setDateRange({ start, end });
+  };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
       <Typography variant="h4" align="center" gutterBottom>
@@ -262,55 +289,23 @@ const DownloadProductionTemplates = () => {
         )}
       </Stack>
 
-      {/* Date Selection Buttons */}
+      {/* Date Selection with DateRangeChips */}
       <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
         <Typography variant="h6" gutterBottom>
           Select Date
         </Typography>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item>
-            <Button
-              onClick={() => {
-                setSelectedDateTag('today');
-                setCustomDate('');
-              }}
-              variant={selectedDateTag === 'today' ? 'contained' : 'outlined'}
-              color="primary"
-              fullWidth
-            >
-              Today
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button
-              onClick={() => {
-                setSelectedDateTag('yesterday');
-                setCustomDate('');
-              }}
-              variant={selectedDateTag === 'yesterday' ? 'contained' : 'outlined'}
-              color="primary"
-              fullWidth
-            >
-              Yesterday
-            </Button>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              label="Custom Date"
-              type="date"
-              value={selectedDateTag === 'custom' ? customDate : ''}
-              onChange={(e) => {
-                setSelectedDateTag('custom');
-                setCustomDate(e.target.value);
-              }}
-              fullWidth
-              InputLabelProps={{
-                shrink: true,
-              }}
-              variant="outlined"
-            />
-          </Grid>
-        </Grid>
+        <DateRangeChips
+          activeTag={activeTag}
+          setActiveTag={setActiveTag}
+          setDateRange={setDateRange}
+          handleAllTagClick={handleAllTagClick}
+          handleCustomDayChange={handleCustomDayChange}
+          handleCustomDateChange={(start, end) => {
+            setActiveTag('customRange');
+            setDateRange({ start, end });
+          }}
+          handleMonthSelection={handleMonthSelection}
+        />
       </Paper>
 
       {/* Warning for unavailable files */}
@@ -344,31 +339,10 @@ const DownloadProductionTemplates = () => {
               </span>
             </Tooltip>
           </Grid>
-          {/* Uncomment below if you want to enable copying download link */}
-          {/*
-          <Grid item xs={12} sm={4}>
-            <Tooltip title="Copy the download link to clipboard">
-              <span style={{ display: 'inline-block', width: '100%' }}>
-                <Button
-                  variant="contained"
-                  color="secondary"
-                  startIcon={<ContentCopyIcon />}
-                  onClick={handleCopyDownloadLink}
-                  disabled={imagesData.length === 0}
-                  fullWidth
-                  size="large"
-                  style={{ pointerEvents: 'auto' }}
-                >
-                  Copy Download Link
-                </Button>
-              </span>
-            </Tooltip>
-          </Grid>
-          */}
         </Grid>
       </Paper>
 
-      {/* Images Data Table (only items with design template set are shown) */}
+      {/* Images Data Table */}
       <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6" gutterBottom>

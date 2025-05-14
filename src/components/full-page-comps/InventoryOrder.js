@@ -9,7 +9,6 @@ import {
   TableHead,
   TableRow,
   Button,
-  TextField,
   Stack,
   Alert,
   CircularProgress,
@@ -32,17 +31,17 @@ import {
 import dayjs from 'dayjs';
 import { saveAs } from 'file-saver';
 import Image from 'next/image';
+import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 
 const Transition = React.forwardRef(function Transition(props, ref) {
-  return <Slide direction="up" ref={ref} {...props} />;
+  return <Slide direction="up" ref={ref} />;
 });
 
 const DownloadInventoryOrders = () => {
-  const [selectedDateTag, setSelectedDateTag] = useState('today');
-  const [customDate, setCustomDate] = useState('');
+  const [activeTag, setActiveTag] = useState('today');
   const [startDate, setStartDate] = useState(dayjs().startOf('day').toISOString());
   const [endDate, setEndDate] = useState(dayjs().endOf('day').toISOString());
-  const [data, setData] = useState([]); // Aggregated inventory orders data
+  const [data, setData] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -57,57 +56,41 @@ const DownloadInventoryOrders = () => {
 
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL;
 
-  // Compute date range based on filter selection.
-  const computeDateRange = (dateTag, customDateValue) => {
-    let start, end;
-    const now = dayjs();
-
-    switch (dateTag) {
-      case 'today':
-        start = now.startOf('day').toISOString();
-        end = now.endOf('day').toISOString();
-        break;
-      case 'yesterday':
-        const yesterday = now.subtract(1, 'day');
-        start = yesterday.startOf('day').toISOString();
-        end = yesterday.endOf('day').toISOString();
-        break;
-      case 'custom':
-        const specificDate = dayjs(customDateValue, 'YYYY-MM-DD');
-        if (!specificDate.isValid()) return { start: null, end: null };
-        start = specificDate.startOf('day').toISOString();
-        end = specificDate.endOf('day').toISOString();
-        break;
-      case 'all':
-        // Using Jan 1, 1970 as a very early start date; adjust if needed.
-        start = dayjs('1970-01-01').toISOString();
-        end = now.endOf('day').toISOString();
-        break;
-      case 'thisMonth':
-        start = now.startOf('month').toISOString();
-        end = now.endOf('month').toISOString();
-        break;
-      case 'pastMonth':
-        const pastMonth = now.subtract(1, 'month');
-        start = pastMonth.startOf('month').toISOString();
-        end = pastMonth.endOf('month').toISOString();
-        break;
-      default:
-        start = now.startOf('day').toISOString();
-        end = now.endOf('day').toISOString();
-    }
-    return { start, end };
+  // Update date range handling to use DateRangeChips
+  const handleDateRangeChange = (range) => {
+    setStartDate(range.start.toISOString());
+    setEndDate(range.end.toISOString());
   };
 
-  useEffect(() => {
-    const { start, end } = computeDateRange(selectedDateTag, customDate);
-    if (start && end) {
-      setStartDate(start);
-      setEndDate(end);
-    }
-  }, [selectedDateTag, customDate]);
+  const handleAllTagClick = () => {
+    setActiveTag('all');
+    setStartDate(dayjs('1970-01-01').toISOString());
+    setEndDate(dayjs().endOf('day').toISOString());
+  };
 
-  // Fetch aggregated inventory orders data from the API
+  const handleCustomDayChange = (date) => {
+    if (date && date.isValid()) {
+      setActiveTag('custom');
+      setStartDate(date.startOf('day').toISOString());
+      setEndDate(date.endOf('day').toISOString());
+    }
+  };
+
+  const handleMonthSelection = (tag) => {
+    let start, end;
+    if (tag === 'thisMonth') {
+      start = dayjs().startOf('month');
+      end = dayjs().endOf('month');
+    } else if (tag === 'lastMonth') {
+      start = dayjs().subtract(1, 'month').startOf('month');
+      end = dayjs().subtract(1, 'month').endOf('month');
+    }
+    setStartDate(start.toISOString());
+    setEndDate(end.toISOString());
+    setActiveTag(tag);
+  };
+
+  // Function to fetch images data with presigned URLs and totals
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -122,6 +105,7 @@ const DownloadInventoryOrders = () => {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Error fetching data.');
       }
+
       const result = await res.json();
       setData(result.orders);
       setTotalOrders(result.totalOrders);
@@ -255,87 +239,21 @@ const DownloadInventoryOrders = () => {
         <Typography variant="h6" gutterBottom>
           Select Date
         </Typography>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={6} sm="auto">
-            <Button
-              onClick={() => {
-                setSelectedDateTag('today');
-                setCustomDate('');
-              }}
-              variant={selectedDateTag === 'today' ? 'contained' : 'outlined'}
-              color="primary"
-              fullWidth
-            >
-              Today
-            </Button>
-          </Grid>
-          <Grid item xs={6} sm="auto">
-            <Button
-              onClick={() => {
-                setSelectedDateTag('yesterday');
-                setCustomDate('');
-              }}
-              variant={selectedDateTag === 'yesterday' ? 'contained' : 'outlined'}
-              color="primary"
-              fullWidth
-            >
-              Yesterday
-            </Button>
-          </Grid>
-          <Grid item xs={6} sm="auto">
-            <Button
-              onClick={() => {
-                setSelectedDateTag('thisMonth');
-                setCustomDate('');
-              }}
-              variant={selectedDateTag === 'thisMonth' ? 'contained' : 'outlined'}
-              color="primary"
-              fullWidth
-            >
-              This Month
-            </Button>
-          </Grid>
-          <Grid item xs={6} sm="auto">
-            <Button
-              onClick={() => {
-                setSelectedDateTag('pastMonth');
-                setCustomDate('');
-              }}
-              variant={selectedDateTag === 'pastMonth' ? 'contained' : 'outlined'}
-              color="primary"
-              fullWidth
-            >
-              Past Month
-            </Button>
-          </Grid>
-          <Grid item xs={6} sm="auto">
-            <Button
-              onClick={() => {
-                setSelectedDateTag('all');
-                setCustomDate('');
-              }}
-              variant={selectedDateTag === 'all' ? 'contained' : 'outlined'}
-              color="primary"
-              fullWidth
-            >
-              All
-            </Button>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              label="Custom Date"
-              type="date"
-              value={selectedDateTag === 'custom' ? customDate : ''}
-              onChange={(e) => {
-                setSelectedDateTag('custom');
-                setCustomDate(e.target.value);
-              }}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              variant="outlined"
-            />
-          </Grid>
-        </Grid>
+        <DateRangeChips
+          activeTag={activeTag}
+          setActiveTag={setActiveTag}
+          setDateRange={(range) => handleDateRangeChange(range)}
+          handleAllTagClick={handleAllTagClick}
+          handleCustomDayChange={handleCustomDayChange}
+          handleMonthSelection={handleMonthSelection}
+          handleCustomDateChange={(start, end) => {
+            setActiveTag('customRange');
+            setDateRange({ 
+              start: start,
+              end: end 
+            });
+          }}
+        />
       </Paper>
 
       {/* Action Buttons */}

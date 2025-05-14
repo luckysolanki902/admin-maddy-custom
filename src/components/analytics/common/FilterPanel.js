@@ -3,10 +3,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Box, Grid, TextField, FormControl, InputLabel, Select, MenuItem, Button } from '@mui/material';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { Box, Grid, FormControl, InputLabel, Select, MenuItem, Button } from '@mui/material';
 import CircularProgress from '@mui/material/CircularProgress';
+import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 
 const FilterPanel = ({ filters, setFilters, resetFilters }) => {
   const [filterOptions, setFilterOptions] = useState({
@@ -14,6 +13,7 @@ const FilterPanel = ({ filters, setFilters, resetFilters }) => {
     categories: [],
   });
   const [loadingOptions, setLoadingOptions] = useState(true);
+  const [activeTag, setActiveTag] = useState('last7days');
 
   const fetchFilterOptions = async () => {
     try {
@@ -42,8 +42,53 @@ const FilterPanel = ({ filters, setFilters, resetFilters }) => {
     setFilters({ ...filters, [field]: event.target.value });
   };
 
-  const handleDateChange = (field) => (newValue) => {
-    setFilters({ ...filters, [field]: newValue });
+  // DateRangeChips handlers
+  const handleAllTagClick = () => {
+    setActiveTag('all');
+    setFilters({
+      ...filters, 
+      startDate: new Date('2020-01-01'), 
+      endDate: new Date()
+    });
+  };
+
+  const handleCustomDayChange = (date) => {
+    if (date && date.isValid()) {
+      setActiveTag('custom');
+      setFilters({
+        ...filters,
+        startDate: date.startOf('day').toDate(),
+        endDate: date.endOf('day').toDate()
+      });
+    }
+  };
+
+  const handleCustomDateChange = (start, end) => {
+    if (start && start.isValid() && end && end.isValid()) {
+      setActiveTag('customRange');
+      setFilters({
+        ...filters,
+        startDate: start.startOf('day').toDate(),
+        endDate: end.endOf('day').toDate()
+      });
+    }
+  };
+
+  const handleMonthSelection = (tag) => {
+    let start, end;
+    if (tag === 'thisMonth') {
+      start = dayjs().startOf('month').toDate();
+      end = dayjs().endOf('day').toDate();
+    } else {
+      start = dayjs().subtract(1, 'month').startOf('month').toDate();
+      end = dayjs().subtract(1, 'month').endOf('month').toDate();
+    }
+    setActiveTag(tag);
+    setFilters({
+      ...filters,
+      startDate: start,
+      endDate: end
+    });
   };
 
   if (loadingOptions) {
@@ -56,90 +101,85 @@ const FilterPanel = ({ filters, setFilters, resetFilters }) => {
 
   return (
     <Box sx={{ padding: '1rem', backgroundColor: '#1E1E1E', borderRadius: '8px', marginBottom: '1rem' }}>
-      <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <Grid container spacing={2} alignItems="center">
-          {/* Start Date */}
-          <Grid item xs={12} sm={6} md={3}>
-            <DatePicker
-              label="Start Date"
-              value={filters.startDate}
-              onChange={handleDateChange('startDate')}
-              renderInput={(params) => <TextField {...params} fullWidth size="small" sx={{ input: { color: 'white' } }} />}
-            />
-          </Grid>
-
-          {/* End Date */}
-          <Grid item xs={12} sm={6} md={3}>
-            <DatePicker
-              label="End Date"
-              value={filters.endDate}
-              onChange={handleDateChange('endDate')}
-              renderInput={(params) => <TextField {...params} fullWidth size="small" sx={{ input: { color: 'white' } }} />}
-            />
-          </Grid>
-
-          {/* Source Filter */}
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel id="source-filter-label" sx={{ color: 'white' }}>Source</InputLabel>
-              <Select
-                labelId="source-filter-label"
-                value={filters.source}
-                label="Source"
-                onChange={handleChange('source')}
-                sx={{
-                  color: 'white',
-                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2D7EE8' },
-                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#2D7EE8' },
-                  '.MuiSvgIcon-root ': { fill: 'white !important' },
-                }}
-              >
-                <MenuItem value="">All</MenuItem>
-                {filterOptions.salesSources.map((source, index) => (
-                  <MenuItem key={index} value={source}>
-                    {source}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* Category Filter */}
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel id="category-filter-label" sx={{ color: 'white' }}>Category</InputLabel>
-              <Select
-                labelId="category-filter-label"
-                value={filters.category}
-                label="Category"
-                onChange={handleChange('category')}
-                sx={{
-                  color: 'white',
-                  '.MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2D7EE8' },
-                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#2D7EE8' },
-                  '.MuiSvgIcon-root ': { fill: 'white !important' },
-                }}
-              >
-                <MenuItem value="">All</MenuItem>
-                {filterOptions.categories.map((category, index) => (
-                  <MenuItem key={index} value={category}>
-                    {category}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* Reset Filters Button */}
-          <Grid item xs={12} sm={6} md={3}>
-            <Button variant="outlined" color="warning" fullWidth onClick={resetFilters}>
-              Reset Filters
-            </Button>
-          </Grid>
+      <Grid container spacing={2} alignItems="center">
+        {/* Date Range */}
+        <Grid item xs={12}>
+          <DateRangeChips
+            activeTag={activeTag}
+            setActiveTag={setActiveTag}
+            setDateRange={(range) => setFilters({
+              ...filters,
+              startDate: range.start, 
+              endDate: range.end
+            })}
+            handleAllTagClick={handleAllTagClick}
+            handleCustomDayChange={handleCustomDayChange}
+            handleCustomDateChange={handleCustomDateChange}
+            handleMonthSelection={handleMonthSelection}
+          />
         </Grid>
-      </LocalizationProvider>
+
+        {/* Source Filter */}
+        <Grid item xs={12} sm={6} md={4}>
+          <FormControl fullWidth size="small">
+            <InputLabel id="source-filter-label" sx={{ color: 'white' }}>Source</InputLabel>
+            <Select
+              labelId="source-filter-label"
+              value={filters.source}
+              label="Source"
+              onChange={handleChange('source')}
+              sx={{
+                color: 'white',
+                '.MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2D7EE8' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#2D7EE8' },
+                '.MuiSvgIcon-root ': { fill: 'white !important' },
+              }}
+            >
+              <MenuItem value="">All</MenuItem>
+              {filterOptions.salesSources.map((source, index) => (
+                <MenuItem key={index} value={source}>
+                  {source}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+
+        {/* Category Filter */}
+        <Grid item xs={12} sm={6} md={4}>
+          <FormControl fullWidth size="small">
+            <InputLabel id="category-filter-label" sx={{ color: 'white' }}>Category</InputLabel>
+            <Select
+              labelId="category-filter-label"
+              value={filters.category}
+              label="Category"
+              onChange={handleChange('category')}
+              sx={{
+                color: 'white',
+                '.MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2D7EE8' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#2D7EE8' },
+                '.MuiSvgIcon-root ': { fill: 'white !important' },
+              }}
+            >
+              <MenuItem value="">All</MenuItem>
+              {filterOptions.categories.map((category, index) => (
+                <MenuItem key={index} value={category}>
+                  {category}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+
+        {/* Reset Filters Button */}
+        <Grid item xs={12} sm={6} md={4}>
+          <Button variant="outlined" color="warning" fullWidth onClick={resetFilters}>
+            Reset Filters
+          </Button>
+        </Grid>
+      </Grid>
     </Box>
   );
 };

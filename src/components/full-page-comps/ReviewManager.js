@@ -286,9 +286,7 @@ const ManageReviews = () => {
     setUploadError("");
   };
 
-  const handleInputChange = (
-    e
-  ) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target;
     setCurrentReview((prev) => ({ ...prev, [name]: value }));
   };
@@ -410,7 +408,7 @@ const ManageReviews = () => {
       for (const localImg of localImages) {
         const compressedFile = await imageCompression(localImg.file, {
           maxSizeMB: 0.6,
-          maxWidthOrHeight: 1920/2,
+          maxWidthOrHeight: 1920 / 2,
           useWebWorker: true,
         });
 
@@ -493,22 +491,39 @@ const ManageReviews = () => {
     setCurrentPage(1);
   };
 
+  const handleCustomDayChange = (date) => {
+    setActiveTag("custom");
+    setDateRange({
+      start: date.startOf("day"),
+      end: date.endOf("day"),
+    });
+    setCurrentPage(1);
+  };
+
+  const handleCustomDateChange = (start, end) => {
+    setActiveTag("customRange");
+    setDateRange({
+      start: start.startOf("day"),
+      end: end.endOf("day"),
+    });
+    setCurrentPage(1);
+  };
+
   const handleMonthSelection = (tag) => {
+    setActiveTag(tag);
     if (tag === "thisMonth") {
-      setActiveTag("thisMonth");
       setDateRange({
         start: dayjs().startOf("month"),
         end: dayjs().endOf("day"),
       });
-      setCurrentPage(1);
     } else if (tag === "lastMonth") {
-      setActiveTag("lastMonth");
+      const lastMonth = dayjs().subtract(1, "month");
       setDateRange({
-        start: dayjs().subtract(1, "month").startOf("month"),
-        end: dayjs().subtract(1, "month").endOf("month"),
+        start: lastMonth.startOf("month"),
+        end: lastMonth.endOf("month"),
       });
-      setCurrentPage(1);
     }
+    setCurrentPage(1);
   };
 
   // ---------------------
@@ -522,7 +537,7 @@ const ManageReviews = () => {
           padding: 3,
           backgroundColor: theme.palette.background.paper,
           borderRadius: 2,
-          minHeight:'90vh'
+          minHeight: "90vh",
         }}
       >
         <Typography variant="h4" align="center" gutterBottom>
@@ -549,15 +564,11 @@ const ManageReviews = () => {
         <DateRangeChips
           activeTag={activeTag}
           setActiveTag={setActiveTag}
-          setDateRange={(range) => {
-            setDateRange(range);
-            setCurrentPage(1);
-          }}
+          setDateRange={setDateRange}
           setCurrentPage={setCurrentPage}
-          setProblematicCurrentPage={setCurrentPage}
           handleAllTagClick={handleAllTagClick}
-          handleCustomDayChange={() => {}}
-          handleCustomDateChange={() => {}}
+          handleCustomDayChange={handleCustomDayChange}
+          handleCustomDateChange={handleCustomDateChange}
           handleMonthSelection={handleMonthSelection}
         />
 
@@ -1001,7 +1012,7 @@ const ManageReviews = () => {
                   {localImages.map((localImg, index) => (
                     <Box key={index} position="relative">
                       <Image
-                      width={100}
+                        width={100}
                         height={100}
                         src={localImg.previewUrl}
                         alt={`New ${index + 1}`}
@@ -1061,9 +1072,7 @@ const ManageReviews = () => {
             )}
           </Stack>
         </DialogContent>
-        <DialogActions
-          sx={{ padding: 2 }}
-        >
+        <DialogActions sx={{ padding: 2 }}>
           <Button onClick={handleDialogClose} color="inherit">
             Cancel
           </Button>

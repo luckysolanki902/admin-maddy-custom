@@ -10,10 +10,8 @@ import {
   Chip,
   Skeleton,
   Stack,
-  TextField,
   Paper,
 } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
   ResponsiveContainer,
   BarChart,
@@ -40,7 +38,6 @@ export default function CouponStatsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedCoupons, setSelectedCoupons] = useState([]);
-  const [customDate, setCustomDate] = useState(dayjs());
 
   // Palette for bars/lines
   const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#413ea0'];
@@ -114,9 +111,15 @@ export default function CouponStatsPage() {
 
   const handleCustomDayChange = (date) => {
     if (date && date.isValid()) {
-      setCustomDate(date);
       setActiveTag('custom');
       setDateRange({ start: date.startOf('day'), end: date.endOf('day') });
+    }
+  };
+
+  const handleCustomDateChange = (start, end) => {
+    if (start && start.isValid() && end && end.isValid()) {
+      setActiveTag('customRange');
+      setDateRange({ start: start.startOf('day'), end: end.endOf('day') });
     }
   };
 
@@ -157,37 +160,24 @@ export default function CouponStatsPage() {
         setDateRange={setDateRange}
         handleAllTagClick={handleAllTagClick}
         handleCustomDayChange={handleCustomDayChange}
-        handleCustomDateChange={null}
+        handleCustomDateChange={handleCustomDateChange}
         handleMonthSelection={handleMonthSelection}
       />
 
-      {activeTag === 'custom' && (
-        <DatePicker
-          label="Pick a day"
-          value={customDate}
-          onChange={handleCustomDayChange}
-          minDate={dayjs('2021-04-06')}
-          renderInput={(params) => (
-            <TextField {...params} sx={{ mt: 2 }} fullWidth />
-          )}
-        />
-      )}
-
       {/* Summary cards */}
       <Grid container spacing={2} mt={3}>
-        {[
-          { label: 'Uses', value: data?.overall.usageCount || 0 },
-          {
-            label: 'Total Discount',
-            value: data?.overall.totalDiscount || 0,
-            isCurrency: true,
-          },
-          {
-            label: 'Avg. Discount',
-            value: data?.overall.averageDiscount || 0,
-            isCurrency: true,
-          },
-        ].map(({ label, value, isCurrency }) => (
+        {[{
+          label: 'Uses',
+          value: data?.overall.usageCount || 0
+        }, {
+          label: 'Total Discount',
+          value: data?.overall.totalDiscount || 0,
+          isCurrency: true
+        }, {
+          label: 'Avg. Discount',
+          value: data?.overall.averageDiscount || 0,
+          isCurrency: true
+        }].map(({ label, value, isCurrency }) => (
           <Grid item xs={12} sm={4} key={label}>
             <Card sx={{ borderRadius: 3, boxShadow: 3 }}>
               <CardContent>

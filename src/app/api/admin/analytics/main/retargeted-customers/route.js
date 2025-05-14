@@ -19,7 +19,11 @@ export async function GET(req) {
           'abandoned-cart-first-campaign',
           'abandoned-cart-second-campaign',
           'abandonedcart_rem1',
-          'abandonedcart_rem2'
+          'abandonedcart_rem2',
+          'abandoned_rem',
+          'abandoned_rem2',
+          'ac_1',
+          'ac2'
         ]
       },
       successfulCount: { $gt: 0 }

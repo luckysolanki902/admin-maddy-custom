@@ -11,10 +11,6 @@ import {
   Button,
   Tab,
   Tabs,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Stack,
   CircularProgress
 } from '@mui/material';
@@ -25,7 +21,6 @@ import { useInView } from 'react-intersection-observer';
 import { useSpring, animated } from '@react-spring/web';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import SalesSourcesChart from '@/components/analytics/main/SalesSourcesChart';
 import CartSourcesChart from '@/components/analytics/main/CartSourcesChart';
 import ReturningPayingUsersChart from '@/components/analytics/main/ReturningPayingUsersChart';
@@ -225,14 +220,6 @@ export default function AnalyticsDashboard({ admin = false }) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScroll]);
 
-  /* ------------ DATE PICKER STATE ------------ */
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [rangePickerOpen, setRangePickerOpen] = useState(false);
-  const [tempDateRange, setTempDateRange] = useState({
-    start: dayjs().subtract(6, 'day').startOf('day').toDate(),
-    end: dayjs().endOf('day').toDate()
-  });
-
   /* ------------ DATE STATE ------------ */
   const [dateRange, setDateRange] = useState({
     start: dayjs().subtract(6, 'day').startOf('day').toDate(),
@@ -242,6 +229,24 @@ export default function AnalyticsDashboard({ admin = false }) {
   
   const dateRangeKey = useMemo(() => {
     return `${dayjs(dateRange.start).format('YYYY-MM-DD')}_${dayjs(dateRange.end).format('YYYY-MM-DD')}`;
+  }, [dateRange]);
+
+  useEffect(() => {
+    const startFormatted = dateRange.start instanceof Date 
+      ? dateRange.start.toISOString() 
+      : (dateRange.start && typeof dateRange.start === 'object' && dateRange.start.toDate) 
+        ? dateRange.start.toDate().toISOString() 
+        : null;
+    
+    const endFormatted = dateRange.end instanceof Date 
+      ? dateRange.end.toISOString() 
+      : (dateRange.end && typeof dateRange.end === 'object' && dateRange.end.toDate) 
+        ? dateRange.end.toDate().toISOString() 
+        : null;
+
+    if (startFormatted && endFormatted) {
+      // Use the formatted dates for API calls
+    }
   }, [dateRange]);
 
   /* ------------ VISIBILITY TRACKING ------------ */
@@ -497,19 +502,19 @@ export default function AnalyticsDashboard({ admin = false }) {
   }, []);
 
   const handleCustomDayChange = useCallback((date) => {
-    setDatePickerOpen(true);
-    setTempDateRange({
+    setDateRange({
       start: date.startOf('day').toDate(),
       end: date.endOf('day').toDate()
     });
+    setActiveTag('custom');
   }, []);
   
   const handleCustomDateChange = useCallback((start, end) => {
-    setRangePickerOpen(true);
-    setTempDateRange({
+    setDateRange({
       start: start.startOf('day').toDate(),
       end: end.endOf('day').toDate()
     });
+    setActiveTag('customRange');
   }, []);
 
   const scrollTo = useCallback((id) => {
@@ -593,8 +598,6 @@ export default function AnalyticsDashboard({ admin = false }) {
               activeTag={activeTag}
               setActiveTag={setActiveTag}
               setDateRange={setDateRange}
-              setCurrentPage={() => {}} // Not needed for this component
-              setProblematicCurrentPage={() => {}} // Not needed for this component
               handleAllTagClick={handleAllTagClick}
               handleCustomDayChange={handleCustomDayChange}
               handleCustomDateChange={handleCustomDateChange}
@@ -602,155 +605,6 @@ export default function AnalyticsDashboard({ admin = false }) {
             />
           </Box>
         </GlassAppBar>
-
-        {/* Date Picker Dialog */}
-        <Dialog 
-          open={datePickerOpen || rangePickerOpen} 
-          onClose={() => {
-            setDatePickerOpen(false);
-            setRangePickerOpen(false);
-          }}
-          PaperProps={{
-            sx: {
-              background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-              borderRadius: 3,
-              border: theme => `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-              minWidth: rangePickerOpen ? 400 : 320
-            }
-          }}
-        >
-          <DialogTitle sx={{ color: 'white' }}>
-            {rangePickerOpen ? 'Select Date Range' : 'Select Date'}
-          </DialogTitle>
-          <DialogContent>
-            <Box sx={{ mt: 2 }}>
-              {rangePickerOpen ? (
-                <Stack spacing={2}>
-                  <DatePicker
-                    label="Start Date"
-                    value={dayjs(tempDateRange.start)}
-                    onChange={(newValue) => {
-                      if (newValue) {
-                        setTempDateRange(prev => ({
-                          ...prev,
-                          start: newValue.startOf('day').toDate()
-                        }));
-                      }
-                    }}
-                    maxDate={dayjs(tempDateRange.end)}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        sx: {
-                          '& .MuiInputBase-root': {
-                            color: 'white'
-                          },
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: 'rgba(255, 255, 255, 0.2)'
-                          },
-                          '& .MuiIconButton-root': {
-                            color: 'white'
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)'
-                          }
-                        }
-                      }
-                    }}
-                  />
-                  <DatePicker
-                    label="End Date"
-                    value={dayjs(tempDateRange.end)}
-                    onChange={(newValue) => {
-                      if (newValue) {
-                        setTempDateRange(prev => ({
-                          ...prev,
-                          end: newValue.endOf('day').toDate()
-                        }));
-                      }
-                    }}
-                    minDate={dayjs(tempDateRange.start)}
-                    maxDate={dayjs()}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        sx: {
-                          '& .MuiInputBase-root': {
-                            color: 'white'
-                          },
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: 'rgba(255, 255, 255, 0.2)'
-                          },
-                          '& .MuiIconButton-root': {
-                            color: 'white'
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: 'rgba(255, 255, 255, 0.7)'
-                          }
-                        }
-                      }
-                    }}
-                  />
-                </Stack>
-              ) : (
-                <DatePicker
-                  value={dayjs(tempDateRange.start)}
-                  onChange={(newValue) => {
-                    if (newValue) {
-                      setTempDateRange({
-                        start: newValue.startOf('day').toDate(),
-                        end: newValue.endOf('day').toDate()
-                      });
-                    }
-                  }}
-                  maxDate={dayjs()}
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      sx: {
-                        '& .MuiInputBase-root': {
-                          color: 'white'
-                        },
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: 'rgba(255, 255, 255, 0.2)'
-                        },
-                        '& .MuiIconButton-root': {
-                          color: 'white'
-                        },
-                        '& .MuiInputLabel-root': {
-                          color: 'rgba(255, 255, 255, 0.7)'
-                        }
-                      }
-                    }
-                  }}
-                />
-              )}
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button 
-              onClick={() => {
-                setDatePickerOpen(false);
-                setRangePickerOpen(false);
-              }}
-              sx={{ color: 'rgba(255,255,255,0.7)' }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                setDateRange(tempDateRange);
-                setActiveTag(rangePickerOpen ? 'customRange' : 'custom');
-                setDatePickerOpen(false);
-                setRangePickerOpen(false);
-              }}
-              variant="contained"
-              color="primary"
-            >
-              Apply
-            </Button>
-          </DialogActions>
-        </Dialog>
 
         {/* Loading indicator for data changes */}
         {isUpdatingData && (

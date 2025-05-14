@@ -38,15 +38,16 @@ import InfoIcon from '@mui/icons-material/Info';
 import * as FileSaver from 'file-saver';
 import dayjs from 'dayjs';
 import PropTypes from 'prop-types';
+import DateRangeChips from 'path-to-DateRangeChips'; // Import DateRangeChips component
 
 const AbandonedCartsData = () => {
 
     const [applyDateFilter, setApplyDateFilter] = useState(false);
-    const [dateRange, setDateRange] = useState('all'); // Single select
-
-    // Custom Date Range State
-    const [customStartDate, setCustomStartDate] = useState(null);
-    const [customEndDate, setCustomEndDate] = useState(null);
+    const [dateRange, setDateRange] = useState({ 
+        start: null, 
+        end: null 
+    });
+    const [activeTag, setActiveTag] = useState('all');
 
     // Item Filters State
     const [applyItemFilter, setApplyItemFilter] = useState(false);
@@ -115,8 +116,40 @@ const AbandonedCartsData = () => {
 
     const availableItems = ['Graphic Helmets', 'Full Bike Wraps', 'Tank Wraps', 'Bonnet Wraps', 'Window Pillar Wraps'];
     
-    const handleDateRangeChange = (range) => {
-        setDateRange(range);
+    const handleAllTagClick = () => {
+        setActiveTag('all');
+        setDateRange({ start: null, end: null });
+    };
+
+    const handleCustomDayChange = (date) => {
+        setActiveTag('custom');
+        setDateRange({ 
+            start: date.startOf('day').toDate(),
+            end: date.endOf('day').toDate() 
+        });
+    };
+    
+    const handleCustomDateChange = (start, end) => {
+        setActiveTag('customRange');
+        setDateRange({ 
+            start: start.startOf('day').toDate(),
+            end: end.endOf('day').toDate() 
+        });
+    };
+    
+    const handleMonthSelection = (tag) => {
+        if (tag === 'thisMonth') {
+            setDateRange({
+                start: dayjs().startOf('month').toDate(),
+                end: dayjs().endOf('month').toDate()
+            });
+        } else if (tag === 'lastMonth') {
+            setDateRange({
+                start: dayjs().subtract(1, 'month').startOf('month').toDate(),
+                end: dayjs().subtract(1, 'month').endOf('month').toDate()
+            });
+        }
+        setActiveTag(tag);
     };
 
     // Table States
@@ -137,78 +170,13 @@ const AbandonedCartsData = () => {
 
             // Payment Status is implicitly handled in the backend (only users with no successful orders are fetched)
 
-            // Apply Date Filter (assuming dateRange is managed elsewhere or default)
-            if (applyDateFilter) {
-                        const dateConditions = [];
-            
-                        const today = dayjs().startOf('day');
-                        switch (dateRange) {
-                            case 'today':
-                                dateConditions.push({
-                                    createdAt: {
-                                        $gte: today.toDate(),
-                                        $lte: today.endOf('day').toDate(),
-                                    },
-                                });
-                                break;
-                            case 'yesterday':
-                                const yesterday = dayjs().subtract(1, 'day').startOf('day');
-                                dateConditions.push({
-                                    createdAt: {
-                                        $gte: yesterday.toDate(),
-                                        $lte: yesterday.endOf('day').toDate(),
-                                    },
-                                });
-                                break;
-                            case 'lastWeek':
-                                const lastWeek = dayjs().subtract(7, 'day').startOf('day');
-                                dateConditions.push({
-                                    createdAt: {
-                                        $gte: lastWeek.toDate(),
-                                    },
-                                });
-                                break;
-                            case 'thisMonth':
-                                const startOfMonth = dayjs().startOf('month').toDate();
-                                dateConditions.push({
-                                    createdAt: {
-                                        $gte: startOfMonth,
-                                    },
-                                });
-                                break;
-                            case 'custom':
-                                if (customStartDate && customEndDate) {
-                                    dateConditions.push({
-                                        createdAt: {
-                                            $gte: dayjs(customStartDate).startOf('day').toDate(),
-                                            $lte: dayjs(customEndDate).endOf('day').toDate(),
-                                        },
-                                    });
-                                } else if (customStartDate) {
-                                    dateConditions.push({
-                                        createdAt: {
-                                            $gte: dayjs(customStartDate).startOf('day').toDate(),
-                                        },
-                                    });
-                                } else if (customEndDate) {
-                                    dateConditions.push({
-                                        createdAt: {
-                                            $lte: dayjs(customEndDate).endOf('day').toDate(),
-                                        },
-                                    });
-                                }
-                                break;
-                            case 'all':
-                            default:
-                                // No date filter
-                                break;
-                        }
-                        if (dateConditions.length > 0) {
-                            query.createdAt = { $or: dateConditions };
-                        }
-                       
+            // Apply Date Filter
+            if (applyDateFilter && dateRange.start && dateRange.end) {
+                query.createdAt = {
+                    $gte: dateRange.start,
+                    $lte: dateRange.end,
+                };
             }
-            // If you have dateRange in the component state, include it here
 
             // Apply Item Filters
             if (applyItemFilter && items.length > 0) {
@@ -271,7 +239,7 @@ const AbandonedCartsData = () => {
     useEffect(() => {
         fetchTableData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedColumns,dateRange, applyItemFilter, items, applyLoyaltyFilter, loyaltyFilters, page, pageSize, tags,customStartDate,customEndDate]);
+    }, [selectedColumns, dateRange, applyItemFilter, items, applyLoyaltyFilter, loyaltyFilters, page, pageSize, tags]);
 
     // Handle page change
     const handleChangePage = (event, newPage) => {
@@ -288,75 +256,12 @@ const AbandonedCartsData = () => {
     const handleDownloadCSV = async () => {
         const query = {};
 
-        if (applyDateFilter) {
-            const dateConditions = [];
-
-            const today = dayjs().startOf('day');
-            switch (dateRange) {
-                case 'today':
-                    dateConditions.push({
-                        createdAt: {
-                            $gte: today.toDate(),
-                            $lte: today.endOf('day').toDate(),
-                        },
-                    });
-                    break;
-                case 'yesterday':
-                    const yesterday = dayjs().subtract(1, 'day').startOf('day');
-                    dateConditions.push({
-                        createdAt: {
-                            $gte: yesterday.toDate(),
-                            $lte: yesterday.endOf('day').toDate(),
-                        },
-                    });
-                    break;
-                case 'lastWeek':
-                    const lastWeek = dayjs().subtract(7, 'day').startOf('day');
-                    dateConditions.push({
-                        createdAt: {
-                            $gte: lastWeek.toDate(),
-                        },
-                    });
-                    break;
-                case 'thisMonth':
-                    const startOfMonth = dayjs().startOf('month').toDate();
-                    dateConditions.push({
-                        createdAt: {
-                            $gte: startOfMonth,
-                        },
-                    });
-                    break;
-                case 'custom':
-                    if (customStartDate && customEndDate) {
-                        dateConditions.push({
-                            createdAt: {
-                                $gte: dayjs(customStartDate).startOf('day').toDate(),
-                                $lte: dayjs(customEndDate).endOf('day').toDate(),
-                            },
-                        });
-                    } else if (customStartDate) {
-                        dateConditions.push({
-                            createdAt: {
-                                $gte: dayjs(customStartDate).startOf('day').toDate(),
-                            },
-                        });
-                    } else if (customEndDate) {
-                        dateConditions.push({
-                            createdAt: {
-                                $lte: dayjs(customEndDate).endOf('day').toDate(),
-                            },
-                        });
-                    }
-                    break;
-                case 'all':
-                default:
-                    // No date filter
-                    break;
-            }
-            if (dateConditions.length > 0) {
-                query.createdAt = { $or: dateConditions };
-            }
-      }
+        if (applyDateFilter && dateRange.start && dateRange.end) {
+            query.createdAt = {
+                $gte: dateRange.start,
+                $lte: dateRange.end,
+            };
+        }
 
         // Apply Item Filters
         if (applyItemFilter && items.length > 0) {
@@ -457,8 +362,7 @@ const AbandonedCartsData = () => {
                 <Divider />
 
                 {/* Date Range Filter */}
-                 {/* Date Range Filter */}
-                 <Accordion>
+                <Accordion>
                     <AccordionSummary
                         expandIcon={<ExpandMoreIcon />}
                         aria-controls="date-range-content"
@@ -480,62 +384,20 @@ const AbandonedCartsData = () => {
                             />
                             {applyDateFilter && (
                                 <Box sx={{ marginTop: 2 }}>
-                                    <Grid container spacing={2} alignItems="center">
-                                        {['today', 'yesterday', 'lastWeek', 'thisMonth', 'custom', 'all'].map((range) => (
-                                            <Grid item key={range}>
-                                                <Chip
-                                                    label={
-                                                        range === 'today'
-                                                            ? 'Today'
-                                                            : range === 'yesterday'
-                                                                ? 'Yesterday'
-                                                                : range === 'lastWeek'
-                                                                    ? 'Last Week'
-                                                                    : range === 'thisMonth'
-                                                                        ? 'This Month'
-                                                                        : range === 'custom'
-                                                                            ? 'Custom'
-                                                                            : 'All Time'
-                                                    }
-                                                    clickable
-                                                    onClick={() => handleDateRangeChange(range)}
-                                                    sx={{
-                                                        backgroundColor: dateRange === range ? 'success.dark' : 'grey.300',
-                                                        color: dateRange === range ? 'white' : 'black',
-                                                        '&:hover': {
-                                                            backgroundColor: dateRange === range ? 'success.main' : 'grey.400',
-                                                        },
-                                                    }}
-                                                />
-                                            </Grid>
-                                        ))}
-                                    </Grid>
-
-                                    {dateRange === 'custom' && (
-                                        <Box sx={{ display: 'flex', gap: 2, marginTop: 3 }}>
-                                            <LocalizationProvider dateAdapter={AdapterDayjs}>
-                                                <DatePicker
-                                                    label="Start Date"
-                                                    value={customStartDate}
-                                                    onChange={(newValue) => setCustomStartDate(newValue)}
-                                                    renderInput={(params) => <TextField {...params} size='small' />}
-                                                />
-                                                <DatePicker
-                                                    label="End Date"
-                                                    value={customEndDate}
-                                                    onChange={(newValue) => setCustomEndDate(newValue)}
-                                                    renderInput={(params) => <TextField {...params} size='small' />}
-                                                />
-                                            </LocalizationProvider>
-                                        </Box>
-                                    )}
+                                    <DateRangeChips
+                                        activeTag={activeTag}
+                                        setActiveTag={setActiveTag}
+                                        setDateRange={setDateRange}
+                                        handleAllTagClick={handleAllTagClick}
+                                        handleCustomDayChange={handleCustomDayChange}
+                                        handleCustomDateChange={handleCustomDateChange}
+                                        handleMonthSelection={handleMonthSelection}
+                                    />
                                 </Box>
                             )}
                         </FormControl>
                     </AccordionDetails>
                 </Accordion>
-                {/* If you have a date range component, integrate it here */}
-                {/* For simplicity, it's omitted in this example */}
 
                 {/* Item Filter */}
                 <Accordion>

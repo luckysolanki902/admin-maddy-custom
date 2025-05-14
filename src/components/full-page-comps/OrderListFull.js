@@ -24,13 +24,13 @@ import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 
 import OrdersList from '@/components/page-sections/OrdersList';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import FiltersDrawer from '@/components/page-sections/FiltersDrawer';
 import CustomerCard from '@/components/cards/CustomerCard';
+import { formatDate } from '@/utils/dateUtils';
 
 const ITEMS_PER_PAGE = 30;
 
@@ -350,33 +350,6 @@ const OrderListFull = ({ isAdmin }) => {
     setSearchInput('');
     setCurrentPage(1);
   };
-  const handleCustomDateChange = (start, end) => {
-    setDateRange({
-      start: start ? start.startOf('day') : null,
-      end: end ? end.endOf('day') : null,
-    });
-    setActiveTag(start && end ? 'customRange' : activeTag);
-    setCurrentPage(1);
-  };
-  const handleCustomDayChange = (d) => {
-    setDateRange({ start: d.startOf('day'), end: d.endOf('day') });
-    setActiveTag('custom');
-    setCurrentPage(1);
-  };
-  const handleMonthSelection = (type) => {
-    let start, end;
-    if (type === 'thisMonth') {
-      start = dayjs().startOf('month');
-      end = dayjs().endOf('day');
-      setActiveTag('thisMonth');
-    } else {
-      start = dayjs().subtract(1, 'month').startOf('month');
-      end = dayjs().subtract(1, 'month').endOf('month');
-      setActiveTag('lastMonth');
-    }
-    setDateRange({ start, end });
-    setCurrentPage(1);
-  };
   const toggleFiltersDrawer = (open) => () => setIsFiltersDrawerOpen(open);
   const applyFilters = () => {
     setCurrentPage(1);
@@ -447,6 +420,7 @@ const OrderListFull = ({ isAdmin }) => {
         setActiveTag={setActiveTag}
         setDateRange={setDateRange}
         setCurrentPage={setCurrentPage}
+        setProblematicCurrentPage={setProblematicCurrentPage}
         handleAllTagClick={handleAllTagClick}
         handleCustomDayChange={handleCustomDayChange}
         handleCustomDateChange={handleCustomDateChange}
@@ -457,36 +431,35 @@ const OrderListFull = ({ isAdmin }) => {
       <Box mb={2}>
         {activeTag === 'all' ? (
           <Typography>
-            All Orders (From {orderData.oldestOrderDate ? dayjs(orderData.oldestOrderDate).format('MMMM D, YYYY, dddd') : 'N/A'}
-            )
+            All Orders (From {orderData.oldestOrderDate ? formatDate(orderData.oldestOrderDate, 'MMMM D, YYYY, dddd') : 'N/A'})
           </Typography>
         ) : activeTag === 'today' ? (
-          <Typography>Orders for today ({dateRange.start.format('MMMM D, YYYY, dddd')})</Typography>
+          <Typography>Orders for today ({formatDate(dayjs(), 'MMMM D, YYYY, dddd')})</Typography>
         ) : activeTag === 'yesterday' ? (
-          <Typography>Orders for yesterday ({dayjs().subtract(1, 'day').format('MMMM D, YYYY, dddd')})</Typography>
+          <Typography>Orders for yesterday ({formatDate(dayjs().subtract(1, 'day'), 'MMMM D, YYYY, dddd')})</Typography>
         ) : activeTag === 'last7days' ? (
           <Typography>
-            Orders from last 7 days ({dayjs().subtract(6, 'day').format('MMMM D, YYYY, dddd')} to{' '}
-            {dayjs().format('MMMM D, YYYY, dddd')})
+            Orders from last 7 days ({formatDate(dayjs().subtract(6, 'day'), 'MMMM D, YYYY, dddd')} to{' '}
+            {formatDate(dayjs(), 'MMMM D, YYYY, dddd')})
           </Typography>
         ) : activeTag === 'last30days' ? (
           <Typography>
-            Orders from last 30 days ({dayjs().subtract(29, 'day').format('MMMM D, YYYY, dddd')} to{' '}
-            {dayjs().format('MMMM D, YYYY, dddd')})
+            Orders from last 30 days ({formatDate(dayjs().subtract(29, 'day'), 'MMMM D, YYYY, dddd')} to{' '}
+            {formatDate(dayjs(), 'MMMM D, YYYY, dddd')})
           </Typography>
         ) : activeTag === 'thisMonth' ? (
           <Typography>
-            Orders for this month ({dateRange.start.format('MMMM D, YYYY')} to {dayjs().format('MMMM D, YYYY')})
+            Orders for this month ({formatDate(dateRange.start, 'MMMM D, YYYY')} to {formatDate(dayjs(), 'MMMM D, YYYY')})
           </Typography>
         ) : activeTag === 'lastMonth' ? (
           <Typography>
-            Orders for last month ({dateRange.start.format('MMMM D, YYYY')} to {dateRange.end.format('MMMM D, YYYY')})
+            Orders for last month ({formatDate(dateRange.start, 'MMMM D, YYYY')} to {formatDate(dateRange.end, 'MMMM D, YYYY')})
           </Typography>
         ) : activeTag === 'custom' ? (
-          <Typography>Orders for {dateRange.start.format('MMMM D, YYYY, dddd')}</Typography>
+          <Typography>Orders for {formatDate(dateRange.start, 'MMMM D, YYYY, dddd')}</Typography>
         ) : (
           <Typography>
-            Orders from {dateRange.start.format('MMMM D, YYYY, dddd')} to {dateRange.end.format('MMMM D, YYYY, dddd')}
+            Orders from {formatDate(dateRange.start, 'MMMM D, YYYY, dddd')} to {formatDate(dateRange.end, 'MMMM D, YYYY, dddd')}
           </Typography>
         )}
       </Box>
@@ -564,37 +537,6 @@ const OrderListFull = ({ isAdmin }) => {
           setSingleItemCountOnly={setSingleItemCountOnly}
         />
       </Drawer>
-
-      {/* Custom Date Picker */}
-      {(activeTag === 'custom' || activeTag === 'customRange') && (
-        <Box display="flex" justifyContent="center" mb={2} gap={2}>
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            {activeTag === 'custom' ? (
-              <DatePicker
-                label="Select Date"
-                value={dateRange.start}
-                onChange={handleCustomDayChange}
-                renderInput={params => <TextField {...params} size="small" />}
-              />
-            ) : (
-              <>
-                <DatePicker
-                  label="Start Date"
-                  value={dateRange.start}
-                  onChange={val => handleCustomDateChange(val, dateRange.end)}
-                  renderInput={params => <TextField {...params} size="small" />}
-                />
-                <DatePicker
-                  label="End Date"
-                  value={dateRange.end}
-                  onChange={val => handleCustomDateChange(dateRange.start, val)}
-                  renderInput={params => <TextField {...params} size="small" />}
-                />
-              </>
-            )}
-          </LocalizationProvider>
-        </Box>
-      )}
 
       {/* Main Orders List */}
       <OrdersList

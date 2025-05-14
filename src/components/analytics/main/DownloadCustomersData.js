@@ -244,14 +244,33 @@ export default function DownloadCustomersData() {
               <AccordionDetails>
                 <DateRangeChips
                   activeTag={activeTag}
-                  hideCustomChips
                   setActiveTag={setActiveTag}
                   setDateRange={({ start, end }) => setDateRange({ start, end })}
                   handleAllTagClick={() => { setActiveTag('all'); setDateRange({ start: null, end: null }); }}
+                  handleCustomDayChange={(day) => {
+                    setActiveTag('custom');
+                    setDateRange({ 
+                      start: day.startOf('day').toDate(),
+                      end: day.endOf('day').toDate()
+                    });
+                  }}
+                  handleCustomDateChange={(start, end) => {
+                    setActiveTag('customRange');
+                    setDateRange({
+                      start: start.startOf('day').toDate(),
+                      end: end.endOf('day').toDate()
+                    });
+                  }}
                   handleMonthSelection={tag => {
                     let s, e;
-                    if (tag === 'thisMonth') { s = dayjs().startOf('month'); e = dayjs().endOf('month'); }
-                    else { s = dayjs().subtract(1, 'month').startOf('month'); e = dayjs().subtract(1, 'month').endOf('month'); }
+                    if (tag === 'thisMonth') { 
+                      s = dayjs().startOf('month'); 
+                      e = dayjs().endOf('month'); 
+                    }
+                    else { 
+                      s = dayjs().subtract(1, 'month').startOf('month'); 
+                      e = dayjs().subtract(1, 'month').endOf('month'); 
+                    }
                     setActiveTag(tag);
                     setDateRange({ start: s.toDate(), end: e.toDate() });
                   }}

@@ -38,7 +38,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import * as FileSaver from 'file-saver';
 import dayjs from 'dayjs';
 import PropTypes from 'prop-types';
-import DateRangeChips from 'path-to-DateRangeChips'; // Import DateRangeChips component
+import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 
 const AbandonedCartsData = () => {
 

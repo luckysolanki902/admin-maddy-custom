@@ -422,9 +422,6 @@ const OrderListFull = ({ isAdmin }) => {
         setCurrentPage={setCurrentPage}
         setProblematicCurrentPage={setProblematicCurrentPage}
         handleAllTagClick={handleAllTagClick}
-        handleCustomDayChange={handleCustomDayChange}
-        handleCustomDateChange={handleCustomDateChange}
-        handleMonthSelection={handleMonthSelection}
       />
 
       {/* Formatted Date Display */}

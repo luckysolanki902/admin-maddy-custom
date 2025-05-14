@@ -192,9 +192,6 @@ const CustomerSupportDashboard = () => {
           setCurrentPage={setCurrentPage}
           setProblematicCurrentPage={() => {}}
           handleAllTagClick={handleAllTagClick}
-          handleCustomDayChange={() => {}}
-          handleCustomDateChange={() => {}}
-          handleMonthSelection={handleMonthSelection}
         />
         {loading ? (
           <Grid container spacing={2} sx={{ mt: 2 }}>

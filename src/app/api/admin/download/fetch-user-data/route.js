@@ -21,6 +21,7 @@ export async function GET(req) {
       applyItemFilter, items = [],
       applyVehicleFilter, vehicles = [],
       applyLoyaltyFilter, loyalty = {},
+      utmCampaign = '',       // UTM campaign filter
       page = 1, pageSize = 10,
       sortField, sortOrder,
     } = JSON.parse(q);
@@ -29,6 +30,11 @@ export async function GET(req) {
     const match = { paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] } };
     if (activeTag !== 'all' && start && end) {
       match.createdAt = { $gte: new Date(start), $lte: new Date(end) };
+    }
+    
+    // Add UTM campaign filter if provided
+    if (utmCampaign) {
+      match['utmDetails.campaign'] = utmCampaign;
     }
 
     // 2) Category-by-ID filter

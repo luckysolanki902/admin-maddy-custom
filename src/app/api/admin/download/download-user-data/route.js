@@ -5,6 +5,7 @@ import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import SpecificCategory from '@/models/SpecificCategory';
 import Product from '@/models/Product';
+import CampaignLog from '@/models/CampaignLog';
 
 connectToDatabase();
 
@@ -35,9 +36,31 @@ export async function GET(req) {
       match.createdAt = { $gte: new Date(start), $lte: new Date(end) };
     }
     
-    // Add UTM campaign filter if provided
+    // If utmCampaign is provided, get filtered user/order IDs from CampaignLog
     if (utmCampaign) {
-      match['utmDetails.campaign'] = utmCampaign;
+      console.log("CSV Download: Filtering by campaign:", utmCampaign);
+      
+      const campaignField = mode === 'orders' ? 'order' : 'user';
+      console.log("Campaign field:", campaignField);
+      
+      const campaignResults = await CampaignLog.find({
+        campaignName: utmCampaign
+      }).distinct(campaignField);
+      
+      console.log(`Found ${campaignResults.length} records with campaign: ${utmCampaign}`);
+      
+      if (campaignResults.length === 0) {
+        console.log("No matching campaign records found");
+        // No matching records, return empty result
+        return NextResponse.json({ message: 'No records found' }, { status: 404 });
+      }
+      
+      // Add campaign filter to match
+      if (mode === 'orders') {
+        match._id = { $in: campaignResults };
+      } else {
+        match.user = { $in: campaignResults };
+      }
     }
 
     // 2) Category‐by‐ID filter
@@ -147,6 +170,44 @@ export async function GET(req) {
               }
             }
           }
+        },
+        // Add campaignName field
+        {
+          $lookup: {
+            from: 'campaignlogs',
+            localField: '_id', // _id here refers to the user ID after grouping
+            foreignField: 'user',
+            as: 'campaigns'
+          }
+        },
+        {
+          $addFields: {
+            utmCampaign: {
+              $cond: {
+                if: { $gt: [{ $size: "$campaigns" }, 0] },
+                then: { $arrayElemAt: ["$campaigns.campaignName", 0] },
+                else: "$utmCampaign" // Fall back to utmDetails.campaign if no campaign logs
+              }
+            }
+          }
+        },
+        // Add filteredCampaign field to track if this user has the campaign we're filtering by
+        {
+          $addFields: {
+            filteredCampaign: {
+              $reduce: {
+                input: "$campaigns",
+                initialValue: null,
+                in: {
+                  $cond: {
+                    if: { $eq: ["$$this.campaignName", utmCampaign] },
+                    then: "$$this.campaignName",
+                    else: "$$value"
+                  }
+                }
+              }
+            }
+          }
         }
       );
     } else {
@@ -163,6 +224,44 @@ export async function GET(req) {
           utmSource: '$utmDetails.source',
           utmMedium: '$utmDetails.medium',
           utmCampaign: '$utmDetails.campaign'
+        }
+      },
+      // Add campaignName field
+      {
+        $lookup: {
+          from: 'campaignlogs',
+          localField: '_id', // orderId
+          foreignField: 'order',
+          as: 'campaigns'
+        }
+      },
+      {
+        $addFields: {
+          utmCampaign: {
+            $cond: {
+              if: { $gt: [{ $size: "$campaigns" }, 0] },
+              then: { $arrayElemAt: ["$campaigns.campaignName", 0] },
+              else: "$utmCampaign" // Fall back to utmDetails.campaign if no campaign logs
+            }
+          }
+        }
+      },
+      // Add filteredCampaign field to track if this order has the campaign we're filtering by
+      {
+        $addFields: {
+          filteredCampaign: {
+            $reduce: {
+              input: "$campaigns",
+              initialValue: null,
+              in: {
+                $cond: {
+                  if: { $eq: ["$$this.campaignName", utmCampaign] },
+                  then: "$$this.campaignName",
+                  else: "$$value"
+                }
+              }
+            }
+          }
         }
       });
     }
@@ -240,6 +339,21 @@ export async function GET(req) {
           case 'utmSource': proj['UTM Source'] = '$utmSource'; break;
           case 'utmMedium': proj['UTM Medium'] = '$utmMedium'; break;
           case 'utmCampaign': proj['UTM Campaign'] = '$utmCampaign'; break;
+          case 'externalCampaign': 
+            proj['External Campaign'] = { 
+              $cond: [
+                // If filtering by campaign and that campaign exists for this user/order, show it
+                { $and: [{ $ne: [utmCampaign, ""] }, { $ne: ["$filteredCampaign", null] }] },
+                utmCampaign,
+                // Else if we have any campaigns, show the first one
+                { $cond: [
+                  { $gt: [{ $size: "$campaigns" }, 0] },
+                  { $arrayElemAt: ["$campaigns.campaignName", 0] },
+                  "-"
+                ]}
+              ]
+            }; 
+            break;
           case 'specificCategory': proj['Specific Category'] = '$specificCategory'; break;
           case 'orderCount': proj['Order Count'] = '$orderCount'; break;
         }
@@ -249,16 +363,37 @@ export async function GET(req) {
       proj['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
       proj['Order Count'] = '$orderCount';
       if (mode === 'orders') proj['Order ID'] = '$orderId';
+      // Add External Campaign as default with prioritization logic
+      proj['External Campaign'] = { 
+        $cond: [
+          // If filtering by campaign and that campaign exists for this user/order, show it
+          { $and: [{ $ne: [utmCampaign, ""] }, { $ne: ["$filteredCampaign", null] }] },
+          utmCampaign,
+          // Else if we have any campaigns, show the first one
+          { $cond: [
+            { $gt: [{ $size: "$campaigns" }, 0] },
+            { $arrayElemAt: ["$campaigns.campaignName", 0] },
+            "-"
+          ]}
+        ]
+      };
     }
     pipeline.push({ $project: proj });
 
     // 11) Sorting by projected columns
     const sortMap = {
-      orderId: 'Order ID', fullName: 'Full Name', phoneNumber: 'Phone Number',
-      city: 'City', itemPurchaseCounts: 'Item Purchase Counts',
-      totalAmountSpent: 'Total Amount Spent', utmSource: 'UTM Source',
-      utmMedium: 'UTM Medium', utmCampaign: 'UTM Campaign',
-      specificCategory: 'Specific Category', orderCount: 'Order Count'
+      orderId: 'Order ID',
+      fullName: 'Full Name', 
+      phoneNumber: 'Phone Number',
+      city: 'City', 
+      itemPurchaseCounts: 'Item Purchase Counts',
+      totalAmountSpent: 'Total Amount Spent', 
+      utmSource: 'UTM Source',
+      utmMedium: 'UTM Medium', 
+      utmCampaign: 'UTM Campaign',
+      externalCampaign: 'External Campaign', // Add External Campaign to sort map
+      specificCategory: 'Specific Category', 
+      orderCount: 'Order Count'
     };
     if (sortField && sortMap[sortField]) {
       pipeline.push({ $sort: { [sortMap[sortField]]: sortOrder === 'desc' ? -1 : 1 } });

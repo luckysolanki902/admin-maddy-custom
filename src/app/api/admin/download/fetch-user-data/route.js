@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import SpecificCategory from '@/models/SpecificCategory';
 import Product from '@/models/Product';
+import CampaignLog from '@/models/CampaignLog';
 
 connectToDatabase();
 
@@ -14,6 +15,9 @@ export async function GET(req) {
       return NextResponse.json({ message: 'Missing query' }, { status: 400 });
     }
 
+    const parsedQuery = JSON.parse(q);
+    console.log("Received query:", parsedQuery);
+    
     const {
       mode = 'users',         // 'users' or 'orders'
       start, end, activeTag,
@@ -24,17 +28,39 @@ export async function GET(req) {
       utmCampaign = '',       // UTM campaign filter
       page = 1, pageSize = 10,
       sortField, sortOrder,
-    } = JSON.parse(q);
+    } = parsedQuery;
 
-    // 1) Base match: only “paid” statuses
+    // 1) Base match: only "paid" statuses
     const match = { paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] } };
     if (activeTag !== 'all' && start && end) {
       match.createdAt = { $gte: new Date(start), $lte: new Date(end) };
     }
     
-    // Add UTM campaign filter if provided
+    // If utmCampaign is provided, get filtered user/order IDs from CampaignLog
     if (utmCampaign) {
-      match['utmDetails.campaign'] = utmCampaign;
+      console.log("Filtering by campaign:", utmCampaign);
+      
+      const campaignField = mode === 'orders' ? 'order' : 'user';
+      console.log("Campaign field:", campaignField);
+      
+      const campaignResults = await CampaignLog.find({
+        campaignName: utmCampaign
+      }).distinct(campaignField);
+      
+      console.log(`Found ${campaignResults.length} records with campaign: ${utmCampaign}`);
+      
+      if (campaignResults.length === 0) {
+        console.log("No matching campaign records found");
+        // No matching records, return empty result
+        return NextResponse.json({ customers: [], totalRecords: 0 });
+      }
+      
+      // Add campaign filter to match
+      if (mode === 'orders') {
+        match._id = { $in: campaignResults };
+      } else {
+        match.user = { $in: campaignResults };
+      }
     }
 
     // 2) Category-by-ID filter
@@ -136,6 +162,14 @@ export async function GET(req) {
               }
             }
           }
+        },
+        {
+          $lookup: {
+            from: 'campaignlogs',
+            localField: '_id',
+            foreignField: 'user',
+            as: 'campaigns'
+          }
         }
       );
 
@@ -154,8 +188,42 @@ export async function GET(req) {
           utmMedium: '$utmDetails.medium',
           utmCampaign: '$utmDetails.campaign'
         }
+      },
+      {
+        $lookup: {
+          from: 'campaignlogs',
+          localField: '_id',
+          foreignField: 'order',
+          as: 'campaigns'
+        }
       });
     }
+    
+    // Add campaign data to results - prioritize the filtered campaign if it exists
+    pipeline.push({
+      $addFields: {
+        utmCampaign: {
+          $cond: {
+            if: { $gt: [{ $size: "$campaigns" }, 0] },
+            then: "$utmDetails.campaign",
+            else: "$utmCampaign" 
+          }
+        },
+        filteredCampaign: {
+          $reduce: {
+            input: "$campaigns",
+            initialValue: null,
+            in: {
+              $cond: {
+                if: { $eq: ["$$this.campaignName", utmCampaign] },
+                then: "$$this.campaignName",
+                else: "$$value"
+              }
+            }
+          }
+        }
+      }
+    });
 
     // 7) Lookup category names and build comma-string
     pipeline.push(
@@ -232,6 +300,21 @@ export async function GET(req) {
           case 'utmSource': proj['UTM Source'] = '$utmSource'; break;
           case 'utmMedium': proj['UTM Medium'] = '$utmMedium'; break;
           case 'utmCampaign': proj['UTM Campaign'] = '$utmCampaign'; break;
+          case 'externalCampaign': 
+            proj['External Campaign'] = { 
+              $cond: [
+                // If filtering by campaign and that campaign exists for this user/order, show it
+                { $and: [{ $ne: [utmCampaign, ""] }, { $ne: ["$filteredCampaign", null] }] },
+                utmCampaign,
+                // Else if we have any campaigns, show the first one
+                { $cond: [
+                  { $gt: [{ $size: "$campaigns" }, 0] },
+                  { $arrayElemAt: ["$campaigns.campaignName", 0] },
+                  "-"
+                ]}
+              ]
+            }; 
+            break;
           case 'specificCategory': proj['Specific Category'] = '$specificCategory'; break;
           case 'orderCount': proj['Order Count'] = '$orderCount'; break;
         }
@@ -242,6 +325,20 @@ export async function GET(req) {
       proj['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
       proj['Order Count'] = '$orderCount';
       if (mode === 'orders') proj['Order ID'] = '$orderId';
+      // Add External Campaign as default with same logic
+      proj['External Campaign'] = { 
+        $cond: [
+          // If filtering by campaign and that campaign exists for this user/order, show it
+          { $and: [{ $ne: [utmCampaign, ""] }, { $ne: ["$filteredCampaign", null] }] },
+          utmCampaign,
+          // Else if we have any campaigns, show the first one
+          { $cond: [
+            { $gt: [{ $size: "$campaigns" }, 0] },
+            { $arrayElemAt: ["$campaigns.campaignName", 0] },
+            "-"
+          ]}
+        ]
+      };
     }
     pipeline.push({ $project: proj });
 
@@ -254,8 +351,9 @@ export async function GET(req) {
       itemPurchaseCounts: 'Item Purchase Counts',
       totalAmountSpent: 'Total Amount Spent',
       utmSource: 'UTM Source',
-      utmMedium: 'UTM Medium',
+      utmMedium: 'UTM Medium', 
       utmCampaign: 'UTM Campaign',
+      externalCampaign: 'External Campaign', // Add External Campaign to sort map
       specificCategory: 'Specific Category',
       orderCount: 'Order Count',
     };
@@ -274,13 +372,16 @@ export async function GET(req) {
       }
     });
 
+    // Run pipeline
     const results = await Order.aggregate(pipeline).exec();
     const customers = results[0]?.customers || [];
     const totalRecordsCount = results[0]?.totalRecords[0]?.count || 0;
 
+    console.log(`Returning ${customers.length} records out of ${totalRecordsCount}`);
+    
     return NextResponse.json({ customers, totalRecords: totalRecordsCount });
   } catch (err) {
-    console.error(err);
+    console.error("Error in fetch-user-data:", err);
     return NextResponse.json({ message: 'Server error', error: err.message }, { status: 500 });
   }
 }

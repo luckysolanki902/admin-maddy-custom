@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Container, Typography, Box, Button, Divider, CircularProgress,
   Drawer, IconButton, Stack, TextField,
@@ -16,6 +16,23 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import * as FileSaver from 'file-saver';
 import dayjs from 'dayjs';
+
+// Simple debounce function
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  
+  return debouncedValue;
+}
 
 export default function DownloadCustomersData() {
   // Mode
@@ -35,15 +52,22 @@ export default function DownloadCustomersData() {
     console.log({ availableCategories });
   }, []);
 
-  // UTM Campaign filter
-  const [utmCampaigns, setUtmCampaigns] = useState([]);
-  const [utmCampaignSearch, setUtmCampaignSearch] = useState('');
-  const [utmCampaignFilter, setUtmCampaignFilter] = useState('');
+  // Campaign filter (renamed from UTM Campaign for clarity)
+  const [campaigns, setCampaigns] = useState([]);
+  const [campaignSearch, setCampaignSearch] = useState('');
   const [showCampaignSuggestions, setShowCampaignSuggestions] = useState(false);
   const [campaignLoading, setCampaignLoading] = useState(false);
   const campaignInputRef = useRef(null);
-
-  // Fetch UTM campaigns
+  
+  // Debounce the search input to use as filter
+  const debouncedCampaign = useDebounce(campaignSearch, 500);
+  
+  // Debug the campaign filtering
+  useEffect(() => {
+    console.log("Campaign filter applied:", debouncedCampaign);
+  }, [debouncedCampaign]);
+  
+  // Fetch campaigns from CampaignLog
   useEffect(() => {
     const fetchCampaigns = async () => {
       setCampaignLoading(true);
@@ -51,16 +75,16 @@ export default function DownloadCustomersData() {
         const response = await fetch('/api/admin/download/get-utm-campaigns');
         
         if (!response.ok) {
-          console.error('Failed to fetch UTM campaigns');
+          console.error('Failed to fetch campaigns');
           return;
         }
         
         const data = await response.json();
-        setUtmCampaigns(data.campaigns || []);
+        console.log("Fetched campaigns:", data.campaigns);
+        setCampaigns(data.campaigns || []);
       } catch (error) {
-        console.error('Error fetching UTM campaigns:', error);
-        // Set empty array on error to avoid undefined issues
-        setUtmCampaigns([]);
+        console.error('Error fetching campaigns:', error);
+        setCampaigns([]);
       } finally {
         setCampaignLoading(false);
       }
@@ -69,22 +93,28 @@ export default function DownloadCustomersData() {
     fetchCampaigns();
   }, []);
 
-  // Filter campaigns based on search input
+  // Filter campaigns based on search input with immediate feedback
   const filteredCampaigns = useMemo(() => {
-    if (!utmCampaignSearch || !utmCampaigns || !utmCampaigns.length) return [];
+    if (!campaignSearch || !campaigns.length) return [];
     
-    // Less strict matching - case insensitive search that looks for partial matches
-    return utmCampaigns.filter(campaign => 
-      campaign && campaign.toLowerCase().includes(utmCampaignSearch.toLowerCase())
+    // Case insensitive partial matching
+    return campaigns.filter(campaign => 
+      campaign && campaign.toLowerCase().includes(campaignSearch.toLowerCase())
     );
-  }, [utmCampaigns, utmCampaignSearch]);
+  }, [campaigns, campaignSearch]);
 
   // Handle campaign selection
   const handleCampaignSelect = (campaign) => {
-    setUtmCampaignFilter(campaign);
-    setUtmCampaignSearch(campaign);
+    setCampaignSearch(campaign);
     setShowCampaignSuggestions(false);
   };
+
+  // Show suggestions when typing
+  useEffect(() => {
+    if (campaignSearch && campaigns.length > 0) {
+      setShowCampaignSuggestions(true);
+    }
+  }, [campaignSearch, campaigns]);
 
   // Filters & states
   const [activeTag, setActiveTag] = useState('all');
@@ -124,7 +154,7 @@ export default function DownloadCustomersData() {
     applyVehicleFilter, JSON.stringify(vehicles),
     applyLoyaltyFilter, JSON.stringify(loyaltyFilters),
     tags, selectedColumns.join(','), sortConfig.field, sortConfig.order,
-    utmCampaignFilter // Add UTM campaign filter to the dependencies
+    debouncedCampaign // Use debounced campaign value
   ]);
 
   // Fetch data
@@ -142,7 +172,7 @@ export default function DownloadCustomersData() {
           applyItemFilter, items,
           applyVehicleFilter, vehicles,
           applyLoyaltyFilter,
-          utmCampaign: utmCampaignFilter, // Add UTM campaign filter to query
+          utmCampaign: debouncedCampaign, // This should send the campaign filter
           loyalty: {
             minAmountSpent: loyaltyFilters.minAmountSpent.checked
               ? loyaltyFilters.minAmountSpent.value : null,
@@ -154,14 +184,19 @@ export default function DownloadCustomersData() {
           page: page + 1, pageSize: rowsPerPage,
           sortField: sortConfig.field, sortOrder: sortConfig.order
         };
+        
+        // Log the query to debug
+        console.log("Sending query:", JSON.stringify(query));
+        
         const res = await fetch(
           `/api/admin/download/fetch-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
         );
         const json = await res.json();
+        console.log("Received data:", json);
         setCustomers(json.customers || []);
         setTotalRecords(json.totalRecords || 0);
       } catch (e) {
-        console.error(e);
+        console.error("Error fetching data:", e);
       } finally {
         setLoading(false);
       }
@@ -172,7 +207,7 @@ export default function DownloadCustomersData() {
     applyVehicleFilter, vehicles,
     applyLoyaltyFilter, loyaltyFilters,
     page, rowsPerPage, sortConfig,
-    utmCampaignFilter // Add UTM campaign filter to dependencies
+    debouncedCampaign // Use debounced campaign value
   ]);
 
   // Download CSV
@@ -186,7 +221,7 @@ export default function DownloadCustomersData() {
         applyItemFilter, items,
         applyVehicleFilter, vehicles,
         applyLoyaltyFilter,
-        utmCampaign: utmCampaignFilter, // Add UTM campaign filter to query
+        utmCampaign: debouncedCampaign, // Use debounced campaign value
         loyalty: {
           minAmountSpent: loyaltyFilters.minAmountSpent.checked
             ? loyaltyFilters.minAmountSpent.value : null,
@@ -220,6 +255,7 @@ export default function DownloadCustomersData() {
     { label: 'UTM Source', value: 'utmSource' },
     { label: 'UTM Medium', value: 'utmMedium' },
     { label: 'UTM Campaign', value: 'utmCampaign' },
+    { label: 'External Campaign', value: 'externalCampaign' }, // Add new column for external campaign
     { label: 'Specific Category', value: 'specificCategory' },
     { label: 'Order Count', value: 'orderCount' },
   ], []);
@@ -229,8 +265,8 @@ export default function DownloadCustomersData() {
     setSelectedColumns(
       availableColumns
         .filter(c => mode === 'orders'
-          ? ['orderId', 'fullName', 'phoneNumber'].includes(c.value)
-          : ['fullName', 'phoneNumber', 'orderCount'].includes(c.value))
+          ? ['orderId', 'fullName', 'phoneNumber', 'externalCampaign'].includes(c.value) // Add externalCampaign to default columns
+          : ['fullName', 'phoneNumber', 'orderCount', 'externalCampaign'].includes(c.value)) // Add externalCampaign to default columns
         .map(c => c.value)
     );
   }, [mode, availableColumns]);
@@ -375,32 +411,44 @@ export default function DownloadCustomersData() {
               </AccordionDetails>
             </Accordion>
 
-            {/* UTM Campaign Filter */}
+            {/* Campaign Filter - Improve to show suggestions as you type */}
             <Accordion>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>UTM Campaign Filter</Typography>
+                <Typography>Campaign Filter</Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <Box position="relative">
                   <TextField
-                    label="Search UTM Campaign"
-                    value={utmCampaignSearch}
+                    label="Search Campaign"
+                    value={campaignSearch}
                     onChange={e => {
-                      setUtmCampaignSearch(e.target.value);
-                      setShowCampaignSuggestions(true);
+                      setCampaignSearch(e.target.value);
+                      // Always show suggestions when typing (if there are matches)
+                      if (e.target.value) {
+                        setShowCampaignSuggestions(true);
+                      } else {
+                        setShowCampaignSuggestions(false);
+                      }
                     }}
                     fullWidth
                     inputRef={campaignInputRef}
-                    onFocus={() => setShowCampaignSuggestions(true)}
+                    onFocus={() => {
+                      // Show suggestions when focused if we have a search term
+                      if (campaignSearch) setShowCampaignSuggestions(true);
+                    }}
                     InputProps={{
                       endAdornment: campaignLoading && (
                         <CircularProgress size={20} color="inherit" />
                       ),
                     }}
+                    helperText="Filter updates automatically as you type"
                   />
                   
                   {showCampaignSuggestions && filteredCampaigns.length > 0 && (
-                    <ClickAwayListener onClickAway={() => setShowCampaignSuggestions(false)}>
+                    <ClickAwayListener 
+                      onClickAway={() => setShowCampaignSuggestions(false)}
+                      mouseEvent="onMouseDown" // Change to mouseDown to avoid issues with click events
+                    >
                       <Paper 
                         elevation={3} 
                         sx={{ 
@@ -430,23 +478,11 @@ export default function DownloadCustomersData() {
                   )}
                   
                   <Box mt={1} display="flex" alignItems="center">
-                    <Button 
-                      variant="outlined" 
-                      size="small" 
-                      onClick={() => {
-                        setUtmCampaignFilter(utmCampaignSearch);
-                      }}
-                      sx={{ mr: 1 }}
-                    >
-                      Apply Filter
-                    </Button>
-                    
-                    {utmCampaignFilter && (
+                    {debouncedCampaign && (
                       <Chip 
-                        label={utmCampaignFilter} 
+                        label={`Active filter: ${debouncedCampaign}`} 
                         onDelete={() => {
-                          setUtmCampaignFilter('');
-                          setUtmCampaignSearch('');
+                          setCampaignSearch('');
                         }}
                         color="primary"
                       />
@@ -557,7 +593,7 @@ export default function DownloadCustomersData() {
                                 ...prev,
                                 [key]: { ...prev[key], checked: !prev[key].checked }
                               }))}
-                            />
+                        />
                           }
                           label={{
                             minAmountSpent: 'Min Amount Spent',

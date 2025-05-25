@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -29,7 +29,9 @@ import CloseIcon from "@mui/icons-material/Close";
 const defaultFormData = {
   name: "",
   description: "",
-  actions: [{ type: "", discountValue: "" }],
+  actions: [
+    { type: "", discountValue: "", bundlePrice: "", bundleComponents: [{ scope: "category", scopeValue: [""], quantity: "" }] },
+  ],
   conditions: [{ type: "", value: null }],
   conditionMessage: "",
   validFrom: "",
@@ -44,6 +46,7 @@ const defaultFormData = {
 const defaultTouched = {
   actionType: false,
   discountValue: false,
+  bundlePrice: false,
   conditionType: false,
   name: false,
   discountCap: false,
@@ -51,15 +54,7 @@ const defaultTouched = {
 
 const steps = ["Action", "Conditions", "Offer", "Coupon Codes", "Submit"];
 
-export default function OffersFormDialog({
-  open,
-  onClose,
-  setOffers,
-  setSuccessAlert,
-  setErrorAlert,
-  oldData,
-  isCreateNewOffer,
-}) {
+const OffersFormDialog = React.memo(({ open, onClose, setOffers, setSuccessAlert, setErrorAlert, oldData, isCreateNewOffer }) => {
   const [activeStep, setActiveStep] = useState(0);
 
   const [formData, setFormData] = useState(
@@ -71,6 +66,41 @@ export default function OffersFormDialog({
   const [touched, setTouched] = useState(defaultTouched);
 
   const [submitting, setSubmitting] = useState(false);
+
+  const [specificCategories, setSpecificCategories] = useState([]);
+
+  const scopeValues = useMemo(
+    () => formData.actions[0].bundleComponents?.map(comp => comp.scopeValue[0]) ?? [],
+    [formData.actions]
+  );
+
+  const scObj = useMemo(() => {
+    const obj = {};
+    for (const sc of specificCategories) {
+      obj[sc._id] = sc.name;
+    }
+    return obj;
+  }, [specificCategories]);
+
+  useEffect(() => {
+    async function getSpecificCategories() {
+      try {
+        const res = await fetch("/api/admin/manage/specific-categories");
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message ?? "Could not fetch specific categories");
+        }
+
+        const data = await res.json();
+
+        setSpecificCategories(data);
+      } catch (error) {
+        setErrorAlert(error.message);
+      }
+    }
+    getSpecificCategories();
+  }, [setErrorAlert]);
 
   useEffect(() => {
     if (!isCreateNewOffer) {
@@ -87,31 +117,43 @@ export default function OffersFormDialog({
     }
   }, [isCreateNewOffer, oldData, open]);
 
-  useEffect(() => {
-    function setConditionMessage() {
-      const newConditionMessage = !formData?.conditions[0]?.type // when no condition set
+  // sorry for the mess
+  const newConditionMessage = useMemo(
+    () =>
+      (formData.actions[0].type === "bundle" && !formData.actions[0].bundleComponents[0]?.scopeValue[0]) ||
+      (formData.actions[0].type !== "bundle" && !formData.conditions[0]?.type)
         ? ""
+        : formData.actions[0].type === "bundle"
+        ? specificCategories.length
+          ? `Get ${(components =>
+              components.length > 1
+                ? components.slice(0, -1).join(", ") + " and " + components.slice(-1)
+                : components[0] || "bundle")(
+              formData.actions[0].bundleComponents
+                .map(({ scopeValue, quantity }) => (scopeValue?.[0] ? `${quantity || "xx"} ${scObj[scopeValue[0]]}` : ""))
+                .filter(Boolean)
+            )} at ₹${formData.actions[0].bundlePrice || "XX"}`
+          : oldData?.conditionMessage // when specificCategories isn't fetched scObj[scopeValue[0]] will be  be displayed as undefined in condition message so just use old condition message until it fetches
         : (formData.conditions[1]?.type // when both conditions (cart_value and first_order) set
             ? `Order for the first time and add items worth ₹${
                 formData.conditions[0]?.type === "cart_value"
-                  ? formData.conditions[0].value || "XX"
-                  : formData.conditions[1].value || "XX"
+                  ? formData.conditions[0]?.value || "XX"
+                  : formData.conditions[1]?.value || "XX"
               }`
-            : formData.conditions[0].type === "first_order"
+            : formData.conditions[0]?.type === "first_order"
             ? "Order for the first time" // only 1 condition (first_order) set
-            : `Add items worth ₹${formData.conditions[0].value || "XX"}`) + // only 1 condition (cart_value) set
+            : `Add items worth ₹${formData.conditions[0]?.value || "XX"}`) + // only 1 condition (cart_value) set
           ` to avail ${
             formData.actions[0].type === "discount_percent"
               ? `${formData.actions[0].discountValue || "XX"}% off`
               : `₹${formData.actions[0].discountValue || "XX"} off`
-          }${formData.discountCap !== null ? ` upto ₹${formData.discountCap || "XX"}` : ""}`;
-      // when formData.discountCap is not set, it will be null
+          }${formData.discountCap !== null ? ` upto ₹${formData.discountCap || "XX"}` : ""}`,
+    [formData.actions, formData.conditions, formData.discountCap, oldData?.conditionMessage, scObj, specificCategories.length]
+  );
 
-      setFormData(prev => ({ ...prev, conditionMessage: newConditionMessage }));
-    }
-
-    setConditionMessage();
-  }, [formData.actions, formData.conditions, formData.discountCap]);
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, conditionMessage: newConditionMessage }));
+  }, [newConditionMessage]);
 
   function handleChange(field, value) {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -150,7 +192,7 @@ export default function OffersFormDialog({
 
     if (!res.ok) {
       const errorData = await res.json();
-      throw new Error(errorData.message ?? "Failed to edit offer");
+      throw new Error(errorData?.message ?? "Failed to edit offer");
     }
 
     const data = await res.json();
@@ -165,7 +207,7 @@ export default function OffersFormDialog({
       setSuccessAlert(true);
       onClose();
     } catch (error) {
-      setErrorAlert(error.message);
+      setErrorAlert(error?.message);
     } finally {
       setSubmitting(false);
     }
@@ -178,11 +220,19 @@ export default function OffersFormDialog({
   // invalidSteps[i] === true means data provided at step i is invalid
   const invalidSteps = [
     !formData.actions[0].type ||
-      !formData.actions[0].discountValue ||
-      (formData.actions[0].type === "discount_percent" && formData.discountCap === ""),
-    formData.conditions.some(({ type, value }) => !type || !value),
+      (["discount_fixed", "discount_percent"].includes(formData.actions[0].type) &&
+        (!formData.actions[0].discountValue ||
+          (formData.actions[0].type === "discount_percent" && formData.discountCap === ""))) ||
+      (formData.actions[0].type === "bundle" && !formData.actions[0].bundlePrice),
+
+    formData.actions[0].type === "bundle"
+      ? formData.actions[0].bundleComponents.some(({ scope, scopeValue, quantity }) => !scope || !scopeValue[0] || !quantity)
+      : formData.conditions.some(({ type, value }) => !type || !value),
+
     !formData.name || !formData.validFrom || !formData.validUntil || invalidDateRange,
+
     formData.couponCodes.some(cc => !cc),
+
     false,
   ];
 
@@ -206,10 +256,10 @@ export default function OffersFormDialog({
         onChange={e => {
           setFormData(prev => ({
             ...prev,
-            actions: [{ type: e.target.value, discountValue: "" }],
+            actions: [{ ...prev.actions[0], type: e.target.value, discountValue: "", bundlePrice: "" }],
             discountCap: null,
           }));
-          setTouched(prev => ({ ...prev, type: true, discountCap: false, discountValue: false }));
+          setTouched(prev => ({ ...prev, type: true, discountCap: false, discountValue: false, bundlePrice: false }));
         }}
         error={touched.actionType && !formData.actions[0].type}
         helperText={touched.actionType && !formData.actions[0].type ? "Discount type is required" : ""}
@@ -229,6 +279,11 @@ export default function OffersFormDialog({
             <Box width="100%">Fixed Discount</Box>
           </Tooltip>
         </MenuItem>
+        <MenuItem value="bundle">
+          <Tooltip title="(e.g., buy 2 pillar wraps and 1 tank wrap at ₹1699)" disableInteractive>
+            <Box width="100%">Bundle</Box>
+          </Tooltip>
+        </MenuItem>
         <MenuItem value="free_item" disabled>
           <Tooltip title="Add a free item with the order" disableInteractive>
             <Box width="100%">Free Item</Box>
@@ -241,7 +296,45 @@ export default function OffersFormDialog({
         </MenuItem>
       </TextField>
 
-      {formData.actions[0].type ? (
+      {formData.actions[0].type === "bundle" && (
+        <TextField
+          required
+          disabled={!formData.actions[0].type || submitting}
+          key="bundlePrice"
+          type="number"
+          label="Bundle Price"
+          value={formData.actions[0].bundlePrice}
+          onKeyDown={e => {
+            if (["e", "+", "-"].includes(e.key) || (e.key === "0" && !Number(e.target.value))) {
+              e.preventDefault();
+            }
+          }}
+          onChange={e => {
+            setFormData(prev => ({
+              ...prev,
+              actions: [{ ...prev.actions[0], bundlePrice: e.target.value < 0 ? prev.actions[0].bundlePrice : e.target.value }],
+            }));
+            setTouched(prev => ({ ...prev, bundlePrice: true }));
+          }}
+          size="small"
+          fullWidth
+          margin="normal"
+          slotProps={{
+            input: {
+              startAdornment: <InputAdornment position="start">₹</InputAdornment>,
+            },
+          }}
+          sx={{
+            "& input[type=number]::-webkit-outer-spin-button": { display: "none" },
+            "& input[type=number]::-webkit-inner-spin-button": { display: "none" },
+            "& input[type=number]": { MozAppearance: "textfield" },
+          }}
+          error={touched.bundlePrice && !Number(formData.actions[0].bundlePrice)}
+          helperText={touched.bundlePrice && !Number(formData.actions[0].bundlePrice) ? "Bundle Price is required" : ""}
+        />
+      )}
+
+      {["discount_fixed", "discount_percent"].includes(formData.actions[0].type) && (
         <TextField
           required
           disabled={!formData.actions[0].type || submitting}
@@ -259,7 +352,7 @@ export default function OffersFormDialog({
               ...prev,
               actions: [
                 {
-                  type: prev.actions[0].type,
+                  ...prev.actions[0],
                   discountValue:
                     e.target.value < 0 || (prev.actions[0].type === "discount_percent" && e.target.value > 100)
                       ? prev.actions[0].discountValue
@@ -275,13 +368,7 @@ export default function OffersFormDialog({
           slotProps={{
             input: {
               startAdornment: (
-                <InputAdornment position="start">
-                  {formData.actions[0].type === "discount_percent"
-                    ? "%"
-                    : formData.actions[0].type === "discount_fixed"
-                    ? "₹"
-                    : ""}
-                </InputAdornment>
+                <InputAdornment position="start">{formData.actions[0].type === "discount_percent" ? "%" : "₹"}</InputAdornment>
               ),
             },
           }}
@@ -291,9 +378,9 @@ export default function OffersFormDialog({
             "& input[type=number]": { MozAppearance: "textfield" },
           }}
           error={touched.discountValue && !Number(formData.actions[0].discountValue)}
-          helperText={touched.discountValue && !Number(formData.actions[0].discountValue) ? "Discount value is required" : ""}
+          helperText={touched.discountValue && !Number(formData.actions[0].discountValue) ? "Discount Value is required" : ""}
         />
-      ) : null}
+      )}
 
       {formData.actions[0].type === "discount_percent" && (
         <Box display="flex" alignItems="center">
@@ -362,7 +449,7 @@ export default function OffersFormDialog({
     </>
   );
 
-  const step1 = (
+  const step1 = ["discount_fixed", "discount_percent"].includes(formData.actions[0].type) ? (
     <>
       <Box display="flex" flexDirection="column" gap={2} mt={2}>
         {formData.conditions.map(({ type, value }, i) => (
@@ -538,7 +625,154 @@ export default function OffersFormDialog({
         </Box>
       </Box>
     </>
-  );
+  ) : formData.actions[0].type === "bundle" ? (
+    <>
+      <Box display="flex" flexDirection="column" gap={2} mt={2}>
+        {formData.actions[0]?.bundleComponents.map(({ scopeValue, quantity }, i) => (
+          <Box key={i} mb={{ xs: 2.5, md: 1 }}>
+            <Box display="flex" alignItems="center">
+              <Box
+                display="flex"
+                gap={2}
+                alignItems="center"
+                sx={{
+                  width: "100%",
+                  flexDirection: { xs: "column", md: "row" },
+                }}
+              >
+                <TextField
+                  select
+                  label="Bundle Component"
+                  disabled={submitting}
+                  value={scopeValue[0]}
+                  required
+                  onChange={e => {
+                    setFormData(prev => ({
+                      ...prev,
+                      actions: [
+                        {
+                          ...prev.actions[0],
+                          bundleComponents: prev.actions[0]?.bundleComponents.map((component, idx) =>
+                            i === idx ? { ...component, scopeValue: [e.target.value] } : component
+                          ),
+                        },
+                      ],
+                    }));
+                  }}
+                  sx={{ flexBasis: "250%" }}
+                  size="small"
+                  fullWidth
+                >
+                  <MenuItem value="" disabled sx={{ fontSize: "0.9rem" }}>
+                    Select Bundle Component
+                  </MenuItem>
+
+                  {specificCategories
+                    .filter(sc => scopeValue[0] === sc._id || !scopeValues.includes(sc._id))
+                    .map(sc => (
+                      <MenuItem key={sc._id} value={sc._id}>
+                        <Tooltip title={`${sc.description}`} disableInteractive>
+                          <Box width="100%">{sc.name}</Box>
+                        </Tooltip>
+                      </MenuItem>
+                    ))}
+                </TextField>
+
+                {scopeValue[0] && (
+                  <TextField
+                    label="Quantity"
+                    type="number"
+                    disabled={submitting}
+                    required
+                    value={quantity}
+                    onKeyDown={e => {
+                      if (["e", "+", "-"].includes(e.key) || (e.key === "0" && !Number(e.target.value))) {
+                        e.preventDefault();
+                      }
+                    }}
+                    onChange={e => {
+                      setFormData(prev => ({
+                        ...prev,
+                        actions: [
+                          {
+                            ...prev.actions[0],
+                            bundleComponents: prev.actions[0]?.bundleComponents.map((component, idx) =>
+                              i === idx ? { ...component, quantity: e.target.value } : component
+                            ),
+                          },
+                        ],
+                      }));
+                    }}
+                    size="small"
+                    fullWidth
+                    sx={{
+                      "& input[type=number]::-webkit-outer-spin-button": { display: "none" },
+                      "& input[type=number]::-webkit-inner-spin-button": { display: "none" },
+                      "& input[type=number]": { MozAppearance: "textfield" },
+                    }}
+                  />
+                )}
+              </Box>
+              {formData.actions[0]?.bundleComponents.length > 1 && (
+                <Tooltip title="Click here to remove this condition" disableInteractive>
+                  <IconButton
+                    disabled={submitting}
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        actions: [
+                          {
+                            ...prev.actions[0],
+                            bundleComponents: prev.actions[0]?.bundleComponents.filter((_, idx) => i !== idx),
+                          },
+                        ],
+                      }));
+                    }}
+                    sx={{ mt: "4px" }}
+                  >
+                    <RemoveCircleOutlineIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+          </Box>
+        ))}
+
+        <Box display="flex" flexDirection="column">
+          <Button
+            variant="outlined"
+            disabled={submitting}
+            startIcon={<AddIcon />}
+            onClick={() =>
+              setFormData(prev => ({
+                ...prev,
+                actions: [
+                  {
+                    ...prev.actions[0],
+                    bundleComponents: [
+                      ...prev.actions[0].bundleComponents,
+                      { scope: "category", scopeValue: [""], quantity: "" },
+                    ],
+                  },
+                ],
+              }))
+            }
+            sx={{
+              width: "auto",
+              textTransform: "none",
+              fontWeight: 500,
+              borderRadius: 1.5,
+            }}
+          >
+            Add another component
+          </Button>
+          <Typography variant="caption" color="text.secondary" mt={1} sx={{ fontStyle: "italic" }}>
+            *All the components must be bought to avail this offer
+          </Typography>
+        </Box>
+      </Box>
+    </>
+  ) : null;
 
   const step2 = (
     <>
@@ -547,7 +781,7 @@ export default function OffersFormDialog({
         label="Offer Name"
         value={formData.name}
         onChange={e => handleChange("name", e.target.value.trimStart())}
-        disabled={submitting}
+        disabled={submitting || (!isCreateNewOffer && formData.actions[0].type === "bundle")}
         required
         fullWidth
         margin="normal"
@@ -860,6 +1094,6 @@ export default function OffersFormDialog({
       </DialogActions>
     </Dialog>
   );
-}
+});
 
-// edit only name, description, value, caption, coupon codes (type no change)
+export default OffersFormDialog;

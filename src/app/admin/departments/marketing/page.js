@@ -10,6 +10,7 @@ export default function Marketing() {
     { text: 'Analytics Dashboard', link: '/admin/analytics' },
     { text: 'ProductInfo Tabs', link: '/admin/manage/product-info' },
     { text: 'Review Manager', link: '/admin/manage/reviews' },
+    { text: 'Download Customer Data', link: '/admin/download/download-customer-data' },
     { text: 'Manage Customer Queries', link: '/admin/manage/customer-support' },
   ];
   

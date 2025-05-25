@@ -14,6 +14,7 @@ const DateRangeChips = ({
   handleCustomDayChange,
   handleCustomDateChange,
   handleMonthSelection,
+  hideCustomChips
 }) => {
   // Handlers for predefined ranges
   const handlePredefinedRange = (tag, start, end) => {
@@ -94,25 +95,28 @@ const DateRangeChips = ({
           variant={activeTag === 'all' ? 'filled' : 'outlined'}
           color={activeTag === 'all' ? 'primary' : 'default'}
         />
-
-        <Chip
-          label="Custom Day"
-          onClick={() => {
-            setActiveTag('custom');
-            // The actual date selection is handled outside the chips
-          }}
-          variant={activeTag === 'custom' ? 'filled' : 'outlined'}
-          color={activeTag === 'custom' ? 'primary' : 'default'}
-        />
-        <Chip
-          label="Custom Range"
-          onClick={() => {
-            setActiveTag('customRange');
-            // The actual date range selection is handled outside the chips
-          }}
-          variant={activeTag === 'customRange' ? 'filled' : 'outlined'}
-          color={activeTag === 'customRange' ? 'primary' : 'default'}
-        />
+        {!hideCustomChips &&
+          <>
+            <Chip
+              label="Custom Day"
+              onClick={() => {
+                setActiveTag('custom');
+                // The actual date selection is handled outside the chips
+              }}
+              variant={activeTag === 'custom' ? 'filled' : 'outlined'}
+              color={activeTag === 'custom' ? 'primary' : 'default'}
+            />
+            <Chip
+              label="Custom Range"
+              onClick={() => {
+                setActiveTag('customRange');
+                // The actual date range selection is handled outside the chips
+              }}
+              variant={activeTag === 'customRange' ? 'filled' : 'outlined'}
+              color={activeTag === 'customRange' ? 'primary' : 'default'}
+            />
+          </>
+        }
       </Stack>
     </Box>
   );

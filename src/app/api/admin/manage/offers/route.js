@@ -2,6 +2,7 @@
 
 import Offer from "@/models/Offer";
 import { connectToDatabase } from "@/lib/db";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
@@ -32,11 +33,9 @@ export async function POST(req) {
       discountCap,
     } = await req.json();
 
-    // Validation Logic
-
     // Create new offer
     const newOffer = await Offer.create({
-      name: name.trim(),
+      name,
       description: description.trim(),
       conditionMessage,
       showAsCard,
@@ -44,21 +43,33 @@ export async function POST(req) {
       validUntil: new Date(validUntil),
       couponCodes,
       autoApply,
-      conditions: conditions.map(({ type, value }) => ({
-        type,
-        value: Number(value),
-        operator: type === "first_order" ? "==" : ">=",
-      })),
-      actions: actions.map(({ type, discountValue }) => ({
-        type,
-        discountValue: Number(discountValue),
-      })),
+      conditions:
+        actions[0].type === "bundle"
+          ? []
+          : conditions.map(({ type, value }) => ({
+              type,
+              value: Number(value),
+              operator: type === "first_order" ? "==" : ">=",
+            })),
+      actions: actions.map(({ type, discountValue, bundlePrice, bundleComponents }) =>
+        type === "bundle"
+          ? {
+              type,
+              bundlePrice: Number(bundlePrice),
+              bundleComponents: bundleComponents.map(({ scope, scopeValue, quantity }) => ({
+                scope,
+                scopeValue,
+                quantity: Number(quantity),
+              })),
+            }
+          : { type, discountValue: Number(discountValue) }
+      ),
       discountCap: Number(discountCap || "Infinity"),
     });
 
-    return new Response(JSON.stringify(newOffer), { status: 201 });
-  } catch (error) {
-    console.error("Error creating offer:", error);
-    return new Response(JSON.stringify({ error: "Failed to create offer" }), { status: 500 });
+    return NextResponse.json(newOffer.toObject(), { status: 201 });
+  } catch (err) {
+    console.error("Error creating offer:", err);
+    return NextResponse.json({ message: err?.message ?? "Failed to create offer" }, { status: 500 });
   }
 }

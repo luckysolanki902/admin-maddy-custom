@@ -24,10 +24,10 @@ import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart';
 import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart';
 import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
-import DownloadCustomersData from '@/components/analytics/main/DownloadCustomersData';
 import { styled } from '@mui/material/styles';
 import dayjs from '@/lib/dayjsConfig';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 const LoadingContainer = styled(Box)(() => ({
   display: 'flex',
@@ -59,7 +59,7 @@ const AnalyticsDashboard = ({ admin }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showDownloadUserDataSection, setShowDownloadUserDataSection] = useState(false);
-
+  const router = useRouter()
   // --- Charts Respecting Date Range ---
 
   const fetchSalesSources = async () => {
@@ -466,42 +466,15 @@ const AnalyticsDashboard = ({ admin }) => {
         )}
       </Grid>
 
-      {/* Download Customers Data Section */}
-      {loading ? (
-        <Skeleton
-          variant="rectangular"
-          sx={{ marginTop: '2rem', borderRadius: '0.4rem' }}
-          height={40}
-        />
-      ) : (
-        <Button
-          onClick={() => setShowDownloadUserDataSection(!showDownloadUserDataSection)}
-          sx={{ marginTop: '2rem' }}
-          fullWidth
-          variant="outlined"
-        >
-          {showDownloadUserDataSection
-            ? "Hide 'Download Customer Data' section"
-            : "Show 'Download Customer Data' section"}
-        </Button>
-      )}
-      {showDownloadUserDataSection && (
-        <Box sx={{ marginTop: '4rem' }}>
-          {/* Date Range Chips */}
-          <DateRangeChips
-            activeTag={activeTag}
-            setActiveTag={setActiveTag}
-            setDateRange={setDateRange}
-            setCurrentPage={() => { }}
-            setProblematicCurrentPage={() => { }}
-            handleAllTagClick={handleAllTagClick}
-            handleCustomDayChange={handleCustomDayChange}
-            handleCustomDateChange={handleCustomDateChange}
-            handleMonthSelection={handleMonthSelection}
-          />
-          <DownloadCustomersData dateRange={dateRange} activeTag={activeTag} />
-        </Box>
-      )}
+
+      <Button
+        onClick={() => {router.push('/admin/download/download-customer-data')}}
+        sx={{ marginTop: '2rem' }}
+        fullWidth
+        variant="outlined"
+      >
+        {"Go to 'Download Customer Data' page"}
+      </Button>
     </Container>
   );
 };

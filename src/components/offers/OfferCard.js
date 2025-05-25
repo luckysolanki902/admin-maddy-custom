@@ -18,6 +18,8 @@ const darkerGradients = [
 export default function OfferCard({ offerData, setOffers, setErrorAlert, setSuccessAlert, isInDialog }) {
   const [submitting, setSubmitting] = useState(false);
 
+  if (offerData._id === "6831c3ccd69076eded0bd4b2") console.log(offerData);
+
   const [openEditDialog, setOpenEditDialog] = useState(false);
 
   // assign a bg gradient on the basis of offerData.name
@@ -34,7 +36,7 @@ export default function OfferCard({ offerData, setOffers, setErrorAlert, setSucc
   async function handleToggleActive(offerId) {
     try {
       setSubmitting(true);
-      const res = await fetch(`/api/admin/manage/offers/${offerId}/isActive`, { method: "PATCH" });
+      const res = await fetch(`/api/admin/manage/offers/${offerId}/toggle-active`, { method: "PATCH" });
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -82,9 +84,11 @@ export default function OfferCard({ offerData, setOffers, setErrorAlert, setSucc
           opacity: 0.16,
         }}
       >
-        {offerData?.actions[0]?.type === "discount_percent"
-          ? `${offerData?.actions[0]?.discountValue || "XX"}% OFF`
-          : `₹${offerData?.actions[0]?.discountValue || "XX"} OFF`}
+        {offerData.actions[0].type === "discount_percent"
+          ? `${offerData.actions[0].discountValue || "XX"}% OFF`
+          : offerData.actions[0].type === "discount_fixed"
+          ? `₹${offerData.actions[0].discountValue || "XX"} OFF`
+          : `₹${offerData.actions[0].bundlePrice || "XXX"}`}
       </Box>
 
       {/* toggle active and edit button*/}
@@ -116,15 +120,17 @@ export default function OfferCard({ offerData, setOffers, setErrorAlert, setSucc
           </Tooltip>
           <IconButton onClick={() => setOpenEditDialog(true)} disabled={submitting} size="small" color="primary">
             <EditIcon fontSize="small" />
-            <OffersFormDialog
-              oldData={offerData}
-              open={openEditDialog}
-              onClose={() => setTimeout(() => setOpenEditDialog(false))}
-              // onClose={() => setOpenEditDialog(false)}   //doesnt work for some reason
-              setOffers={setOffers}
-              setErrorAlert={setErrorAlert}
-              setSuccessAlert={setSuccessAlert}
-            />
+            {openEditDialog && (
+              <OffersFormDialog
+                oldData={offerData}
+                open={openEditDialog}
+                onClose={() => setTimeout(() => setOpenEditDialog(false))}
+                // onClose={() => setOpenEditDialog(false)}   //doesnt work for some reason
+                setOffers={setOffers}
+                setErrorAlert={setErrorAlert}
+                setSuccessAlert={setSuccessAlert}
+              />
+            )}
           </IconButton>
         </Box>
       )}
@@ -133,7 +139,7 @@ export default function OfferCard({ offerData, setOffers, setErrorAlert, setSucc
         sx={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between", color: "white" }}
       >
         {/* Discount Name */}
-        <Box sx={{ textAlign: "center", paddingTop: 4, paddingBottom: 1 }}>
+        <Box sx={{ textAlign: "center", pt: 3 }}>
           <Typography variant="h6" sx={{ fontWeight: "bold", fontSize: "1.2rem", color: "white" }}>
             {offerData.name || <i>Offer Name</i>}
           </Typography>
@@ -184,12 +190,12 @@ export default function OfferCard({ offerData, setOffers, setErrorAlert, setSucc
         {/* Discount Value */}
         <Box sx={{ textAlign: "center" }}>
           <Typography variant="h5" sx={{ fontWeight: "bold", color: "white" }}>
-            {offerData?.actions[0]?.type === "discount_fixed"
-              ? `₹${offerData?.actions[0]?.discountValue || "XX"} `
-              : offerData?.actions[0]?.type === "discount_percent"
-              ? `${offerData?.actions[0]?.discountValue || "XX"}% `
-              : "₹XX "}
-            <span style={{ fontSize: "0.8rem", fontWeight: "normal" }}>OFF</span>
+            {offerData.actions[0].type === "discount_percent"
+              ? `${offerData.actions[0].discountValue || "XX"}% `
+              : offerData.actions[0].type === "discount_fixed"
+              ? `₹${offerData.actions[0].discountValue || "XX"} `
+              : `₹${offerData.actions[0].bundlePrice || "XXX"} `}
+            {offerData.actions[0].type !== "bundle" && <span style={{ fontSize: "0.8rem", fontWeight: "normal" }}>OFF</span>}
           </Typography>
         </Box>
 

@@ -16,7 +16,6 @@ export async function GET() {
     // Helper function to fetch commits
     async function fetchCommits(owner, name) {
       try {
-        console.debug(`Fetching commits for repository: ${owner}/${name}`);
         const resp = await fetch(
           `https://api.github.com/repos/${owner}/${name}/commits?per_page=10`,
           {
@@ -31,7 +30,6 @@ export async function GET() {
           throw new Error(`Failed to fetch commits for ${owner}/${name}`);
         }
         const data = await resp.json();
-        console.debug(`Fetched ${data.length} commits for ${owner}/${name}`);
         const filtered = data.filter((commit) => {
           const firstLine = commit.commit.message.split('\n')[0];
           return firstLine.length >= 10;
@@ -52,7 +50,6 @@ export async function GET() {
     // Helper function to fetch branches
     async function fetchBranches(owner, name) {
       try {
-        console.debug(`Fetching branches for repository: ${owner}/${name}`);
         const resp = await fetch(
           `https://api.github.com/repos/${owner}/${name}/branches?per_page=50`,
           {
@@ -85,7 +82,6 @@ export async function GET() {
     const results = [];
     for (const { owner, name } of repos) {
       try {
-        console.debug(`Processing repository: ${owner}/${name}`);
         const [commits, branches] = await Promise.all([
           fetchCommits(owner, name),
           fetchBranches(owner, name),
@@ -95,7 +91,6 @@ export async function GET() {
           commits,
           branches,
         });
-        console.debug(`Processed repository: ${owner}/${name}`);
       } catch (error) {
         console.error(`Error processing repository ${owner}/${name}:`, error);
       }

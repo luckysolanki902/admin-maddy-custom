@@ -50,6 +50,14 @@ const DepartmentLinks = () => {
           Goals
         </Link>
       </div>
+      <div className={styles.department}>
+        <Link href="/admin/departments/finance" className={`${styles.box} ${styles.financeBox}`}>
+          Finance
+        </Link>
+        <Link href="/admin/departments/finance-goals" className={`${styles.goals} ${styles.financeBox}`}>
+          Goals
+        </Link>
+      </div>
 
       {masterAdminVisible && (
         <Link href="/admin/access-management" className={styles.box}>

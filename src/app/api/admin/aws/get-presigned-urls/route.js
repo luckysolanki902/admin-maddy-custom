@@ -6,7 +6,6 @@ import SpecificCategoryVariant from "@/models/SpecificCategoryVariant";
 import { getPresignedUrl } from "@/lib/aws";
 import jwt from "jsonwebtoken";
 import dayjs from "dayjs";
-import { Promise } from "mongoose";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -26,20 +25,21 @@ async function handleGetPresignedUrls(request) {
     const token = searchParams.get("token");
 
     if (!token) {
+      console.warn("⚠️ Missing token in query parameters.");
       return NextResponse.json({ message: "Missing token in query parameters." }, { status: 400 });
     }
 
-    // Verify JWT token
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (err) {
-      console.error("Invalid or expired token:", err);
+      console.error("❌ Invalid or expired token:", err.message);
       return NextResponse.json({ message: "Invalid or expired token." }, { status: 401 });
     }
 
     const { startDate, endDate } = decoded;
     if (!startDate || !endDate) {
+      console.warn("⚠️ Token missing startDate or endDate.", decoded);
       return NextResponse.json({ message: "Token does not contain startDate or endDate." }, { status: 400 });
     }
 
@@ -47,16 +47,16 @@ async function handleGetPresignedUrls(request) {
     const end = dayjs(endDate).toDate();
 
     if (!dayjs(start).isValid() || !dayjs(end).isValid()) {
+      console.warn("⚠️ Invalid date format parsed from token:", { startDate, endDate });
       return NextResponse.json({ message: "Invalid date format in token." }, { status: 400 });
     }
 
-    // Get total orders (only paid orders)
+
     const totalOrders = await Order.countDocuments({
       createdAt: { $gte: start, $lte: end },
       "paymentDetails.amountPaidOnline": { $gt: 0 },
     });
 
-    // Get total items across orders
     const totalItemsAgg = await Order.aggregate([
       {
         $match: {
@@ -69,7 +69,6 @@ async function handleGetPresignedUrls(request) {
     ]);
     const totalItems = totalItemsAgg[0] ? totalItemsAgg[0].totalItems : 0;
 
-    // Aggregate imagesData (only include items with designTemplate.imageUrl set)
     const imagesData = await Order.aggregate([
       {
         $match: {
@@ -87,7 +86,6 @@ async function handleGetPresignedUrls(request) {
         },
       },
       { $unwind: "$product" },
-      // Filter to include only products with designTemplate.imageUrl set and non-empty
       {
         $match: {
           "product.designTemplate.imageUrl": { $exists: true, $ne: "", $type: "string" },
@@ -115,11 +113,11 @@ async function handleGetPresignedUrls(request) {
       { $sort: { count: -1 } },
     ]);
 
-    // Generate presigned URLs for each image where applicable
     const imagesWithPresignedUrls = await Promise.all(
       imagesData.map(async item => {
         const { sku, specificCategoryVariant, imageUrl } = item._id;
         if (!imageUrl) {
+          console.warn(`⚠️ No imageUrl for SKU: ${sku}`);
           return {
             sku,
             specificCategoryVariant,
@@ -131,7 +129,7 @@ async function handleGetPresignedUrls(request) {
         try {
           const presignedUrlObj = await getPresignedUrl(
             imageUrl,
-            "image/png", // Adjust MIME type if necessary
+            "image/png",
             "getObject"
           );
           const presignedUrl = presignedUrlObj.presignedUrl;
@@ -143,7 +141,7 @@ async function handleGetPresignedUrls(request) {
             count: item.count,
           };
         } catch (error) {
-          console.error(`Error generating presigned URL for SKU ${sku}:`, error);
+          console.error(`❌ Error generating presigned URL for SKU ${sku}:`, error.message);
           return {
             sku,
             specificCategoryVariant,
@@ -156,8 +154,9 @@ async function handleGetPresignedUrls(request) {
     );
 
     return NextResponse.json({ totalOrders, totalItems, images: imagesWithPresignedUrls }, { status: 200 });
+
   } catch (error) {
-    console.error("Error in get-presigned-urls:", error);
+    console.error("❌ Error in get-presigned-urls handler:", error.message, error.stack);
     return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
   }
 }

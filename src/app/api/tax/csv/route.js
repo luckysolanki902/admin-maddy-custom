@@ -1,25 +1,32 @@
-// pages/api/orders-csv.js (or app/api/orders-csv/route.js for Next.js App Router)
+// /app/api/tax/csv/route.js
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 
 export async function GET(request) {
   try {
-    // Connect to the database
     await connectToDatabase();
 
-    // Define the date range (1st Dec 2024 to 31st Mar 2025)
-    const startDate = new Date('2024-12-01T00:00:00.000Z');
-    const endDate = new Date('2025-03-31T23:59:59.999Z');
+    const { searchParams } = new URL(request.url);
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam   = searchParams.get('endDate');
 
-    // Query orders: delivered orders with createdAt date between start and end dates, sorted ascending by createdAt
+    // Parse or fallback to Q4 2024–Mar 2025
+    const startDate = startDateParam
+      ? new Date(startDateParam)
+      : new Date('2024-12-01T00:00:00.000Z');
+    const endDate = endDateParam
+      ? new Date(endDateParam)
+      : new Date('2025-03-31T23:59:59.999Z');
+
     const orders = await Order.find({
-      deliveryStatus: { $nin: ['cancelled', 'pending', 'returnInitiated', 'returned', 'lost', 'cancelled', 'unknown'] },
+      deliveryStatus: {
+        $nin: ['cancelled', 'pending', 'returnInitiated', 'returned', 'lost', 'unknown'],
+      },
       paymentStatus: { $in: ['allPaid', 'paidPartially'] },
-      createdAt: { $gte: startDate, $lte: endDate }
+      createdAt: { $gte: startDate, $lte: endDate },
     }).sort({ createdAt: 1 });
 
-    // Prepare CSV header
     const header = [
       'SR No.',
       'Invoice No.',
@@ -30,87 +37,47 @@ export async function GET(request) {
       'cgst 9%',
       'sgst 9%',
       'State',
-      'gross amount'
+      'gross amount',
     ];
+    const rows = [header.join(',')];
 
-    // Build CSV rows
-    const rows = [];
-    rows.push(header.join(','));
-
-    const monthlyRevenue = {};
-    const monthlyOrders = {};
-    const monthlyGrossAmount = {};
-    const monthlyBillAmount = {};
-
-    orders.forEach((order, index) => {
-      const srNo = index + 1;
-      const invoiceNo = `INV-${order._id}`;
-      const invoiceDate = new Date(order.createdAt).toISOString().split('T')[0];
-      const clientName = order.address?.receiverName || '';
-      const billAmount = Number(order.totalAmount) || 0;
-
-      const receiverState = (order.address?.state || '').toUpperCase();
+    orders.forEach((order, idx) => {
+      const bill = Number(order.totalAmount) || 0;
+      const st = (order.address?.state || '').trim().toUpperCase();
       let igst = 0, cgst = 0, sgst = 0;
-      if (receiverState.toLowerCase().trim() === 'uttar pradesh') {
-        cgst = billAmount * 9/118; 
-        sgst = billAmount * 9/118;
+      if (st === 'UTTAR PRADESH') {
+        cgst = bill * 9/118;
+        sgst = bill * 9/118;
       } else {
-        igst = billAmount * 18/118;
+        igst = bill * 18/118;
       }
-      const grossAmount = billAmount - igst - cgst - sgst;
-
-      const formatNumber = (num) => num.toFixed(2);
-
-      const row = [
-        srNo,
-        invoiceNo,
-        invoiceDate,
-        `"${clientName}"`,
-        formatNumber(grossAmount),
-        formatNumber(igst),
-        formatNumber(cgst),
-        formatNumber(sgst),
-        receiverState,
-        formatNumber(billAmount)
-      ];
-
-      rows.push(row.join(','));
-
-      const month = invoiceDate.split('-')[1];
-      monthlyRevenue[month] = (monthlyRevenue[month] || 0) + grossAmount;
-      monthlyOrders[month] = (monthlyOrders[month] || 0) + 1;
-      monthlyGrossAmount[month] = (monthlyGrossAmount[month] || 0) + grossAmount;
-      monthlyBillAmount[month] = (monthlyBillAmount[month] || 0) + billAmount;
+      const gross = bill - igst - cgst - sgst;
+      const fmt = num => num.toFixed(2);
+      const dateStr = new Date(order.createdAt).toISOString().split('T')[0];
+      rows.push([
+        idx + 1,
+        `INV-${order._id}`,
+        dateStr,
+        `"${order.address?.receiverName || ''}"`,
+        fmt(gross),
+        fmt(igst),
+        fmt(cgst),
+        fmt(sgst),
+        st,
+        fmt(bill),
+      ].join(','));
     });
 
-
-    const csvString = rows.join('\n');
-
-    // return NextResponse.json({
-    //   logs: {
-    //     monthlyRevenue,
-    //     monthlyOrders,
-    //     monthlyGrossAmount,
-    //     monthlyBillAmount,
-    //     totalRevenue: Object.values(monthlyRevenue).reduce((a, b) => a + b, 0),
-    //     totalOrders: Object.values(monthlyOrders).reduce((a, b) => a + b, 0),
-    //     totalGrossAmount: Object.values(monthlyGrossAmount).reduce((a, b) => a + b, 0),
-    //     totalBillAmount: Object.values(monthlyBillAmount).reduce((a, b) => a + b, 0),
-    //   }
-    // });
-
-    
-    // Return the CSV string as a downloadable response
-    return new NextResponse(csvString, {
+    const fileName = `orders_${startDate.toISOString().slice(0,10)}_to_${endDate.toISOString().slice(0,10)}.csv`;
+    return new NextResponse(rows.join('\n'), {
       status: 200,
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename="orders.csv"'
-      }
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+      },
     });
-  } catch (error) {
-    console.error('Error generating CSV:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+  } catch (err) {
+    console.error('CSV generation error', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

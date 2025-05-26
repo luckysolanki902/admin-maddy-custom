@@ -126,14 +126,16 @@ export default function ManageOffers() {
             Create Offer
           </Button>
 
-          <OffersFormDialog
-            open={openCreateDialog}
-            onClose={() => setOpenCreateDialog(false)}
-            setOffers={setOffers}
-            setErrorAlert={setErrorAlert}
-            setSuccessAlert={setSuccessAlert}
-            isCreateNewOffer
-          />
+          {openCreateDialog && (
+            <OffersFormDialog
+              open={openCreateDialog}
+              onClose={() => setOpenCreateDialog(false)}
+              setOffers={setOffers}
+              setErrorAlert={setErrorAlert}
+              setSuccessAlert={setSuccessAlert}
+              isCreateNewOffer
+            />
+          )}
 
           <Button variant="outlined" color="primary" startIcon={<FilterListIcon />} onClick={() => setIsDrawerOpen(true)}>
             Sort & Filter

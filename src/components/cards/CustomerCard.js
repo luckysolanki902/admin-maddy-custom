@@ -10,13 +10,14 @@ import {
   Typography,
   Box,
   Popover,
-  List,
-  ListItem,
-  ListItemText,
   Tooltip,
   IconButton,
   Chip,
   Grid,
+  Paper,
+  Button,
+  Card,
+  CardContent,
   Divider,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -24,11 +25,20 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
 import PaymentIcon from '@mui/icons-material/Payment';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import DiscountIcon from '@mui/icons-material/Discount';
+import SourceIcon from '@mui/icons-material/Source';
+import LocalMallIcon from '@mui/icons-material/LocalMall';
+import ArticleIcon from '@mui/icons-material/Article';
+import DownloadIcon from '@mui/icons-material/Download';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { WhatsApp } from '@mui/icons-material';
 import Link from 'next/link';
+import { generateInvoicePdf } from '@/utils/pdfGenerator';
 
 // Extend dayjs with plugins
 dayjs.extend(utc);
@@ -51,23 +61,23 @@ const formatOrderDate = (dateInput) => {
 
 // Status color mapping
 const statusColors = {
-  pending: 'warning',              // Order awaiting action
-  orderCreated: 'info',            // Order created/registered
-  processing: 'warning',           // Pre-shipping & preparation states (including pickup scheduling, packaging, etc.)
-  shipped: 'primary',              // Order dispatched from warehouse
-  onTheWay: 'info',                // Order picked up & actively moving toward delivery
-  partiallyDelivered: 'warning',   // Only part of the order delivered
-  delivered: 'success',            // Order delivered successfully
-  returnInitiated: 'warning',      // Return process initiated/in progress (pickup, in transit back, etc.)
-  returned: 'info',                // Return completed (item has reached its return destination)
-  lost: 'error',                   // Order lost/damaged in transit
-  cancelled: 'error',              // Order cancelled
-  undelivered: 'error',            // Order undelivered
-  unknown: 'secondary',            // Unknown
-  failed: 'error',                 
-  paidPartially: 'secondary',      
-  allPaid: 'success',              
-  allToBePaidCod: 'secondary',     
+  pending: 'warning',
+  orderCreated: 'info',
+  processing: 'warning',
+  shipped: 'primary',
+  onTheWay: 'info',
+  partiallyDelivered: 'warning',
+  delivered: 'success',
+  returnInitiated: 'warning',
+  returned: 'info',
+  lost: 'error',
+  cancelled: 'error',
+  undelivered: 'error',
+  unknown: 'secondary',
+  failed: 'error',
+  paidPartially: 'secondary',
+  allPaid: 'success',
+  allToBePaidCod: 'secondary',
 };
 
 // Payment Mode color mapping
@@ -82,12 +92,14 @@ const PaymentModeChip = ({ mode }) => {
   const color = paymentModeColors[mode.toLowerCase()] || paymentModeColors.default;
   return (
     <Chip
+      icon={<AttachMoneyIcon fontSize="small" />}
       label={mode.toUpperCase()}
       size="small"
       sx={{
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
         color: color,
-        marginBottom: '4px',
+        fontWeight: 600,
+        borderRadius: '4px',
       }}
     />
   );
@@ -97,6 +109,15 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [copied, setCopied] = useState(false);
   const [phoneCopied, setPhoneCopied] = useState(false);
+
+  // Calculate item totals
+  const itemsTotal = order.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
+  
+  // Calculate total quantity of all items
+  const totalItemsQuantity = order.items.reduce((acc, item) => acc + (item.quantity || 0), 0);
+  
+  // Calculate extra charges total
+  const extraChargesTotal = order.extraCharges?.reduce((acc, charge) => acc + (charge.chargesAmount || 0), 0) || 0;
 
   // Open popover
   const handlePopoverOpen = (event) => {
@@ -132,57 +153,103 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
       console.error('Failed to copy!', err);
     }
   };
+  
+  // Handle download invoice
+  const handleDownloadInvoice = (event) => {
+    event.stopPropagation();
+    try {
+      generateInvoicePdf(order);
+    } catch (error) {
+      console.error('Error generating PDF invoice:', error);
+      // If PDF generation fails, show an error to the user
+      alert('Failed to generate PDF. Please try again later.');
+    }
+  };
 
   const open = Boolean(anchorEl);
   const id = open ? `popover-${order._id}` : undefined;
+  
+  // Format status
+  const formatStatus = (status) => {
+    return status.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase());
+  };
 
   return (
     <Accordion
       expanded={expanded === order._id}
       onChange={handleChange(order._id)}
       sx={{
-        marginBottom: '10px',
-        backgroundColor: '#1E1E1E',
-        borderRadius: '8px',
-        boxShadow: 'none',
+        marginBottom: '16px',
+        backgroundColor: '#1A1A1A',
+        borderRadius: '10px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
         '&:before': { display: 'none' },
+        overflow: 'hidden',
+        border: '1px solid #333',
+        transition: 'all 0.3s ease',
+        '&:hover': {
+          borderColor: '#444',
+          boxShadow: '0 6px 24px rgba(0, 0, 0, 0.25)',
+        }
       }}
     >
       <AccordionSummary
-        expandIcon={<ExpandMoreIcon sx={{ color: 'white' }} />}
+        expandIcon={<ExpandMoreIcon sx={{ color: 'white', fontSize: '1.2rem' }} />}
         sx={{
           padding: '16px',
+          '& .MuiAccordionSummary-content': {
+            margin: 0,
+          },
+          borderBottom: expanded === order._id ? '1px solid #333' : 'none',
         }}
       >
         <Grid container spacing={2} alignItems="center">
           {/* Order ID and Date */}
           <Grid item xs={12} sm={6} md={3}>
-            <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                 <Typography
                   variant="body1"
                   sx={{
-                    color: '#2D7EE8',
-                    cursor: 'pointer',
+                    color: '#4f86f7',
+                    fontWeight: 600,
+                    fontSize: '0.95rem',
                     display: 'flex',
                     alignItems: 'center',
                   }}
                 >
                   {order._id.slice(0, 10)}...
                 </Typography>
-                <Tooltip title="Copy Order ID">
-                  <IconButton
-                    size="small"
-                    onClick={handleCopy}
-                    sx={{ marginLeft: '4px' }}
-                  >
-                    {copied ? <CheckIcon color="success" /> : <ContentCopyIcon fontSize="small" sx={{ color: '#2D7EE8' }} />}
-                  </IconButton>
-                </Tooltip>
+                {/* Replace IconButton with Box to avoid button nesting */}
+                <Box 
+                  onClick={handleCopy}
+                  sx={{ 
+                    ml: 0.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)'
+                    }
+                  }}
+                >
+                  {copied ? 
+                    <CheckIcon fontSize="small" sx={{ color: '#4CAF50' }} /> : 
+                    <ContentCopyIcon fontSize="small" sx={{ color: '#4f86f7' }} />
+                  }
+                </Box>
               </Box>
               <Typography
                 variant="body2"
-                sx={{ color: 'text.secondary', fontSize: '0.875rem' }}
+                sx={{ 
+                  color: 'text.secondary', 
+                  fontSize: '0.8rem',
+                  fontStyle: 'italic'
+                }}
               >
                 {formatOrderDate(order.createdAt)}
               </Typography>
@@ -193,10 +260,12 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
           <Grid item xs={12} sm={6} md={3}>
             <Box>
               <Typography
-                variant="body2"
+                variant="body1"
                 sx={{
                   color: 'white',
+                  fontWeight: 500,
                   fontSize: '0.95rem',
+                  mb: 0.5
                 }}
               >
                 {order.address?.receiverName || 'N/A'}
@@ -208,25 +277,57 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 >
                   {order.address?.receiverPhoneNumber || 'N/A'}
                 </Typography>
-                <Tooltip title="Copy Phone Number">
-                  <IconButton
-                    size="small"
+                <Box sx={{ display: 'flex', ml: 0.5 }}>
+                  {/* Replace IconButton with Box */}
+                  <Box
                     onClick={handleCopyPhoneNumber}
-                    sx={{ marginLeft: '4px' }}
+                    sx={{ 
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)'
+                      }
+                    }}
                   >
-                    {phoneCopied ? <CheckIcon color="success" /> : <ContentCopyIcon fontSize="small" sx={{ color: 'rgb(200, 200, 200)' }} />}
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Open in Whatsapp Chat">
-                  <IconButton
-                    size="small"
-                    sx={{ marginLeft: '0px' }}
+                    {phoneCopied ? 
+                      <CheckIcon fontSize="small" sx={{ color: '#4CAF50' }} /> : 
+                      <ContentCopyIcon fontSize="small" sx={{ color: 'rgb(200, 200, 200)' }} />
+                    }
+                  </Box>
+                  {/* Use a div instead of IconButton for WhatsApp */}
+                  <Box
+                    component="div"
+                    sx={{ 
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)'
+                      }
+                    }}
                   >
-                    <Link style={{ display:'flex', alignItems: 'center', justifyContent:'center'}} href={`https://wa.me/91${order.address?.receiverPhoneNumber}`} target='_blank'>
-                      <WhatsApp fontSize="small" sx={{ color: 'rgb(200, 200, 200)' }} />
+                    <Link 
+                      style={{ 
+                        display:'flex', 
+                        alignItems: 'center', 
+                        justifyContent:'center'
+                      }} 
+                      href={`https://wa.me/91${order.address?.receiverPhoneNumber}`} 
+                      target='_blank'
+                    >
+                      <WhatsApp fontSize="small" sx={{ color: '#25D366' }} />
                     </Link>
-                  </IconButton>
-                </Tooltip>
+                  </Box>
+                </Box>
               </Box>
             </Box>
           </Grid>
@@ -234,29 +335,43 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
           {/* UTM Source and Product Count */}
           <Grid item xs={12} sm={6} md={3}>
             <Box>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'white',
-                  fontSize: '0.9rem',
-                  textTransform: 'capitalize',
-                }}
-              >
-                {order.utmDetails?.source || 'N/A'}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: '#2D7EE8',
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  textDecoration: 'underline',
-                  width: 'fit-content',
-                }}
-                onClick={handlePopoverOpen}
-              >
-                {order.items.length} {order.items.length === 1 ? 'Product' : 'Products'}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                <SourceIcon fontSize="small" sx={{ color: '#FF9800', mr: 0.7 }} />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: '#FF9800',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {order.utmDetails?.source || 'Direct'}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography
+                  variant="body2"
+                  component="span"
+                  onClick={handlePopoverOpen}
+                  sx={{
+                    color: '#4f86f7',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    "&:hover": {
+                      textDecoration: 'underline',
+                    }
+                  }}
+                >
+                  <LocalMallIcon fontSize="small" sx={{ mr: 0.5, color: '#4f86f7' }} />
+                  {totalItemsQuantity} {totalItemsQuantity === 1 ? 'Item' : 'Items'}
+                </Typography>
+              </Box>
+              
               <Popover
                 id={id}
                 open={open}
@@ -270,268 +385,682 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   vertical: 'top',
                   horizontal: 'left',
                 }}
+                onClick={(e) => e.stopPropagation()}
+                PaperProps={{
+                  sx: {
+                    borderRadius: '10px',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+                    maxHeight: '60vh',
+               
+                  }
+                }}
               >
-                <Box sx={{ p: 2, maxWidth: '400px', backgroundColor: '#2C2C2C' }}>
-                  <Typography variant="subtitle1" sx={{ color: 'white', marginBottom: '8px' }}>
-                    Products
+                <Box sx={{ p: 2, maxWidth: '400px', backgroundColor: '#222', maxHeight: '60vh', overflow: 'auto' }}>
+                  {/* Improved product list header */}
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      color: 'white', 
+                      mb: 2, 
+                      pb: 1, 
+                      borderBottom: '1px solid rgba(255,255,255,0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <Box display="flex" alignItems="center">
+                      <LocalMallIcon sx={{ mr: 1 }} />
+                      Product Details
+                    </Box>
+                    <Chip 
+                      label={`${totalItemsQuantity} ${totalItemsQuantity === 1 ? 'item' : 'items'}`} 
+                      size="small" 
+                      sx={{ 
+                        backgroundColor: 'rgba(79, 134, 247, 0.2)', 
+                        color: '#4f86f7',
+                        fontWeight: 'bold' 
+                      }} 
+                    />
                   </Typography>
-                  <List>
+                  
+                  {/* Simplified product cards */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                     {order.items.map((item, index) => (
-                      <ListItem key={index} disableGutters>
-                        <ListItemText
-                          primary={item.product?.specificCategoryVariant?.name || 'N/A'}
-                          secondary={
-                            <>
-                              <Typography component="span" variant="body2" color="text.primary">
-                                SKU: {item.sku || 'N/A'}
-                              </Typography>
-                              <br />
-                              <Typography component="span" variant="body2" color="text.primary">
-                                QTY: {item.quantity || 'N/A'}
-                              </Typography>
-                            </>
-                          }
-                          primaryTypographyProps={{ color: 'white' }}
-                          secondaryTypographyProps={{ color: 'text.secondary' }}
-                        />
-                      </ListItem>
+                      <Card 
+                        key={index} 
+                        elevation={0}
+                        sx={{ 
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          border: '1px solid rgba(255,255,255,0.08)'
+                        }}
+                      >
+                        <Box sx={{ 
+                          display: 'flex', 
+                          p: 1.5,
+                          gap: 2
+                        }}>
+                          {/* Product image */}
+                          {item.thumbnail && (
+                            <Box 
+                              component="img"
+                              src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail}`}
+                              alt={item.name || 'Product image'}
+                              sx={{ 
+                                width: '50px', 
+                                height: '50px', 
+                                objectFit: 'cover', 
+                                borderRadius: '4px',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                flexShrink: 0
+                              }}
+                            />
+                          )}
+                          
+                          {/* Product details */}
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body1" sx={{ 
+                              color: 'white', 
+                              fontWeight: 600,
+                              mb: 1,
+                              fontSize: '0.95rem'
+                            }}>
+                              {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
+                            </Typography>
+                            
+                            <Box sx={{ 
+                              display: 'flex', 
+                              flexWrap: 'wrap', 
+                              gap: 1,
+                              alignItems: 'center'
+                            }}>
+                              <Chip 
+                                label={`SKU: ${item.sku || 'N/A'}`} 
+                                size="small" 
+                                sx={{ 
+                                  backgroundColor: 'rgba(144, 202, 249, 0.15)', 
+                                  color: '#90CAF9',
+                                  height: '22px'
+                                }} 
+                              />
+                              
+                              <Chip 
+                                label={`QTY: ${item.quantity || 'N/A'}`} 
+                                size="small"
+                                sx={{ 
+                                  backgroundColor: 'rgba(129, 199, 132, 0.15)', 
+                                  color: '#81C784',
+                                  height: '22px'
+                                }}
+                              />
+                              
+                              {item.wrapFinish && (
+                                <Chip 
+                                  label={`Finish: ${item.wrapFinish}`} 
+                                  size="small"
+                                  sx={{ 
+                                    backgroundColor: 'rgba(206, 147, 216, 0.15)', 
+                                    color: '#CE93D8',
+                                    height: '22px'
+                                  }}
+                                />
+                              )}
+                            </Box>
+                          </Box>
+                        </Box>
+                      </Card>
                     ))}
-                  </List>
+                  </Box>
                 </Box>
               </Popover>
             </Box>
           </Grid>
 
           {/* Payment Mode and Total Amount */}
-          <Grid item xs={12} sm={6} md={3} sx={{ textAlign: 'right' }}>
-            <Box>
-              <PaymentModeChip mode={order.paymentDetails?.mode?.name || 'COD'} />
+          <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ textAlign: 'right' }}>
+              {/* <PaymentModeChip mode={order.paymentDetails?.mode?.name || 'COD'} /> */}
+              
               <Typography
                 variant="h6"
                 sx={{
                   color: 'white',
-                  fontSize: '1rem',
-                  fontWeight: '500',
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  mt: 0.8,
                 }}
               >
                 ₹ {order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: '#FFD700',
-                  fontSize: '0.85rem',
-                }}
-              >
-                Discount: ₹ {order.totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: '#00CED1',
-                  fontSize: '0.85rem',
-                }}
-              >
-                Coupon: {order.couponApplied[0]?.couponCode || 'N/A'}
-              </Typography>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: 0.5 }}>
+                <DiscountIcon fontSize="small" sx={{ color: '#FFD700', mr: 0.5 }} />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: '#FFD700',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  ₹ {order.totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Typography>
+              </Box>
+              
+              {order.couponApplied[0]?.couponCode && (
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: '#00CED1',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    mt: 0.3,
+                  }}
+                >
+                  Coupon: {order.couponApplied[0]?.couponCode}
+                </Typography>
+              )}
             </Box>
           </Grid>
         </Grid>
       </AccordionSummary>
-      <AccordionDetails sx={{ backgroundColor: '#1E1E1E' }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Status Chips */}
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{ marginBottom: '6px', color: 'white' }}
+      
+      <AccordionDetails sx={{ backgroundColor: '#1A1A1A', p: 3 }}>
+        {/* Cards Layout */}
+        <Grid container spacing={3}>
+          {/* First row: Status and Address */}
+          <Grid item xs={12} md={6}>
+            <Paper 
+              elevation={0}
+              sx={{ 
+                p: 2.5, 
+                backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                borderRadius: '12px',
+                height: '100%',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                }
+              }}
             >
-              <strong>Status</strong>
-            </Typography>
-            <Box sx={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <Chip
-                icon={<PaymentIcon />}
-                label={order.paymentStatus.replace(/([A-Z])/g, ' $1').trim()}
-                color={statusColors[order.paymentStatus] || 'default'}
-                size="small"
-              />
-              <Chip
-                icon={<LocalShippingIcon />}
-                label={order.deliveryStatus.replace(/([A-Z])/g, ' $1').trim()}
-                color={statusColors[order.deliveryStatus] || 'default'}
-                size="small"
-              />
-            </Box>
-          </Box>
-
-          <Divider sx={{ borderColor: '#333' }} />
-
-          {/* Address Details */}
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{ marginBottom: '6px', color: 'white' }}
-            >
-              <strong>Address Details</strong>
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ fontSize: '0.85rem', color: 'text.secondary' }}
-            >
-              {order.address?.addressLine1 || 'N/A'}, {order.address?.addressLine2 || ''}, {order.address?.city || 'N/A'}, {order.address?.state || 'N/A'}, {order.address?.pincode || 'N/A'}
-            </Typography>
-          </Box>
-
-          <Divider sx={{ borderColor: '#333' }} />
-
-          {/* Payment Details */}
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{ marginBottom: '6px', color: 'white' }}
-            >
-              <strong>Payment Details</strong>
-            </Typography>
-            <Grid container spacing={1}>
-              <Grid item xs={6}>
-                <Typography
-                  variant="body2"
-                  sx={{ fontSize: '0.85rem', color: 'text.secondary' }}
-                >
-                  Amount Paid Online:
-                  <span style={{ marginLeft: '1rem', color: '#34C759', fontWeight: '500' }}>
-                    ₹{order.paymentDetails?.amountPaidOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography
-                  variant="body2"
-                  sx={{ fontSize: '0.85rem', color: 'text.secondary' }}
-                >
-                  Payment Mode:
-                  <span style={{ marginLeft: '1rem', color: '#2D7EE8', fontWeight: '500' }}>
-                    {order.paymentDetails?.mode?.name.toUpperCase() || 'COD'}
-                  </span>
-                </Typography>
-              </Grid>
-              {order.paymentDetails?.mode?.name.toLowerCase() !== 'online' && (
-                <>
-                  {order.paymentDetails?.amountDueOnline > 0 && (
-                    <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
-                        Amount Due Online:
-                        <span style={{ marginLeft: '1rem', color: 'red', fontWeight: '500' }}> ₹{order.paymentDetails?.amountDueOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                      </Typography>
-                    </Grid>
-                  )}
-                  {order.paymentDetails?.amountPaidCod === 0 && order.paymentDetails?.amountDueCod > 0 && (
-                    <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
-                        Amount Due COD:
-                        <span style={{ marginLeft: '1rem', color: 'rgb(213, 0, 0)', fontWeight: '500' }}> ₹{order.paymentDetails?.amountDueCod.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                      </Typography>
-                    </Grid>
-                  )}
-                  {order.paymentDetails?.amountPaidCod > 0 && (
-                    <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
-                        Amount Paid COD:
-                        <span style={{ marginLeft: '1rem', color: '#34C759', fontWeight: '500' }}> ₹{order.paymentDetails?.amountPaidCod.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                      </Typography>
-                    </Grid>
-                  )}
-                </>
-              )}
-            </Grid>
-          </Box>
-
-          <Divider sx={{ borderColor: '#333' }} />
-
-          {/* Extra Charges */}
-          {order.extraCharges && order.extraCharges.length > 0 && (
-            <Box>
               <Typography
-                variant="subtitle2"
-                sx={{ marginBottom: '6px', color: 'white' }}
+                variant="h6"
+                sx={{ 
+                  mb: 2, 
+                  color: 'white', 
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
               >
-                <strong>Extra Charges</strong>
+                Order Status
               </Typography>
-              <List>
-                {order.extraCharges.map((charge, index) => (
-                  <ListItem key={index} disableGutters >
-                    <ListItemText
-                      sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '1rem' }}
-                      primary={charge.chargesName || 'N/A'}
-                      secondary={
-                        <Typography component="span" variant="body2" color="text.secondary">
-                          ₹{charge.chargesAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                        </Typography>
-                      }
-                      primaryTypographyProps={{ color: 'white' }}
-                      secondaryTypographyProps={{ color: 'text.secondary' }}
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Paper elevation={0} sx={{ 
+                    p: 1.5, 
+                    backgroundColor: 'rgba(0,0,0,0.2)', 
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                  }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+                      Payment Status
+                    </Typography>
+                    <Chip
+                      icon={<PaymentIcon />}
+                      label={formatStatus(order.paymentStatus)}
+                      color={statusColors[order.paymentStatus] || 'default'}
+                      size="medium"
+                      sx={{ width: '100%', justifyContent: 'flex-start', pl: 0.5 }}
                     />
-                  </ListItem>
-                ))}
-              </List>
-            </Box>
-          )}
-
-          <Divider sx={{ borderColor: '#333' }} />
-
-          {/* UTM Details */}
-          {order.utmDetails && Object.keys(order.utmDetails).length > 0 && (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{ marginBottom: '6px', color: 'white' }}
-              >
-                <strong>UTM Details</strong>
-              </Typography>
-              <Grid container spacing={1}>
-                {Object.entries(order.utmDetails).map(([key, value]) => {
-                  if (!value) return null;
-                  return (
-                    <Grid item xs={6} key={key}>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontSize: '0.85rem', color: 'text.secondary', textTransform:'capitalize' }}
-                      >
-                        <strong>{key.toUpperCase()}:</strong> {value}
-                      </Typography>
-                    </Grid>
-                  );
-                })}
+                  </Paper>
+                </Grid>
+                <Grid item xs={6}>
+                  <Paper elevation={0} sx={{ 
+                    p: 1.5, 
+                    backgroundColor: 'rgba(0,0,0,0.2)', 
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                  }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+                      Delivery Status
+                    </Typography>
+                    <Chip
+                      icon={<LocalShippingIcon />}
+                      label={formatStatus(order.deliveryStatus)}
+                      color={statusColors[order.deliveryStatus] || 'default'}
+                      size="medium"
+                      sx={{ width: '100%', justifyContent: 'flex-start', pl: 0.5 }}
+                    />
+                  </Paper>
+                </Grid>
               </Grid>
-            </Box>
-          )}
-
-          <Divider sx={{ borderColor: '#333' }} />
-
-          {/* Extra Fields */}
-          {order.extraFields && Object.keys(order.extraFields).length > 0 && (
-            <Box>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Paper 
+              elevation={0}
+              sx={{ 
+                p: 2.5, 
+                backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                borderRadius: '12px',
+                height: '100%',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                }
+              }}
+            >
               <Typography
-                variant="subtitle2"
-                sx={{ marginBottom: '6px', color: 'white' }}
+                variant="h6"
+                sx={{ 
+                  mb: 2, 
+                  color: 'white', 
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
               >
-                <strong>Extra Details</strong>
+                <LocationOnIcon sx={{ mr: 1, color: '#f44336' }} />
+                Shipping Address
               </Typography>
-              <Grid container spacing={1}>
-                {Object.entries(order.extraFields).map(([key, value]) => (
-                  <Grid item xs={6} key={key}>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontSize: '0.85rem', color: 'text.secondary' }}
-                    >
-                      <strong>{key}:</strong> {value}
+              
+              <Card sx={{ 
+                backgroundColor: 'rgba(0,0,0,0.2)', 
+                borderRadius: '8px', 
+                p: 2,
+                border: '1px solid rgba(255,255,255,0.05)',
+              }}>
+                <Typography
+                  variant="body1"
+                  sx={{ 
+                    fontSize: '0.95rem', 
+                    color: 'white',
+                    fontWeight: 500,
+                    mb: 1
+                  }}
+                >
+                  {order.address?.receiverName}
+                </Typography>
+                
+                <Typography
+                  variant="body2"
+                  sx={{ 
+                    fontSize: '0.9rem', 
+                    color: 'text.secondary',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {order.address?.addressLine1 || 'N/A'}{order.address?.addressLine2 ? `, ${order.address.addressLine2}` : ''}, 
+                  <br />{order.address?.city || 'N/A'}, {order.address?.state || 'N/A'}, 
+                  <br />{order.address?.pincode || 'N/A'}
+                </Typography>
+              </Card>
+            </Paper>
+          </Grid>
+          
+          {/* Second row: Payment Details & Invoice Details */}
+          <Grid item xs={12} md={6}>
+            <Paper 
+              elevation={0}
+              sx={{ 
+                p: 2.5, 
+                backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                borderRadius: '12px',
+                height: '100%',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                }
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{ 
+                  mb: 2, 
+                  color: 'white', 
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <AttachMoneyIcon sx={{ mr: 1, color: '#4CAF50' }} />
+                Payment Details
+              </Typography>
+              
+              <Card sx={{ 
+                backgroundColor: 'rgba(0,0,0,0.2)', 
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.05)',
+              }}>
+                <Grid container spacing={0} sx={{ p: 0 }}>
+                  <Grid item xs={6} sx={{ p: 1.5, borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
+                      Payment Mode
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: '#2D7EE8', fontWeight: 'bold' }}>
+                      {order.paymentDetails?.mode?.name.toUpperCase() || 'COD'}
                     </Typography>
                   </Grid>
-                ))}
-              </Grid>
-            </Box>
+                  
+                  <Grid item xs={6} sx={{ p: 1.5 }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
+                      Amount Paid Online
+                    </Typography>
+                    <Typography variant="body1" sx={{ color: '#34C759', fontWeight: 'bold' }}>
+                      ₹{order.paymentDetails?.amountPaidOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Typography>
+                  </Grid>
+                  
+                  <Divider sx={{ width: '100%', borderColor: 'rgba(255,255,255,0.05)' }} />
+                  
+                  {order.paymentDetails?.mode?.name.toLowerCase() !== 'online' && (
+                    <>
+                      {order.paymentDetails?.amountDueOnline > 0 && (
+                        <Grid item xs={6} sx={{ p: 1.5, borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
+                            Amount Due Online
+                          </Typography>
+                          <Typography variant="body1" sx={{ color: '#FF3B30', fontWeight: 'bold' }}>
+                            ₹{order.paymentDetails?.amountDueOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Typography>
+                        </Grid>
+                      )}
+                      
+                      {order.paymentDetails?.amountPaidCod === 0 && order.paymentDetails?.amountDueCod > 0 && (
+                        <Grid item xs={6} sx={{ p: 1.5 }}>
+                          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
+                            Amount Due COD
+                          </Typography>
+                          <Typography variant="body1" sx={{ color: '#FF3B30', fontWeight: 'bold' }}>
+                            ₹{order.paymentDetails?.amountDueCod.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Typography>
+                        </Grid>
+                      )}
+                      
+                      {order.paymentDetails?.amountPaidCod > 0 && (
+                        <Grid item xs={6} sx={{ p: 1.5 }}>
+                          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
+                            Amount Paid COD
+                          </Typography>
+                          <Typography variant="body1" sx={{ color: '#34C759', fontWeight: 'bold' }}>
+                            ₹{order.paymentDetails?.amountPaidCod.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Typography>
+                        </Grid>
+                      )}
+                    </>
+                  )}
+                </Grid>
+              </Card>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={12} md={6}>
+            <Paper 
+              elevation={0}
+              sx={{ 
+                p: 2.5, 
+                backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                borderRadius: '12px',
+                height: '100%',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                }
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography
+                  variant="h6"
+                  sx={{ 
+                    color: 'white', 
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <ArticleIcon sx={{ mr: 1, color: '#FF9800' }} />
+                  Invoice Details
+                </Typography>
+                
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<DownloadIcon />}
+                  size="small"
+                  onClick={handleDownloadInvoice}
+                  sx={{
+                    borderRadius: '20px',
+                    textTransform: 'none',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  Download Invoice
+                </Button>
+              </Box>
+              
+              <Card sx={{ 
+                backgroundColor: 'rgba(0,0,0,0.2)', 
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.05)',
+              }}>
+                <Box sx={{ p: 1.5, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <Grid container spacing={1}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+                        Invoice ID
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: 'white', fontSize: '0.85rem', fontWeight: 500 }}>
+                        INV_{order._id}
+                      </Typography>
+                    </Grid>
+                    
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+                        Company
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: 'white', fontSize: '0.85rem', fontWeight: 500 }}>
+                        Maddy Custom
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Box>
+                
+                <Box sx={{ p: 1.5 }}>
+                  <Grid container spacing={1}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+                        Items Total
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: 'white', fontSize: '0.85rem', fontWeight: 500 }}>
+                        ₹{itemsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </Typography>
+                    </Grid>
+                    
+                    {order.totalDiscount > 0 && (
+                      <>
+                        <Grid item xs={6}>
+                          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+                            Discount
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="body2" sx={{ color: '#FFD700', fontSize: '0.85rem', fontWeight: 500 }}>
+                            - ₹{order.totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Typography>
+                        </Grid>
+                      </>
+                    )}
+                    
+                    {order.extraCharges && order.extraCharges.map((charge, index) => (
+                      <React.Fragment key={index}>
+                        <Grid item xs={6}>
+                          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+                            {charge.chargesName || 'Extra Charge'}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Typography variant="body2" sx={{ color: '#FF9800', fontSize: '0.85rem', fontWeight: 500 }}>
+                            + ₹{charge.chargesAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Typography>
+                        </Grid>
+                      </React.Fragment>
+                    ))}
+                    
+                    <Grid item xs={12}><Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.1)' }} /></Grid>
+                    
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>
+                        Total Amount
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>
+                        ₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </Typography>
+                    </Grid>
+                    
+                    <Grid item xs={12}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                        Tax is included in the product price
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Card>
+            </Paper>
+          </Grid>
+          
+          {/* UTM Details Section */}
+          {order.utmDetails && Object.keys(order.utmDetails).some(key => !!order.utmDetails[key]) && (
+            <Grid item xs={12}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 2.5, 
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  }
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  sx={{ 
+                    mb: 2, 
+                    color: 'white', 
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <SourceIcon sx={{ mr: 1, color: '#FF9800' }} />
+                  Marketing Source Info
+                </Typography>
+                
+                <Card sx={{ 
+                  p: 1.5, 
+                  backgroundColor: 'rgba(0,0,0,0.2)', 
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  <Grid container spacing={2}>
+                    {Object.entries(order.utmDetails).map(([key, value]) => {
+                      if (!value) return null;
+                      return (
+                        <Grid item xs={12} sm={6} md={4} key={key}>
+                          <Box sx={{ mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              {key}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#E0E0E0', fontSize: '0.9rem', textTransform: 'capitalize', fontWeight: 500 }}>
+                              {value}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+                </Card>
+              </Paper>
+            </Grid>
           )}
-        </Box>
+
+          {/* Extra Fields Section */}
+          {order.extraFields && Object.keys(order.extraFields).length > 0 && (
+            <Grid item xs={12}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 2.5, 
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  }
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  sx={{ 
+                    mb: 2, 
+                    color: 'white', 
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  Additional Information
+                </Typography>
+                
+                <Card sx={{ 
+                  p: 2, 
+                  backgroundColor: 'rgba(0,0,0,0.2)', 
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  <Grid container spacing={2}>
+                    {Object.entries(order.extraFields).map(([key, value]) => (
+                      <Grid item xs={12} sm={6} md={4} key={key}>
+                        <Box sx={{ mb: 0.5 }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {key}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#E0E0E0', fontSize: '0.9rem', fontWeight: 500 }}>
+                            {value}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Card>
+              </Paper>
+            </Grid>
+          )}
+        </Grid>
       </AccordionDetails>
     </Accordion>
   );

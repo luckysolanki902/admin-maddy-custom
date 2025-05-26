@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Container,
   Table,
@@ -18,65 +18,92 @@ import {
   Tooltip,
   Snackbar,
   IconButton,
-  Dialog,
-  AppBar,
-  Toolbar,
-  Slide,
-  TableContainer,
-} from '@mui/material';
+  TextField
+} from "@mui/material";
 import {
   Download as DownloadIcon,
   ContentCopy as ContentCopyIcon,
   ImageNotSupported as ImageNotSupportedIcon, // Fallback icon
   Close as CloseIcon,
-} from '@mui/icons-material';
-import dayjs from 'dayjs';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
-import Image from 'next/image';
-import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
+} from "@mui/icons-material";
+import dayjs from "dayjs";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
+import Image from "next/image";
 
 const DownloadProductionTemplates = () => {
-  // Update state for DateRangeChips
-  const [activeTag, setActiveTag] = useState('today');
-  const [dateRange, setDateRange] = useState({
-    start: dayjs().startOf('day'),
-    end: dayjs().endOf('day')
-  });
-  
-  // Keep these for API compatibility
-  const [startDate, setStartDate] = useState(dayjs().startOf('day').toISOString());
-  const [endDate, setEndDate] = useState(dayjs().endOf('day').toISOString());
-  
+  const [selectedDateTag, setSelectedDateTag] = useState("today");
+  const [customDate, setCustomDate] = useState("");
+  const [startDate, setStartDate] = useState(dayjs().startOf("day").toISOString());
+  const [endDate, setEndDate] = useState(dayjs().endOf("day").toISOString());
   const [imagesData, setImagesData] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [unavailableImages, setUnavailableImages] = useState(new Set()); // Track unavailable images
   const [snackbarOpen, setSnackbarOpen] = useState(false); // For clipboard feedback
 
+  const [activeTag, setActiveTag] = useState('today');
+  const [dateRange, setDateRange] = useState({
+    start: dayjs().startOf('day'),
+    end: dayjs().endOf('day')
+  });
+
   const CLOUDFRONT_BASEURL = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL;
-  const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+  // Function to compute startDate and endDate based on selectedDateTag
+  const computeDateRange = (dateTag, customDateValue) => {
+    let start, end;
+    const now = dayjs();
+
+    if (dateTag === "today") {
+      start = now.startOf("day").toISOString();
+      end = now.endOf("day").toISOString();
+    } else if (dateTag === "yesterday") {
+      const yesterday = now.subtract(1, "day");
+      start = yesterday.startOf("day").toISOString();
+      end = yesterday.endOf("day").toISOString();
+    } else if (dateTag === "custom") {
+      const specificDate = dayjs(customDateValue, "YYYY-MM-DD");
+      if (!specificDate.isValid()) {
+        return { start: null, end: null };
+      }
+      start = specificDate.startOf("day").toISOString();
+      end = specificDate.endOf("day").toISOString();
+    }
+
+    return { start, end };
+  };
+
+  // Update startDate and endDate when selectedDateTag or customDate changes
+  useEffect(() => {
+    const { start, end } = computeDateRange(selectedDateTag, customDate);
+    if (start && end) {
+      setStartDate(start);
+      setEndDate(end);
+    }
+  }, [selectedDateTag, customDate]);
 
   // Function to fetch images data with presigned URLs and totals
   const fetchImagesData = useCallback(async () => {
     setLoading(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
     try {
       // Generate a download token
-      const tokenRes = await fetch('/api/admin/aws/generate-download-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const tokenRes = await fetch("/api/admin/aws/generate-download-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ startDate, endDate }),
       });
 
       if (!tokenRes.ok) {
         const errorData = await tokenRes.json();
-        throw new Error(errorData.message || 'Failed to generate download token.');
+        throw new Error(errorData.message || "Failed to generate download token.");
       }
 
       const { token } = await tokenRes.json();
@@ -85,7 +112,7 @@ const DownloadProductionTemplates = () => {
       const res = await fetch(`/api/admin/aws/get-presigned-urls?token=${encodeURIComponent(token)}`);
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || 'Error fetching images data.');
+        throw new Error(errorData.message || "Error fetching images data.");
       }
 
       const data = await res.json();
@@ -94,8 +121,8 @@ const DownloadProductionTemplates = () => {
       setTotalItems(data.totalItems);
       setUnavailableImages(new Set()); // Reset unavailable images on new fetch
     } catch (error) {
-      console.error('Error fetching images:', error);
-      setError(error.message || 'Failed to fetch images data.');
+      console.error("Error fetching images:", error);
+      setError(error.message || "Failed to fetch images data.");
     } finally {
       setLoading(false);
     }
@@ -108,13 +135,13 @@ const DownloadProductionTemplates = () => {
   // Function to handle image download via client-side zipping
   const handleDownload = async () => {
     if (imagesData.length === 0) {
-      setError('No available images to download.');
+      setError("No available images to download.");
       return;
     }
 
     setDownloadLoading(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     const startTime = performance.now(); // Start timing
 
@@ -122,12 +149,12 @@ const DownloadProductionTemplates = () => {
       const zip = new JSZip();
 
       // Function to fetch each image and add to zip
-      const fetchAndAddToZip = async (image) => {
-        const { sku, specificCategoryVariant, presignedUrl, imageUrl, count } = image;
+      const fetchAndAddToZip = async image => {
+        const { sku, specificCategoryVariant, presignedUrl, imageUrl, count, wrapFinish } = image;
 
         if (!presignedUrl) {
           console.error(`No presigned URL for SKU ${sku}.`);
-          setUnavailableImages((prev) => new Set(prev).add(sku));
+          setUnavailableImages(prev => new Set(prev).add(sku));
           return;
         }
 
@@ -140,32 +167,50 @@ const DownloadProductionTemplates = () => {
           const arrayBuffer = await blob.arrayBuffer();
 
           // Sanitize folder and file names
-          const sanitizedSKU = sku.replace(/[/\\?%*:|"<>]/g, '-');
-          const sanitizedCategoryVariant = specificCategoryVariant.replace(/[/\\?%*:|"<>]/g, '-');
+          const sanitizedSKU = sku.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
+          const sanitizedCategoryVariant = specificCategoryVariant.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
 
           // Extract file extension from imageUrl using regex
           const fileExtensionMatch = imageUrl.match(/\.(jpg|jpeg|png|gif|bmp|svg)$/i);
-          const fileExtension = fileExtensionMatch ? fileExtensionMatch[0] : '.jpg';
+          const fileExtension = fileExtensionMatch ? fileExtensionMatch[0] : ".jpg";
 
-          for (let i = 1; i <= count; i++) {
-            const imagePath = `${sanitizedCategoryVariant}/${sanitizedSKU}-${i}${fileExtension}`;
-            zip.file(imagePath, arrayBuffer, { binary: true });
+          if (wrapFinish && typeof wrapFinish === "object") {
+            for (const [finish, qty] of Object.entries(wrapFinish)) {
+              if (finish === "None") continue;
+
+              let sanitizedFinish = finish.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
+              if (sanitizedFinish === "None" || sanitizedFinish === "n/a") {
+                sanitizedFinish = "matte"; 
+              }
+
+              for (let i = 1; i <= qty; i++) {
+                const imagePath = `${sanitizedCategoryVariant}/${sanitizedSKU}-${sanitizedFinish}-${i}${fileExtension}`;
+                zip.file(imagePath, arrayBuffer, { binary: true });
+              }
+            }
+
+            if (wrapFinish["None"]) {
+              for (let i = 1; i <= wrapFinish["None"]; i++) {
+                const imagePath = `${sanitizedCategoryVariant}/${sanitizedSKU}-${i}${fileExtension}`;
+                zip.file(imagePath, arrayBuffer, { binary: true });
+              }
+            }
           }
         } catch (error) {
           console.error(`Error fetching image for SKU ${sku}:`, error);
-          setUnavailableImages((prev) => new Set(prev).add(sku));
+          setUnavailableImages(prev => new Set(prev).add(sku));
         }
       };
 
       // Fetch and add all images to zip
-      await Promise.all(imagesData.map((image) => fetchAndAddToZip(image)));
+      await Promise.all(imagesData.map(image => fetchAndAddToZip(image)));
 
       // Generate zip blob
-      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
 
       // Create a filename with current date and time
-      const formattedStartDate = dayjs(startDate).format('MMM_DD_YYYY');
-      const formattedCurrentDateTime = dayjs().format('MMM_DD_YYYY_At_hh_mm_A');
+      const formattedStartDate = dayjs(startDate).format("MMM_DD_YYYY");
+      const formattedCurrentDateTime = dayjs().format("MMM_DD_YYYY_At_hh_mm_A");
       const fileName = `Orders_${formattedStartDate}_downloaded_On_${formattedCurrentDateTime}.zip`;
 
       // Trigger download
@@ -176,8 +221,8 @@ const DownloadProductionTemplates = () => {
 
       setSuccess(`Downloaded in ${timeTaken} seconds.`);
     } catch (error) {
-      console.error('Error downloading zip:', error);
-      setError(error.message || 'Failed to download zip.');
+      console.error("Error downloading zip:", error);
+      setError(error.message || "Failed to download zip.");
     } finally {
       setDownloadLoading(false);
     }
@@ -186,26 +231,26 @@ const DownloadProductionTemplates = () => {
   // Function to handle copying download link to clipboard
   const handleCopyDownloadLink = async () => {
     try {
-      const tokenRes = await fetch('/api/admin/aws/generate-download-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const tokenRes = await fetch("/api/admin/aws/generate-download-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ startDate, endDate }),
       });
 
       if (!tokenRes.ok) {
         const errorData = await tokenRes.json();
-        throw new Error(errorData.message || 'Failed to generate download token.');
+        throw new Error(errorData.message || "Failed to generate download token.");
       }
 
       const { token } = await tokenRes.json();
       const downloadLink = `${SITE_URL}/api/public/download/download-raw-designs?token=${encodeURIComponent(token)}`;
 
       await navigator.clipboard.writeText(downloadLink);
-      setSuccess('Download link copied to clipboard!');
+      setSuccess("Download link copied to clipboard!");
       setSnackbarOpen(true);
     } catch (err) {
-      console.error('Failed to copy: ', err);
-      setError('Failed to copy download link.');
+      console.error("Failed to copy: ", err);
+      setError("Failed to copy download link.");
     }
   };
 
@@ -218,14 +263,14 @@ const DownloadProductionTemplates = () => {
   useEffect(() => {
     if (dateRange.start && dateRange.end) {
       // Check if dateRange.start is a dayjs object or a Date object
-      const start = typeof dateRange.start.toISOString === 'function' 
-        ? dateRange.start.toISOString() 
+      const start = typeof dateRange.start.toISOString === 'function'
+        ? dateRange.start.toISOString()
         : dayjs(dateRange.start).toISOString();
-      
+
       const end = typeof dateRange.end.toISOString === 'function'
         ? dateRange.end.toISOString()
         : dayjs(dateRange.end).toISOString();
-      
+
       setStartDate(start);
       setEndDate(end);
     }
@@ -278,12 +323,12 @@ const DownloadProductionTemplates = () => {
       {/* Feedback Messages */}
       <Stack spacing={2} sx={{ mb: 2 }}>
         {error && (
-          <Alert severity="error" onClose={() => setError('')}>
+          <Alert severity="error" onClose={() => setError("")}>
             {error}
           </Alert>
         )}
         {success && (
-          <Alert severity="success" onClose={() => setSuccess('')}>
+          <Alert severity="success" onClose={() => setSuccess("")}>
             {success}
           </Alert>
         )}
@@ -294,24 +339,56 @@ const DownloadProductionTemplates = () => {
         <Typography variant="h6" gutterBottom>
           Select Date
         </Typography>
-        <DateRangeChips
-          activeTag={activeTag}
-          setActiveTag={setActiveTag}
-          setDateRange={setDateRange}
-          handleAllTagClick={handleAllTagClick}
-          handleCustomDayChange={handleCustomDayChange}
-          handleCustomDateChange={(start, end) => {
-            setActiveTag('customRange');
-            setDateRange({ start, end });
-          }}
-          handleMonthSelection={handleMonthSelection}
-        />
+        <Grid container spacing={2} alignItems="center">
+          <Grid item>
+            <Button
+              onClick={() => {
+                setSelectedDateTag("today");
+                setCustomDate("");
+              }}
+              variant={selectedDateTag === "today" ? "contained" : "outlined"}
+              color="primary"
+              fullWidth
+            >
+              Today
+            </Button>
+          </Grid>
+          <Grid item>
+            <Button
+              onClick={() => {
+                setSelectedDateTag("yesterday");
+                setCustomDate("");
+              }}
+              variant={selectedDateTag === "yesterday" ? "contained" : "outlined"}
+              color="primary"
+              fullWidth
+            >
+              Yesterday
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              label="Custom Date"
+              type="date"
+              value={selectedDateTag === "custom" ? customDate : ""}
+              onChange={e => {
+                setSelectedDateTag("custom");
+                setCustomDate(e.target.value);
+              }}
+              fullWidth
+              InputLabelProps={{
+                shrink: true,
+              }}
+              variant="outlined"
+            />
+          </Grid>
+        </Grid>
       </Paper>
 
       {/* Warning for unavailable files */}
       {unavailableImages.size > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          {`${unavailableImages.size} file${unavailableImages.size > 1 ? 's are' : ' is'} unavailable in the AWS bucket`}
+          {`${unavailableImages.size} file${unavailableImages.size > 1 ? "s are" : " is"} unavailable in the AWS bucket`}
         </Alert>
       )}
 
@@ -323,7 +400,7 @@ const DownloadProductionTemplates = () => {
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={4}>
             <Tooltip title="Download all available images as a zip file">
-              <span style={{ display: 'inline-block', width: '100%' }}>
+              <span style={{ display: "inline-block", width: "100%" }}>
                 <Button
                   variant="contained"
                   color="primary"
@@ -332,13 +409,34 @@ const DownloadProductionTemplates = () => {
                   disabled={downloadLoading || imagesData.length === 0}
                   fullWidth
                   size="large"
-                  style={{ pointerEvents: 'auto' }}
+                  style={{ pointerEvents: "auto" }}
                 >
-                  {downloadLoading ? <CircularProgress size={24} color="inherit" /> : 'Download Images'}
+                  {downloadLoading ? <CircularProgress size={24} color="inherit" /> : "Download Images"}
                 </Button>
               </span>
             </Tooltip>
           </Grid>
+          {/* Uncomment below if you want to enable copying download link */}
+          {/*
+          <Grid item xs={12} sm={4}>
+            <Tooltip title="Copy the download link to clipboard">
+              <span style={{ display: 'inline-block', width: '100%' }}>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  startIcon={<ContentCopyIcon />}
+                  onClick={handleCopyDownloadLink}
+                  disabled={imagesData.length === 0}
+                  fullWidth
+                  size="large"
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  Copy Download Link
+                </Button>
+              </span>
+            </Tooltip>
+          </Grid>
+          */}
         </Grid>
       </Paper>
 
@@ -348,7 +446,9 @@ const DownloadProductionTemplates = () => {
           <Typography variant="h6" gutterBottom>
             Sticker Orders with Design Templates
           </Typography>
-          <Typography variant="subtitle1">Total Items having template: {imagesData.reduce((acc, item) => acc + item.count, 0)}</Typography>
+          <Typography variant="subtitle1">
+            Total Items having template: {imagesData.reduce((acc, item) => acc + item.count, 0)}
+          </Typography>
         </Stack>
         {loading ? (
           <Stack alignItems="center" sx={{ py: 4 }}>
@@ -367,6 +467,9 @@ const DownloadProductionTemplates = () => {
                 <TableCell align="left">
                   <strong>Specific Category Variant</strong>
                 </TableCell>
+                <TableCell align="left">
+                  <strong>Wrap Finish</strong>
+                </TableCell>
                 <TableCell align="center">
                   <strong>Image</strong>
                 </TableCell>
@@ -374,21 +477,32 @@ const DownloadProductionTemplates = () => {
             </TableHead>
             <TableBody>
               {imagesData.length > 0 ? (
-                imagesData.map((item) => (
+                imagesData.map(item => (
                   <TableRow key={item.sku}>
                     <TableCell>{item.sku}</TableCell>
                     <TableCell align="right">{item.count}</TableCell>
                     <TableCell align="left">{item.specificCategoryVariant}</TableCell>
+                    <TableCell align="left">
+                      {Object.keys(item.wrapFinish).length === 1 && item.wrapFinish["None"]
+                        ? "N/A"
+                        : Object.entries(item.wrapFinish)
+                          .filter(([key]) => key !== "None")
+                          .map(([key, value]) => (
+                            <div key={key}>
+                              {key}: {value}
+                            </div>
+                          ))}
+                    </TableCell>
                     <TableCell align="center">
                       {item.presignedUrl && !unavailableImages.has(item.sku) ? (
                         <Image
                           src={item.presignedUrl}
                           width={50}
                           height={50}
-                          style={{ width: '50px', height: 'auto' }}
+                          style={{ width: "50px", height: "auto" }}
                           alt={`Sticker ${item.sku}`}
                           onError={() => {
-                            setUnavailableImages((prev) => new Set(prev).add(item.sku));
+                            setUnavailableImages(prev => new Set(prev).add(item.sku));
                           }}
                         />
                       ) : (
@@ -417,7 +531,7 @@ const DownloadProductionTemplates = () => {
         autoHideDuration={3000}
         onClose={handleSnackbarClose}
         message="Download link copied to clipboard!"
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
         action={
           <IconButton size="small" color="inherit" onClick={handleSnackbarClose}>
             <CloseIcon fontSize="small" />

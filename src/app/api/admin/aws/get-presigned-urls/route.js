@@ -51,7 +51,6 @@ async function handleGetPresignedUrls(request) {
       return NextResponse.json({ message: "Invalid date format in token." }, { status: 400 });
     }
 
-
     const totalOrders = await Order.countDocuments({
       createdAt: { $gte: start, $lte: end },
       "paymentDetails.amountPaidOnline": { $gt: 0 },
@@ -106,8 +105,37 @@ async function handleGetPresignedUrls(request) {
             sku: "$product.sku",
             specificCategoryVariant: "$specificCategoryVariant.name",
             imageUrl: "$product.designTemplate.imageUrl",
+            wrapFinish: {
+              $cond: {
+                if: { $and: [{ $ne: ["$items.wrapFinish", null] }, { $ne: ["$items.wrapFinish", ""] }] },
+                then: "$items.wrapFinish",
+                else: "Matte", // or N/A when you switch to items other than wraps in download template page
+              },
+            },
           },
           count: { $sum: "$items.quantity" },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            sku: "$_id.sku",
+            specificCategoryVariant: "$_id.specificCategoryVariant",
+            imageUrl: "$_id.imageUrl",
+          },
+          wrapFinish: {
+            $push: {
+              k: "$_id.wrapFinish",
+              v: "$count",
+            },
+          },
+          count: { $sum: "$count" },
+        },
+      },
+
+      {
+        $addFields: {
+          wrapFinish: { $arrayToObject: "$wrapFinish" },
         },
       },
       { $sort: { count: -1 } },
@@ -124,14 +152,11 @@ async function handleGetPresignedUrls(request) {
             imageUrl: null,
             presignedUrl: null,
             count: item.count,
+            wrapFinish: item.wrapFinish,
           };
         }
         try {
-          const presignedUrlObj = await getPresignedUrl(
-            imageUrl,
-            "image/png",
-            "getObject"
-          );
+          const presignedUrlObj = await getPresignedUrl(imageUrl, "image/png", "getObject");
           const presignedUrl = presignedUrlObj.presignedUrl;
           return {
             sku,
@@ -139,6 +164,7 @@ async function handleGetPresignedUrls(request) {
             imageUrl,
             presignedUrl,
             count: item.count,
+            wrapFinish: item.wrapFinish,
           };
         } catch (error) {
           console.error(`❌ Error generating presigned URL for SKU ${sku}:`, error.message);
@@ -148,13 +174,13 @@ async function handleGetPresignedUrls(request) {
             imageUrl,
             presignedUrl: null,
             count: item.count,
+            wrapFinish: item.wrapFinish,
           };
         }
       })
     );
 
     return NextResponse.json({ totalOrders, totalItems, images: imagesWithPresignedUrls }, { status: 200 });
-
   } catch (error) {
     console.error("❌ Error in get-presigned-urls handler:", error.message, error.stack);
     return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });

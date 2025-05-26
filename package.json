@@ -47,6 +47,8 @@
     "js2xmlparser": "^5.0.0",
     "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.2",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "jszip": "^3.10.1",
     "mongoose": "^8.8.1",
     "mui": "^0.0.1",

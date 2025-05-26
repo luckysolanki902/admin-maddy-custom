@@ -1,17 +1,17 @@
 // models/Order.js
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const OrderSchema = new mongoose.Schema(
   {
     // Reference to User
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
       index: true, // Index for efficient querying
     },
-    
+
     // Computed fields
     itemsCount: {
       type: Number,
@@ -19,7 +19,7 @@ const OrderSchema = new mongoose.Schema(
       index: true, // If you need to query based on itemsCount
     },
     //test
-    
+
     itemsTotal: {
       type: Number,
       default: 0,
@@ -32,17 +32,20 @@ const OrderSchema = new mongoose.Schema(
         // Reference to Product
         product: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'Product',
+          ref: "Product",
           required: true,
           index: true,
         },
         name: {
           type: String,
-          required: true
+          required: true,
         },
         sku: {
           type: String,
           required: true,
+        },
+        wrapFinish: {
+          type: String,
         },
         // Quantity of the product
         quantity: {
@@ -57,7 +60,6 @@ const OrderSchema = new mongoose.Schema(
           required: true,
           min: 0,
         },
-
       },
     ],
 
@@ -97,8 +99,8 @@ const OrderSchema = new mongoose.Schema(
         incrementedCouponUsage: {
           type: Boolean,
           default: false,
-        }
-      }
+        },
+      },
     ],
     // Total discount applied to the order
     totalDiscount: {
@@ -107,16 +109,16 @@ const OrderSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
-    isTestingOrder:{
+    isTestingOrder: {
       type: Boolean,
-      default: false
+      default: false,
     },
     // Payment details
     paymentDetails: {
       // Payment mode (Reference to ModeOfPayment)
       mode: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'ModeOfPayment',
+        ref: "ModeOfPayment",
         required: true,
       },
       // Amount paid online
@@ -187,7 +189,7 @@ const OrderSchema = new mongoose.Schema(
       },
       country: {
         type: String,
-        default: 'India',
+        default: "India",
         maxlength: 100,
       },
       pincode: {
@@ -200,34 +202,34 @@ const OrderSchema = new mongoose.Schema(
     paymentStatus: {
       type: String,
       required: true,
-      enum: ['pending', 'failed', 'paidPartially', 'allPaid', 'allToBePaidCod'],
-      default: 'pending',
+      enum: ["pending", "failed", "paidPartially", "allPaid", "allToBePaidCod"],
+      default: "pending",
       index: true, // Index for efficient querying
     },
     deliveryStatus: {
       type: String,
       required: true,
       enum: [
-        'pending',            // Order awaiting action
-        'orderCreated',       // Order created/registered
-        'processing',         // Pre-shipping & preparation states (including pickup scheduling, packaging, etc.)
-        'shipped',            // Order dispatched from warehouse
-        'onTheWay',           // Order picked up & actively moving toward delivery
-        'partiallyDelivered', // Only part of the order delivered
-        'delivered',          // Order delivered successfully
-        'returnInitiated',    // Return process initiated/in progress (pickup, in transit back, etc.)
-        'returned',           // Return completed (item has reached its return destination)
-        'lost',               // Order lost/damaged in transit
-        'cancelled',           // Order cancelled
-        'undelivered',        // Order undelivered
-        'unknown',            // Unknown
+        "pending", // Order awaiting action
+        "orderCreated", // Order created/registered
+        "processing", // Pre-shipping & preparation states (including pickup scheduling, packaging, etc.)
+        "shipped", // Order dispatched from warehouse
+        "onTheWay", // Order picked up & actively moving toward delivery
+        "partiallyDelivered", // Only part of the order delivered
+        "delivered", // Order delivered successfully
+        "returnInitiated", // Return process initiated/in progress (pickup, in transit back, etc.)
+        "returned", // Return completed (item has reached its return destination)
+        "lost", // Order lost/damaged in transit
+        "cancelled", // Order cancelled
+        "undelivered", // Order undelivered
+        "unknown", // Unknown
       ],
-      default: 'pending',
+      default: "pending",
       index: true, // Index for efficient querying
     },
     actualDeliveryStatus: {
       type: String,
-      default: 'pending',
+      default: "pending",
     },
 
     // Extra fields like bike model:
@@ -239,15 +241,15 @@ const OrderSchema = new mongoose.Schema(
 
     customFields: {
       croppedImage: {
-        type: String
-      }
+        type: String,
+      },
     },
 
     // UTM details
     utmDetails: {
       source: {
         type: String,
-        default: 'direct',
+        default: "direct",
         maxlength: 100,
         index: true,
       },
@@ -273,26 +275,26 @@ const OrderSchema = new mongoose.Schema(
 );
 
 // Pre-save middleware to compute itemsCount and itemsTotal
-OrderSchema.pre('save', function(next) {
+OrderSchema.pre("save", function (next) {
   // Calculate itemsCount as the total quantity of all items
   this.itemsCount = this.items.reduce((count, item) => count + item.quantity, 0);
-  
+
   // Calculate itemsTotal as the sum of (priceAtPurchase * quantity) for all items
-  this.itemsTotal = this.items.reduce((total, item) => total + (item.priceAtPurchase * item.quantity), 0);
-  
+  this.itemsTotal = this.items.reduce((total, item) => total + item.priceAtPurchase * item.quantity, 0);
+
   next();
 });
 
 // Pre middleware for findOneAndUpdate to compute itemsCount and itemsTotal if items are updated
-OrderSchema.pre('findOneAndUpdate', function(next) {
+OrderSchema.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate();
-  
+
   // Check if 'items' field is being updated
   if (update.items) {
     const items = update.items;
     const itemsCount = items.reduce((count, item) => count + (item.quantity || 1), 0);
-    const itemsTotal = items.reduce((total, item) => total + ((item.priceAtPurchase || 0) * (item.quantity || 1)), 0);
-    
+    const itemsTotal = items.reduce((total, item) => total + (item.priceAtPurchase || 0) * (item.quantity || 1), 0);
+
     // Update the fields in the update object
     this.setUpdate({
       ...update,
@@ -300,7 +302,7 @@ OrderSchema.pre('findOneAndUpdate', function(next) {
       itemsTotal,
     });
   }
-  
+
   next();
 });
 
@@ -308,6 +310,6 @@ if (mongoose.models.Order) {
   delete mongoose.models.Order;
 }
 // Indexes for better performance
-OrderSchema.index({ 'address.receiverName': 'text', 'address.receiverPhoneNumber': 'text' });
+OrderSchema.index({ "address.receiverName": "text", "address.receiverPhoneNumber": "text" });
 
-module.exports = mongoose.models.Order || mongoose.model('Order', OrderSchema);
+module.exports = mongoose.models.Order || mongoose.model("Order", OrderSchema);

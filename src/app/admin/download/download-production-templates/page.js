@@ -179,19 +179,26 @@ const DownloadProductionTemplates = () => {
               if (finish === "None") continue;
 
               let sanitizedFinish = finish.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
-              if (sanitizedFinish === "None" || sanitizedFinish === "n/a") {
-                sanitizedFinish = "matte"; 
-              }
-
+              
+              // Get first letter of finish for the filename suffix
+              const finishLetter = sanitizedFinish.charAt(0);
+              
+              // Create subfolder by wrap finish
+              const folderPath = `${sanitizedCategoryVariant}/${sanitizedFinish}`;
+              
               for (let i = 1; i <= qty; i++) {
-                const imagePath = `${sanitizedCategoryVariant}/${sanitizedSKU}-${sanitizedFinish}-${i}${fileExtension}`;
+                // Use first letter of finish in filename (e.g., -m for matte, -g for glossy)
+                const imagePath = `${folderPath}/${sanitizedSKU}-${finishLetter}-${i}${fileExtension}`;
                 zip.file(imagePath, arrayBuffer, { binary: true });
               }
             }
 
+            // Handle items with "None" wrap finish
             if (wrapFinish["None"]) {
+              const folderPath = `${sanitizedCategoryVariant}/regular`;
+              
               for (let i = 1; i <= wrapFinish["None"]; i++) {
-                const imagePath = `${sanitizedCategoryVariant}/${sanitizedSKU}-${i}${fileExtension}`;
+                const imagePath = `${folderPath}/${sanitizedSKU}-${i}${fileExtension}`;
                 zip.file(imagePath, arrayBuffer, { binary: true });
               }
             }

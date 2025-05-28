@@ -659,8 +659,8 @@ export default function DownloadCustomersData() {
                     sx={{ 
                       width: 32, 
                       height: 32, 
-                      bgcolor: specialFilter === 'incompletePayments' ? theme.palette.primary.main : 'primary.light',
-                      color: specialFilter === 'incompletePayments' ? 'white' : 'primary.dark',
+                      bgcolor: specialFilter === 'incompletePayments' ? '#2d2d2d' : 'rgb(200, 200, 200)',
+                      color: specialFilter === 'incompletePayments' ? 'white' : '#2d2d2d',
                       mr: 1.5
                     }}
                   >
@@ -668,8 +668,8 @@ export default function DownloadCustomersData() {
                   </Avatar>
                   <Typography 
                     variant="body1" 
-                    fontWeight={specialFilter === 'incompletePayments' ? 600 : 400}
-                    color={specialFilter === 'incompletePayments' ? 'primary.main' : 'text.primary'}
+                    fontWeight={specialFilter === 'incompletePayments' ? 500 : 400}
+                    color={specialFilter === 'incompletePayments' ? 'white' : 'rgb(200, 200, 200)'}
                   >
                     Incomplete Payments
                   </Typography>
@@ -706,8 +706,8 @@ export default function DownloadCustomersData() {
                     sx={{ 
                       width: 32, 
                       height: 32, 
-                      bgcolor: specialFilter === 'subscribersOnly' ? theme.palette.primary.main : 'primary.light',
-                      color: specialFilter === 'subscribersOnly' ? 'white' : 'primary.dark',
+                      bgcolor: specialFilter === 'subscribersOnly' ? '#2d2d2d' : 'rgb(200, 200, 200)',
+                      color: specialFilter === 'subscribersOnly' ? 'white' : '#2d2d2d',
                       mr: 1.5
                     }}
                   >
@@ -716,7 +716,7 @@ export default function DownloadCustomersData() {
                   <Typography 
                     variant="body1" 
                     fontWeight={specialFilter === 'subscribersOnly' ? 600 : 400}
-                    color={specialFilter === 'subscribersOnly' ? 'primary.main' : 'text.primary'}
+                    color={specialFilter === 'subscribersOnly' ? 'white' : 'rgb(200, 200, 200)'}
                   >
                     Subscribers Only
                   </Typography>
@@ -730,7 +730,15 @@ export default function DownloadCustomersData() {
                 <Alert 
                   severity="info" 
                   variant="outlined"
-                  sx={{ mt: 2, borderRadius: '8px' }}
+                  sx={{ 
+                    mt: 2, 
+                    borderRadius: '8px',
+                    color: 'white',
+                    borderColor: 'white',
+                    '& .MuiAlert-icon': {
+                      color: 'white'
+                    }
+                  }}
                   icon={<InfoIcon fontSize="inherit" />}
                   action={
                     <Button 
@@ -744,7 +752,7 @@ export default function DownloadCustomersData() {
                 >
                   {specialFilter === 'incompletePayments' 
                     ? 'Showing users who abandoned their carts during the payment process.'
-                    : 'Showing users who are subscribers only with no delivery addresses.'}
+                    : `Showing users who are subscribers only and haven't placed any orders.`}
                 </Alert>
               )}
             </Grid>

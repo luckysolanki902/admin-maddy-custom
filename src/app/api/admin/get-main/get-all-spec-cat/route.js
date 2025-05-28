@@ -10,7 +10,6 @@ export async function GET() {
 
     // Fetch all categories
     const categories = await SpecificCategory.find({}, "_id name productInfoTabs").lean();
-console.log({categories})
     if (!categories.length) {
       return NextResponse.json(
         { message: "No categories found", categories: [] },

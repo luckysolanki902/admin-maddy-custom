@@ -38,19 +38,15 @@ export async function GET(req) {
     
     // If utmCampaign is provided, get filtered user/order IDs from CampaignLog
     if (utmCampaign) {
-      console.log("CSV Download: Filtering by campaign:", utmCampaign);
       
       const campaignField = mode === 'orders' ? 'order' : 'user';
-      console.log("Campaign field:", campaignField);
       
       const campaignResults = await CampaignLog.find({
         campaignName: utmCampaign
       }).distinct(campaignField);
       
-      console.log(`Found ${campaignResults.length} records with campaign: ${utmCampaign}`);
       
       if (campaignResults.length === 0) {
-        console.log("No matching campaign records found");
         // No matching records, return empty result
         return NextResponse.json({ message: 'No records found' }, { status: 404 });
       }

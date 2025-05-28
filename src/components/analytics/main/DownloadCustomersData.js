@@ -8,14 +8,75 @@ import {
   Table, TableHead, TableRow, TableCell,
   TableBody, TableContainer, TablePagination,
   TableSortLabel, Tabs, Tab,
-  Autocomplete, Paper, ClickAwayListener
+  Autocomplete, Paper, ClickAwayListener,
+  Grid, Card, CardContent, Switch, Avatar,
+  Badge, Tooltip, Alert, styled, useTheme
 } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import CategoryIcon from '@mui/icons-material/Category';
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
+import LoyaltyIcon from '@mui/icons-material/Loyalty';
+import SearchIcon from '@mui/icons-material/Search';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import ViewColumnIcon from '@mui/icons-material/ViewColumn';
+import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
+import CloseIcon from '@mui/icons-material/Close';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import InfoIcon from '@mui/icons-material/Info';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import * as FileSaver from 'file-saver';
 import dayjs from 'dayjs';
+
+// Custom styled scrollbar-less components
+const ScrollContainer = styled(Box)(({ theme }) => ({
+  overflowY: 'auto',
+  overflowX: 'hidden',
+  scrollbarWidth: 'none', // Firefox
+  '&::-webkit-scrollbar': {
+    display: 'none' // Chrome, Safari, Edge
+  },
+  msOverflowStyle: 'none', // IE and Edge - Fixed kebab-case to camelCase
+}));
+
+// Enhanced table styling components
+const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
+  borderRadius: '12px',
+  overflow: 'hidden',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+  '& .MuiTable-root': {
+    borderCollapse: 'separate',
+    borderSpacing: 0,
+  }
+}));
+
+const StyledTableHead = styled(TableHead)(({ theme }) => ({
+  '& .MuiTableCell-root': {
+    backgroundColor: '#2d2d2d',
+    color: 'white',
+    fontWeight: 600,
+    fontSize: '0.875rem',
+    padding: '16px',
+    whiteSpace: 'nowrap',
+  }
+}));
+
+const StyledTableRow = styled(TableRow)(({ theme }) => ({
+  '&:nth-of-type(odd)': {
+    backgroundColor: theme.palette.mode === 'light' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.02)',
+  },
+  '&:hover': {
+    backgroundColor: theme.palette.mode === 'light' ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.04)',
+  },
+  '& .MuiTableCell-root': {
+    padding: '12px 16px',
+    fontSize: '0.875rem',
+    transition: 'background-color 0.2s',
+  }
+}));
 
 // Simple debounce function
 function useDebounce(value, delay) {
@@ -35,6 +96,7 @@ function useDebounce(value, delay) {
 }
 
 export default function DownloadCustomersData() {
+  const theme = useTheme();
   // Mode
   const [mode, setMode] = useState('users');
   const handleModeChange = (_, v) => setMode(v);
@@ -42,6 +104,23 @@ export default function DownloadCustomersData() {
   // Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
   const toggleDrawer = () => setDrawerOpen(o => !o);
+  
+  // Special Filters
+  const [specialFilter, setSpecialFilter] = useState(null);
+  const handleSpecialFilterChange = (filter) => {
+    // If the filter is already selected, turn it off
+    if (specialFilter === filter) {
+      setSpecialFilter(null);
+    } else {
+      setSpecialFilter(filter);
+      // Reset conflicting filters when enabling special filters
+      if (filter === 'incompletePayments') {
+        setApplyLoyaltyFilter(false);
+      } else if (filter === 'subscribersOnly') {
+        // No need to disable date filters for subscribers
+      }
+    }
+  };
 
   // Available categories
   const [availableCategories, setAvailableCategories] = useState([]);
@@ -49,7 +128,6 @@ export default function DownloadCustomersData() {
     fetch('/api/admin/get-main/get-all-spec-cat')
       .then(r => r.json())
       .then(d => setAvailableCategories(d.categories || []));
-    console.log({ availableCategories });
   }, []);
 
   // Campaign filter (renamed from UTM Campaign for clarity)
@@ -61,11 +139,6 @@ export default function DownloadCustomersData() {
   
   // Debounce the search input to use as filter
   const debouncedCampaign = useDebounce(campaignSearch, 500);
-  
-  // Debug the campaign filtering
-  useEffect(() => {
-    console.log("Campaign filter applied:", debouncedCampaign);
-  }, [debouncedCampaign]);
   
   // Fetch campaigns from CampaignLog
   useEffect(() => {
@@ -80,7 +153,6 @@ export default function DownloadCustomersData() {
         }
         
         const data = await response.json();
-        console.log("Fetched campaigns:", data.campaigns);
         setCampaigns(data.campaigns || []);
       } catch (error) {
         console.error('Error fetching campaigns:', error);
@@ -154,7 +226,7 @@ export default function DownloadCustomersData() {
     applyVehicleFilter, JSON.stringify(vehicles),
     applyLoyaltyFilter, JSON.stringify(loyaltyFilters),
     tags, selectedColumns.join(','), sortConfig.field, sortConfig.order,
-    debouncedCampaign // Use debounced campaign value
+    debouncedCampaign, specialFilter
   ]);
 
   // Fetch data
@@ -165,36 +237,87 @@ export default function DownloadCustomersData() {
     (async () => {
       setLoading(true);
       try {
-        const query = {
-          mode,
-          start: dateRange.start, end: dateRange.end, activeTag,
-          columns: selectedColumns, tags,
-          applyItemFilter, items,
-          applyVehicleFilter, vehicles,
-          applyLoyaltyFilter,
-          utmCampaign: debouncedCampaign, // This should send the campaign filter
-          loyalty: {
-            minAmountSpent: loyaltyFilters.minAmountSpent.checked
-              ? loyaltyFilters.minAmountSpent.value : null,
-            minNumberOfOrders: loyaltyFilters.minNumberOfOrders.checked
-              ? loyaltyFilters.minNumberOfOrders.value : null,
-            minItemsCount: loyaltyFilters.minItemsCount.checked
-              ? loyaltyFilters.minItemsCount.value : null,
-          },
-          page: page + 1, pageSize: rowsPerPage,
-          sortField: sortConfig.field, sortOrder: sortConfig.order
-        };
-        
-        // Log the query to debug
-        console.log("Sending query:", JSON.stringify(query));
-        
-        const res = await fetch(
-          `/api/admin/download/fetch-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
-        );
-        const json = await res.json();
-        console.log("Received data:", json);
-        setCustomers(json.customers || []);
-        setTotalRecords(json.totalRecords || 0);
+        // Different API calls based on special filters
+        if (specialFilter === 'incompletePayments') {
+          // Use abandoned carts API for incomplete payments
+          const query = {
+            mode,
+            columns: selectedColumns, 
+            tags,
+            applyItemFilter, items,
+            start: dateRange.start,
+            end: dateRange.end,
+            activeTag,
+            page: page + 1, 
+            pageSize: rowsPerPage,
+            sortField: sortConfig.field, 
+            sortOrder: sortConfig.order
+          };
+          
+          const res = await fetch(
+            `/api/admin/analytics/main/abandoned-carts-user?query=${encodeURIComponent(JSON.stringify(query))}`
+          );
+          const json = await res.json();
+          setCustomers(json.customers || []);
+          setTotalRecords(json.totalRecords || 0);
+        } else if (specialFilter === 'subscribersOnly') {
+          // Use subscribers API for users without address
+          const query = {
+            mode,
+            columns: selectedColumns, 
+            tags,
+            applyItemFilter, items,
+            start: dateRange.start,
+            end: dateRange.end,
+            activeTag,
+            page: page + 1, 
+            pageSize: rowsPerPage,
+            sortField: sortConfig.field, 
+            sortOrder: sortConfig.order
+          };
+          
+          const res = await fetch(
+            `/api/admin/download/fetch-subscribers?query=${encodeURIComponent(JSON.stringify(query))}`
+          );
+          const json = await res.json();
+          setCustomers(json.customers || []);
+          setTotalRecords(json.totalRecords || 0);
+        } else {
+          // Use regular data API for normal filtering
+          const query = {
+            mode,
+            start: dateRange.start, 
+            end: dateRange.end, 
+            activeTag,
+            columns: selectedColumns, 
+            tags,
+            applyItemFilter, 
+            items,
+            applyVehicleFilter, 
+            vehicles,
+            applyLoyaltyFilter,
+            utmCampaign: debouncedCampaign,
+            loyalty: {
+              minAmountSpent: loyaltyFilters.minAmountSpent.checked
+                ? loyaltyFilters.minAmountSpent.value : null,
+              minNumberOfOrders: loyaltyFilters.minNumberOfOrders.checked
+                ? loyaltyFilters.minNumberOfOrders.value : null,
+              minItemsCount: loyaltyFilters.minItemsCount.checked
+                ? loyaltyFilters.minItemsCount.value : null,
+            },
+            page: page + 1, 
+            pageSize: rowsPerPage,
+            sortField: sortConfig.field, 
+            sortOrder: sortConfig.order
+          };
+          
+          const res = await fetch(
+            `/api/admin/download/fetch-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
+          );
+          const json = await res.json();
+          setCustomers(json.customers || []);
+          setTotalRecords(json.totalRecords || 0);
+        }
       } catch (e) {
         console.error("Error fetching data:", e);
       } finally {
@@ -207,36 +330,84 @@ export default function DownloadCustomersData() {
     applyVehicleFilter, vehicles,
     applyLoyaltyFilter, loyaltyFilters,
     page, rowsPerPage, sortConfig,
-    debouncedCampaign // Use debounced campaign value
+    debouncedCampaign, specialFilter
   ]);
 
   // Download CSV
   const handleDownloadCSV = async () => {
     setDownloading(true);
     try {
-      const query = {
-        mode,
-        start: dateRange.start, end: dateRange.end, activeTag,
-        columns: selectedColumns, tags,
-        applyItemFilter, items,
-        applyVehicleFilter, vehicles,
-        applyLoyaltyFilter,
-        utmCampaign: debouncedCampaign, // Use debounced campaign value
-        loyalty: {
-          minAmountSpent: loyaltyFilters.minAmountSpent.checked
-            ? loyaltyFilters.minAmountSpent.value : null,
-          minNumberOfOrders: loyaltyFilters.minNumberOfOrders.checked
-            ? loyaltyFilters.minNumberOfOrders.value : null,
-          minItemsCount: loyaltyFilters.minItemsCount.checked
-            ? loyaltyFilters.minItemsCount.value : null,
-        },
-        sortField: sortConfig.field, sortOrder: sortConfig.order
-      };
-      const res = await fetch(
-        `/api/admin/download/download-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
-      );
-      const blob = await res.blob();
-      FileSaver.saveAs(blob, `${mode === 'orders' ? 'orders' : 'users'}_data.csv`);
+      if (specialFilter === 'incompletePayments') {
+        // Use abandoned carts download API
+        const query = {
+          columns: selectedColumns, 
+          tags,
+          applyItemFilter, 
+          items,
+          start: dateRange.start,
+          end: dateRange.end,
+          activeTag,
+          sortField: sortConfig.field, 
+          sortOrder: sortConfig.order
+        };
+        
+        const res = await fetch(
+          `/api/admin/download/download-abandoned-carts-user?query=${encodeURIComponent(JSON.stringify(query))}`
+        );
+        const blob = await res.blob();
+        FileSaver.saveAs(blob, 'incomplete_payments_users.csv');
+      } else if (specialFilter === 'subscribersOnly') {
+        // Use subscribers download API
+        const query = {
+          columns: selectedColumns, 
+          tags,
+          applyItemFilter, 
+          items,
+          start: dateRange.start,
+          end: dateRange.end,
+          activeTag,
+          sortField: sortConfig.field, 
+          sortOrder: sortConfig.order
+        };
+        
+        const res = await fetch(
+          `/api/admin/download/download-subscribers?query=${encodeURIComponent(JSON.stringify(query))}`
+        );
+        const blob = await res.blob();
+        FileSaver.saveAs(blob, 'subscribers_only.csv');
+      } else {
+        // Use regular download API
+        const query = {
+          mode,
+          start: dateRange.start, 
+          end: dateRange.end, 
+          activeTag,
+          columns: selectedColumns, 
+          tags,
+          applyItemFilter, 
+          items,
+          applyVehicleFilter, 
+          vehicles,
+          applyLoyaltyFilter,
+          utmCampaign: debouncedCampaign,
+          loyalty: {
+            minAmountSpent: loyaltyFilters.minAmountSpent.checked
+              ? loyaltyFilters.minAmountSpent.value : null,
+            minNumberOfOrders: loyaltyFilters.minNumberOfOrders.checked
+              ? loyaltyFilters.minNumberOfOrders.value : null,
+            minItemsCount: loyaltyFilters.minItemsCount.checked
+              ? loyaltyFilters.minItemsCount.value : null,
+          },
+          sortField: sortConfig.field, 
+          sortOrder: sortConfig.order
+        };
+        
+        const res = await fetch(
+          `/api/admin/download/download-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
+        );
+        const blob = await res.blob();
+        FileSaver.saveAs(blob, `${mode === 'orders' ? 'orders' : 'users'}_data.csv`);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -244,7 +415,7 @@ export default function DownloadCustomersData() {
     }
   };
 
-  // Column definitions
+  // Column definitions - removed external campaign
   const availableColumns = useMemo(() => [
     { label: 'Order ID', value: 'orderId' },
     { label: 'Full Name', value: 'fullName' },
@@ -255,394 +426,732 @@ export default function DownloadCustomersData() {
     { label: 'UTM Source', value: 'utmSource' },
     { label: 'UTM Medium', value: 'utmMedium' },
     { label: 'UTM Campaign', value: 'utmCampaign' },
-    { label: 'External Campaign', value: 'externalCampaign' }, // Add new column for external campaign
     { label: 'Specific Category', value: 'specificCategory' },
     { label: 'Order Count', value: 'orderCount' },
+    { label: 'Is Subscriber Only', value: 'isSubscriberOnly' },
   ], []);
 
-  // Default columns on mode change
+  // Default columns on mode change - removed external campaign
   useEffect(() => {
     setSelectedColumns(
       availableColumns
-        .filter(c => mode === 'orders'
-          ? ['orderId', 'fullName', 'phoneNumber', 'externalCampaign'].includes(c.value) // Add externalCampaign to default columns
-          : ['fullName', 'phoneNumber', 'orderCount', 'externalCampaign'].includes(c.value)) // Add externalCampaign to default columns
+        .filter(c => {
+          if (specialFilter === 'subscribersOnly') {
+            return ['fullName', 'phoneNumber', 'isSubscriberOnly'].includes(c.value);
+          } else if (mode === 'orders') {
+            return ['orderId', 'fullName', 'phoneNumber'].includes(c.value);
+          } else {
+            return ['fullName', 'phoneNumber', 'orderCount'].includes(c.value);
+          }
+        })
         .map(c => c.value)
     );
-  }, [mode, availableColumns]);
+  }, [mode, specialFilter, availableColumns]);
+
+  // Current active filters count for badge
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (specialFilter) count++;
+    if (applyItemFilter) count++;
+    if (applyVehicleFilter) count++;
+    if (applyLoyaltyFilter) count++;
+    if (activeTag !== 'all') count++;
+    if (debouncedCampaign) count++;
+    if (tags) count++;
+    return count;
+  }, [specialFilter, applyItemFilter, applyVehicleFilter, applyLoyaltyFilter, activeTag, debouncedCampaign, tags]);
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Typography variant="h4" align="center" gutterBottom>
-        {mode === 'orders' ? 'Download Orders Data' : 'Download Users Data'}
+        {specialFilter === 'incompletePayments' ? 'Users with Incomplete Payments' : 
+          specialFilter === 'subscribersOnly' ? 'Subscriber-Only Users' :
+          mode === 'orders' ? 'Download Orders Data' : 'Download Users Data'}
       </Typography>
 
       {/* Mode + Filters + Download */}
       <Box sx={{ display: { xs: 'block', md: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Box sx={{ mb: { xs: 2, md: 0 } }}>
-          <Tabs value={mode} onChange={handleModeChange}>
+          <Tabs 
+            value={mode} 
+            onChange={handleModeChange}
+            disabled={specialFilter === 'incompletePayments' || specialFilter === 'subscribersOnly'}
+          >
             <Tab label="Users Mode" value="users" />
             <Tab label="Orders Mode" value="orders" />
           </Tabs>
         </Box>
         <Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box
-              sx={{
-                display: 'inline',
-                cursor: 'pointer',
-                padding: '0px 8px',
-                borderRadius: '8px',
-                mr: 1,
-                '&:hover': {
-                  backgroundColor: 'rgba(245, 245, 245, 0.1)',
-                },
-              }}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              variant={drawerOpen ? "contained" : "outlined"}
+              startIcon={<FilterListIcon />}
               onClick={toggleDrawer}
+              endIcon={activeFiltersCount > 0 && 
+                <Badge 
+                  badgeContent={activeFiltersCount} 
+                  color="error"
+                  sx={{ '.MuiBadge-badge': { top: -8, right: -8 } }}
+                />
+              }
+              sx={{ 
+                borderRadius: '8px',
+                px: 2,
+                py: 1
+              }}
             >
               Filters
-              <IconButton disableRipple><FilterListIcon /></IconButton>
-            </Box>
+            </Button>
+            
             <Button
               variant="contained"
               startIcon={<FileDownloadIcon />}
               onClick={handleDownloadCSV}
               disabled={downloading}
+              color="primary"
+              sx={{ 
+                borderRadius: '8px',
+                px: 2,
+                py: 1
+              }}
             >
               {downloading ? 'Preparing CSV…' : 'Download CSV'}
             </Button>
           </Box>
         </Box>
       </Box>
-      <Divider />
+      <Divider sx={{ mb: 3 }} />
 
-      {/* Bottom Drawer with Accordions */}
+      {/* Bottom Drawer with Filters - Completely Redesigned */}
       <Drawer
         anchor="bottom"
         open={drawerOpen}
         onClose={toggleDrawer}
-        PaperProps={{ sx: { borderRadius: '16px 16px 0 0' } }}
+        PaperProps={{ 
+          sx: { 
+            borderRadius: '24px 24px 0 0',
+            maxHeight: '80vh',
+            overflow: 'hidden'
+          } 
+        }}
       >
-        <Box p={2} maxHeight="70vh" overflow="auto" style={{ overflowX: 'hidden' }}>
-          <Divider sx={{ width: '20%', maxWidth: 350, borderRadius: 2, mb: 2, mx: 'auto', height: '0.4rem', backgroundColor: 'rgba(200,200,200)', display: { xs: 'block', md: 'none' } }} />
-          <Stack spacing={2}>
+        <Box sx={{ 
+          position: 'sticky', 
+          top: 0, 
+          zIndex: 10,
+          backgroundColor: theme.palette.background.paper,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+          px: 3,
+          py: 2,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center' 
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <FilterListIcon sx={{ mr: 1.5, color: theme.palette.primary.main }} />
+            <Typography variant="h5" fontWeight="600">
+              Filters
+            </Typography>
+            {activeFiltersCount > 0 && (
+              <Chip 
+                label={`${activeFiltersCount} active`} 
+                size="small"
+                color="primary"
+                sx={{ ml: 2 }}
+              />
+            )}
+          </Box
+          >
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {activeFiltersCount > 0 && (
+              <Button 
+                size="small"
+                onClick={() => {
+                  setSpecialFilter(null);
+                  setActiveTag('all');
+                  setDateRange({ start: null, end: null });
+                  setApplyItemFilter(false);
+                  setItems([]);
+                  setApplyVehicleFilter(false);
+                  setVehicles([]);
+                  setApplyLoyaltyFilter(false);
+                  setCampaignSearch('');
+                  setTags('');
+                }}
+                sx={{ textTransform: 'none' }}
+              >
+                Clear all
+              </Button>
+            )}
+            <IconButton 
+              onClick={toggleDrawer} 
+              aria-label="close drawer"
+              size="small"
+              sx={{ 
+                bgcolor: 'rgba(0, 0, 0, 0.04)',
+                '&:hover': {
+                  bgcolor: 'rgba(0, 0, 0, 0.08)',
+                }
+              }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </Box>
+        
+        <ScrollContainer sx={{ px: 3, py: 2 }}>
+          <Grid container spacing={3}>
+            {/* Special Filters - removed exclamation mark */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                Special Filters
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                {/* Incomplete Payments Filter - improved active state */}
+                <Card
+                  elevation={0}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    p: 1.5,
+                    border: '1px solid',
+                    borderColor: specialFilter === 'incompletePayments' ? 'primary.main' : 'divider',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { sm: '200px' },
+                    background: specialFilter === 'incompletePayments' 
+                      ? `linear-gradient(135deg, ${theme.palette.primary.light}40, ${theme.palette.primary.light}80)` 
+                      : 'transparent',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      boxShadow: theme.shadows[2],
+                      borderColor: specialFilter === 'incompletePayments' ? 'primary.main' : 'primary.light',
+                    }
+                  }}
+                  onClick={() => handleSpecialFilterChange('incompletePayments')}
+                >
+                  <Avatar 
+                    sx={{ 
+                      width: 32, 
+                      height: 32, 
+                      bgcolor: specialFilter === 'incompletePayments' ? theme.palette.primary.main : 'primary.light',
+                      color: specialFilter === 'incompletePayments' ? 'white' : 'primary.dark',
+                      mr: 1.5
+                    }}
+                  >
+                    <ShoppingCartIcon fontSize="small" />
+                  </Avatar>
+                  <Typography 
+                    variant="body1" 
+                    fontWeight={specialFilter === 'incompletePayments' ? 600 : 400}
+                    color={specialFilter === 'incompletePayments' ? 'primary.main' : 'text.primary'}
+                  >
+                    Incomplete Payments
+                  </Typography>
+                  {specialFilter === 'incompletePayments' && (
+                    <CheckCircleIcon color="primary" sx={{ ml: 'auto' }} />
+                  )}
+                </Card>
+
+                {/* Subscribers Only Filter - improved active state */}
+                <Card
+                  elevation={0}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    p: 1.5,
+                    border: '1px solid',
+                    borderColor: specialFilter === 'subscribersOnly' ? 'primary.main' : 'divider',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { sm: '200px' },
+                    background: specialFilter === 'subscribersOnly' 
+                      ? `linear-gradient(135deg, ${theme.palette.primary.light}40, ${theme.palette.primary.light}80)` 
+                      : 'transparent',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      boxShadow: theme.shadows[2],
+                      borderColor: specialFilter === 'subscribersOnly' ? 'primary.main' : 'primary.light',
+                    }
+                  }}
+                  onClick={() => handleSpecialFilterChange('subscribersOnly')}
+                >
+                  <Avatar 
+                    sx={{ 
+                      width: 32, 
+                      height: 32, 
+                      bgcolor: specialFilter === 'subscribersOnly' ? theme.palette.primary.main : 'primary.light',
+                      color: specialFilter === 'subscribersOnly' ? 'white' : 'primary.dark',
+                      mr: 1.5
+                    }}
+                  >
+                    <MarkEmailReadIcon fontSize="small" />
+                  </Avatar>
+                  <Typography 
+                    variant="body1" 
+                    fontWeight={specialFilter === 'subscribersOnly' ? 600 : 400}
+                    color={specialFilter === 'subscribersOnly' ? 'primary.main' : 'text.primary'}
+                  >
+                    Subscribers Only
+                  </Typography>
+                  {specialFilter === 'subscribersOnly' && (
+                    <CheckCircleIcon color="primary" sx={{ ml: 'auto' }} />
+                  )}
+                </Card>
+              </Box>
+              
+              {specialFilter && (
+                <Alert 
+                  severity="info" 
+                  variant="outlined"
+                  sx={{ mt: 2, borderRadius: '8px' }}
+                  icon={<InfoIcon fontSize="inherit" />}
+                  action={
+                    <Button 
+                      color="inherit" 
+                      size="small"
+                      onClick={() => setSpecialFilter(null)}
+                    >
+                      Clear
+                    </Button>
+                  }
+                >
+                  {specialFilter === 'incompletePayments' 
+                    ? 'Showing users who abandoned their carts during the payment process.'
+                    : 'Showing users who are subscribers only with no delivery addresses.'}
+                </Alert>
+              )}
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
+
+            {/* Quick filters section */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <SearchIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
+                Quick Filters
+              </Typography>
+              
+              <Grid container spacing={2}>
+                {/* Global Search */}
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Global Search"
+                    placeholder="Search name, phone, city, product..."
+                    value={tags}
+                    onChange={e => setTags(e.target.value)}
+                    fullWidth
+                    size="medium"
+                    InputProps={{
+                      startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                    }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px'
+                      }
+                    }}
+                  />
+                </Grid>
+                
+                {/* Campaign Search */}
+                <Grid item xs={12} md={6}>
+                  <Box position="relative" sx={{ width: '100%' }}>
+                    <TextField
+                      label="Campaign Filter"
+                      placeholder="Start typing to search campaigns..."
+                      value={campaignSearch}
+                      onChange={e => {
+                        setCampaignSearch(e.target.value);
+                        if (e.target.value) {
+                          setShowCampaignSuggestions(true);
+                        } else {
+                          setShowCampaignSuggestions(false);
+                        }
+                      }}
+                      fullWidth
+                      size="medium"
+                      inputRef={campaignInputRef}
+                      onFocus={() => {
+                        if (campaignSearch) setShowCampaignSuggestions(true);
+                      }}
+                      InputProps={{
+                        startAdornment: <CampaignIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />,
+                        endAdornment: campaignLoading && <CircularProgress size={20} />,
+                      }}
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '8px'
+                        }
+                      }}
+                    />
+                    
+                    {showCampaignSuggestions && filteredCampaigns.length > 0 && (
+                      <ClickAwayListener 
+                        onClickAway={() => setShowCampaignSuggestions(false)}
+                        mouseEvent="onMouseDown"
+                      >
+                        <Paper 
+                          elevation={4} 
+                          sx={{ 
+                            position: 'absolute',
+                            zIndex: 1301,
+                            width: '100%',
+                            maxHeight: '200px',
+                            overflow: 'auto',
+                            mt: 0.5,
+                            borderRadius: '8px',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            scrollbarWidth: 'none',
+                            '&::-webkit-scrollbar': {
+                              display: 'none'
+                            },
+                            msOverflowStyle: 'none',
+                          }}
+                        >
+                          {filteredCampaigns.map((campaign, index) => (
+                            <Box 
+                              key={index} 
+                              p={1.5}
+                              sx={{ 
+                                cursor: 'pointer',
+                                '&:hover': {
+                                  backgroundColor: 'action.hover',
+                                },
+                                transition: 'background-color 0.2s'
+                              }}
+                              onClick={() => handleCampaignSelect(campaign)}
+                            >
+                              {campaign}
+                            </Box>
+                          ))}
+                        </Paper>
+                      </ClickAwayListener>
+                    )}
+                    
+                    {debouncedCampaign && (
+                      <Box mt={1}>
+                        <Chip 
+                          label={debouncedCampaign} 
+                          onDelete={() => setCampaignSearch('')}
+                          color="primary"
+                          size="medium"
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
 
             {/* Date Range */}
-            <Accordion defaultExpanded>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>Date Range</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <DateRangeChips
-                  activeTag={activeTag}
-                  setActiveTag={setActiveTag}
-                  setDateRange={({ start, end }) => setDateRange({ start, end })}
-                  handleAllTagClick={() => { setActiveTag('all'); setDateRange({ start: null, end: null }); }}
-                  handleCustomDayChange={(day) => {
-                    setActiveTag('custom');
-                    setDateRange({ 
-                      start: day.startOf('day').toDate(),
-                      end: day.endOf('day').toDate()
-                    });
-                  }}
-                  handleCustomDateChange={(start, end) => {
-                    setActiveTag('customRange');
-                    setDateRange({
-                      start: start.startOf('day').toDate(),
-                      end: end.endOf('day').toDate()
-                    });
-                  }}
-                  handleMonthSelection={tag => {
-                    let s, e;
-                    if (tag === 'thisMonth') { 
-                      s = dayjs().startOf('month'); 
-                      e = dayjs().endOf('month'); 
-                    }
-                    else { 
-                      s = dayjs().subtract(1, 'month').startOf('month'); 
-                      e = dayjs().subtract(1, 'month').endOf('month'); 
-                    }
-                    setActiveTag(tag);
-                    setDateRange({ start: s.toDate(), end: e.toDate() });
-                  }}
-                />
-              </AccordionDetails>
-            </Accordion>
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <CalendarMonthIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
+                Date Range
+              </Typography>
+              
+              <DateRangeChips
+                activeTag={activeTag}
+                setActiveTag={setActiveTag}
+                setDateRange={({ start, end }) => setDateRange({ start, end })}
+                handleAllTagClick={() => { setActiveTag('all'); setDateRange({ start: null, end: null }); }}
+                handleCustomDayChange={(day) => {
+                  setActiveTag('custom');
+                  setDateRange({ 
+                    start: day.startOf('day').toDate(),
+                    end: day.endOf('day').toDate()
+                  });
+                }}
+                handleCustomDateChange={(start, end) => {
+                  setActiveTag('customRange');
+                  setDateRange({
+                    start: start.startOf('day').toDate(),
+                    end: end.endOf('day').toDate()
+                  });
+                }}
+                handleMonthSelection={tag => {
+                  let s, e;
+                  if (tag === 'thisMonth') { 
+                    s = dayjs().startOf('month'); 
+                    e = dayjs().endOf('month'); 
+                  }
+                  else { 
+                    s = dayjs().subtract(1, 'month').startOf('month'); 
+                    e = dayjs().subtract(1, 'month').endOf('month'); 
+                  }
+                  setActiveTag(tag);
+                  setDateRange({ start: s.toDate(), end: e.toDate() });
+                }}
+              />
+            </Grid>
 
-            {/* Columns */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>Select Columns</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box display="flex" flexWrap="wrap" gap={1}>
-                  {availableColumns.map(col => (
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
+            
+            {/* Column Selection */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <ViewColumnIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
+                Table Columns
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {availableColumns.map(col => (
+                  <Chip
+                    key={col.value}
+                    label={col.label}
+                    clickable
+                    color={selectedColumns.includes(col.value) ? 'primary' : 'default'}
+                    variant={selectedColumns.includes(col.value) ? 'filled' : 'outlined'}
+                    onClick={() => {
+                      setSelectedColumns(prev =>
+                        prev.includes(col.value)
+                          ? prev.filter(v => v !== col.value)
+                          : [...prev, col.value]
+                      );
+                    }}
+                    sx={{ 
+                      borderRadius: '8px',
+                      transition: 'all 0.2s'
+                    }}
+                  />
+                ))}
+              </Box>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
+
+            {/* Category Filter */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <CategoryIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
+                Category Filter
+              </Typography>
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={applyItemFilter}
+                    onChange={e => setApplyItemFilter(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={<Typography fontWeight="medium">Filter by specific categories</Typography>}
+              />
+              
+              {applyItemFilter && (
+                <Box mt={2} sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {availableCategories.map(cat => (
                     <Chip
-                      key={col.value}
-                      label={col.label}
+                      key={cat._id}
+                      label={cat.name}
                       clickable
-                      color={selectedColumns.includes(col.value) ? 'primary' : 'default'}
-                      onClick={() => {
-                        setSelectedColumns(prev =>
-                          prev.includes(col.value)
-                            ? prev.filter(v => v !== col.value)
-                            : [...prev, col.value]
-                        );
+                      color={items.includes(cat._id) ? 'primary' : 'default'}
+                      variant={items.includes(cat._id) ? 'filled' : 'outlined'}
+                      onClick={() => setItems(prev =>
+                        prev.includes(cat._id)
+                          ? prev.filter(x => x !== cat._id)
+                          : [...prev, cat._id]
+                      )}
+                      sx={{ 
+                        borderRadius: '8px',
+                        transition: 'all 0.2s'
                       }}
                     />
                   ))}
                 </Box>
-              </AccordionDetails>
-            </Accordion>
+              )}
+            </Grid>
 
-            {/* Search Tag */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>Global Search</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <TextField
-                  label="Search across name, phone, city, product…"
-                  value={tags}
-                  onChange={e => setTags(e.target.value)}
-                  fullWidth
-                />
-              </AccordionDetails>
-            </Accordion>
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
 
-            {/* Campaign Filter - Improve to show suggestions as you type */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>Campaign Filter</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box position="relative">
-                  <TextField
-                    label="Search Campaign"
-                    value={campaignSearch}
-                    onChange={e => {
-                      setCampaignSearch(e.target.value);
-                      // Always show suggestions when typing (if there are matches)
-                      if (e.target.value) {
-                        setShowCampaignSuggestions(true);
-                      } else {
-                        setShowCampaignSuggestions(false);
+            {/* Advanced Filters Section */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                Advanced Filters
+              </Typography>
+              
+              <Grid container spacing={2}>
+                {/* Vehicle Filter */}
+                <Grid item xs={12} md={6}>
+                  <Card
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      border: '1px solid',
+                      borderColor: applyVehicleFilter ? 'primary.main' : 'divider',
+                      borderRadius: '12px',
+                      height: '100%',
+                      transition: 'all 0.2s',
+                      opacity: specialFilter === 'incompletePayments' ? 0.7 : 1,
+                      pointerEvents: specialFilter === 'incompletePayments' ? 'none' : 'auto'
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <DirectionsCarIcon color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="subtitle1">Vehicle Type</Typography>
+                    </Box>
+                    
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={applyVehicleFilter}
+                          onChange={e => setApplyVehicleFilter(e.target.checked)}
+                          color="primary"
+                        />
                       }
+                      label="Enable vehicle filter"
+                    />
+                    
+                    {applyVehicleFilter && (
+                      <Box mt={2}>
+                        {['bike', 'car'].map(v => (
+                          <FormControlLabel
+                            key={v}
+                            control={
+                              <Checkbox
+                                checked={vehicles.includes(v)}
+                                onChange={() => setVehicles(prev =>
+                                  prev.includes(v)
+                                    ? prev.filter(x => x !== v)
+                                    : [...prev, v]
+                                )}
+                                color="primary"
+                                sx={{ '& .MuiSvgIcon-root': { fontSize: 22 } }}
+                              />
+                            }
+                            label={v === 'bike' ? 'Two-Wheeler' : 'Four-Wheeler'}
+                          />
+                        ))}
+                      </Box>
+                    )}
+                  </Card>
+                </Grid>
+                
+                {/* Loyalty Filter */}
+                <Grid item xs={12} md={6}>
+                  <Card
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      border: '1px solid',
+                      borderColor: applyLoyaltyFilter ? 'primary.main' : 'divider',
+                      borderRadius: '12px',
+                      height: '100%',
+                      transition: 'all 0.2s',
+                      opacity: specialFilter === 'incompletePayments' ? 0.7 : 1,
+                      pointerEvents: specialFilter === 'incompletePayments' ? 'none' : 'auto'
                     }}
-                    fullWidth
-                    inputRef={campaignInputRef}
-                    onFocus={() => {
-                      // Show suggestions when focused if we have a search term
-                      if (campaignSearch) setShowCampaignSuggestions(true);
-                    }}
-                    InputProps={{
-                      endAdornment: campaignLoading && (
-                        <CircularProgress size={20} color="inherit" />
-                      ),
-                    }}
-                    helperText="Filter updates automatically as you type"
-                  />
-                  
-                  {showCampaignSuggestions && filteredCampaigns.length > 0 && (
-                    <ClickAwayListener 
-                      onClickAway={() => setShowCampaignSuggestions(false)}
-                      mouseEvent="onMouseDown" // Change to mouseDown to avoid issues with click events
-                    >
-                      <Paper 
-                        elevation={3} 
-                        sx={{ 
-                          position: 'absolute',
-                          width: '100%',
-                          maxHeight: '200px',
-                          overflow: 'auto',
-                          mt: 0.5,
-                          zIndex: 1300,
-                          '& .MuiBox-root:hover': {
-                            backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                          }
-                        }}
-                      >
-                        {filteredCampaigns.map((campaign, index) => (
-                          <Box 
-                            key={index} 
-                            p={1.5}
-                            sx={{ cursor: 'pointer' }}
-                            onClick={() => handleCampaignSelect(campaign)}
-                          >
-                            {campaign}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <LoyaltyIcon color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="subtitle1">Customer Loyalty</Typography>
+                    </Box>
+                    
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={applyLoyaltyFilter}
+                          onChange={e => setApplyLoyaltyFilter(e.target.checked)}
+                          color="primary"
+                        />
+                      }
+                      label="Enable loyalty filters"
+                    />
+                    
+                    {applyLoyaltyFilter && (
+                      <Box mt={2}>
+                        {Object.entries(loyaltyFilters).map(([key, value]) => (
+                          <Box key={key} sx={{ mb: 2 }}>
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={value.checked}
+                                  onChange={() => setLoyaltyFilters(prev => ({
+                                    ...prev,
+                                    [key]: { ...prev[key], checked: !prev[key].checked }
+                                  }))}
+                                  color="primary"
+                                  sx={{ '& .MuiSvgIcon-root': { fontSize: 22 } }}
+                                />
+                              }
+                              label={{
+                                minAmountSpent: 'Minimum Amount Spent',
+                                minNumberOfOrders: 'Minimum Number of Orders',
+                                minItemsCount: 'Minimum Items Purchased'
+                              }[key]}
+                            />
+                            {value.checked && (
+                              key === 'minAmountSpent' ? (
+                                <Box sx={{ px: 2, mt: 1 }}>
+                                  <Slider
+                                    min={0} max={20000} step={500}
+                                    value={value.value}
+                                    onChange={(e, v) => setLoyaltyFilters(prev => ({
+                                      ...prev, [key]: { ...prev[key], value: v }
+                                    }))}
+                                    valueLabelDisplay="auto"
+                                    valueLabelFormat={x => `₹${x}`}
+                                    color="primary"
+                                  />
+                                </Box>
+                              ) : (
+                                <Box sx={{ px: 2, mt: 1 }}>
+                                  <TextField
+                                    type="number" 
+                                    fullWidth
+                                    size="small"
+                                    value={value.value}
+                                    onChange={e => setLoyaltyFilters(prev => ({
+                                      ...prev, [key]: { ...prev[key], value: +e.target.value }
+                                    }))}
+                                    inputProps={{ min: 0 }}
+                                    sx={{ 
+                                      '& .MuiOutlinedInput-root': { 
+                                        borderRadius: '8px' 
+                                      }
+                                    }}
+                                  />
+                                </Box>
+                              )
+                            )}
                           </Box>
                         ))}
-                      </Paper>
-                    </ClickAwayListener>
-                  )}
-                  
-                  <Box mt={1} display="flex" alignItems="center">
-                    {debouncedCampaign && (
-                      <Chip 
-                        label={`Active filter: ${debouncedCampaign}`} 
-                        onDelete={() => {
-                          setCampaignSearch('');
-                        }}
-                        color="primary"
-                      />
-                    )}
-                  </Box>
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Category Filter */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>Filter by Specific Category</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={applyItemFilter}
-                      onChange={e => setApplyItemFilter(e.target.checked)}
-                    />
-                  }
-                  label="Enable Category Filter"
-                />
-                {applyItemFilter && (
-                  <Box mt={1}>
-                    {availableCategories.map(cat => (
-                      <Chip
-                        key={cat._id}
-                        label={cat.name}
-                        clickable
-                        color={items.includes(cat._id) ? 'primary' : 'default'}
-                        onClick={() => setItems(prev =>
-                          prev.includes(cat._id)
-                            ? prev.filter(x => x !== cat._id)
-                            : [...prev, cat._id]
-                        )}
-                        sx={{ m: 0.5 }}
-                      />
-                    ))}
-                  </Box>
-                )}
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Vehicle Filter */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>Filter by Vehicle</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={applyVehicleFilter}
-                      onChange={e => setApplyVehicleFilter(e.target.checked)}
-                    />
-                  }
-                  label="Enable Vehicle Filter"
-                />
-                {applyVehicleFilter && (
-                  <Box>
-                    {['bike', 'car'].map(v => (
-                      <FormControlLabel
-                        key={v}
-                        control={
-                          <Checkbox
-                            checked={vehicles.includes(v)}
-                            onChange={() => setVehicles(prev =>
-                              prev.includes(v)
-                                ? prev.filter(x => x !== v)
-                                : [...prev, v]
-                            )}
-                          />
-                        }
-                        label={v.charAt(0).toUpperCase() + v.slice(1)}
-                      />
-                    ))}
-                  </Box>
-                )}
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Loyalty Filter */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>Customer Loyalty</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={applyLoyaltyFilter}
-                      onChange={e => setApplyLoyaltyFilter(e.target.checked)}
-                    />
-                  }
-                  label="Enable Loyalty Filter"
-                />
-                {applyLoyaltyFilter && (
-                  <Stack spacing={2} mt={1}>
-                    {['minAmountSpent', 'minNumberOfOrders', 'minItemsCount'].map(key => (
-                      <Box key={key}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={loyaltyFilters[key].checked}
-                              onChange={() => setLoyaltyFilters(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], checked: !prev[key].checked }
-                              }))}
-                        />
-                          }
-                          label={{
-                            minAmountSpent: 'Min Amount Spent',
-                            minNumberOfOrders: 'Min # of Orders',
-                            minItemsCount: 'Min Items Purchased'
-                          }[key]}
-                        />
-                        {loyaltyFilters[key].checked && (
-                          key === 'minAmountSpent' ? (
-                            <>
-                              <Slider
-                                min={0} max={20000} step={500}
-                                value={loyaltyFilters[key].value}
-                                onChange={(e, v) => setLoyaltyFilters(prev => ({
-                                  ...prev, [key]: { ...prev[key], value: v }
-                                }))}
-                                valueLabelDisplay="auto"
-                              />
-                              <Typography>₹{loyaltyFilters[key].value}</Typography>
-                            </>
-                          ) : (
-                            <TextField
-                              type="number" fullWidth
-                              value={loyaltyFilters[key].value}
-                              onChange={e => setLoyaltyFilters(prev => ({
-                                ...prev, [key]: { ...prev[key], value: +e.target.value }
-                              }))}
-                              inputProps={{ min: 0 }}
-                            />
-                          )
-                        )}
                       </Box>
-                    ))}
-                  </Stack>
-                )}
-              </AccordionDetails>
-            </Accordion>
-
-          </Stack>
-        </Box>
+                    )}
+                  </Card>
+                </Grid>
+              </Grid>
+            </Grid>
+          </Grid>
+        </ScrollContainer>
+        
+        {/* Removed Apply button at bottom as filters apply instantly */}
       </Drawer>
 
-      {/* Data Table */}
+      {/* Data Table - Improved UI */}
       {loading ? (
         <Box textAlign="center" py={10}><CircularProgress /></Box>
       ) : (
-        <TableContainer>
+        <StyledTableContainer component={Paper}>
           <Table stickyHeader>
-            <TableHead>
+            <StyledTableHead>
               <TableRow>
                 {mode === 'orders' && <TableCell>Order ID</TableCell>}
                 {selectedColumns.map(col => {
@@ -661,23 +1170,48 @@ export default function DownloadCustomersData() {
                   );
                 })}
               </TableRow>
-            </TableHead>
+            </StyledTableHead>
             <TableBody>
               {customers.length ? customers.map((row, i) => (
-                <TableRow key={i}>
+                <StyledTableRow 
+                  key={i}
+                  hover
+                >
                   {mode === 'orders' && <TableCell>{row['Order ID'] || row.orderId}</TableCell>}
                   {selectedColumns.map(col => {
                     if (mode === 'orders' && col === 'orderId') return null;
+                    
+                    // Special handling for isSubscriberOnly
+                    if (col === 'isSubscriberOnly') {
+                      const val = row[availableColumns.find(c => c.value === col)?.label] || row[col];
+                      return (
+                        <TableCell key={col}>
+                          <Chip 
+                            label={val === true ? "Yes" : "No"}
+                            color={val === true ? "success" : "default"}
+                            size="small"
+                            variant="outlined"
+                            sx={{ minWidth: 60, justifyContent: 'center' }}
+                          />
+                        </TableCell>
+                      );
+                    }
+                    
                     const val = row[availableColumns.find(c => c.value === col)?.label] || row[col];
                     return <TableCell key={col}>{val != null ? val.toString() : '—'}</TableCell>;
                   })}
-                </TableRow>
+                </StyledTableRow>
               )) : (
-                <TableRow>
+                <StyledTableRow>
                   <TableCell colSpan={selectedColumns.length + (mode === 'orders' ? 1 : 0)} align="center">
-                    No records found.
+                    <Box py={3}>
+                      <Typography variant="body1" color="text.secondary">No records found.</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Try adjusting your filters to see more results.
+                      </Typography>
+                    </Box>
                   </TableCell>
-                </TableRow>
+                </StyledTableRow>
               )}
             </TableBody>
           </Table>
@@ -689,8 +1223,15 @@ export default function DownloadCustomersData() {
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={e => { setRowsPerPage(+e.target.value); setPage(0); }}
             rowsPerPageOptions={[10, 25, 50, 100]}
+            sx={{
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                fontSize: '0.875rem',
+              }
+            }}
           />
-        </TableContainer>
+        </StyledTableContainer>
       )}
     </Container>
   );

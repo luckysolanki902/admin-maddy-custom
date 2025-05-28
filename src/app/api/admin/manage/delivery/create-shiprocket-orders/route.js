@@ -38,7 +38,7 @@ export async function POST(req) {
     const query = {
       paymentStatus: { $in: ['paidPartially', 'allPaid'] },
       deliveryStatus: 'pending',
-      shiprocketOrderId: { $exists: false }, // Ensure Shiprocket order is not created
+      shiprocketOrderId: { $exists: false },
     };
 
     if (start && end) {
@@ -79,7 +79,7 @@ export async function POST(req) {
     let failedCount = 0;
     const details = [];
 
-    // Optional: Process orders in batches for better performance
+    // Process orders in batches for better performance
     const BATCH_SIZE = 10;
     console.info(`Processing orders in batches of ${BATCH_SIZE}.`);
 
@@ -95,7 +95,6 @@ export async function POST(req) {
             // Calculate dimensions and weight
             const dimensionsAndWeight = await getDimensionsAndWeight(order.items);
             const { length, breadth, height, weight } = dimensionsAndWeight;
-
 
             // Prepare Shiprocket order data
             const [firstName, ...lastNameParts] = order.address.receiverName.split(' ');
@@ -121,19 +120,18 @@ export async function POST(req) {
               })),
               payment_method: order.paymentDetails.amountDueCod > 0 ? 'COD' : 'Prepaid',
               sub_total: order.paymentDetails.amountDueCod > 0 ? order.paymentDetails.amountDueCod : order.totalAmount,
-              length: length,
-              breadth: breadth,
-              height: height,
-              weight: weight,
+              length,
+              breadth,
+              height,
+              weight,
             };
-
 
             // Create Shiprocket order
             const response = await createShiprocketOrder(shiprocketOrderData);
 
             if (response.status_code === 1 && !response.packaging_box_error) {
               // Update order with Shiprocket order ID and deliveryStatus
-              order.shiprocketOrderId = response.order_id; // Assuming Shiprocket returns order_id
+              order.shiprocketOrderId = response.order_id;
               order.deliveryStatus = 'orderCreated';
               await order.save();
               createdCount += 1;
@@ -143,7 +141,6 @@ export async function POST(req) {
               });
               console.info(`Successfully created Shiprocket order for Order ID: ${order._id}`);
             } else if (response.status_code === 0 && response.message.includes('already exists')) {
-              // Shiprocket indicates the order already exists
               details.push({
                 orderId: order._id.toString(),
                 deliveryStatusResponse: 'Already Manually Created',
@@ -176,7 +173,7 @@ export async function POST(req) {
         message: 'Shiprocket orders processing completed.',
         created: createdCount,
         failed: failedCount,
-        details: details,
+        details,
       },
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );

@@ -1,3 +1,4 @@
+// /src/app/admin/analytics/abandoned-cart-users/page.js
 import AbandonedCartsData from '@/components/analytics/main/AbandonedCartsUserTable'
 import React from 'react'
 

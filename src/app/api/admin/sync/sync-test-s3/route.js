@@ -20,10 +20,8 @@ import {
   
   export async function GET() {
     try {
-      console.log("=== Starting S3 Bucket Sync ===");
   
       // STEP 1: Wipe all objects from test bucket
-      console.log(`Listing objects in test bucket: ${TEST_BUCKET}`);
       const testObjects = await s3.send(new ListObjectsV2Command({ Bucket: TEST_BUCKET }));
   
       if (testObjects.Contents && testObjects.Contents.length > 0) {
@@ -35,23 +33,16 @@ import {
           },
         };
   
-        console.log(`Deleting ${deleteParams.Delete.Objects.length} objects from test bucket...`);
         const deleteResult = await s3.send(new DeleteObjectsCommand(deleteParams));
-        console.log("Deleted objects:", deleteResult.Deleted?.length || 0);
-      } else {
-        console.log("Test bucket is already empty.");
-      }
+      } 
   
       // STEP 2: List and copy objects from prod to test bucket
-      console.log(`Listing objects in production bucket: ${PROD_BUCKET}`);
       const prodObjects = await s3.send(new ListObjectsV2Command({ Bucket: PROD_BUCKET }));
   
       if (!prodObjects.Contents || prodObjects.Contents.length === 0) {
-        console.log("No objects found in production bucket.");
         return NextResponse.json({ message: "Production bucket is empty, nothing to sync." });
       }
   
-      console.log(`Found ${prodObjects.Contents.length} objects to sync.`);
       for (const [index, obj] of prodObjects.Contents.entries()) {
         const sourceKey = obj.Key;
         const copyCmd = new CopyObjectCommand({
@@ -61,10 +52,8 @@ import {
         });
   
         await s3.send(copyCmd);
-        console.log(`(${index + 1}/${prodObjects.Contents.length}) Copied: ${sourceKey}`);
       }
   
-      console.log("=== S3 Sync Complete ===");
       return NextResponse.json({ message: "Test S3 bucket wiped and synced from production." });
     } catch (error) {
       console.error("S3 Sync Error:", error);

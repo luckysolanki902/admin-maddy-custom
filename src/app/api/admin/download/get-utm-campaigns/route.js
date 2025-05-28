@@ -9,7 +9,6 @@ export async function GET() {
   try {
     await connectToDatabase();
 
-    console.log("Fetching unique campaign names from CampaignLog");
 
     // Aggregate to get all unique campaign names from CampaignLog
     const campaigns = await CampaignLog.aggregate([
@@ -41,9 +40,7 @@ export async function GET() {
     ]);
 
     // Console.log to debug
-    console.log(`Found ${campaigns.length} unique campaigns:`);
     if (campaigns.length > 0) {
-      console.log("Sample campaigns:", campaigns.slice(0, 5).map(c => c.campaign));
     }
     
     return NextResponse.json({ campaigns: campaigns.map(c => c.campaign) });

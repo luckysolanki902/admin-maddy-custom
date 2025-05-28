@@ -18,7 +18,6 @@ const darkerGradients = [
 export default function OfferCard({ offerData, setOffers, setErrorAlert, setSuccessAlert, isInDialog }) {
   const [submitting, setSubmitting] = useState(false);
 
-  if (offerData._id === "6831c3ccd69076eded0bd4b2") console.log(offerData);
 
   const [openEditDialog, setOpenEditDialog] = useState(false);
 

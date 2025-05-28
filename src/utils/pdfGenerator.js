@@ -84,7 +84,6 @@ export const generateInvoicePdf = async (order) => {
       });
 
       if (logoDataUrl) {
-        // console.log("Logo Data URL (first 30 chars):", logoDataUrl.substring(0,30)); // For debugging
         doc.addImage(logoDataUrl, pageMargin, yPos, logoWidth, logoHeight); // Let jsPDF infer format
         yPos += logoHeight + 4; // Reduced spacing after logo
         logoAddedSuccessfully = true;

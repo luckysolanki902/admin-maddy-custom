@@ -16,7 +16,6 @@ export async function GET(req) {
     }
 
     const parsedQuery = JSON.parse(q);
-    console.log("Received query:", parsedQuery);
     
     const {
       mode = 'users',         // 'users' or 'orders'
@@ -38,19 +37,15 @@ export async function GET(req) {
     
     // If utmCampaign is provided, get filtered user/order IDs from CampaignLog
     if (utmCampaign) {
-      console.log("Filtering by campaign:", utmCampaign);
       
       const campaignField = mode === 'orders' ? 'order' : 'user';
-      console.log("Campaign field:", campaignField);
       
       const campaignResults = await CampaignLog.find({
         campaignName: utmCampaign
       }).distinct(campaignField);
       
-      console.log(`Found ${campaignResults.length} records with campaign: ${utmCampaign}`);
       
       if (campaignResults.length === 0) {
-        console.log("No matching campaign records found");
         // No matching records, return empty result
         return NextResponse.json({ customers: [], totalRecords: 0 });
       }
@@ -377,7 +372,6 @@ export async function GET(req) {
     const customers = results[0]?.customers || [];
     const totalRecordsCount = results[0]?.totalRecords[0]?.count || 0;
 
-    console.log(`Returning ${customers.length} records out of ${totalRecordsCount}`);
     
     return NextResponse.json({ customers, totalRecords: totalRecordsCount });
   } catch (err) {

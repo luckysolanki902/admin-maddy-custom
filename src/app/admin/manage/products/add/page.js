@@ -317,7 +317,6 @@ const AddProductPage = () => {
         images: imagePaths.map((p) => '/' + p),
         productSource: 'inhouse',
       };
-      console.log('productData', productData);
       /* save product */
       const saveRes = await fetch('/api/admin/manage/product/add', {
         method: 'POST',

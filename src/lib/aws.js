@@ -62,7 +62,6 @@ export const deleteImageFromS3 = async fullPath => {
 
   try {
     await s3.send(command);
-    console.log("Image deleted successfully");
   } catch (error) {
     console.error("Error deleting image:", error);
   }

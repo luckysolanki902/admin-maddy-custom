@@ -5,7 +5,6 @@ export default function WEBD() {
   const optionsWithLinks = [
         { text: 'Orders Dashboard', link: '/admin/super/orders/order-list' },
         { text: 'Feature Requests Dashboard', link: '/admin/feature-requests/manage' },
-        { text: 'Submit Feature Request', link: '/admin/feature-requests/create' },
   ];
 
   return (

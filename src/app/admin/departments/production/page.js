@@ -3,6 +3,7 @@ import React from 'react';
 
 export default function Production() {
   const optionsWithLinks = [
+            { text: 'Feature Requests Dashboard', link: '/admin/feature-requests/manage' },
     { text: 'Download Templates', link: '/admin/download/download-production-templates' },
     { text: 'Download Catalogue', link: '/admin/download/download-catalogue' },
     { text: 'Orders Dashboard', link: '/admin/manage/orders/order-list' },

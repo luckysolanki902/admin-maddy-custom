@@ -3,6 +3,8 @@ import React from 'react';
 
 export default function Marketing() {
   const optionsWithLinks = [
+    { text: 'Feature Requests Dashboard', link: '/admin/feature-requests/manage' },
+
     { text: 'Coupon Metrics', link: '/admin/manage/coupons-metrics' },
     { text: 'Offer Management', link: '/admin/manage/offers' },
     { text: 'Orders Dashboard', link: '/admin/manage/orders/order-list' },
@@ -13,7 +15,7 @@ export default function Marketing() {
     { text: 'Download Customer Data', link: '/admin/download/download-customer-data' },
     { text: 'Manage Customer Queries', link: '/admin/manage/customer-support' },
   ];
-  
+
 
   return (
     <DepartmentHomePage

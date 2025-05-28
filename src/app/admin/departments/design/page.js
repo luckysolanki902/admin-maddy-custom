@@ -3,6 +3,7 @@ import React from 'react';
 
 export default function Design() {
   const optionsWithLinks = [
+    { text: 'Feature Requests Dashboard', link: '/admin/feature-requests/manage' },
     { text: 'Add designs', link: '/admin/manage/products/add' },
     { text: 'Edit designs', link: '/admin/manage/products/edit' },
     { text: 'Orders List', link: '/admin/manage/orders/order-list' },

@@ -1,10 +1,10 @@
-
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import SpecificCategory from '@/models/SpecificCategory';
 import Product from '@/models/Product';
 import User from '@/models/User';
+import mongoose from 'mongoose';
 
 // Ensure database connection
 await connectToDatabase();
@@ -19,7 +19,7 @@ export async function GET(req) {
         }
 
         const queryObj = JSON.parse(queryParam);
-        const { createdAt, items, tags, columns, loyalty, page, pageSize } = queryObj;
+        const { createdAt, items, tags, columns, loyalty, page, pageSize, activeTag, start, end, applyItemFilter } = queryObj;
 
         const pipeline = [];
 
@@ -71,39 +71,55 @@ export async function GET(req) {
             },
         });
 
-        // Stage 5: Apply Date and Items Filters
-        const matchStage = {};
-
-        if (createdAt) {
-            if (createdAt.$or && Array.isArray(createdAt.$or)) {
-                matchStage.$or = createdAt.$or.map(cond => ({
+        // Stage 5: Apply Date Filter - This is the part we need to fix
+        if (activeTag !== 'all' && start && end) {
+            pipeline.push({
+                $match: {
                     createdAt: {
-                        $gte: new Date(cond.createdAt.$gte),
-                        $lte: new Date(cond.createdAt.$lte),
+                        $gte: new Date(start),
+                        $lte: new Date(end)
                     }
-                }));
+                }
+            });
+        } else if (createdAt && createdAt.$or && Array.isArray(createdAt.$or)) {
+            // Backward compatibility for the old format
+            const dateConditions = createdAt.$or.map(cond => ({
+                createdAt: {
+                    $gte: new Date(cond.createdAt.$gte),
+                    $lte: new Date(cond.createdAt.$lte),
+                }
+            }));
+            if (dateConditions.length > 0) {
+                pipeline.push({ $match: { $or: dateConditions } });
             }
         }
 
-        if (items && Array.isArray(items) && items.length > 0) {
-            const specificCategories = await SpecificCategory.find({ name: { $in: items } }).select('_id');
-            const specificCategoryIds = specificCategories.map(cat => cat._id);
+        // Apply item filter
+        if ((applyItemFilter && items && items.length > 0) || (items && Array.isArray(items) && items.length > 0)) {
+            // Get specific categories first if names were provided
+            let itemIds = items;
+            
+            // If items are strings and not IDs, we need to look them up
+            if (items.length > 0 && typeof items[0] === 'string' && !mongoose.Types.ObjectId.isValid(items[0])) {
+                const specificCategories = await SpecificCategory.find({ name: { $in: items } }).select('_id');
+                itemIds = specificCategories.map(cat => cat._id);
+            }
 
-            if (specificCategoryIds.length > 0) {
-                const productIds = await Product.find({ specificCategory: { $in: specificCategoryIds } }).distinct('_id');
+            if (itemIds.length > 0) {
+                const productIds = await Product.find({ specificCategory: { $in: itemIds } }).distinct('_id');
 
                 if (productIds.length > 0) {
-                    matchStage['userOrders.items.product'] = { $in: productIds };
+                    pipeline.push({
+                        $match: {
+                            'userOrders.items.product': { $in: productIds }
+                        }
+                    });
                 } else {
                     return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
                 }
             } else {
                 return NextResponse.json({ customers: [], totalRecords: 0 }, { status: 200 });
             }
-        }
-
-        if (Object.keys(matchStage).length > 0) {
-            pipeline.push({ $match: matchStage });
         }
 
         // Stage 6: Unwind userOrders and items
@@ -190,7 +206,25 @@ export async function GET(req) {
             }
         });
 
-        // Stage 12: Project Fields
+        // Stage 12: Apply Global Search
+        if (tags) {
+            const regex = new RegExp(tags, 'i');
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { fullName: regex },
+                        { phoneNumber: regex },
+                        { city: regex },
+                        { specificCategoryNames: regex },
+                        { utmSource: regex },
+                        { utmMedium: regex },
+                        { utmCampaign: regex }
+                    ]
+                }
+            });
+        }
+
+        // Stage 13: Project Fields
         const projectStage = {};
         if (columns && Array.isArray(columns) && columns.length > 0) {
             columns.forEach(col => {
@@ -247,15 +281,6 @@ export async function GET(req) {
 
         pipeline.push({ $project: projectStage });
 
-        // Stage 13: Filter by Tags
-        if (tags) {
-            pipeline.push({
-                $match: {
-                    tags: { $regex: new RegExp(`\\b${tags}\\b`, 'i') }
-                }
-            });
-        }
-
         // Stage 14: Pagination
         const currentPage = parseInt(page, 10) || 1;
         const currentPageSize = parseInt(pageSize, 10) || 10;
@@ -276,14 +301,12 @@ export async function GET(req) {
 
         // Execute pipeline
         const results = await User.aggregate(pipeline).exec();
-        const customers = results[0].customers;
+        const customers = results[0].customers || [];
         const totalRecordsCount = results[0].totalRecords[0] ? results[0].totalRecords[0].count : 0;
-
-        
 
         return NextResponse.json({ customers, totalRecords: totalRecordsCount }, { status: 200 });
     } catch (error) {
         console.error('Error fetching abandoned carts user data:', error);
-        return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ message: 'Internal server error', error: error.message }, { status: 500 });
     }
 }

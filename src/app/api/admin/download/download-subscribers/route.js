@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Parser } from 'json2csv';
+import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 import User from '@/models/User';
 
@@ -17,6 +18,7 @@ export async function GET(req) {
       columns = [],
       tags,
       start, end, activeTag,
+      applyItemFilter, items = [],
       sortField, sortOrder,
     } = JSON.parse(q);
 
@@ -52,7 +54,7 @@ export async function GET(req) {
       }
     });
 
-    // Stage 4: Add fields for additional data
+    // Stage 4: Add order count field
     pipeline.push({
       $addFields: {
         orderCount: { $size: '$userOrders' },
@@ -77,6 +79,16 @@ export async function GET(req) {
             { name: regex },
             { phoneNumber: regex }
           ]
+        }
+      });
+    }
+
+    // Apply item filter if specified
+    if (applyItemFilter && items && items.length > 0) {
+      // Look for orders with these specific items
+      pipeline.push({
+        $match: {
+          "userOrders.items.product": { $in: items.map(id => typeof id === 'string' ? new mongoose.Types.ObjectId(id) : id) }
         }
       });
     }

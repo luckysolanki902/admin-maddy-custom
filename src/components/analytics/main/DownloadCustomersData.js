@@ -245,9 +245,19 @@ export default function DownloadCustomersData() {
             columns: selectedColumns, 
             tags,
             applyItemFilter, items,
-            start: dateRange.start,
-            end: dateRange.end,
+            // Fix date range filter for abandoned carts
             activeTag,
+            // These need to be properly formatted for the API
+            createdAt: activeTag !== 'all' && dateRange.start && dateRange.end ? {
+              $or: [
+                {
+                  createdAt: {
+                    $gte: dateRange.start.toISOString(),
+                    $lte: dateRange.end.toISOString()
+                  }
+                }
+              ]
+            } : undefined,
             page: page + 1, 
             pageSize: rowsPerPage,
             sortField: sortConfig.field, 
@@ -267,9 +277,10 @@ export default function DownloadCustomersData() {
             columns: selectedColumns, 
             tags,
             applyItemFilter, items,
-            start: dateRange.start,
-            end: dateRange.end,
+            // Fix date range filter for subscribers
             activeTag,
+            start: dateRange.start ? dateRange.start.toISOString() : null,
+            end: dateRange.end ? dateRange.end.toISOString() : null,
             page: page + 1, 
             pageSize: rowsPerPage,
             sortField: sortConfig.field, 
@@ -286,8 +297,8 @@ export default function DownloadCustomersData() {
           // Use regular data API for normal filtering
           const query = {
             mode,
-            start: dateRange.start, 
-            end: dateRange.end, 
+            start: dateRange.start ? dateRange.start.toISOString() : null, 
+            end: dateRange.end ? dateRange.end.toISOString() : null, 
             activeTag,
             columns: selectedColumns, 
             tags,
@@ -344,9 +355,19 @@ export default function DownloadCustomersData() {
           tags,
           applyItemFilter, 
           items,
-          start: dateRange.start,
-          end: dateRange.end,
+          // Fix date range filter for abandoned carts download
           activeTag,
+          // These need to be properly formatted for the API
+          createdAt: activeTag !== 'all' && dateRange.start && dateRange.end ? {
+            $or: [
+              {
+                createdAt: {
+                  $gte: dateRange.start.toISOString(),
+                  $lte: dateRange.end.toISOString()
+                }
+              }
+            ]
+          } : undefined,
           sortField: sortConfig.field, 
           sortOrder: sortConfig.order
         };
@@ -363,9 +384,10 @@ export default function DownloadCustomersData() {
           tags,
           applyItemFilter, 
           items,
-          start: dateRange.start,
-          end: dateRange.end,
+          // Fix date range filter for subscribers download
           activeTag,
+          start: dateRange.start ? dateRange.start.toISOString() : null,
+          end: dateRange.end ? dateRange.end.toISOString() : null,
           sortField: sortConfig.field, 
           sortOrder: sortConfig.order
         };
@@ -379,8 +401,8 @@ export default function DownloadCustomersData() {
         // Use regular download API
         const query = {
           mode,
-          start: dateRange.start, 
-          end: dateRange.end, 
+          start: dateRange.start ? dateRange.start.toISOString() : null, 
+          end: dateRange.end ? dateRange.end.toISOString() : null, 
           activeTag,
           columns: selectedColumns, 
           tags,

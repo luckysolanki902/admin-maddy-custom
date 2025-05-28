@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import User from '@/models/User';
 import Order from '@/models/Order';
+import mongoose from 'mongoose';
 
 connectToDatabase();
 
@@ -72,6 +73,16 @@ export async function GET(req) {
             { name: regex },
             { phoneNumber: regex }
           ]
+        }
+      });
+    }
+
+    // Apply item filter if specified
+    if (applyItemFilter && items && items.length > 0) {
+      // Look for orders with these specific items
+      pipeline.push({
+        $match: {
+          "userOrders.items.product": { $in: items.map(id => typeof id === 'string' ? new mongoose.Types.ObjectId(id) : id) }
         }
       });
     }

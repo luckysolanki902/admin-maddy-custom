@@ -12,6 +12,7 @@ export default function DepartmentHomePage({ department = 'Marketing', quote, op
         Finance: 'rgb(11, 162, 101)',
     };
 
+
     // Utility function to convert RGB to RGBA
     const convertRgbToRgba = (rgb, alpha) => {
         // Extract the numbers inside the RGB string

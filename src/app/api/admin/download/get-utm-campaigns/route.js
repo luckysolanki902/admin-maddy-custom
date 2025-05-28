@@ -39,7 +39,6 @@ export async function GET() {
       }
     ]);
 
-    // Console.log to debug
     if (campaigns.length > 0) {
     }
     

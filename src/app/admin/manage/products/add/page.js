@@ -159,7 +159,6 @@ const AddProductPage = () => {
       }
 
       const ref = await res.json();
-      console.log("ref:", ref);
       setMRP(ref.MRP || 1000);
       setPrice(ref.price || 0);
       setMainTag(ref.mainTags?.[0] || '');

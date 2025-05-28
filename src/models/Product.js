@@ -68,6 +68,13 @@ const ProductSchema = new mongoose.Schema(
       ref: "SpecificCategoryVariant",
       index: true,
     },
+    MRP: {
+      type: Number,
+      required: true,
+      min: 1,
+      index: true,
+      default: 1000,
+    },
     deliveryCost: {
       type: Number,
       default: 100,

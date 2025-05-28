@@ -307,36 +307,6 @@ export default function FeatureRequestDetail({ params: propParams }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreenOpen, closeFullscreen]);
 
-  // Effect for browser back button handling for fullscreen
-  useEffect(() => {
-    const handlePopState = (event) => {
-      if (isFullscreenOpen && event.state && event.state.fullscreenMediaOpen) {
-        // If fullscreen is open and we encounter our specific history state, close it.
-        closeFullscreen();
-        // We don't need to call history.back() here as popstate already changed the URL/history.
-      }
-    };
-
-    if (isFullscreenOpen) {
-      // Push a state when fullscreen opens
-      window.history.pushState({ fullscreenMediaOpen: true }, '');
-      window.addEventListener('popstate', handlePopState);
-    } else {
-      // If fullscreen was closed by means other than back button (e.g., Esc, Close icon)
-      // and our custom state is still on top, go back to remove it.
-      if (window.history.state && window.history.state.fullscreenMediaOpen) {
-        window.history.back();
-      }
-    }
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      // Clean up history state if component unmounts while fullscreen is open
-      if (isFullscreenOpen && window.history.state && window.history.state.fullscreenMediaOpen) {
-        window.history.back();
-      }
-    };
-  }, [isFullscreenOpen, closeFullscreen]);
 
 
   const handleVote = async (voteType) => {

@@ -17,7 +17,6 @@ export async function GET() {
           campaignName: { 
             $exists: true, 
             $ne: null,
-            $ne: "" 
           } 
         } 
       },
@@ -39,9 +38,6 @@ export async function GET() {
       }
     ]);
 
-    if (campaigns.length > 0) {
-    }
-    
     return NextResponse.json({ campaigns: campaigns.map(c => c.campaign) });
   } catch (error) {
     console.error('Error fetching campaign names:', error);

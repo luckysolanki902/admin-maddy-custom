@@ -53,6 +53,7 @@ const AddProductPage = () => {
   const [title, setTitle] = useState('');
   const [mainTag, setMainTag] = useState('');
   const [price, setPrice] = useState(0);
+  const [MRP, setMRP] = useState(1000);
   const [displayOrder, setDisplayOrder] = useState(0);
   const [productImages, setProductImages] = useState([]);            // multi
   const [productionTemplateImage, setProductionTemplateImage] = useState(null);
@@ -158,6 +159,7 @@ const AddProductPage = () => {
       }
 
       const ref = await res.json();
+      setMRP(ref.MRP || 1000);
       setPrice(ref.price || 0);
       setMainTag(ref.mainTags?.[0] || '');
       setDisplayOrder(ref.displayOrder || 0);
@@ -307,6 +309,7 @@ const AddProductPage = () => {
         title: titleCaseTitle,
         mainTags: [mainTag],
         price,
+        MRP,
         displayOrder,
         specificCategory: specificCategory._id,
         specificCategoryVariant: specificCategoryVariant._id,
@@ -336,6 +339,7 @@ const AddProductPage = () => {
       setTitle('');
       setMainTag('');
       setPrice(0);
+      setMRP(1000);
       setDisplayOrder(0);
       setProductImages([]);
       setProductionTemplateImage(null);
@@ -487,6 +491,19 @@ const AddProductPage = () => {
             value={price}
             inputProps={{ min: 0, step: '0.01' }}
             onChange={(e) => setPrice(parseFloat(e.target.value))}
+            required
+            fullWidth
+          />
+        </Grid>
+
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="MRP"
+            type="number"
+            value={MRP}
+            disabled
+            inputProps={{ min: 0, step: '0.01' }}
+            onChange={(e) => setMRP(parseFloat(e.target.value))}
             required
             fullWidth
           />

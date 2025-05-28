@@ -347,7 +347,7 @@ const EditProductPage = () => {
   };
   // Handle form submission
   const handleFormSubmit = async formData => {
-    const { name, title, mainTag, price, displayOrder, available, productSource, nameChanged, titleChanged } = formData;
+    const { name, title, mainTag, price, displayOrder, available, productSource, nameChanged, titleChanged, MRP} = formData;
 
     // Prevent submission if name is changed but title is not
     if (nameChanged && !titleChanged) {
@@ -385,7 +385,7 @@ const EditProductPage = () => {
         setLoading(false);
         return;
       }      // Proceed to submit the form
-      const res = await fetch(`/api/admin/manage/product/edit/${selectedProduct._id}`, {
+    const res = await fetch(`/api/admin/manage/product/edit/${selectedProduct._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -393,6 +393,7 @@ const EditProductPage = () => {
           title,
           mainTag,
           price,
+          MRP,
           displayOrder,
           available,
           productSource,

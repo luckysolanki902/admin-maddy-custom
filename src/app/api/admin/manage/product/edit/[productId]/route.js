@@ -16,9 +16,9 @@ export async function PUT(request, { params }) {
     });
   }
   try {
-    const { name, title, mainTag, price, displayOrder, productSource } = await request.json();
+    const { name, title, mainTag, price, displayOrder, productSource, MRP } = await request.json();
 
-    if (!name || !title || !mainTag || !productSource || typeof price !== 'number' || typeof displayOrder !== 'number') {
+    if (!name || !title || !mainTag || !productSource || typeof price !== 'number' || typeof displayOrder !== 'number' || !MRP || typeof MRP !== 'number') {
       return NextResponse.json({ error: 'All fields are required and must be valid' }, {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -101,6 +101,7 @@ export async function PUT(request, { params }) {
     product.title = titleCaseTitle;
     product.mainTags = [mainTag];
     product.price = price;
+    product.MRP = MRP;
     product.displayOrder = displayOrder;
     product.pageSlug = newSlug;
     product.productSource = productSource;

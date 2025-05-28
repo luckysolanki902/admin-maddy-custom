@@ -55,15 +55,12 @@ export async function GET(request) {
 
     // Find the maximum numeric suffix
     const maxSuffix = Math.max(...validSkuMap.map((item) => item.numericSuffix));
-
     // Find the SKU(s) with the maximum suffix
     const latestSkus = validSkuMap
       .filter((item) => item.numericSuffix === maxSuffix)
       .map((item) => item.sku);
-
     // Assuming SKUs are unique, retrieve the latest product
     const latestProduct = await Product.findOne({ sku: latestSkus[0] }).lean();
-
     if (!latestProduct) {
       return NextResponse.json(
         { error: 'Latest product not found.' },

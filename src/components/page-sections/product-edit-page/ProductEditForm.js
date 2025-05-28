@@ -27,6 +27,7 @@ const ProductEditForm = ({
   const [title, setTitle] = useState(selectedProduct.title);
   const [mainTag, setMainTag] = useState(selectedProduct.mainTags[0] || '');
   const [price, setPrice] = useState(selectedProduct.price);
+  const [MRP, setMRP] = useState(selectedProduct.MRP);
   const [displayOrder, setDisplayOrder] = useState(selectedProduct.displayOrder);
   const [available, setAvailable] = useState(selectedProduct.available);
   const [productSource, setProductSource] = useState(selectedProduct.productSource || 'inhouse');
@@ -43,6 +44,7 @@ const ProductEditForm = ({
     setTitle(selectedProduct.title);
     setMainTag(selectedProduct.mainTags[0] || '');
     setPrice(selectedProduct.price);
+    setMRP(selectedProduct.MRP);
     setDisplayOrder(selectedProduct.displayOrder);
     setAvailable(selectedProduct.available);
     setProductSource(selectedProduct.productSource || 'inhouse');
@@ -55,6 +57,7 @@ const ProductEditForm = ({
       title: selectedProduct.title,
       mainTag: selectedProduct.mainTags[0] || '',
       price: selectedProduct.price,
+      mrp: selectedProduct.MRP,
       displayOrder: selectedProduct.displayOrder,
       available: selectedProduct.available,
       productSource: selectedProduct.productSource || 'inhouse',
@@ -96,6 +99,7 @@ const ProductEditForm = ({
       title,
       mainTag,
       price,
+      MRP,
       displayOrder,
       available,
       productSource,
@@ -114,6 +118,7 @@ const ProductEditForm = ({
       title: value,
       mainTag,
       price,
+      MRP,
       displayOrder,
       available,
       productSource,
@@ -129,6 +134,7 @@ const ProductEditForm = ({
       title,
       mainTag: e.target.value,
       price,
+      MRP,
       displayOrder,
       available,
       productSource,
@@ -145,6 +151,24 @@ const ProductEditForm = ({
       title,
       mainTag,
       price: value,
+      MRP,
+      displayOrder,
+      available,
+      productSource,
+      nameChanged,
+      titleChanged,
+    });
+  };
+
+  const handleMRPChange = (e) => {
+    const value = parseFloat(e.target.value);
+    setMRP(value);
+    onFormChange({
+      name,
+      title,
+      mainTag,
+      price,
+      MRP: value,
       displayOrder,
       available,
       productSource,
@@ -161,6 +185,7 @@ const ProductEditForm = ({
       title,
       mainTag,
       price,
+      MRP,
       displayOrder: value,
       available,
       productSource,
@@ -195,6 +220,7 @@ const ProductEditForm = ({
         title,
         mainTag,
         price,
+        MRP,
         displayOrder,
         available: data.product.available,
         productSource,
@@ -217,6 +243,7 @@ const ProductEditForm = ({
       title,
       mainTag,
       price,
+      MRP,
       displayOrder,
       available,
       productSource: value,
@@ -231,6 +258,7 @@ const ProductEditForm = ({
       title,
       mainTag,
       price,
+      MRP,
       displayOrder,
       available,
       productSource,
@@ -316,6 +344,18 @@ const ProductEditForm = ({
         type="number"
         value={price}
         onChange={handlePriceChange}
+        fullWidth
+        required
+        margin="normal"
+        inputProps={{ min: 0, step: '0.01' }}
+      />
+
+      {/* MRP */}
+      <TextField
+        label="MRP"
+        type="number"
+        value={MRP}
+        onChange={handleMRPChange}
         fullWidth
         required
         margin="normal"

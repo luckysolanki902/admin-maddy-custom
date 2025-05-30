@@ -25,12 +25,26 @@ export async function GET(req) {
       applyVehicleFilter, vehicles = [],
       applyLoyaltyFilter, loyalty = {},
       utmCampaign = '',       // UTM campaign filter
+      specialFilter = null,   // Check for special filter and redirect if needed
       page = 1, pageSize = 10,
       sortField, sortOrder,
     } = parsedQuery;
 
+    // Check for special filters and redirect to appropriate handler
+    if (specialFilter === 'incompletePayments' || specialFilter === 'subscribersOnly') {
+      // This isn't needed for fetch-user-data, as we're using specific APIs for these
+      // The special filters are handled separately in their own routes
+      return NextResponse.json({ 
+        message: `Please use the appropriate API for ${specialFilter}`,
+        customers: [],
+        totalRecords: 0
+      });
+    }
+
+    // Regular fetch logic for users and orders
     // 1) Base match: only "paid" statuses
     const match = { paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] } };
+    // Ensure consistent date handling
     if (activeTag !== 'all' && start && end) {
       match.createdAt = { $gte: new Date(start), $lte: new Date(end) };
     }

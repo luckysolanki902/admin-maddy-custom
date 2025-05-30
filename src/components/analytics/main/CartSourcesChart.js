@@ -206,6 +206,8 @@ const CartSourcesChart = ({ data, loading }) => {
                         tickLine={false}
                         axisLine={{ strokeWidth: 0.5 }}
                         interval={0}
+                        angle={-45}
+                        textAnchor="end"
                     />
                     <YAxis 
                         stroke="#AAA" 
@@ -223,7 +225,7 @@ const CartSourcesChart = ({ data, loading }) => {
                         wrapperStyle={{
                             color: '#FFF',
                             fontSize: isSmall ? '0.8rem' : '0.9rem',
-                            paddingTop: '20px'
+                            paddingTop: '60px'
                         }}
                         iconType="circle"
                     />

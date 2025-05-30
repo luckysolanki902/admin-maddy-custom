@@ -19,7 +19,11 @@ export async function GET(req) {
         }
 
         const queryObj = JSON.parse(queryParam);
-        const { createdAt, items, tags, columns, loyalty, page, pageSize, activeTag, start, end, applyItemFilter } = queryObj;
+        const { 
+            createdAt, items, tags, columns, loyalty, 
+            page, pageSize, activeTag, start, end, applyItemFilter,
+            specialFilter = 'incompletePayments' // Default to incompletePayments
+        } = queryObj;
 
         const pipeline = [];
 
@@ -71,11 +75,11 @@ export async function GET(req) {
             },
         });
 
-        // Stage 5: Apply Date Filter - This is the part we need to fix
+        // Stage 5: Apply Date Filter - Unified approach
         if (activeTag !== 'all' && start && end) {
             pipeline.push({
                 $match: {
-                    createdAt: {
+                    'mostRecentOrder.createdAt': { 
                         $gte: new Date(start),
                         $lte: new Date(end)
                     }
@@ -84,7 +88,7 @@ export async function GET(req) {
         } else if (createdAt && createdAt.$or && Array.isArray(createdAt.$or)) {
             // Backward compatibility for the old format
             const dateConditions = createdAt.$or.map(cond => ({
-                createdAt: {
+                'mostRecentOrder.createdAt': {
                     $gte: new Date(cond.createdAt.$gte),
                     $lte: new Date(cond.createdAt.$lte),
                 }

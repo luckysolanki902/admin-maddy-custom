@@ -237,169 +237,8 @@ export default function DownloadCustomersData() {
     (async () => {
       setLoading(true);
       try {
-        // Different API calls based on special filters
-        if (specialFilter === 'incompletePayments') {
-          // Use abandoned carts API for incomplete payments
-          const query = {
-            mode,
-            columns: selectedColumns, 
-            tags,
-            applyItemFilter, items,
-            // Fix date range filter for abandoned carts
-            activeTag,
-            // These need to be properly formatted for the API
-            createdAt: activeTag !== 'all' && dateRange.start && dateRange.end ? {
-              $or: [
-                {
-                  createdAt: {
-                    $gte: dateRange.start.toISOString(),
-                    $lte: dateRange.end.toISOString()
-                  }
-                }
-              ]
-            } : undefined,
-            page: page + 1, 
-            pageSize: rowsPerPage,
-            sortField: sortConfig.field, 
-            sortOrder: sortConfig.order
-          };
-          
-          const res = await fetch(
-            `/api/admin/analytics/main/abandoned-carts-user?query=${encodeURIComponent(JSON.stringify(query))}`
-          );
-          const json = await res.json();
-          setCustomers(json.customers || []);
-          setTotalRecords(json.totalRecords || 0);
-        } else if (specialFilter === 'subscribersOnly') {
-          // Use subscribers API for users without address
-          const query = {
-            mode,
-            columns: selectedColumns, 
-            tags,
-            applyItemFilter, items,
-            // Fix date range filter for subscribers
-            activeTag,
-            start: dateRange.start ? dateRange.start.toISOString() : null,
-            end: dateRange.end ? dateRange.end.toISOString() : null,
-            page: page + 1, 
-            pageSize: rowsPerPage,
-            sortField: sortConfig.field, 
-            sortOrder: sortConfig.order
-          };
-          
-          const res = await fetch(
-            `/api/admin/download/fetch-subscribers?query=${encodeURIComponent(JSON.stringify(query))}`
-          );
-          const json = await res.json();
-          setCustomers(json.customers || []);
-          setTotalRecords(json.totalRecords || 0);
-        } else {
-          // Use regular data API for normal filtering
-          const query = {
-            mode,
-            start: dateRange.start ? dateRange.start.toISOString() : null, 
-            end: dateRange.end ? dateRange.end.toISOString() : null, 
-            activeTag,
-            columns: selectedColumns, 
-            tags,
-            applyItemFilter, 
-            items,
-            applyVehicleFilter, 
-            vehicles,
-            applyLoyaltyFilter,
-            utmCampaign: debouncedCampaign,
-            loyalty: {
-              minAmountSpent: loyaltyFilters.minAmountSpent.checked
-                ? loyaltyFilters.minAmountSpent.value : null,
-              minNumberOfOrders: loyaltyFilters.minNumberOfOrders.checked
-                ? loyaltyFilters.minNumberOfOrders.value : null,
-              minItemsCount: loyaltyFilters.minItemsCount.checked
-                ? loyaltyFilters.minItemsCount.value : null,
-            },
-            page: page + 1, 
-            pageSize: rowsPerPage,
-            sortField: sortConfig.field, 
-            sortOrder: sortConfig.order
-          };
-          
-          const res = await fetch(
-            `/api/admin/download/fetch-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
-          );
-          const json = await res.json();
-          setCustomers(json.customers || []);
-          setTotalRecords(json.totalRecords || 0);
-        }
-      } catch (e) {
-        console.error("Error fetching data:", e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [
-    mode, activeTag, dateRange, selectedColumns, tags,
-    applyItemFilter, items,
-    applyVehicleFilter, vehicles,
-    applyLoyaltyFilter, loyaltyFilters,
-    page, rowsPerPage, sortConfig,
-    debouncedCampaign, specialFilter
-  ]);
-
-  // Download CSV
-  const handleDownloadCSV = async () => {
-    setDownloading(true);
-    try {
-      if (specialFilter === 'incompletePayments') {
-        // Use abandoned carts download API
-        const query = {
-          columns: selectedColumns, 
-          tags,
-          applyItemFilter, 
-          items,
-          // Fix date range filter for abandoned carts download
-          activeTag,
-          // These need to be properly formatted for the API
-          createdAt: activeTag !== 'all' && dateRange.start && dateRange.end ? {
-            $or: [
-              {
-                createdAt: {
-                  $gte: dateRange.start.toISOString(),
-                  $lte: dateRange.end.toISOString()
-                }
-              }
-            ]
-          } : undefined,
-          sortField: sortConfig.field, 
-          sortOrder: sortConfig.order
-        };
-        
-        const res = await fetch(
-          `/api/admin/download/download-abandoned-carts-user?query=${encodeURIComponent(JSON.stringify(query))}`
-        );
-        const blob = await res.blob();
-        FileSaver.saveAs(blob, 'incomplete_payments_users.csv');
-      } else if (specialFilter === 'subscribersOnly') {
-        // Use subscribers download API
-        const query = {
-          columns: selectedColumns, 
-          tags,
-          applyItemFilter, 
-          items,
-          // Fix date range filter for subscribers download
-          activeTag,
-          start: dateRange.start ? dateRange.start.toISOString() : null,
-          end: dateRange.end ? dateRange.end.toISOString() : null,
-          sortField: sortConfig.field, 
-          sortOrder: sortConfig.order
-        };
-        
-        const res = await fetch(
-          `/api/admin/download/download-subscribers?query=${encodeURIComponent(JSON.stringify(query))}`
-        );
-        const blob = await res.blob();
-        FileSaver.saveAs(blob, 'subscribers_only.csv');
-      } else {
-        // Use regular download API
-        const query = {
+        // Build common query parameters for all API calls
+        const baseQuery = {
           mode,
           start: dateRange.start ? dateRange.start.toISOString() : null, 
           end: dateRange.end ? dateRange.end.toISOString() : null, 
@@ -420,16 +259,97 @@ export default function DownloadCustomersData() {
             minItemsCount: loyaltyFilters.minItemsCount.checked
               ? loyaltyFilters.minItemsCount.value : null,
           },
+          page: page + 1, 
+          pageSize: rowsPerPage,
           sortField: sortConfig.field, 
-          sortOrder: sortConfig.order
+          sortOrder: sortConfig.order,
+          specialFilter // Add special filter to all API calls
         };
         
-        const res = await fetch(
-          `/api/admin/download/download-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
-        );
-        const blob = await res.blob();
-        FileSaver.saveAs(blob, `${mode === 'orders' ? 'orders' : 'users'}_data.csv`);
+        let res;
+        
+        // Use the appropriate API based on what we're displaying
+        if (specialFilter === 'incompletePayments') {
+          res = await fetch(
+            `/api/admin/analytics/main/abandoned-carts-user?query=${encodeURIComponent(JSON.stringify(baseQuery))}`
+          );
+        } else if (specialFilter === 'subscribersOnly') {
+          res = await fetch(
+            `/api/admin/download/fetch-subscribers?query=${encodeURIComponent(JSON.stringify(baseQuery))}`
+          );
+        } else {
+          res = await fetch(
+            `/api/admin/download/fetch-user-data?query=${encodeURIComponent(JSON.stringify(baseQuery))}`
+          );
+        }
+        
+        const json = await res.json();
+        setCustomers(json.customers || []);
+        setTotalRecords(json.totalRecords || 0);
+      } catch (e) {
+        console.error("Error fetching data:", e);
+      } finally {
+        setLoading(false);
       }
+    })();
+  }, [
+    mode, activeTag, dateRange, selectedColumns, tags,
+    applyItemFilter, items,
+    applyVehicleFilter, vehicles,
+    applyLoyaltyFilter, loyaltyFilters,
+    page, rowsPerPage, sortConfig,
+    debouncedCampaign, specialFilter
+  ]);
+
+  // Download CSV
+  const handleDownloadCSV = async () => {
+    setDownloading(true);
+    try {
+      // Build consistent query parameters that match what the table uses
+      const query = {
+        mode,
+        start: dateRange.start ? dateRange.start.toISOString() : null, 
+        end: dateRange.end ? dateRange.end.toISOString() : null, 
+        activeTag,
+        columns: selectedColumns, 
+        tags,
+        applyItemFilter, 
+        items,
+        applyVehicleFilter, 
+        vehicles,
+        applyLoyaltyFilter,
+        utmCampaign: debouncedCampaign,
+        loyalty: {
+          minAmountSpent: loyaltyFilters.minAmountSpent.checked
+            ? loyaltyFilters.minAmountSpent.value : null,
+          minNumberOfOrders: loyaltyFilters.minNumberOfOrders.checked
+            ? loyaltyFilters.minNumberOfOrders.value : null,
+          minItemsCount: loyaltyFilters.minItemsCount.checked
+            ? loyaltyFilters.minItemsCount.value : null,
+        },
+        sortField: sortConfig.field, 
+        sortOrder: sortConfig.order,
+        specialFilter // Ensure special filter is included
+      };
+      
+      // Always use the consolidated download API for all types of downloads
+      const res = await fetch(
+        `/api/admin/download/download-user-data?query=${encodeURIComponent(JSON.stringify(query))}`
+      );
+      
+      const blob = await res.blob();
+      let filename = 'users_data.csv';
+      
+      // Set appropriate filename based on mode and special filter
+      if (specialFilter === 'incompletePayments') {
+        filename = 'incomplete_payments_users.csv';
+      } else if (specialFilter === 'subscribersOnly') {
+        filename = 'subscribers_only.csv';
+      } else if (mode === 'orders') {
+        filename = 'orders_data.csv';
+      }
+      
+      FileSaver.saveAs(blob, filename);
     } catch (e) {
       console.error(e);
     } finally {

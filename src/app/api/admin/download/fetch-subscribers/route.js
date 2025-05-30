@@ -21,6 +21,7 @@ export async function GET(req) {
       applyItemFilter, items = [],
       page = 1, pageSize = 10,
       sortField, sortOrder,
+      specialFilter = 'subscribersOnly' // Default to subscribersOnly
     } = JSON.parse(q);
 
     // Build pipeline for subscribers-only users (users with no addresses)
@@ -36,11 +37,14 @@ export async function GET(req) {
       }
     });
 
-    // Stage 2: Apply date filter if specified
+    // Stage 2: Apply date filter if specified - ensure proper date handling
     if (activeTag !== 'all' && start && end) {
       pipeline.push({
         $match: {
-          createdAt: { $gte: new Date(start), $lte: new Date(end) }
+          createdAt: { 
+            $gte: new Date(start), 
+            $lte: new Date(end) 
+          }
         }
       });
     }
@@ -87,7 +91,7 @@ export async function GET(req) {
       });
     }
 
-    // Stage 6: Project fields based on selected columns
+    // Stage 6: Project fields based on selected columns - ensure consistent column naming
     const proj = {};
     if (Array.isArray(columns) && columns.length) {
       for (const col of columns) {
@@ -98,7 +102,13 @@ export async function GET(req) {
             break;
           case 'isSubscriberOnly': proj['Is Subscriber Only'] = '$isSubscriberOnly'; break;
           case 'orderCount': proj['Order Count'] = '$orderCount'; break;
-          case 'createdAt': proj['Created At'] = '$createdAt'; break;
+          case 'createdAt': proj['Created At'] = {
+            $dateToString: {
+              format: '%Y-%m-%d %H:%M',
+              date: '$createdAt',
+              timezone: 'Asia/Kolkata'
+            }
+          }; break;
         }
       }
     } else {
@@ -106,6 +116,13 @@ export async function GET(req) {
       proj['Full Name'] = '$name';
       proj['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
       proj['Is Subscriber Only'] = true;
+      proj['Created At'] = {
+        $dateToString: {
+          format: '%Y-%m-%d %H:%M',
+          date: '$createdAt',
+          timezone: 'Asia/Kolkata'
+        }
+      };
     }
     pipeline.push({ $project: proj });
 

@@ -820,7 +820,7 @@ export default function FeatureRequestDetail({ params: propParams }) {
                   <img
                     src={getMediaUrl(fullscreenMedia.url)}
                     alt={fullscreenMedia.caption || 'Fullscreen Image'}
-                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }}
+                    style={{width: '100vw', height: '100vh', objectFit: 'contain', borderRadius: '8px' }}
                   />
                 )}
                 {fullscreenMedia.type === 'video' && (

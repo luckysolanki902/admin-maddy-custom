@@ -54,11 +54,17 @@ export async function PUT(req, { params }) { // req is NextRequest
       );
     }
     
-    // If this is a status update, client-side logic is expected to verify
-    // if the user is 'luckysolanki902@gmail.com'.
-    // Backend only checks for authentication.
-    // The department/role check for general updates is removed as per request for status updates.
-    // If other types of PUT operations need different authorization, this logic would need to be more granular.
+    // Validate status if it's being updated
+    if (updateData.status !== undefined) {
+      // If status is empty or not a valid status, return an error
+      const validStatuses = ['New', 'In Review', 'Approved', 'In Progress', 'Completed', 'Rejected'];
+      if (!updateData.status || !validStatuses.includes(updateData.status)) {
+        return NextResponse.json(
+          { error: `Invalid status value: "${updateData.status}". Must be one of: ${validStatuses.join(', ')}` },
+          { status: 400 }
+        );
+      }
+    }
 
     const prevFeatureRequest = await FeatureRequest.findById(id);
     

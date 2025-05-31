@@ -400,18 +400,19 @@ export default function FeatureRequestDetail({ params: propParams }) {
     }
   };
   
-  const handleStatusUpdate = async () => {
+  const handleStatusUpdate = async (statusValue) => {
     if (!isSuperAdmin) return; // Only super admin can update status
     
     const originalStatus = request.status;
-    setRequest(prev => ({ ...prev, status: newStatus })); // Optimistic update
+    setNewStatus(statusValue); // Set the new status value
+    setRequest(prev => ({ ...prev, status: statusValue })); // Optimistic update
 
     try {
       const response = await fetch(`/api/admin/feature-requests/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: newStatus,
+          status: statusValue, // Use the passed-in status value
           // reviewedBy will be populated by the backend using the authenticated user's details
         }),
       });
@@ -757,7 +758,7 @@ export default function FeatureRequestDetail({ params: propParams }) {
                         fullWidth
                         startIcon={action.icon}
                         disabled={request.status === action.value}
-                        onClick={() => handleStatusUpdate(action.value)}
+                        onClick={() => handleStatusUpdate(action.value)} 
                         sx={{ borderRadius: '20px', py: 1, textTransform: 'none', fontWeight: 500 }}
                       >
                         {action.label}

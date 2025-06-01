@@ -344,7 +344,7 @@ export default function FeatureRequestForm() {
               
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth error={!!formErrors.targetDepartment}>
-                  <InputLabel>Target Department</InputLabel>
+                  <InputLabel>Department the issue related to</InputLabel>
                   <Select
                     name="targetDepartment"
                     value={formData.targetDepartment}

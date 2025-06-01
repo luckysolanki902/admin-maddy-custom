@@ -198,7 +198,7 @@ const Dashboard = () => {
               display: 'inline-block',
             }}
           >
-            Product Sales Dashboard
+            Product Sales Analysis
           </Typography>
           
           <Box display="flex" alignItems="center">
@@ -295,22 +295,7 @@ const Dashboard = () => {
                   />
                 </FormGroup>
                 
-                <ToggleButtonGroup
-                  value={displayFormat}
-                  exclusive
-                  onChange={(e, newFormat) => {
-                    if (newFormat !== null) setDisplayFormat(newFormat);
-                  }}
-                  aria-label="display format"
-                  size="small"
-                >
-                  <ToggleButton value="grid" aria-label="grid view">
-                    <GridViewIcon fontSize="small" />
-                  </ToggleButton>
-                  <ToggleButton value="list" aria-label="list view">
-                    <ViewListIcon fontSize="small" />
-                  </ToggleButton>
-                </ToggleButtonGroup>
+
               </Box>
             </Grid>
           </Grid>
@@ -454,6 +439,7 @@ const Dashboard = () => {
                     data={salesData.products.filter(p => p.totalSold > 0)} 
                     theme={theme}
                     isMobile={isMobile}
+                    dateFilter={dateFilter}
                   />
                 </Paper>
               </motion.div>
@@ -550,7 +536,7 @@ const Dashboard = () => {
         PaperProps={{
           sx: {
             width: '100%',
-            height: '60%',
+            height: '80%',
             maxHeight: '800px',
             borderRadius: '24px 24px 0 0',
             overflow: 'visible',

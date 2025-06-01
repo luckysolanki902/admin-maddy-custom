@@ -1,6 +1,6 @@
 // /components/page-sections/common-utils/DateRangeChips.js
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, Chip, Stack, alpha, Dialog, DialogTitle, DialogContent, DialogActions, Button, useTheme, useMediaQuery } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -9,20 +9,14 @@ import dayjs from 'dayjs';
 
 /**
  * Enhanced date range selector with clickable chips for common date ranges
- * All chips are now properly functional and optimized for performance
- * 
- * When using this component:
- * - `dateRange` should be {start: Date|dayjs, end: Date|dayjs}
- * - You should directly convert start/end to the appropriate format (Date or ISO string) 
- *   in your fetching logic rather than calling .format() directly
- * - Use `dayjs(dateRange.start).format()` to format dates for display
+ * Performance optimized version to fix click lag issues
  */
 const DateRangeChips = ({
   activeTag,
   setActiveTag,
   setDateRange,
-  setCurrentPage = () => {}, // Optional
-  setProblematicCurrentPage = () => {}, // Optional
+  setCurrentPage = () => {}, 
+  setProblematicCurrentPage = () => {},
   handleAllTagClick,
   handleCustomDayChange,
   handleCustomDateChange,
@@ -40,28 +34,28 @@ const DateRangeChips = ({
   const [selectedRangeStart, setSelectedRangeStart] = useState(dayjs().subtract(7, 'day'));
   const [selectedRangeEnd, setSelectedRangeEnd] = useState(dayjs());
 
-  // Handlers for predefined ranges
-  const handlePredefinedRange = (tag, start, end) => {
+  // Memoize handlers for better performance
+  const handlePredefinedRange = useCallback((tag, start, end) => {
     setActiveTag(tag);
     
-    // Make sure we're passing consistent objects (preferably dayjs objects)
     const startAsDayjs = dayjs.isDayjs(start) ? start : dayjs(start);
     const endAsDayjs = dayjs.isDayjs(end) ? end : dayjs(end);
     
-    // Based on the component integration patterns we've seen, some components expect Date objects
-    // while others expect dayjs objects, so we'll pass dayjs objects that can be converted
     setDateRange({ 
       start: startAsDayjs,
       end: endAsDayjs 
     });
     
-    // Reset pagination if relevant
     if (setCurrentPage) setCurrentPage(1);
     if (setProblematicCurrentPage) setProblematicCurrentPage(1);
-  };
+  }, [setActiveTag, setDateRange, setCurrentPage, setProblematicCurrentPage]);
 
-  // Handle chip click
-  const handleChipClick = (chipId) => {
+  // Handle chip click - optimized with useCallback
+  const handleChipClick = useCallback((chipId) => {
+    // Prevent any lag by immediately updating the active tag
+    setActiveTag(chipId);
+    
+    // Then process the actual date logic
     switch (chipId) {
       case 'today':
         handlePredefinedRange(
@@ -135,10 +129,10 @@ const DateRangeChips = ({
       default:
         break;
     }
-  };
+  }, [handlePredefinedRange, handleMonthSelection, handleAllTagClick, setActiveTag]);
 
-  // Apply selected custom day
-  const applyCustomDay = () => {
+  // Apply selected custom day - optimized
+  const applyCustomDay = useCallback(() => {
     if (selectedDay && selectedDay.isValid()) {
       if (handleCustomDayChange) {
         handleCustomDayChange(selectedDay);
@@ -151,10 +145,10 @@ const DateRangeChips = ({
       }
     }
     setCustomDayDialogOpen(false);
-  };
+  }, [selectedDay, handleCustomDayChange, handlePredefinedRange]);
 
-  // Apply selected custom range
-  const applyCustomRange = () => {
+  // Apply selected custom range - optimized
+  const applyCustomRange = useCallback(() => {
     if (selectedRangeStart && selectedRangeStart.isValid() && 
         selectedRangeEnd && selectedRangeEnd.isValid()) {
       if (handleCustomDateChange) {
@@ -168,7 +162,20 @@ const DateRangeChips = ({
       }
     }
     setCustomRangeDialogOpen(false);
-  };
+  }, [selectedRangeStart, selectedRangeEnd, handleCustomDateChange, handlePredefinedRange]);
+
+  // Predefined chip data for cleaner rendering
+  const dateChips = [
+    { id: 'today', label: 'Today' },
+    { id: 'yesterday', label: 'Yesterday' },
+    { id: 'thisMonth', label: 'This Month' },
+    { id: 'lastMonth', label: 'Last Month' },
+    { id: 'last7days', label: 'Last 7 Days' },
+    { id: 'last30days', label: 'Last 30 Days' },
+    { id: 'all', label: 'All' },
+    { id: 'custom', label: 'Custom Day' },
+    { id: 'customRange', label: 'Custom Range' }
+  ];
 
   return (
     <>
@@ -196,18 +203,7 @@ const DateRangeChips = ({
         }}
       >
         <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-start', whiteSpace: 'nowrap' }}>
-          {/* Date Range Chips */}
-          {[
-            { id: 'today', label: 'Today' },
-            { id: 'yesterday', label: 'Yesterday' },
-            { id: 'thisMonth', label: 'This Month' },
-            { id: 'lastMonth', label: 'Last Month' },
-            { id: 'last7days', label: 'Last 7 Days' },
-            { id: 'last30days', label: 'Last 30 Days' },
-            { id: 'all', label: 'All' },
-            { id: 'custom', label: 'Custom Day' },
-            { id: 'customRange', label: 'Custom Range' }
-          ].map((chip) => (
+          {dateChips.map((chip) => (
             <Chip
               key={chip.id}
               label={chip.label}
@@ -215,6 +211,7 @@ const DateRangeChips = ({
               variant={activeTag === chip.id ? 'filled' : 'outlined'}
               color={activeTag === chip.id ? 'primary' : 'default'}
               sx={{
+                userSelect: 'none', // Prevent text selection
                 transition: 'all 0.2s ease',
                 fontWeight: activeTag === chip.id ? 500 : 400,
                 boxShadow: activeTag === chip.id ? 
@@ -224,6 +221,9 @@ const DateRangeChips = ({
                   backgroundColor: activeTag === chip.id ? 
                     theme => theme.palette.primary.main : 
                     theme => alpha(theme.palette.primary.main, 0.04)
+                },
+                '&:active': {
+                  transform: 'scale(0.97)',
                 }
               }}
             />
@@ -237,6 +237,10 @@ const DateRangeChips = ({
         onClose={() => setCustomDayDialogOpen(false)}
         maxWidth="xs"
         fullWidth
+        TransitionProps={{ 
+          mountOnEnter: true,
+          unmountOnExit: true
+        }}
         PaperProps={{
           sx: {
             borderRadius: 2,
@@ -258,7 +262,7 @@ const DateRangeChips = ({
         <DialogContent sx={{ pt: 3 }}>
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DatePicker
-            sx={{ mt: 2 }}
+              sx={{ mt: 2 }}
               value={selectedDay}
               variant="standard"
               onChange={(newValue) => {
@@ -302,6 +306,10 @@ const DateRangeChips = ({
         onClose={() => setCustomRangeDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        TransitionProps={{ 
+          mountOnEnter: true,
+          unmountOnExit: true
+        }}
         PaperProps={{
           sx: {
             borderRadius: 2,
@@ -322,17 +330,13 @@ const DateRangeChips = ({
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <Stack direction={isMobile ? "column" : "row"} spacing={2}
-            sx={{ mt: 2 }}
-            >
+            <Stack direction={isMobile ? "column" : "row"} spacing={2} sx={{ mt: 2 }}>
               <DatePicker
-
                 label="Start Date"
                 value={selectedRangeStart}
                 onChange={(newValue) => {
                   if (newValue && newValue.isValid()) {
                     setSelectedRangeStart(newValue);
-                    // If end date is before start date, update end date
                     if (selectedRangeEnd.isBefore(newValue)) {
                       setSelectedRangeEnd(newValue);
                     }
@@ -356,7 +360,6 @@ const DateRangeChips = ({
                 onChange={(newValue) => {
                   if (newValue && newValue.isValid()) {
                     setSelectedRangeEnd(newValue);
-                    // If start date is after end date, update start date
                     if (selectedRangeStart.isAfter(newValue)) {
                       setSelectedRangeStart(newValue);
                     }
@@ -398,4 +401,5 @@ const DateRangeChips = ({
   );
 };
 
+// Use React.memo to prevent unnecessary re-renders
 export default React.memo(DateRangeChips);

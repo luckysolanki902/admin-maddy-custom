@@ -56,11 +56,11 @@ const ImageContainer = styled(Box)(({ theme }) => ({
   }
 }));
 
-const SalesTag = styled(Box)(({ theme, salescount }) => ({
+const SalesTag = styled(Box)(({ salescount }) => ({
   position: 'absolute',
   top: 16,
   right: 16,
-  padding: '4px 10px',
+  padding: '6px 12px',
   borderRadius: 24,
   fontWeight: 700,
   fontSize: '0.875rem',
@@ -69,17 +69,20 @@ const SalesTag = styled(Box)(({ theme, salescount }) => ({
   gap: '6px',
   backdropFilter: 'blur(10px)',
   backgroundColor: salescount === 0 
-    ? theme.palette.error.main + 'D9' // Using hex opacity (~85%)
-    : salescount > 10 
-      ? theme.palette.success.main + 'D9' // Using hex opacity (~85%)
-      : theme.palette.primary.main + 'D9', // Using hex opacity (~85%)
-  color: '#fff',
+    ? 'rgba(211, 47, 47, 0.85)' // Red for no sales
+    : salescount < 5
+      ? 'rgba(237, 108, 2, 0.85)' // Yellow/orange for low sales
+      : salescount >= 10 
+        ? 'rgba(46, 125, 50, 0.85)' // Green for good sales
+        : 'rgba(25, 118, 210, 0.85)', // Blue for moderate sales
+  color: '#ffffff',
   zIndex: 1,
   boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
 }));
 
 const ProductLink = styled(Link)(({ theme }) => ({
   textDecoration: 'none',
+  zIndex: 99,
   color: theme.palette.primary.main,
   display: 'flex',
   alignItems: 'center',
@@ -321,21 +324,7 @@ const ProductCards = ({
                           }} 
                         />
                       )}
-                      <Badge
-                        overlap="circular"
-                        badgeContent={
-                          <Tooltip title="This product belongs to a category">
-                            <CategoryIcon fontSize="small" color="primary" />
-                          </Tooltip>
-                        }
-                        sx={{
-                          '& .MuiBadge-badge': {
-                            backgroundColor: 'transparent',
-                            right: -12,
-                            top: -4,
-                          }
-                        }}
-                      >
+                      <Badge>
                         <Tooltip title={product.available ? "Click to hide product" : "Click to make product visible"}>
                           <IconButton
                             onClick={() => handleAvailabilityChange(product._id, !product.available)}
@@ -354,7 +343,7 @@ const ProductCards = ({
                     </Box>
                     
                     <ProductLink 
-                      href={`${websiteBaseUrl}${product.pageSlug || ''}`}
+                      href={`${websiteBaseUrl}/shop/${product.pageSlug || ''}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >

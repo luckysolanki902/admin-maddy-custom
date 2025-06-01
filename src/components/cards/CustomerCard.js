@@ -39,6 +39,7 @@ import timezone from 'dayjs/plugin/timezone';
 import { WhatsApp } from '@mui/icons-material';
 import Link from 'next/link';
 import { generateInvoicePdf } from '@/utils/pdfGenerator';
+import Image from 'next/image';
 
 // Extend dayjs with plugins
 dayjs.extend(utc);
@@ -112,10 +113,10 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
 
   // Calculate item totals
   const itemsTotal = order.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
-  
+
   // Calculate total quantity of all items
   const totalItemsQuantity = order.items.reduce((acc, item) => acc + (item.quantity || 0), 0);
-  
+
   // Calculate extra charges total
   const extraChargesTotal = order.extraCharges?.reduce((acc, charge) => acc + (charge.chargesAmount || 0), 0) || 0;
 
@@ -153,7 +154,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
       console.error('Failed to copy!', err);
     }
   };
-  
+
   // Handle download invoice
   const handleDownloadInvoice = (event) => {
     event.stopPropagation();
@@ -168,7 +169,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
 
   const open = Boolean(anchorEl);
   const id = open ? `popover-${order._id}` : undefined;
-  
+
   // Format status
   const formatStatus = (status) => {
     return status.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -221,9 +222,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   {order._id.slice(0, 10)}...
                 </Typography>
                 {/* Replace IconButton with Box to avoid button nesting */}
-                <Box 
+                <Box
                   onClick={handleCopy}
-                  sx={{ 
+                  sx={{
                     ml: 0.5,
                     display: 'flex',
                     alignItems: 'center',
@@ -237,16 +238,16 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     }
                   }}
                 >
-                  {copied ? 
-                    <CheckIcon fontSize="small" sx={{ color: '#4CAF50' }} /> : 
+                  {copied ?
+                    <CheckIcon fontSize="small" sx={{ color: '#4CAF50' }} /> :
                     <ContentCopyIcon fontSize="small" sx={{ color: '#4f86f7' }} />
                   }
                 </Box>
               </Box>
               <Typography
                 variant="body2"
-                sx={{ 
-                  color: 'text.secondary', 
+                sx={{
+                  color: 'text.secondary',
                   fontSize: '0.8rem',
                   fontStyle: 'italic'
                 }}
@@ -281,7 +282,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   {/* Replace IconButton with Box */}
                   <Box
                     onClick={handleCopyPhoneNumber}
-                    sx={{ 
+                    sx={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -294,15 +295,15 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                       }
                     }}
                   >
-                    {phoneCopied ? 
-                      <CheckIcon fontSize="small" sx={{ color: '#4CAF50' }} /> : 
+                    {phoneCopied ?
+                      <CheckIcon fontSize="small" sx={{ color: '#4CAF50' }} /> :
                       <ContentCopyIcon fontSize="small" sx={{ color: 'rgb(200, 200, 200)' }} />
                     }
                   </Box>
                   {/* Use a div instead of IconButton for WhatsApp */}
                   <Box
                     component="div"
-                    sx={{ 
+                    sx={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -315,13 +316,13 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                       }
                     }}
                   >
-                    <Link 
-                      style={{ 
-                        display:'flex', 
-                        alignItems: 'center', 
-                        justifyContent:'center'
-                      }} 
-                      href={`https://wa.me/91${order.address?.receiverPhoneNumber}`} 
+                    <Link
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      href={`https://wa.me/91${order.address?.receiverPhoneNumber}`}
                       target='_blank'
                     >
                       <WhatsApp fontSize="small" sx={{ color: '#25D366' }} />
@@ -349,7 +350,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   {order.utmDetails?.source || 'Direct'}
                 </Typography>
               </Box>
-              
+
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Typography
                   variant="body2"
@@ -371,7 +372,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   {totalItemsQuantity} {totalItemsQuantity === 1 ? 'Item' : 'Items'}
                 </Typography>
               </Box>
-              
+
               <Popover
                 id={id}
                 open={open}
@@ -389,120 +390,179 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 PaperProps={{
                   sx: {
                     borderRadius: '10px',
-                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
-                    maxHeight: '60vh',
-               
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                    maxHeight: '80vh',
+                    maxWidth: '450px',
+                    width: '100%'
                   }
                 }}
               >
-                <Box sx={{ p: 2, maxWidth: '400px', backgroundColor: '#222', maxHeight: '60vh', overflow: 'auto' }}>
+                <Box sx={{
+                  p: 2.5,
+                  maxWidth: '450px',
+                  backgroundColor: '#1E1E1E',
+                  backgroundImage: 'linear-gradient(to bottom, rgba(30,30,30,0.95), rgba(20,20,20,0.98))',
+                  maxHeight: '80vh',
+                  overflow: 'auto'
+                }}>
                   {/* Improved product list header */}
-                  <Typography 
-                    variant="h6" 
-                    sx={{ 
-                      color: 'white', 
-                      mb: 2, 
-                      pb: 1, 
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: 'white',
+                      mb: 2,
+                      pb: 1.5,
                       borderBottom: '1px solid rgba(255,255,255,0.1)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between'
+                      justifyContent: 'space-between',
+                      fontWeight: 600
                     }}
                   >
                     <Box display="flex" alignItems="center">
-                      <LocalMallIcon sx={{ mr: 1 }} />
+                      <LocalMallIcon sx={{ mr: 1, color: '#4f86f7' }} />
                       Product Details
                     </Box>
-                    <Chip 
-                      label={`${totalItemsQuantity} ${totalItemsQuantity === 1 ? 'item' : 'items'}`} 
-                      size="small" 
-                      sx={{ 
-                        backgroundColor: 'rgba(79, 134, 247, 0.2)', 
+                    <Chip
+                      label={`${totalItemsQuantity} ${totalItemsQuantity === 1 ? 'item' : 'items'}`}
+                      size="small"
+                      sx={{
+                        backgroundColor: 'rgba(79, 134, 247, 0.15)',
                         color: '#4f86f7',
-                        fontWeight: 'bold' 
-                      }} 
+                        fontWeight: 'bold',
+                        borderRadius: '20px',
+                        height: '24px'
+                      }}
                     />
                   </Typography>
-                  
-                  {/* Simplified product cards */}
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+
+                  {/* Improved product cards */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {order.items.map((item, index) => (
-                      <Card 
-                        key={index} 
+                      <Card
+                        key={index}
                         elevation={0}
-                        sx={{ 
-                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                          borderRadius: '8px',
-                          overflow: 'hidden',
-                          border: '1px solid rgba(255,255,255,0.08)'
+                        sx={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                          borderRadius: '12px',
+                          overflow: 'visible',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          position: 'relative',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.07)',
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                          }
                         }}
                       >
-                        <Box sx={{ 
-                          display: 'flex', 
-                          p: 1.5,
-                          gap: 2
+                        <Box sx={{
+                          display: 'flex',
+                          p: 2,
+                          gap: 2,
+                          alignItems: 'center'
                         }}>
-                          {/* Product image */}
-                          {item.thumbnail && (
-                            <Box 
-                              component="img"
-                              src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail}`}
-                              alt={item.name || 'Product image'}
-                              sx={{ 
-                                width: '50px', 
-                                height: '50px', 
-                                objectFit: 'cover', 
-                                borderRadius: '4px',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                flexShrink: 0
-                              }}
-                            />
-                          )}
-                          
+                          {/* Product image with Next Image */}
+                          <Box
+                            sx={{
+                              position: 'relative',
+                              width: 70,
+                              height: 70,
+                              borderRadius: '8px',
+                              flexShrink: 0,
+                              overflow: 'hidden',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                              background: 'linear-gradient(45deg, rgba(20,20,20,1), rgba(30,30,30,1))'
+                            }}
+                          >
+                            {item.thumbnail ? (
+                              <Image
+                                src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail.startsWith('http') ?
+                                  item.thumbnail.split('cloudfront.net')[1] : item.thumbnail}`}
+                                alt={item.name || 'Product image'}
+  
+                                loading='eager'
+                                width={200}
+                                height={200}
+                                style={{
+                                  objectFit: 'cover',
+                                  width: '50px',
+                                  height: '50px'
+                                }}
+                                priority={index < 2}
+                              />
+                            ) : (
+                              <Box
+                                sx={{
+                                  width: '100%',
+                                  height: '100%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: 'rgba(0,0,0,0.2)'
+                                }}
+                              >
+                                <InventoryIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '2rem' }} />
+                              </Box>
+                            )}
+                          </Box>
+
                           {/* Product details */}
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="body1" sx={{ 
-                              color: 'white', 
+                          <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                            <Typography variant="body1" sx={{
+                              color: 'white',
                               fontWeight: 600,
-                              mb: 1,
-                              fontSize: '0.95rem'
+                              mb: 0.5,
+                              fontSize: '0.95rem',
+                              lineHeight: 1.3,
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
                             }}>
                               {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
                             </Typography>
-                            
-                            <Box sx={{ 
-                              display: 'flex', 
-                              flexWrap: 'wrap', 
+
+                            <Box sx={{
+                              display: 'flex',
+                              flexWrap: 'wrap',
                               gap: 1,
-                              alignItems: 'center'
+                              alignItems: 'center',
+                              mt: 0.5
                             }}>
-                              <Chip 
-                                label={`SKU: ${item.sku || 'N/A'}`} 
-                                size="small" 
-                                sx={{ 
-                                  backgroundColor: 'rgba(144, 202, 249, 0.15)', 
-                                  color: '#90CAF9',
-                                  height: '22px'
-                                }} 
-                              />
-                              
-                              <Chip 
-                                label={`QTY: ${item.quantity || 'N/A'}`} 
+                   
+
+                              <Chip
+                                label={`QTY: ${item.quantity || 'N/A'}`}
                                 size="small"
-                                sx={{ 
-                                  backgroundColor: 'rgba(129, 199, 132, 0.15)', 
-                                  color: '#81C784',
+                                sx={{
+                                  backgroundColor: 'rgba(144, 202, 249, 0.15)',
+                                  color: '#90CAF9',
                                   height: '22px'
                                 }}
                               />
-                              
-                              {item.wrapFinish && (
-                                <Chip 
-                                  label={`Finish: ${item.wrapFinish}`} 
+
+                              {item.sku && (
+                                <Chip
+                                  label={`SKU: ${item.sku}`}
                                   size="small"
-                                  sx={{ 
-                                    backgroundColor: 'rgba(206, 147, 216, 0.15)', 
+                                  sx={{
+                                    backgroundColor: 'rgba(206, 147, 216, 0.15)',
                                     color: '#CE93D8',
+                                    height: '22px'
+                                  }}
+                                />
+                              )}
+
+                              {item.wrapFinish && (
+                                <Chip
+                                  label={`${item.wrapFinish}`}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: 'rgba(255, 183, 77, 0.15)',
+                                    color: '#FFB74D',
                                     height: '22px'
                                   }}
                                 />
@@ -522,7 +582,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
           <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ textAlign: 'right' }}>
               {/* <PaymentModeChip mode={order.paymentDetails?.mode?.name || 'COD'} /> */}
-              
+
               <Typography
                 variant="h6"
                 sx={{
@@ -534,7 +594,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               >
                 ₹ {order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </Typography>
-              
+
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: 0.5 }}>
                 <DiscountIcon fontSize="small" sx={{ color: '#FFD700', mr: 0.5 }} />
                 <Typography
@@ -548,7 +608,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   ₹ {order.totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </Typography>
               </Box>
-              
+
               {order.couponApplied[0]?.couponCode && (
                 <Typography
                   variant="body2"
@@ -566,17 +626,17 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
           </Grid>
         </Grid>
       </AccordionSummary>
-      
+
       <AccordionDetails sx={{ backgroundColor: '#1A1A1A', p: 3 }}>
         {/* Cards Layout */}
         <Grid container spacing={3}>
           {/* First row: Status and Address */}
           <Grid item xs={12} md={6}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+              sx={{
+                p: 2.5,
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
                 borderRadius: '12px',
                 height: '100%',
                 border: '1px solid rgba(255, 255, 255, 0.05)',
@@ -588,9 +648,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
             >
               <Typography
                 variant="h6"
-                sx={{ 
-                  mb: 2, 
-                  color: 'white', 
+                sx={{
+                  mb: 2,
+                  color: 'white',
                   fontSize: '1rem',
                   fontWeight: 600,
                   display: 'flex',
@@ -599,12 +659,12 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               >
                 Order Status
               </Typography>
-              
+
               <Grid container spacing={2}>
                 <Grid item xs={6}>
-                  <Paper elevation={0} sx={{ 
-                    p: 1.5, 
-                    backgroundColor: 'rgba(0,0,0,0.2)', 
+                  <Paper elevation={0} sx={{
+                    p: 1.5,
+                    backgroundColor: 'rgba(0,0,0,0.2)',
                     borderRadius: '8px',
                     border: '1px solid rgba(255,255,255,0.05)',
                   }}>
@@ -621,9 +681,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   </Paper>
                 </Grid>
                 <Grid item xs={6}>
-                  <Paper elevation={0} sx={{ 
-                    p: 1.5, 
-                    backgroundColor: 'rgba(0,0,0,0.2)', 
+                  <Paper elevation={0} sx={{
+                    p: 1.5,
+                    backgroundColor: 'rgba(0,0,0,0.2)',
                     borderRadius: '8px',
                     border: '1px solid rgba(255,255,255,0.05)',
                   }}>
@@ -642,13 +702,13 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               </Grid>
             </Paper>
           </Grid>
-          
+
           <Grid item xs={12} md={6}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+              sx={{
+                p: 2.5,
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
                 borderRadius: '12px',
                 height: '100%',
                 border: '1px solid rgba(255, 255, 255, 0.05)',
@@ -660,9 +720,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
             >
               <Typography
                 variant="h6"
-                sx={{ 
-                  mb: 2, 
-                  color: 'white', 
+                sx={{
+                  mb: 2,
+                  color: 'white',
                   fontSize: '1rem',
                   fontWeight: 600,
                   display: 'flex',
@@ -672,17 +732,17 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 <LocationOnIcon sx={{ mr: 1, color: '#f44336' }} />
                 Shipping Address
               </Typography>
-              
-              <Card sx={{ 
-                backgroundColor: 'rgba(0,0,0,0.2)', 
-                borderRadius: '8px', 
+
+              <Card sx={{
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                borderRadius: '8px',
                 p: 2,
                 border: '1px solid rgba(255,255,255,0.05)',
               }}>
                 <Typography
                   variant="body1"
-                  sx={{ 
-                    fontSize: '0.95rem', 
+                  sx={{
+                    fontSize: '0.95rem',
                     color: 'white',
                     fontWeight: 500,
                     mb: 1
@@ -690,30 +750,30 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 >
                   {order.address?.receiverName}
                 </Typography>
-                
+
                 <Typography
                   variant="body2"
-                  sx={{ 
-                    fontSize: '0.9rem', 
+                  sx={{
+                    fontSize: '0.9rem',
                     color: 'text.secondary',
                     lineHeight: 1.6,
                   }}
                 >
-                  {order.address?.addressLine1 || 'N/A'}{order.address?.addressLine2 ? `, ${order.address.addressLine2}` : ''}, 
-                  <br />{order.address?.city || 'N/A'}, {order.address?.state || 'N/A'}, 
+                  {order.address?.addressLine1 || 'N/A'}{order.address?.addressLine2 ? `, ${order.address.addressLine2}` : ''},
+                  <br />{order.address?.city || 'N/A'}, {order.address?.state || 'N/A'},
                   <br />{order.address?.pincode || 'N/A'}
                 </Typography>
               </Card>
             </Paper>
           </Grid>
-          
+
           {/* Second row: Payment Details & Invoice Details */}
           <Grid item xs={12} md={6}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+              sx={{
+                p: 2.5,
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
                 borderRadius: '12px',
                 height: '100%',
                 border: '1px solid rgba(255, 255, 255, 0.05)',
@@ -725,9 +785,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
             >
               <Typography
                 variant="h6"
-                sx={{ 
-                  mb: 2, 
-                  color: 'white', 
+                sx={{
+                  mb: 2,
+                  color: 'white',
                   fontSize: '1rem',
                   fontWeight: 600,
                   display: 'flex',
@@ -737,9 +797,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 <AttachMoneyIcon sx={{ mr: 1, color: '#4CAF50' }} />
                 Payment Details
               </Typography>
-              
-              <Card sx={{ 
-                backgroundColor: 'rgba(0,0,0,0.2)', 
+
+              <Card sx={{
+                backgroundColor: 'rgba(0,0,0,0.2)',
                 borderRadius: '8px',
                 border: '1px solid rgba(255,255,255,0.05)',
               }}>
@@ -752,7 +812,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                       {order.paymentDetails?.mode?.name.toUpperCase() || 'COD'}
                     </Typography>
                   </Grid>
-                  
+
                   <Grid item xs={6} sx={{ p: 1.5 }}>
                     <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
                       Amount Paid Online
@@ -761,9 +821,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                       ₹{order.paymentDetails?.amountPaidOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </Typography>
                   </Grid>
-                  
+
                   <Divider sx={{ width: '100%', borderColor: 'rgba(255,255,255,0.05)' }} />
-                  
+
                   {order.paymentDetails?.mode?.name.toLowerCase() !== 'online' && (
                     <>
                       {order.paymentDetails?.amountDueOnline > 0 && (
@@ -776,7 +836,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                           </Typography>
                         </Grid>
                       )}
-                      
+
                       {order.paymentDetails?.amountPaidCod === 0 && order.paymentDetails?.amountDueCod > 0 && (
                         <Grid item xs={6} sx={{ p: 1.5 }}>
                           <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
@@ -787,7 +847,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                           </Typography>
                         </Grid>
                       )}
-                      
+
                       {order.paymentDetails?.amountPaidCod > 0 && (
                         <Grid item xs={6} sx={{ p: 1.5 }}>
                           <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
@@ -804,13 +864,13 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               </Card>
             </Paper>
           </Grid>
-          
+
           <Grid item xs={12} md={6}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+              sx={{
+                p: 2.5,
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
                 borderRadius: '12px',
                 height: '100%',
                 border: '1px solid rgba(255, 255, 255, 0.05)',
@@ -823,8 +883,8 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography
                   variant="h6"
-                  sx={{ 
-                    color: 'white', 
+                  sx={{
+                    color: 'white',
                     fontSize: '1rem',
                     fontWeight: 600,
                     display: 'flex',
@@ -834,7 +894,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   <ArticleIcon sx={{ mr: 1, color: '#FF9800' }} />
                   Invoice Details
                 </Typography>
-                
+
                 <Button
                   variant="outlined"
                   color="primary"
@@ -850,9 +910,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   Download Invoice
                 </Button>
               </Box>
-              
-              <Card sx={{ 
-                backgroundColor: 'rgba(0,0,0,0.2)', 
+
+              <Card sx={{
+                backgroundColor: 'rgba(0,0,0,0.2)',
                 borderRadius: '8px',
                 border: '1px solid rgba(255,255,255,0.05)',
               }}>
@@ -868,7 +928,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                         INV_{order._id}
                       </Typography>
                     </Grid>
-                    
+
                     <Grid item xs={6}>
                       <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
                         Company
@@ -881,7 +941,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     </Grid>
                   </Grid>
                 </Box>
-                
+
                 <Box sx={{ p: 1.5 }}>
                   <Grid container spacing={1}>
                     <Grid item xs={6}>
@@ -894,7 +954,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                         ₹{itemsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </Typography>
                     </Grid>
-                    
+
                     {order.totalDiscount > 0 && (
                       <>
                         <Grid item xs={6}>
@@ -909,7 +969,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                         </Grid>
                       </>
                     )}
-                    
+
                     {order.extraCharges && order.extraCharges.map((charge, index) => (
                       <React.Fragment key={index}>
                         <Grid item xs={6}>
@@ -924,9 +984,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                         </Grid>
                       </React.Fragment>
                     ))}
-                    
+
                     <Grid item xs={12}><Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.1)' }} /></Grid>
-                    
+
                     <Grid item xs={6}>
                       <Typography variant="body2" sx={{ color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>
                         Total Amount
@@ -937,7 +997,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                         ₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </Typography>
                     </Grid>
-                    
+
                     <Grid item xs={12}>
                       <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem', fontStyle: 'italic' }}>
                         Tax is included in the product price
@@ -948,15 +1008,15 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               </Card>
             </Paper>
           </Grid>
-          
+
           {/* UTM Details Section */}
           {order.utmDetails && Object.keys(order.utmDetails).some(key => !!order.utmDetails[key]) && (
             <Grid item xs={12}>
-              <Paper 
+              <Paper
                 elevation={0}
-                sx={{ 
-                  p: 2.5, 
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                sx={{
+                  p: 2.5,
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
                   borderRadius: '12px',
                   border: '1px solid rgba(255, 255, 255, 0.05)',
                   transition: 'all 0.2s',
@@ -967,9 +1027,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               >
                 <Typography
                   variant="h6"
-                  sx={{ 
-                    mb: 2, 
-                    color: 'white', 
+                  sx={{
+                    mb: 2,
+                    color: 'white',
                     fontSize: '1rem',
                     fontWeight: 600,
                     display: 'flex',
@@ -979,10 +1039,10 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   <SourceIcon sx={{ mr: 1, color: '#FF9800' }} />
                   Marketing Source Info
                 </Typography>
-                
-                <Card sx={{ 
-                  p: 1.5, 
-                  backgroundColor: 'rgba(0,0,0,0.2)', 
+
+                <Card sx={{
+                  p: 1.5,
+                  backgroundColor: 'rgba(0,0,0,0.2)',
                   borderRadius: '8px',
                   border: '1px solid rgba(255,255,255,0.05)',
                 }}>
@@ -1011,11 +1071,11 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
           {/* Extra Fields Section */}
           {order.extraFields && Object.keys(order.extraFields).length > 0 && (
             <Grid item xs={12}>
-              <Paper 
+              <Paper
                 elevation={0}
-                sx={{ 
-                  p: 2.5, 
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                sx={{
+                  p: 2.5,
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
                   borderRadius: '12px',
                   border: '1px solid rgba(255, 255, 255, 0.05)',
                   transition: 'all 0.2s',
@@ -1026,19 +1086,19 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               >
                 <Typography
                   variant="h6"
-                  sx={{ 
-                    mb: 2, 
-                    color: 'white', 
+                  sx={{
+                    mb: 2,
+                    color: 'white',
                     fontSize: '1rem',
                     fontWeight: 600,
                   }}
                 >
                   Additional Information
                 </Typography>
-                
-                <Card sx={{ 
-                  p: 2, 
-                  backgroundColor: 'rgba(0,0,0,0.2)', 
+
+                <Card sx={{
+                  p: 2,
+                  backgroundColor: 'rgba(0,0,0,0.2)',
                   borderRadius: '8px',
                   border: '1px solid rgba(255,255,255,0.05)',
                 }}>

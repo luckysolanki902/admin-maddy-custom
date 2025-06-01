@@ -12,10 +12,15 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { Typography, Box, useTheme } from '@mui/material';
+import { Typography, Box, useTheme, Chip } from '@mui/material';
 import { styled } from '@mui/system';
 import Image from 'next/image';
 import NoDataMessage from './NoDataMessage';
+import LocalMallOutlinedIcon from '@mui/icons-material/LocalMallOutlined';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 // Custom Scrollable Container with styled horizontal scrollbar
 const ScrollableContainer = styled(Box)(({ theme }) => ({
@@ -37,53 +42,131 @@ const ScrollableContainer = styled(Box)(({ theme }) => ({
   },
 }));
 
-const CustomTooltip = ({ active, payload }) => {
+const CustomTooltip = ({ active, payload, dateFilter }) => {
   const baseCloudfrontUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || '';
   if (active && payload && payload.length) {
     const product = payload[0].payload;
+
+    // Determine if the time period is greater than 6 days
+    const isLongPeriod = ['thisMonth', 'lastMonth', 'last30Days', 'allTime'].includes(dateFilter);
+    
+    // Get performance details based on sales
+    const getPerformanceDetails = (sales) => {
+      if (sales === 0) {
+        return { 
+          text: 'No sales - needs attention', 
+          icon: <WarningAmberIcon fontSize="small" sx={{ color: '#d32f2f' }} /> 
+        };
+      } else if (sales < 5) {
+        return { 
+          text: 'Low performing product', 
+          icon: <TrendingDownIcon fontSize="small" sx={{ color: '#ed6c02' }} /> 
+        };
+      } else if (sales >= 10) {
+        return { 
+          text: 'High performing product',
+          icon: <TrendingUpIcon fontSize="small" sx={{ color: '#2e7d32' }} /> 
+        };
+      } else {
+        return { 
+          text: 'Regular performing product',
+          icon: <TrendingFlatIcon fontSize="small" sx={{ color: '#0288d1' }} /> 
+        };
+      }
+    };
+    
+    const performanceDetails = getPerformanceDetails(product.sales);
 
     return (
       <Box
         sx={{
           backgroundColor: 'white',
           border: '1px solid #eaeaea',
-          padding: '12px',
-          borderRadius: '8px',
+          padding: '16px',
+          borderRadius: '12px',
           display: 'flex',
+          flexDirection: 'column',
           color: '#333',
-          alignItems: 'center',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          minWidth: '220px',
-          maxWidth: '280px',
+          boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
+          minWidth: '240px',
+          maxWidth: '300px',
+          position: 'relative',
+          overflow: 'hidden',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '6px',
+            height: '100%',
+            backgroundColor: product.color,
+          }
         }}
       >
-        <Box sx={{ position: 'relative', width: 60, height: 60, borderRadius: '8px', overflow: 'hidden', mr: 1.5 }}>
-          <Image
-            fill
-            sizes="60px"
-            src={product.image ?
-              `${baseCloudfrontUrl}${product.image.startsWith('/') ? product.image : '/' + product.image}` :
-              '/placeholder.png'}
-            alt={product.name}
-            style={{
-              objectFit: 'cover',
-            }}
-          />
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+          <Box sx={{ position: 'relative', width: 70, height: 70, borderRadius: '10px', overflow: 'hidden', mr: 2 }}>
+            <Image
+              fill
+              sizes="70px"
+              src={product.image ?
+                `${baseCloudfrontUrl}${product.image.startsWith('/') ? product.image : '/' + product.image}` :
+                '/placeholder.png'}
+              alt={product.name}
+              style={{
+                objectFit: 'cover',
+              }}
+            />
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography sx={{ textTransform: 'capitalize', fontWeight: 600, fontSize: '1rem', mb: 0.5 }}>
+              {product.name.length < 30 ? product.name : product.name.substring(0, 25) + '...'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>SKU: {product.sku}</Typography>
+            <Chip
+              icon={<LocalMallOutlinedIcon sx={{ fontSize: '0.85rem !important' }} />}
+              label={`${product.sales} Units Sold`}
+              size="small"
+              color="primary"
+              sx={{
+                fontWeight: 600,
+                '& .MuiChip-icon': { 
+                  mr: 0.5,
+                  ml: '-4px'
+                }
+              }}
+            />
+          </Box>
         </Box>
-        <Box>
-          <Typography sx={{ textTransform: 'capitalize', fontWeight: 500 }}>
-            {product.name.length < 30 ? product.name : product.name.substring(0, 25) + '...'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">SKU: {product.sku}</Typography>
-          <Typography variant="body2" fontWeight={600} color="primary">Units Sold: {product.sales}</Typography>
-        </Box>
+        {isLongPeriod && (
+          <Box sx={{ 
+            mt: 1, 
+            pt: 1, 
+            borderTop: '1px dashed rgba(0,0,0,0.1)', 
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            {performanceDetails.icon}
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                fontStyle: 'italic', 
+                color: 'text.secondary',
+                ml: 0.5,
+                flex: 1
+              }}
+            >
+              {performanceDetails.text}
+            </Typography>
+          </Box>
+        )}
       </Box>
     );
   }
   return null;
 };
 
-const TopProductsChart = ({ data, limit, theme: providedTheme, isMobile }) => {
+const TopProductsChart = ({ data, limit, theme: providedTheme, isMobile, dateFilter }) => {
   const theme = useTheme() || providedTheme;
 
   // Prepare data for the chart
@@ -152,7 +235,7 @@ const TopProductsChart = ({ data, limit, theme: providedTheme, isMobile }) => {
               tick={{ fontSize: 12 }}
               label={{ value: 'Units Sold', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: theme.palette.primary.main + '1A' }} /> {/* Using hex opacity (10%) */}
+            <Tooltip content={<CustomTooltip dateFilter={dateFilter} />} cursor={{ fill: theme.palette.primary.main + '1A' }} /> {/* Using hex opacity (10%) */}
             <Legend verticalAlign="top" height={36} />
             <Bar
               name="Units Sold"

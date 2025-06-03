@@ -33,14 +33,31 @@ export async function POST(req) {
       discountCap,
     } = await req.json();
 
+    // Ensure dates are properly converted
+    const validFromDate = new Date(validFrom);
+    const validUntilDate = new Date(validUntil);
+
+    // Validate dates
+    if (isNaN(validFromDate.getTime())) {
+      return NextResponse.json({ message: "Invalid validFrom date" }, { status: 400 });
+    }
+    
+    if (isNaN(validUntilDate.getTime())) {
+      return NextResponse.json({ message: "Invalid validUntil date" }, { status: 400 });
+    }
+
+    if (validUntilDate <= validFromDate) {
+      return NextResponse.json({ message: "validUntil must be after validFrom" }, { status: 400 });
+    }
+
     // Create new offer
     const newOffer = await Offer.create({
       name,
       description: description.trim(),
       conditionMessage,
       showAsCard,
-      validFrom: new Date(validFrom),
-      validUntil: new Date(validUntil),
+      validFrom: validFromDate,
+      validUntil: validUntilDate,
       couponCodes,
       autoApply,
       conditions:

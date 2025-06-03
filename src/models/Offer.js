@@ -98,6 +98,24 @@ const OfferSchema = new mongoose.Schema(
 OfferSchema.index({ name: "text", description: "text" });
 
 OfferSchema.pre("save", function (next) {
+  // Convert string dates to Date objects if necessary
+  if (this.validFrom && typeof this.validFrom === 'string') {
+    this.validFrom = new Date(this.validFrom);
+  }
+  
+  if (this.validUntil && typeof this.validUntil === 'string') {
+    this.validUntil = new Date(this.validUntil);
+  }
+
+  // Validate dates are valid
+  if (this.validFrom && isNaN(this.validFrom.getTime())) {
+    return next(new Error('Invalid validFrom date'));
+  }
+  
+  if (this.validUntil && isNaN(this.validUntil.getTime())) {
+    return next(new Error('Invalid validUntil date'));
+  }
+
   const nameArr = this.name
     .split(" ")
     .filter(Boolean)
@@ -111,6 +129,37 @@ OfferSchema.pre("save", function (next) {
 
 OfferSchema.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate();
+
+  // Handle date conversion for updates
+  if (update.validFrom && typeof update.validFrom === 'string') {
+    update.validFrom = new Date(update.validFrom);
+  }
+  
+  if (update.validUntil && typeof update.validUntil === 'string') {
+    update.validUntil = new Date(update.validUntil);
+  }
+
+  if (update.$set) {
+    if (update.$set.validFrom && typeof update.$set.validFrom === 'string') {
+      update.$set.validFrom = new Date(update.$set.validFrom);
+    }
+    
+    if (update.$set.validUntil && typeof update.$set.validUntil === 'string') {
+      update.$set.validUntil = new Date(update.$set.validUntil);
+    }
+  }
+
+  // Validate converted dates
+  const validFromDate = update.validFrom || update.$set?.validFrom;
+  const validUntilDate = update.validUntil || update.$set?.validUntil;
+
+  if (validFromDate && isNaN(validFromDate.getTime())) {
+    return next(new Error('Invalid validFrom date'));
+  }
+  
+  if (validUntilDate && isNaN(validUntilDate.getTime())) {
+    return next(new Error('Invalid validUntil date'));
+  }
 
   const name = update.name || update.$set?.name;
   const actions = update.actions || update.$set?.actions;

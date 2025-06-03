@@ -63,14 +63,6 @@ const CategorySelector = ({
         if (res.ok) {
           setCategories(data);
           setErrorCategories('');
-          
-          // If we have a selected category ID, find the full category data
-          if (selectedCategory) {
-            const foundCategory = data.find(cat => cat._id === selectedCategory);
-            if (foundCategory) {
-              setSelectedCategoryData(foundCategory);
-            }
-          }
         } else {
           setErrorCategories(data.error || 'Failed to fetch categories');
         }
@@ -82,74 +74,74 @@ const CategorySelector = ({
     };
 
     fetchCategories();
-  }, [selectedCategory, setSelectedCategoryData]);  // Add a ref to track if we're in the middle of a variant selection process
-  const isSelectingVariant = React.useRef(false);
-  
-  // Fetch Variants when Category Changes - We only need to fetch when the category changes
-  useEffect(() => {
-    // Don't fetch if we're just selecting a variant
-    if (isSelectingVariant.current) {
-      return;
-    }
-    
-    if (selectedCategory) {
-      const fetchVariants = async () => {
-        setLoadingVariants(true);
-        setVariants([]); // Clear variants while loading
-        
-        try {
-          const res = await fetch(
-            `/api/admin/get-main/products-related/specific-category-variants/${selectedCategory}`
-          );
-          const data = await res.json();
-          
-          if (res.ok) {
-            // Make sure we set the variants array even if it's empty
-            const variantsData = Array.isArray(data) ? data : [];
-            setVariants(variantsData);
-            setErrorVariants('');
-            
-            // If the data array is empty, clear any selected variant
-            if (!variantsData.length) {
-              updateSelection({ category: selectedCategory, variant: '' });
-              setSelectedVariantData(null);
-            }
-            // If we have a selected variant ID, find the full variant data
-            else if (selectedVariant) {
-              const foundVariant = variantsData.find(variant => variant._id === selectedVariant);
-              if (foundVariant) {
-                setSelectedVariantData(foundVariant);
-              } else {
-                // Clear variant selection if the variant is not found in the new category
-                updateSelection({ category: selectedCategory, variant: '' });
-                setSelectedVariantData(null);
-                onSelectionChange({ category: selectedCategory, variant: '' });
-              }
-            }
-          } else {
-            setErrorVariants(data.error || 'Failed to fetch variants');
-            setVariants([]);
-            setSelectedVariantData(null);
-          }
-        } catch (error) {
-          setErrorVariants(error.message || 'Failed to fetch variants');
-          setVariants([]);
-          setSelectedVariantData(null);
-        } finally {
-          setLoadingVariants(false); // Always reset loading state when finished
-        }
-      };
+  }, []);
 
-      fetchVariants();
+  useEffect(() => {
+    if (selectedCategory) {
+      const foundCategory = categories.find(cat => cat._id === selectedCategory);
+      if (foundCategory) {
+        setSelectedCategoryData(foundCategory);
+      }
     } else {
       setVariants([]);
-      setLoadingVariants(false);
-      setSelectedVariantData(null);
       updateSelection({ category: '', variant: '' });
       onSelectionChange({ category: '', variant: '' });
     }
-  }, [selectedCategory, selectedVariant, setSelectedVariantData, updateSelection, onSelectionChange]);
+  }, [categories, onSelectionChange, selectedCategory, setSelectedCategoryData, updateSelection])
 
+  useEffect(() => {
+    if (!selectedCategory) return;
+    
+    const fetchVariants = async () => {
+      setLoadingVariants(true);
+      setVariants([]); // Clear variants while loading
+      
+      try {
+        const res = await fetch(
+          `/api/admin/get-main/products-related/specific-category-variants/${selectedCategory}`
+        );
+        const data = await res.json();
+        
+        if (res.ok) {
+          // Make sure we set the variants array even if it's empty
+          const variantsData = Array.isArray(data) ? data : [];
+          setVariants(variantsData);
+          setErrorVariants('');
+        } else {
+          setErrorVariants(data.error || 'Failed to fetch variants');
+          setVariants([]);
+        }
+      } catch (error) {
+        setErrorVariants(error.message || 'Failed to fetch variants');
+        setVariants([]);
+      } finally {
+        setLoadingVariants(false); // Always reset loading state when finished
+      }
+    }
+
+    fetchVariants();
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    // If the data array is empty, clear any selected variant
+    if (!variants.length) {
+      updateSelection({ category: selectedCategory, variant: '' });
+      setSelectedVariantData(null);
+    }
+    // If we have a selected variant ID, find the full variant data
+    else if (selectedVariant) {
+      const foundVariant = variants.find(variant => variant._id === selectedVariant);
+      if (foundVariant) {
+        setSelectedVariantData(foundVariant);
+      } else {
+        // Clear variant selection if the variant is not found in the new category
+        updateSelection({ category: selectedCategory, variant: '' });
+        setSelectedVariantData(null);
+        onSelectionChange({ category: selectedCategory, variant: '' });
+      }
+    }
+  }, [onSelectionChange, selectedCategory, selectedVariant, setSelectedVariantData, updateSelection, variants])
+  
   const handleCategoryClick = (event) => {
     if (!disabled) {
       setCategoryAnchorEl(event.currentTarget);
@@ -159,6 +151,7 @@ const CategorySelector = ({
   const handleCategoryClose = () => {
     setCategoryAnchorEl(null);
   };
+
   const handleCategorySelect = (categoryId) => {
     // Use updateSelection from context to handle state update
     updateSelection({ category: categoryId, variant: '' });
@@ -177,10 +170,9 @@ const CategorySelector = ({
 
   const handleVariantClose = () => {
     setVariantAnchorEl(null);
-  };  const handleVariantSelect = (variantId) => {
-    // Set the flag to indicate we're selecting a variant (prevents re-fetching)
-    isSelectingVariant.current = true;
-    
+  };
+  
+  const handleVariantSelect = (variantId) => {
     // Find the variant data directly from our current variants array 
     const variantData = variants.find(variant => variant._id === variantId);
     
@@ -195,11 +187,6 @@ const CategorySelector = ({
     // Update the context
     updateSelection({ category: selectedCategory, variant: variantId });
     onSelectionChange({ category: selectedCategory, variant: variantId });
-    
-    // Reset the selection flag after a brief delay to allow state updates to complete
-    setTimeout(() => {
-      isSelectingVariant.current = false;
-    }, 50);
   };
 
   const handleResetSelection = () => {
@@ -278,15 +265,15 @@ const CategorySelector = ({
         />        {/* Variant Selection Chip - Only show when category is selected */}        {selectedCategory && (          <Chip            color={selectedVariant ? "primary" : "default"}
             label={
               // Prevent showing loading state if we already have a selected variant
-              (loadingVariants && !isSelectingVariant.current)
+              (loadingVariants)
                 ? "Loading variants..." 
                 : (variants.length === 0 && !selectedVariantData)
                    ? "No variants available" 
                    : (selectedVariantData ? selectedVariantData.name : variantLabel)
             }
             onClick={handleVariantClick}
-            disabled={disabled || (loadingVariants && !isSelectingVariant.current) || (variants.length === 0 && !selectedVariantData)}
-            icon={(loadingVariants && !isSelectingVariant.current) ? <CircularProgress size={16} color="inherit" /> : undefined}sx={{ 
+            disabled={disabled || (loadingVariants) || (variants.length === 0 && !selectedVariantData)}
+            icon={(loadingVariants) ? <CircularProgress size={16} color="inherit" /> : undefined}sx={{ 
               height: 'auto', 
               padding: '10px 6px',
               borderRadius: '8px',

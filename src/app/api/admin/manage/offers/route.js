@@ -15,7 +15,6 @@ export async function GET() {
   }
 }
 
-
 export async function POST(req) {
   try {
     await connectToDatabase();
@@ -32,6 +31,7 @@ export async function POST(req) {
       conditionMessage,
       actions,
       discountCap,
+      isActive = true, // Ensure isActive defaults to true if not provided
     } = await req.json();
 
     // Ensure dates are properly converted
@@ -61,6 +61,7 @@ export async function POST(req) {
       validUntil: validUntilDate,
       couponCodes,
       autoApply,
+      isActive, // Include isActive in the creation
       conditions:
         actions[0].type === "bundle"
           ? []

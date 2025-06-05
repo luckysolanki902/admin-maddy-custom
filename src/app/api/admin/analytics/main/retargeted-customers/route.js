@@ -23,7 +23,9 @@ export async function GET(req) {
           'abandoned_rem',
           'abandoned_rem2',
           'ac_1',
-          'ac2'
+          'ac2',
+          'act_1',
+          'act_2',
         ]
       },
       successfulCount: { $gt: 0 }

@@ -57,7 +57,7 @@ const EditProductPage = () => {
 
   // Sorting and Filtering states
   const [sortOption, setSortOption] = useState("");
-  const [filterAvailable, setFilterAvailable] = useState(false);
+  const [filterAvailable, setFilterAvailable] = useState(true);
 
   // Dialog for uniqueness conflicts
   const [openConflictDialog, setOpenConflictDialog] = useState(false);

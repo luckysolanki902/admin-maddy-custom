@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Box, Button, Typography, Snackbar, Alert, Divider, Drawer, MenuItem, TextField, IconButton } from "@mui/material";
+import { Box, Button, Typography, Snackbar, Alert, Divider, Drawer, MenuItem, TextField, IconButton, Paper } from "@mui/material";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import AddIcon from "@mui/icons-material/Add";
 import OffersFormDialog from "@/components/offers/OfferFormDialog";
@@ -10,7 +10,7 @@ import OfferCardSkeleton from "@/components/offers/OfferCardSkeleton";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 
 const defaultFilterOptions = {
-  activeState: "any",
+  activeState: "active", // Changed from "any" to "active"
   showAsCardState: "any",
   discountType: "any",
   conditionType: "any",
@@ -166,6 +166,28 @@ export default function ManageOffers() {
                 Click to retry
               </Typography>
             </Box>
+          ) : filteredOffers.length === 0 ? (
+            <Box
+              display="flex"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
+              width="100%"
+              p={4}
+            >
+              <Typography variant="h6" color="text.secondary">
+                No offers found with current filters
+              </Typography>
+              <Button
+                variant="text"
+                color="primary"
+                onClick={() => setFilterOption(defaultFilterOptions)}
+                startIcon={<RestartAltIcon />}
+                sx={{ mt: 1 }}
+              >
+                Reset Filters
+              </Button>
+            </Box>
           ) : (
             filteredOffers.map(offer => (
               <OfferCard
@@ -232,35 +254,57 @@ export default function ManageOffers() {
             </Box>
             <Divider sx={{ mt: 5 }} />
             <Box display="flex" alignItems="center" mt={2}>
-              <Typography variant="subtitle1">Filtering Options</Typography>
+              <Typography variant="subtitle1" fontWeight="medium">Filtering Options</Typography>
               <IconButton
                 onClick={() => {
                   setFilterOption(defaultFilterOptions);
                 }}
                 color="primary"
+                sx={{ ml: 1 }}
               >
                 <RestartAltIcon />
               </IconButton>
             </Box>
             <Box mt={2}>
-              <TextField
-                select
-                label="Filter by active"
-                value={filterOption.activeState}
-                onChange={e =>
-                  setFilterOption(prev => ({
-                    ...prev,
-                    activeState: e.target.value,
-                  }))
-                }
-                fullWidth
-                size="small"
-                sx={{ mt: 1 }}
+              {/* Enhanced UI for active state filter */}
+              <Paper
+                elevation={1}
+                sx={{
+                  mt: 1,
+                  p: 1.5,
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: theme => filterOption.activeState === "active" ? theme.palette.primary.light : 'transparent',
+                  bgcolor: theme => filterOption.activeState === "active" ? 'rgba(25, 118, 210, 0.04)' : 'transparent',
+                  mb: 3
+                }}
               >
-                <MenuItem value="any">Any</MenuItem>
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="inactive">Inactive</MenuItem>
-              </TextField>
+                <Typography variant="body2" fontWeight="medium" gutterBottom>Offer Status</Typography>
+                <TextField
+                  select
+                  label="Status"
+                  value={filterOption.activeState}
+                  onChange={e =>
+                    setFilterOption(prev => ({
+                      ...prev,
+                      activeState: e.target.value,
+                    }))
+                  }
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="any">All Offers</MenuItem>
+                  <MenuItem value="active">Active Offers Only</MenuItem>
+                  <MenuItem value="inactive">Inactive Offers Only</MenuItem>
+                </TextField>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  {filterOption.activeState === "active"
+                    ? "Showing only active offers"
+                    : filterOption.activeState === "inactive"
+                      ? "Showing only inactive offers"
+                      : "Showing all offers regardless of status"}
+                </Typography>
+              </Paper>
 
               <TextField
                 select
@@ -274,7 +318,7 @@ export default function ManageOffers() {
                 }
                 fullWidth
                 size="small"
-                sx={{ mt: 3 }}
+                sx={{ mt: 2 }}
               >
                 <MenuItem value="any">Any</MenuItem>
                 <MenuItem value="discount_fixed">Fixed</MenuItem>

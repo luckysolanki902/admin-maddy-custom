@@ -96,9 +96,14 @@ const OrderListFull = ({ isAdmin }) => {
   const [syncResult, setSyncResult] = useState(null);
   const [syncDetails, setSyncDetails] = useState([]);
   const [openSyncDetails, setOpenSyncDetails] = useState(false);
-
   // CAC state
-  const [cacData, setCacData] = useState({ spend: 0, purchaseCount: 0, cac: 'N/A' });
+  const [cacData, setCacData] = useState({ 
+    spend: 0, 
+    purchaseCount: 0, 
+    checkouts: 0, 
+    checkoutToPurchaseRatio: 0, 
+    cac: 'N/A' 
+  });
   const [cacLoading, setCacLoading] = useState(false);
   const [cacError, setCacError] = useState(null);
 
@@ -283,10 +288,15 @@ const OrderListFull = ({ isAdmin }) => {
           startDate: dateRange.start?.toISOString() || null,
           endDate: dateRange.end?.toISOString() || null,
         }),
-      });
-      const data = await res.json();
+      });      const data = await res.json();
       if (res.ok) {
-        setCacData({ spend: data.spend, purchaseCount: data.purchaseCount, cac: data.cac });
+        setCacData({ 
+          spend: data.spend, 
+          purchaseCount: data.purchaseCount, 
+          checkouts: data.checkouts || 0,
+          checkoutToPurchaseRatio: data.checkoutToPurchaseRatio || 0,
+          cac: data.cac 
+        });
       } else {
         setCacError(data.error || 'Failed to fetch CAC');
       }

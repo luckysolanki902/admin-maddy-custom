@@ -61,29 +61,45 @@ export async function POST(req) {
     // Fetch Data from Meta Ads API
     const response = await fetch(url);
     const data = await response.json();
-
+console.log('data flattened from all arrays and objects nested is:', JSON.stringify(data, null, 2));
     if (response.ok) {
       // Check if data is present
       if (!data.data || data.data.length === 0) {
-        console.warn('get-facebook-cac: No data returned from Facebook API');
-        return new Response(
-          JSON.stringify({ spend: 0, purchaseCount: 0, cac: 'N/A' }),
+        console.warn('get-facebook-cac: No data returned from Facebook API');        return new Response(
+          JSON.stringify({ 
+            spend: 0, 
+            purchaseCount: 0, 
+            checkouts: 0, 
+            checkoutToPurchaseRatio: 0, 
+            cac: 'N/A' 
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
-      }
-
-      // Parse Spend and Purchase Data
+      }      // Parse Spend, Purchase, and Checkout Data
       const spend = parseFloat(data.data[0]?.spend) || 0;
       const purchasesAction = data.data[0]?.actions?.find(action => action.action_type === "purchase");
       const purchases = purchasesAction ? parseFloat(purchasesAction.value) : 0;
+      
+      // Get checkout data for conversion ratio
+      const checkoutAction = data.data[0]?.actions?.find(action => action.action_type === "initiate_checkout");
+      const checkouts = checkoutAction ? parseFloat(checkoutAction.value) : 0;
+      
+      // Calculate checkout to purchase ratio
+      const checkoutToPurchaseRatio = checkouts > 0 ? ((purchases / checkouts) * 100).toFixed(2) : 0;
 
       // Since Meta CAC is now calculated on the frontend, set it to 'N/A'
       const cac = 'N/A';
 
-      console.info({ spend, purchaseCount: purchases, cac });
+      console.info({ spend, purchaseCount: purchases, checkouts, checkoutToPurchaseRatio, cac });
 
       return new Response(
-        JSON.stringify({ spend, purchaseCount: purchases, cac }),
+        JSON.stringify({ 
+          spend, 
+          purchaseCount: purchases, 
+          checkouts, 
+          checkoutToPurchaseRatio, 
+          cac 
+        }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     } else {

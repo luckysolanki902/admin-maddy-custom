@@ -199,20 +199,18 @@ const EditProductPage = () => {
         setErrorAlert(error.message);
         return;
       }
-    }
-
-    // update database
+    }    // update database
     if (type === "main") {
       try {
         const res = await fetch(`/api/testing/product-images/${currProductId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ newImagePath, idx, action, reorderedImages }),
+          body: JSON.stringify({ newImagePath, idx, action, reorderedImages: reorderedImages || undefined }),
         });
 
         if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(errorData.message ?? "Failed to update product images in database");
+          throw new Error(errorData.error || errorData.message || "Failed to update product images in database");
         }
       } catch (error) {
         console.error("Error updating product images in database", error.message);

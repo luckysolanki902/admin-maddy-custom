@@ -44,17 +44,13 @@ import GridViewIcon from '@mui/icons-material/GridView';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
-import usePreventBackOnInputFocus from '@/components/page-sections/common-utils/PreventBackOnInputFocus';
 import { debounce } from 'lodash';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
-const Dashboard = () => {
-  const theme = useTheme();
+const Dashboard = () => {  const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
-  // Use the hook to prevent back navigation on input focus
-  usePreventBackOnInputFocus();
   
   // Filter states - Change default date filter to last30Days and activeTag to last30days
   const [dateFilter, setDateFilter] = useState('last30Days');
@@ -139,10 +135,10 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
-
   // Make sure fetchSalesData is called when dateFilter changes
   useEffect(() => {
     fetchSalesData(1); // Reset to first page when filters change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, categoryVariants, sortOrder, debouncedSearchQuery, activeTab, showUnavailable]);
   
   // Handle pagination change

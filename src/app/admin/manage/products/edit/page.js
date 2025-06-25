@@ -287,9 +287,9 @@ const EditProductPage = () => {
         }
 
         // Optionally, enforce file size limits client-side
-        const maxSizeInBytes = type === "main" ? 5 * 1024 * 1024 : 10 * 1024 * 1024; // 5MB for main, 10MB for design
+        const maxSizeInBytes = type === "main" ? 5 * 1024 * 1024 : 50 * 1024 * 1024; // 5MB for main, 50MB for design
         if (file.size > maxSizeInBytes) {
-          setErrorAlert(`File size exceeds the limit of ${type === "main" ? "15MB" : "10MB"}. Please choose a smaller file.`);
+          setErrorAlert(`File size exceeds the limit of ${type === "main" ? "5MB" : "50MB"}. Please choose a smaller file.`);
           return;
         }
         handleUpdate();

@@ -340,7 +340,14 @@ const AddProductPage = () => {
       setMainTag('');
       setPrice(0);
       setMRP(1000);
-      setDisplayOrder(0);
+      setDisplayOrder(0);      // ...existing code...
+      // Optionally, enforce file size limits client-side
+      const maxSizeInBytes = type === "main" ? 5 * 1024 * 1024 : 50 * 1024 * 1024; // 5MB for main, 50MB for design
+      if (file.size > maxSizeInBytes) {
+        setErrorAlert(`File size exceeds the limit of ${type === "main" ? "5MB" : "50MB"}. Please choose a smaller file.`);
+        return;
+      }
+      // ...existing code...
       setProductImages([]);
       setProductionTemplateImage(null);
       setSkuSerial(skuSerial + 1);
@@ -355,7 +362,7 @@ const AddProductPage = () => {
   };
 
   /* ╭──────────────────────────────────────────────────────────╮
-     │  RENDER PATHS                                           │
+     │  RENDER PATHS                                            │
      ╰──────────────────────────────────────────────────────────╯ */
   /* 1. Always show the CategorySelector as breadcrumbs, but only the product form when a variant is selected */
   if (!selectedVariantId) {

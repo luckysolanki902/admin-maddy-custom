@@ -39,6 +39,7 @@ const EditProductPage = () => {
 
   // Design template image
   const [designTemplateImage, setDesignTemplateImage] = useState("");
+  const [designImageLoading, setDesignImageLoading] = useState(false);
 
   // Loading states for form submission
   const [loading, setLoading] = useState(false);
@@ -260,13 +261,17 @@ const EditProductPage = () => {
   };
 
   // Modify the existing handleImageEdit to use the new upload function
-  const handleImageEdit = async (type, action, setLoading, idx, reorderedImages) => {
+  const handleImageEdit = async (type, action = "replace", setLoadingFn = null, idx = 0, reorderedImages) => {
+    console.log('hit')
     if (!selectedProduct) return;
+
+    // Create a local loading state handler if none provided
+    const setLoading = typeof setLoadingFn === 'function' ? setLoadingFn : () => {};
 
     // Open a file picker dialog with appropriate file type restrictions
     let file = null;
 
-    if (action == "add" || action === "replace") {
+    if (action === "add" || action === "replace") {
       const input = document.createElement("input");
       input.type = "file";
       input.accept = type === "main" ? "image/jpeg,image/png" : "image/png"; // Allow more types if needed
@@ -295,9 +300,15 @@ const EditProductPage = () => {
     }
 
     async function handleUpdate() {
-      setLoading(true);
-      await handleImageUpdate(type, action, file, idx, reorderedImages);
-      setLoading(false);
+      try {
+        setLoading(true);
+        await handleImageUpdate(type, action, file, idx, reorderedImages);
+      } catch (error) {
+        console.error("Error updating image:", error);
+        setErrorAlert(error.message || "Failed to update image");
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -506,9 +517,10 @@ const EditProductPage = () => {
                 </Typography>
                 <DesignTemplateImage
                   imageUrl={designTemplateImage}
-                  onEditImage={() => handleImageEdit("design")}
+                  onEditImage={() => handleImageEdit("design", "replace", setDesignImageLoading)}
                   cloudfrontBaseUrl={cloudfrontBaseUrl}
                   available={selectedProduct.available}
+                  loading={designImageLoading}
                 />
               </Box>
             </Box>

@@ -32,7 +32,7 @@ const ProductThumbnailSlider = ({
         // Show 20 skeletons while loading
         <>
           {Array.from({ length: 20 }, (_, index) => (
-            <Skeleton key={index} variant="rectangular" width={100} height={100} />
+            <Skeleton key={index} variant="rectangular" width={100} height={100} sx={{width: 100, height: 100, minWidth: 100, minHeight: 100, aspectRatio: 1}} />
           ))}
         </>
       ) : products.length > 0 ? (

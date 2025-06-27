@@ -74,7 +74,7 @@ export function AddMemberDialog({ roles, onInviteAdded, setRoles }) {
       />
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Member</DialogTitle>
+        <DialogTitle>Invite New Member</DialogTitle>
         <DialogContent>
           <Stack spacing={2} mt={1}>
             <TextField fullWidth label="Email" name="email" value={form.email} onChange={handleChange} />

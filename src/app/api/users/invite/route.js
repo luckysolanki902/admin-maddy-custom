@@ -25,6 +25,7 @@ export const POST = async function (req) {
       invite: { id: invite.id, email: invite.emailAddress, publicMetadata: invite.publicMetadata },
     });
   } catch (err) {
+    console.error("Failed to create invite:", err);
     return NextResponse.json({ error: "Could not send invite" }, { status: 500 });
   }
 };
@@ -33,7 +34,7 @@ export const DELETE = async function (req) {
   try {
     const currUser = await currentUser();
 
-    if (currUser.publicMetadata.role !== "super-admin") {
+    if (currUser?.publicMetadata.role !== "super-admin") {
       return new Response("Unauthorized: Only super admins allowed", { status: 403 });
     }
 
@@ -49,6 +50,7 @@ export const DELETE = async function (req) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    console.error("Failed to revoke invite:", err);
     return NextResponse.json({ error: "Failed to revoke invitation" }, { status: 500 });
   }
 };

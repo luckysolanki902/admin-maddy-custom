@@ -18,7 +18,8 @@ import { AddNewRolePopover } from "./AddNewRolePopover";
 
 export function UserCard({ user, roles, setRoles, setActiveUsers }) {
   const [role, setRole] = useState(user.publicMetadata.role);
-  const [loading, setLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const [showRolePopover, setShowRolePopover] = useState(false);
 
@@ -36,7 +37,7 @@ export function UserCard({ user, roles, setRoles, setActiveUsers }) {
 
   async function handleUpdateMetadata(e) {
     e.preventDefault();
-    setLoading(true);
+    setIsUpdating(true);
 
     try {
       const res = await fetch("/api/users/update-metadata", {
@@ -59,7 +60,7 @@ export function UserCard({ user, roles, setRoles, setActiveUsers }) {
     } catch (err) {
       alert(err.message);
     } finally {
-      setLoading(false);
+      setIsUpdating(false);
     }
   }
 
@@ -67,7 +68,7 @@ export function UserCard({ user, roles, setRoles, setActiveUsers }) {
     const confirmed = window.confirm("Are you sure you want to remove this user?");
     if (!confirmed) return;
 
-    setLoading(true);
+    setIsRemoving(true);
 
     try {
       const res = await fetch("/api/users/remove", {
@@ -85,7 +86,7 @@ export function UserCard({ user, roles, setRoles, setActiveUsers }) {
     } catch (err) {
       alert(err.message);
     } finally {
-      setLoading(false);
+      setIsRemoving(false);
     }
   }
 
@@ -115,7 +116,7 @@ export function UserCard({ user, roles, setRoles, setActiveUsers }) {
               name="role"
               value={role}
               onChange={handleRoleChange}
-              disabled={loading}
+              disabled={isUpdating || isRemoving}
               label="Role"
               size="small"
               inputRef={selectRef}
@@ -148,20 +149,28 @@ export function UserCard({ user, roles, setRoles, setActiveUsers }) {
                 type="submit"
                 variant="contained"
                 size="small"
-                disabled={loading || role === user.publicMetadata.role}
+                disabled={isUpdating || role === user.publicMetadata.role}
                 sx={{ flex: 7, p: 1 }}
               >
-                {loading ? <CircularProgress size={22} /> : "Save"}
+                {isUpdating ? <CircularProgress size={22} /> : "Save"}
               </Button>
               <Button
                 variant="outlined"
                 color="error"
                 size="small"
-                disabled={loading}
-                sx={{ flex: 3, p: 1 }}
+                disabled={isRemoving}
+                sx={{
+                  flex: 3,
+                  p: 1,
+                  "&.Mui-disabled": {
+                    borderColor: "error.main",
+                    color: "error.main",
+                    opacity: 0.5,
+                  },
+                }}
                 onClick={handleRemoveUser}
               >
-                Remove
+                {isRemoving ? <CircularProgress color="error" size={22} /> : "Remove"}
               </Button>
             </Stack>
           </Stack>

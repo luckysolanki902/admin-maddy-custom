@@ -28,6 +28,7 @@ export const POST = async function (req) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    console.error("Failed to update metadata:", err);
     return NextResponse.json({ error: "Failed to update metadata" }, { status: 500 });
   }
 };

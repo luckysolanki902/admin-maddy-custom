@@ -7,6 +7,7 @@ import TopLoadingBar from "@/lib/utils/TopLoadingBar";
 
 import { Jost } from 'next/font/google';
 import { Suspense } from "react";
+import ClientProviders from "@/components/providers/ClientProviders";
 
 const jost = Jost({
   subsets: ['latin'],
@@ -25,16 +26,19 @@ export default function RootLayout({ children }) {
     <ClerkProvider
       appearance={{
         baseTheme: dark, // Consider updating this to also respond to theme changes if needed
-      }}>
+      }}
+    >
       <html lang="en">
         <body>
-          <ThemeRegistry>
-            <Suspense fallback={null}>
-              <TopLoadingBar />
-            <AuthHeader />
-            <main>{children}</main>
-            </Suspense>
-          </ThemeRegistry>
+          <ClientProviders>
+            <ThemeRegistry>
+              <Suspense fallback={null}>
+                <TopLoadingBar />
+                <AuthHeader />
+                <main>{children}</main>
+              </Suspense>
+            </ThemeRegistry>
+          </ClientProviders>
         </body>
       </html>
     </ClerkProvider>

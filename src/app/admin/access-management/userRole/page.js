@@ -1,72 +1,126 @@
-import styles from './userRole.module.css';  // Import the CSS module
-import { SearchUsers } from './SearchUsers'
-import { clerkClient } from '@clerk/nextjs/server'
-import { removeRole, setRole } from './_actions'
+"use client";
 
-export default async function AdminDashboard(params) {
-  const {searchParams} = await params
-  const query = searchParams.search;
-  const users = (await (await clerkClient()).users.getUserList({ query })).data;
+import { useEffect, useState } from "react";
+import { Box, Typography, Grid, Stack, Divider, Card, CardContent, Skeleton } from "@mui/material";
+
+import { SearchUsers } from "./SearchUsers";
+import { AddMemberDialog } from "@/components/users/AddUserDialog";
+import { UserCard } from "@/components/users/UserCard";
+import { InvitedUserCard } from "@/components/users/InvitedUserCard";
+
+export default function AdminDashboard() {
+  const [activeUsers, setActiveUsers] = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function fetchData() {
+      setLoading(true);
+
+      try {
+        const [users, invites] = await Promise.all([
+          fetch(`/api/users/list-users?search=${searchQuery}`).then(res => (res.ok ? res.json() : [])),
+          fetch(`/api/users/list-invites?search=${searchQuery}`).then(res => (res.ok ? res.json() : [])),
+        ]);
+
+        setActiveUsers(users);
+        setPendingInvites(invites);
+        setRoles(() => {
+          const roleSet = new Set();
+          users.forEach(user => {
+            const role = user.publicMetadata?.role;
+            if (role) roleSet.add(role);
+          });
+          invites.forEach(invite => {
+            const role = invite.publicMetadata?.role;
+            if (role) roleSet.add(role);
+          });
+
+          return Array.from(roleSet);
+        });
+      } catch (err) {
+        console.error(err);
+        alert("Failed to fetch users");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [searchQuery]);
+
+  const handleInviteAdded = invite => {
+    setPendingInvites(prev => [...prev, invite]);
+  };
+
+  const handleInviteRevoked = inviteId => {
+    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
+  };
 
   return (
-    <div className={styles.container}>
-      <p className={styles.heading}>User Role Management</p>
+    <Box sx={{ px: { xs: 2, md: 4 }, py: 5, minHeight: "100vh" }}>
+      <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems="center" mb={4}>
+        <Box>
+          <Typography variant="h4" fontWeight={700} color="primary">
+            Team Access Control
+          </Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Manage user roles
+          </Typography>
+        </Box>
+        <AddMemberDialog roles={roles} setRoles={setRoles} onInviteAdded={handleInviteAdded} />
+      </Stack>
 
-      <SearchUsers />
+      <Box mb={3}>
+        <SearchUsers onChange={val => setSearchQuery(val)} />
+      </Box>
 
-      {users.map((user) => {
-        return (
-          <div key={user.id} className={styles.userCard}>
-            <div className={styles.userDetails}>
-              <div className={styles.userName}><strong>{user.firstName} {user.lastName}</strong></div>
-              <div className={styles.userEmail}>
-                {user.emailAddresses.find((email) => email.id === user.primaryEmailAddressId)?.emailAddress}
-              </div>
-              <div className={styles.userRole}><strong>Role:</strong> {user.publicMetadata.role}</div>
-            </div>
+      {/* Active Users */}
+      <Typography variant="h6" color="text.primary" mb={2}>
+        Active Members
+      </Typography>
+      <Grid container spacing={3} mb={5}>
+        {loading
+          ? Array.from({ length: 6 }).map((_, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={idx}>
+                <Card sx={{ bgcolor: "#1a1a1a", color: "#fff", height: "100%" }}>
+                  <CardContent>
+                    <Stack spacing={2}>
+                      <Skeleton variant="text" width="40%" height={40} />
+                      <Skeleton variant="text" width="60%" height={30} />
+                      <Skeleton variant="text" width="20%" height={30} />
+                      <Skeleton variant="rounded" height={32} width="100%" />
+                      <Skeleton variant="rounded" height={36} width="100%" />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))
+          : activeUsers.map(user => (
+              <Grid item xs={12} sm={6} md={4} key={user.id}>
+                <UserCard user={user} roles={roles} setRoles={setRoles} />
+              </Grid>
+            ))}
+      </Grid>
 
-            <div className={styles.formGroup}>
-              <form action={setRole}>
-                <input type="hidden" value={user.id} name="id" />
-                <input type="hidden" value="admin" name="role" />
-                <button type="submit" className={styles.button}>Make Admin</button>
-              </form>
-
-              <form action={setRole}>
-                <input type="hidden" value={user.id} name="id" />
-                <input type="hidden" value="developer" name="role" />
-                <button type="submit" className={styles.button}>Make Developer</button>
-              </form>
-
-              <form action={setRole}>
-                <input type="hidden" value={user.id} name="id" />
-                <input type="hidden" value="marketing" name="role" />
-                <button type="submit" className={styles.button}>Make Marketing</button>
-              </form>
-              <form action={setRole}>
-                <input type="hidden" value={user.id} name="id" />
-                <input type="hidden" value="designer" name="role" />
-                <button type="submit" className={styles.button}>Make Designer</button>
-              </form>
-              <form action={setRole}>
-                <input type="hidden" value={user.id} name="id" />
-                <input type="hidden" value="production" name="role" />
-                <button type="submit" className={styles.button}>Make Production</button>
-              </form>
-              <form action={setRole}>
-                <input type="hidden" value={user.id} name="id" />
-                <input type="hidden" value="finance" name="role" />
-                <button type="submit" className={styles.button}>Make Finance</button>
-              </form>
-
-              <form action={removeRole}>
-                <input type="hidden" value={user.id} name="id" />
-                <button type="submit" className={`${styles.button} ${styles.removeButton}`}>Remove Role</button>
-              </form>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+      {/* Invited Users */}
+      {pendingInvites.length > 0 && (
+        <>
+          <Divider sx={{ borderColor: "#333", mb: 3 }} />
+          <Typography variant="h6" color="text.primary" mb={2}>
+            Invited Members
+          </Typography>
+          <Grid container spacing={3}>
+            {pendingInvites.map(invite => (
+              <Grid item xs={12} sm={6} md={4} key={invite.id}>
+                <InvitedUserCard invite={invite} onRevoke={handleInviteRevoked} />
+              </Grid>
+            ))}
+          </Grid>
+        </>
+      )}
+    </Box>
   );
 }

@@ -32,6 +32,7 @@
     "@mui/x-date-pickers": "^8.2.0",
     "@mui/x-date-pickers-pro": "^8.2.0",
     "@react-spring/web": "^9.7.5",
+    "@reduxjs/toolkit": "^2.8.2",
     "archiver": "^7.0.1",
     "aws-sdk": "^2.1692.0",
     "axios": "^1.7.7",

@@ -51,14 +51,6 @@ export default function AdminDashboard() {
     fetchData();
   }, [searchQuery]);
 
-  const handleInviteAdded = invite => {
-    setPendingInvites(prev => [...prev, invite]);
-  };
-
-  const handleInviteRevoked = inviteId => {
-    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
-  };
-
   return (
     <Box sx={{ px: { xs: 2, md: 4 }, py: 5, minHeight: "100vh" }}>
       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems="center" mb={4}>
@@ -70,7 +62,7 @@ export default function AdminDashboard() {
             Manage user roles
           </Typography>
         </Box>
-        <AddMemberDialog roles={roles} setRoles={setRoles} onInviteAdded={handleInviteAdded} />
+        <AddMemberDialog roles={roles} setRoles={setRoles} setPendingInvites={setPendingInvites} />
       </Stack>
 
       <Box mb={3}>
@@ -100,7 +92,7 @@ export default function AdminDashboard() {
             ))
           : activeUsers.map(user => (
               <Grid item xs={12} sm={6} md={4} key={user.id}>
-                <UserCard user={user} roles={roles} setRoles={setRoles} />
+                <UserCard user={user} setActiveUsers={setActiveUsers} roles={roles} setRoles={setRoles} />
               </Grid>
             ))}
       </Grid>
@@ -115,7 +107,7 @@ export default function AdminDashboard() {
           <Grid container spacing={3}>
             {pendingInvites.map(invite => (
               <Grid item xs={12} sm={6} md={4} key={invite.id}>
-                <InvitedUserCard invite={invite} onRevoke={handleInviteRevoked} />
+                <InvitedUserCard invite={invite} setPendingInvites={setPendingInvites} />
               </Grid>
             ))}
           </Grid>

@@ -5,7 +5,7 @@ export async function GET(req) {
   try {
     const currUser = await currentUser();
 
-    if (currUser.publicMetadata.role !== "super-admin") {
+    if (currUser?.publicMetadata.role !== "super-admin") {
       return new Response("Unauthorized: Only super admins allowed", { status: 403 });
     }
 

@@ -3,7 +3,7 @@
 import { Card, CardContent, Typography, Chip, Stack, Button } from "@mui/material";
 import { useState } from "react";
 
-export function InvitedUserCard({ invite, onRevoke }) {
+export function InvitedUserCard({ invite, setPendingInvites }) {
   const [loading, setLoading] = useState(false);
 
   async function revokeInvite() {
@@ -23,7 +23,7 @@ export function InvitedUserCard({ invite, onRevoke }) {
         throw new Error(error || "Failed to revoke invitation");
       }
 
-      onRevoke(invite.id);
+      setPendingInvites(prev => prev.filter(i => i.id !== invite.id));
     } catch (err) {
       console.error(err);
       alert(err.message ?? "An error occurred");

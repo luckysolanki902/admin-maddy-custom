@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 const isProtectedRoute = createRouteMatcher(["/admin(.*)", "/api/admin(.*)"]);
 
+
 export default clerkMiddleware(
   async (auth, req) => {
     // Public requests fall straight through

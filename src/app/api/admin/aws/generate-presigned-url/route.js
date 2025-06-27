@@ -6,7 +6,7 @@ import { getPresignedUrl } from "@/lib/aws";
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "15mb", // You can keep this for any additional data
+      sizeLimit: "50mb", // You can keep this for any additional data
     },
   },
 };

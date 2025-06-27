@@ -46,7 +46,7 @@ export function AddMemberDialog({ roles, setPendingInvites, setRoles }) {
         return;
       }
 
-      setPendingInvites(prev => [...prev, invite]);
+      setPendingInvites(prev => [...prev, result.invite]);
       setForm({ email: "", role: "" });
       setOpen(false);
     } catch (error) {

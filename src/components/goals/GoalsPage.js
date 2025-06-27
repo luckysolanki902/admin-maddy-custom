@@ -26,8 +26,8 @@ export default function AdminGoalsPage({ department }) {
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const { user } = useUser()
+
+  const { user } = useUser();
   const isAllowed = user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com";
 
   useEffect(() => {
@@ -107,6 +107,7 @@ export default function AdminGoalsPage({ department }) {
               onClick={() => setOpenDialog(true)}
               disabled={!isAllowed}
               sx={{
+                ...(isAllowed ? {} : { display: "none" }),
                 borderRadius: 2,
                 fontWeight: 600,
                 px: 3,

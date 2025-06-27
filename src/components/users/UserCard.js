@@ -16,9 +16,8 @@ import {
 import { useState, useRef } from "react";
 import { AddNewRolePopover } from "./AddNewRolePopover";
 
-export function UserCard({ user, roles, setRoles }) {
-  const [currRole, setCurrRole] = useState(user.publicMetadata.role);
-  const [role, setRole] = useState(currRole);
+export function UserCard({ user, roles, setRoles, setActiveUsers }) {
+  const [role, setRole] = useState(user.publicMetadata.role);
   const [loading, setLoading] = useState(false);
 
   const [showRolePopover, setShowRolePopover] = useState(false);
@@ -35,7 +34,7 @@ export function UserCard({ user, roles, setRoles }) {
     }
   };
 
-  async function handleSubmit(e) {
+  async function handleUpdateMetadata(e) {
     e.preventDefault();
     setLoading(true);
 
@@ -54,7 +53,35 @@ export function UserCard({ user, roles, setRoles }) {
         throw new Error(error || "Something went wrong");
       }
 
-      setCurrRole(role);
+      setActiveUsers(prev =>
+        prev.map(prevUser => (prevUser.id === user.id ? { ...user, publicMetadata: { ...user.publicMetadata, role } } : prevUser))
+      );
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRemoveUser() {
+    const confirmed = window.confirm("Are you sure you want to remove this user?");
+    if (!confirmed) return;
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/users/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clerkUserId: user.id }),
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error || "Failed to remove user.");
+      }
+
+      setActiveUsers(prev => prev.filter(prevUser => prevUser.id !== user.id));
     } catch (err) {
       alert(err.message);
     } finally {
@@ -76,12 +103,12 @@ export function UserCard({ user, roles, setRoles }) {
         </Stack>
 
         <Stack direction="row" spacing={1} my={2}>
-          <Chip label={`Role: ${currRole ?? "—"}`} size="small" color="info" variant="outlined" />
+          <Chip label={`Role: ${user.publicMetadata.role ?? "—"}`} size="small" color="info" variant="outlined" />
         </Stack>
 
         <Divider sx={{ mt: 2, mb: 3, borderColor: "#333" }} />
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleUpdateMetadata}>
           <Stack spacing={1} direction="column">
             <TextField
               select
@@ -116,9 +143,27 @@ export function UserCard({ user, roles, setRoles }) {
             />
 
             <br />
-            <Button type="submit" variant="contained" size="small" disabled={loading || currRole === role} sx={{ mt: 1, p: 1 }}>
-              {loading ? <CircularProgress size={22} /> : "Save Changes"}
-            </Button>
+            <Stack direction="row" spacing={1} mt={1}>
+              <Button
+                type="submit"
+                variant="contained"
+                size="small"
+                disabled={loading || role === user.publicMetadata.role}
+                sx={{ flex: 7, p: 1 }}
+              >
+                {loading ? <CircularProgress size={22} /> : "Save"}
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                disabled={loading}
+                sx={{ flex: 3, p: 1 }}
+                onClick={handleRemoveUser}
+              >
+                Remove
+              </Button>
+            </Stack>
           </Stack>
         </form>
       </CardContent>

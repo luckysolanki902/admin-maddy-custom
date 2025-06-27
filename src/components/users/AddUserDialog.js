@@ -13,7 +13,7 @@ import {
 } from "@mui/material";
 import { AddNewRolePopover } from "./AddNewRolePopover";
 
-export function AddMemberDialog({ roles, onInviteAdded, setRoles }) {
+export function AddMemberDialog({ roles, setPendingInvites, setRoles }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", role: "" });
 
@@ -46,7 +46,7 @@ export function AddMemberDialog({ roles, onInviteAdded, setRoles }) {
         return;
       }
 
-      onInviteAdded(result.invite, form.role);
+      setPendingInvites(prev => [...prev, invite]);
       setForm({ email: "", role: "" });
       setOpen(false);
     } catch (error) {

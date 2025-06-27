@@ -15,7 +15,9 @@ export async function GET(req) {
     const clerk = await clerkClient();
     const invites = await clerk.invitations.getInvitationList().then(res => res.data);
 
-    const filtered = invites.filter(invite => invite.emailAddress.toLowerCase().includes(search.toLowerCase()));
+    const filtered = invites.filter(
+      invite => invite.status === "pending" && invite.emailAddress.toLowerCase().includes(search.toLowerCase())
+    );
 
     return NextResponse.json(
       filtered.map(invite => ({

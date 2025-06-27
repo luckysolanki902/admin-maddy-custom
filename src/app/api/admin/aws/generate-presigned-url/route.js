@@ -19,8 +19,6 @@ export async function POST(request) {
     }
     const { presignedUrl, url } = await getPresignedUrl(fullPath, fileType);
 
-    console.log(presignedUrl, url);
-
     return NextResponse.json({ presignedUrl, url }, { status: 200 });
   } catch (error) {
     console.error("Error generating presigned URL:", error);

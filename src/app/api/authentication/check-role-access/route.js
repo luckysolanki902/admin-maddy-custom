@@ -21,7 +21,7 @@ export async function GET(req) {
 
     // Admin department has special access rules
     if (userRole === "admin") {
-      if (pathname?.startsWith("/admin/access-management")) {
+      if (pathname === "/admin/access-management/userRole" || pathname === "/admin/access-management/pathRole") {
         return new Response(JSON.stringify({ allowed: false, message: "Access denied" }), {
           status: 403,
         });

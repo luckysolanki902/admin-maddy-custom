@@ -29,7 +29,7 @@ export default function AdminGoalsPage({ department }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { user } = useUser();
-  const isAllowed = true || user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com";
+  const isAllowed = user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com";
 
   useEffect(() => {
     async function fetchGoals() {

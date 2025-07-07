@@ -23,6 +23,7 @@ import { useState } from "react";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 export default function Goals({ goals, setGoals, isAllowed }) {
   const [expandedGoalId, setExpandedGoalId] = useState(null);
@@ -30,6 +31,7 @@ export default function Goals({ goals, setGoals, isAllowed }) {
   const [currentGoal, setCurrentGoal] = useState(null);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDesc, setEditedDesc] = useState("");
+  const [editedDeadline, setEditedDeadline] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
 
@@ -37,12 +39,14 @@ export default function Goals({ goals, setGoals, isAllowed }) {
     setCurrentGoal(goal);
     setEditedTitle(goal.title ?? "");
     setEditedDesc(goal.description ?? "");
+    setEditedDeadline(goal.deadline.slice(0, 10) ?? "");
     setEditDialogOpen(true);
   };
 
   const handleEditSave = async () => {
     if (!currentGoal) return;
     setIsSaving(true);
+
     try {
       const res = await fetch(`/api/goals/${currentGoal._id}`, {
         method: "PATCH",
@@ -50,6 +54,7 @@ export default function Goals({ goals, setGoals, isAllowed }) {
         body: JSON.stringify({
           title: editedTitle,
           description: editedDesc,
+          deadline: editedDeadline,
         }),
       });
       const data = await res.json();
@@ -63,6 +68,24 @@ export default function Goals({ goals, setGoals, isAllowed }) {
       setIsSaving(false);
       setEditDialogOpen(false);
       setCurrentGoal(null);
+    }
+  };
+
+  const handleDeleteGoal = async goalId => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this goal?");
+    if (confirmDelete) {
+      try {
+        const res = await fetch(`/api/goals/${goalId}`, { method: "DELETE" });
+        const data = await res.json();
+
+        if (res.ok) {
+          setGoals(prev => prev.filter(goal => goal._id !== goalId));
+        } else {
+          alert(data.error || "Failed to delete goal");
+        }
+      } catch (err) {
+        console.error("Error deleting goal:", err);
+      }
     }
   };
 
@@ -110,17 +133,36 @@ export default function Goals({ goals, setGoals, isAllowed }) {
                       {goal.title}
                     </Typography>
                   }
-                  secondary={goal.description}
+                  secondary={
+                    <>
+                      {goal.description}
+                      {goal.deadline && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                          Deadline: {new Date(goal.deadline).toLocaleDateString()}
+                        </Typography>
+                      )}
+                    </>
+                  }
                   sx={{ maxWidth: { xs: "100%", md: "calc(100% - 5rem)" } }}
                 />
-                <ListItemSecondaryAction sx={{ display: "flex", flexDirection: { xs: "column", md: "row" } }}>
-                  <IconButton onClick={() => openEditDialog(goal)} disabled={!isAllowed || isToggling}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => setExpandedGoalId(isExpanded ? null : goal._id)}>
-                    {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                  </IconButton>
-                </ListItemSecondaryAction>
+
+                {isAllowed && (
+                  <ListItemSecondaryAction sx={{ display: "flex", flexDirection: { xs: "column", md: "row" } }}>
+                    <IconButton onClick={() => openEditDialog(goal)} disabled={!isAllowed || isToggling}>
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton onClick={() => handleDeleteGoal(goal._id)} disabled={!isAllowed || isToggling}>
+                      <DeleteIcon />
+                    </IconButton>
+
+                    <IconButton
+                      onClick={() => setExpandedGoalId(isExpanded ? null : goal._id)}
+                      disabled={!isAllowed || isToggling}
+                    >
+                      {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    </IconButton>
+                  </ListItemSecondaryAction>
+                )}
               </ListItem>
 
               <Collapse in={isExpanded}>
@@ -253,6 +295,15 @@ export default function Goals({ goals, setGoals, isAllowed }) {
             fullWidth
             disabled={isSaving}
           />
+          <TextField
+            label="Deadline"
+            type="date"
+            value={editedDeadline}
+            onChange={e => setEditedDeadline(e.target.value)}
+            fullWidth
+            disabled={isSaving}
+            InputLabelProps={{ shrink: true }}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)} disabled={isSaving}>
@@ -265,7 +316,8 @@ export default function Goals({ goals, setGoals, isAllowed }) {
               isSaving ||
               !editedTitle.trim() ||
               (editedTitle.trim() === (currentGoal?.title?.trim() ?? "") &&
-                editedDesc.trim() === (currentGoal?.description?.trim() ?? ""))
+                editedDesc.trim() === (currentGoal?.description?.trim() ?? "") &&
+                editedDeadline === (currentGoal?.deadline?.slice(0, 10) ?? ""))
             }
           >
             {isSaving ? "Saving..." : "Save"}

@@ -32,14 +32,13 @@ export async function PATCH(req, { params }) {
       status: isCompleted,
       modifiedAt: new Date(),
       performedBy: {
-        clerkUserId: user.id,
-        name: user.fullName,
+        clerkUserId: currUser.id,
+        name: currUser.fullName,
       },
     });
 
     await goal.save();
 
-    console.log(goal);
     return NextResponse.json({ goal: { ...goal._doc, history: [...(goal._doc.history || [])].reverse() } }, { status: 200 });
   } catch (error) {
     console.error("Error toggling goal status:", error);

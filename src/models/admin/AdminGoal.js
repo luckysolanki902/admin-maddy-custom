@@ -71,6 +71,11 @@ const AdminGoalSchema = new mongoose.Schema(
       default: false,
     },
 
+    deadline: {
+      type: Date,
+      default: null,
+    },
+
     history: {
       type: [GoalHistorySchema],
       required: true,

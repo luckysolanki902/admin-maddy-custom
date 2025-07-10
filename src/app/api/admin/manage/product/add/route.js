@@ -70,6 +70,7 @@ export async function POST(req) {
         );
       }
     }
+    
 
     // Fetch specific category and variant from database to ensure they exist
     if (!ObjectId.isValid(specificCategory) || !ObjectId.isValid(specificCategoryVariant)) {

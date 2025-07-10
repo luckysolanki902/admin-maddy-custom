@@ -28,7 +28,7 @@ export default function RootLayout({ children }) {
         baseTheme: dark, // Consider updating this to also respond to theme changes if needed
       }}
     >
-      <html lang="en">
+      <html lang="en" suppressHydrationWarning>
         <body>
           <ClientProviders>
             <ThemeRegistry>

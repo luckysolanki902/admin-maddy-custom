@@ -214,7 +214,6 @@ const AddProductPage = () => {
     if (
       !name ||
       !productImages.length ||
-      !productionTemplateImage ||
       !mainTag
     ) {
       alert('Please fill all required fields.');
@@ -295,12 +294,16 @@ const AddProductPage = () => {
         )
       );
 
-      /* upload template PNG */
-      const { presignedUrl: tplUrl } = await getPresignedUrl(
-        designTemplatePath,
-        productionTemplateImage.type
-      );
-      await uploadFile(productionTemplateImage, tplUrl);
+      /* upload template PNG if exists */
+      let designTemplateObj = null;
+      if (productionTemplateImage) {
+        const { presignedUrl: tplUrl } = await getPresignedUrl(
+          designTemplatePath,
+          productionTemplateImage.type
+        );
+        await uploadFile(productionTemplateImage, tplUrl);
+        designTemplateObj = { designCode: sku, imageUrl: designTemplatePath };
+      }
 
       /* build payload */
       const productData = {
@@ -316,7 +319,7 @@ const AddProductPage = () => {
         ...hiddenFields,
         sku,
         optionsAvailable: false,
-        designTemplate: { designCode: sku, imageUrl: designTemplatePath },
+        ...(designTemplateObj && { designTemplate: designTemplateObj }),
         images: imagePaths.map((p) => '/' + p),
         productSource: 'inhouse',
       };
@@ -445,7 +448,7 @@ const AddProductPage = () => {
 
         <Grid item xs={12}>
           <ImageUpload
-            label="Production Template Image (PNG)"
+            label="Production Template Image (PNG) - Optional"
             accept="image/png"
             files={productionTemplateImage ? [productionTemplateImage] : []}
             onFilesChange={(files) =>

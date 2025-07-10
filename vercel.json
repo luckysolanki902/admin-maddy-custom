@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-rto-report",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-rto-report",
+      "schedule": "0 9 * * 1"
+    }
+  ],
+  "functions": {
+    "src/app/api/**/*.js": {
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "CRON_SECRET": "@cron_secret"
+  }
+}

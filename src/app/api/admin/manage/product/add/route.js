@@ -58,7 +58,6 @@ export async function POST(req) {
       'stock',
       'freebies',
       'sku',
-      'designTemplate',
       'productSource',
       'images',
     ];
@@ -140,7 +139,7 @@ export async function POST(req) {
       freebies,
       sku,
       productSource,
-      designTemplate,
+      ...(designTemplate ? { designTemplate } : {}), // Only include designTemplate if it exists
     });
 
     await newProduct.save();

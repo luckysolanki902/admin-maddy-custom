@@ -252,6 +252,27 @@ const OrderSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    // RTO (Return to Origin) specific fields
+    rtoReason: {
+      type: String,
+      enum: [
+        'Customer Refused',
+        'Customer Not Available',
+        'Incorrect Address',
+        'Address Issue',
+        'Customer Not Reachable',
+        'Out of Delivery Area',
+        'Customer Return',
+        'Order Cancelled',
+        'Lost in Transit',
+        'Delivery Failed',
+        'Damaged in Transit',
+        'Quality Issues',
+        'Wrong Product',
+        'Unknown'
+      ],
+    },
+
     // Extra fields like bike model:
     extraFields: {
       type: Map,

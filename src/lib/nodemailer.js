@@ -2,42 +2,17 @@ import nodemailer from 'nodemailer';
 
 // Create reusable transporter
 const createTransporter = () => {
-  return nodemailer.createTransporter({
-    service: 'gmail',
-    port: 587,
-    secure: false, // true for 465, false for other ports
-    auth: {
-      user: process.env.NODEMAILER_USER,
-      pass: process.env.NODEMAILER_PASSWORD,
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
-}; transporter
-const createTransporter = () => {
-  return nodemailer.createTransporter({
-    service: 'gmail',
-    port: 587,
-    secure: false, // true for 465, false for other ports
-    auth: {
-      user: process.env.NODEMAILER_USER,
-      pass: process.env.NODEMAILER_PASSWORD,
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
-};ailer from 'nodemailer';
-
-// Create reusable transporter
-const createTransporter = () => {
   return nodemailer.createTransport({
     service: 'gmail',
+    port: 587,
+    secure: false, // true for 465, false for other ports
     auth: {
       user: process.env.NODEMAILER_USER,
       pass: process.env.NODEMAILER_PASSWORD,
     },
+    tls: {
+      rejectUnauthorized: false
+    }
   });
 };
 

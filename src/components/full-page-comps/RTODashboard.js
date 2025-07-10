@@ -49,8 +49,8 @@ import {
   Email,
   Timeline,
   Assessment,
-  MonetizationOff,
-  ShoppingCartOff,
+  MoneyOff,
+  RemoveShoppingCart,
   Analytics,
 } from '@mui/icons-material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -394,7 +394,7 @@ const RTODashboard = () => {
                           {rtoData.totalRTOs.toLocaleString()}
                         </Typography>
                       </Box>
-                      <ShoppingCartOff sx={{ fontSize: 40, color: '#ff8f00' }} />
+                      <RemoveShoppingCart sx={{ fontSize: 40, color: '#ff8f00' }} />
                     </Box>
                     <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
                       {rtoData.rtoTrend > 0 ? '↗' : '↘'} {Math.abs(rtoData.rtoTrend).toFixed(1)}% from last period
@@ -438,7 +438,7 @@ const RTODashboard = () => {
                           ₹{rtoData.rtoValue.toLocaleString()}
                         </Typography>
                       </Box>
-                      <MonetizationOff sx={{ fontSize: 40, color: '#9c27b0' }} />
+                      <MoneyOff sx={{ fontSize: 40, color: '#9c27b0' }} />
                     </Box>
                     <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
                       Avg: ₹{rtoImpact.costPerRTO.toFixed(0)} per RTO

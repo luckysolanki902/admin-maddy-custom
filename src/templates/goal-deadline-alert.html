@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deadline Notification</title>
+    <style>
+      body {
+        font-family: "Roboto", sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f1f7fc;
+        color: #333;
+      }
+      .email-container {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      .email-header {
+        text-align: center;
+        margin-bottom: 40px;
+        color: black;
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      }
+      .email-header h1 {
+        font-size: 36px;
+        color: #1d3557;
+        font-weight: bold;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+      }
+      .email-body {
+        font-size: 16px;
+        line-height: 1.7;
+        color: #555;
+        margin-bottom: 40px;
+        padding: 20px;
+        background-color: #fafafa;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+      }
+      .goal-title {
+        font-size: 22px;
+        font-weight: 600;
+        color: #1d3557;
+        margin-top: 15px;
+        border-bottom: 2px solid #1d72b8;
+        padding-bottom: 8px;
+      }
+      .goal-description {
+        font-size: 16px;
+        margin-top: 15px;
+        color: #444;
+        padding-bottom: 10px;
+      }
+      .deadline-info {
+        font-size: 14px;
+        color: #777;
+        margin-top: 15px;
+        background-color: #ffffff;
+        padding: 10px;
+        border-radius: 6px;
+      }
+      .cta-button {
+        display: inline-block;
+        margin-top: 30px;
+        padding: 14px 40px;
+        background-color: #1d72b8;
+        color: #ffffff;
+        font-size: 18px;
+        font-weight: 600;
+        text-decoration: none;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        transition: background-color 0.3s ease, transform 0.3s ease;
+      }
+      .cta-button:hover {
+        background-color: #156a8c;
+        transform: translateY(-2px);
+      }
+      .footer {
+        text-align: center;
+        font-size: 14px;
+        color: #1d3557;
+        margin-top: 40px;
+        padding: 20px;
+        background-color: #f1f7fc;
+        border-radius: 12px;
+      }
+      .footer p {
+        margin: 0;
+        padding: 0;
+      }
+      .footer a {
+        color: #1d72b8;
+        text-decoration: none;
+        font-weight: 600;
+        transition: color 0.3s ease;
+      }
+      .footer a:hover {
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <!-- Email Header -->
+      <div class="email-header">
+        <h1>🚨 Deadline Reached for Your Goal</h1>
+      </div>
+
+      <!-- Email Body -->
+      <div class="email-body">
+        <p>Hello {{Recipient Name}},</p>
+
+        <p>We wanted to inform you that the deadline for the following goal has passed:</p>
+
+        <div class="goal-title">{{Goal Title}}</div>
+
+        <div class="goal-description">{{Goal Description}}</div>
+
+        <div class="deadline-info"><strong>Deadline:</strong> {{Deadline Date}}</div>
+
+        <a href="{{Action URL}}" class="cta-button">Take Action Now</a>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>&copy; {{Current Year}} MaddyCustom</p>
+      </div>
+    </div>
+  </body>
+</html>

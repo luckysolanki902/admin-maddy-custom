@@ -25,10 +25,11 @@ export default function AdminGoalsPage({ department }) {
   const [openDialog, setOpenDialog] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newDeadline, setNewDeadline] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { user } = useUser();
-  const isAllowed = user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com";
+  const isAllowed = user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com" || user?.primaryEmailAddress?.emailAddress === "luckysolanki902@gmail.com";
 
   useEffect(() => {
     async function fetchGoals() {
@@ -57,6 +58,7 @@ export default function AdminGoalsPage({ department }) {
           title: newTitle,
           description: newDesc,
           department,
+          deadline: newDeadline,
         }),
       });
 
@@ -66,6 +68,7 @@ export default function AdminGoalsPage({ department }) {
         setGoals(prev => [data.goal, ...prev]);
         setNewTitle("");
         setNewDesc("");
+        setNewDeadline("");
         setOpenDialog(false);
       }
     } catch (err) {
@@ -172,6 +175,15 @@ export default function AdminGoalsPage({ department }) {
               multiline
               minRows={3}
               disabled={isSubmitting}
+            />
+            <TextField
+              label="Deadline"
+              type="date"
+              value={newDeadline}
+              onChange={e => setNewDeadline(e.target.value)}
+              fullWidth
+              disabled={isSubmitting}
+              InputLabelProps={{ shrink: true }}
             />
           </DialogContent>
           <DialogActions>

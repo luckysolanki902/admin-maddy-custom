@@ -8,21 +8,21 @@ export async function PATCH(req, { params }) {
     const currUser = await currentUser();
 
     if (currUser.primaryEmailAddress.emailAddress !== "priyanshuyadav0404@gmail.com") {
-      return new Response("Unauthorized", { status: 403 });
+      return new Response({ message: "Unauthorized" }, { status: 403 });
     }
 
     await connectToDatabase();
 
-    const { id: goalId } = await params;
-    const { title, description } = await req.json();
+    const { id: goalId } = params;
+    const { title, description, deadline } = await req.json();
 
     if (!title && !description) {
-      return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+      return NextResponse.json({ message: "Nothing to update" }, { status: 400 });
     }
 
     const goal = await AdminGoal.findById(goalId);
     if (!goal) {
-      return NextResponse.json({ error: "Goal not found" }, { status: 404 });
+      return NextResponse.json({ message: "Goal not found" }, { status: 404 });
     }
 
     const oldValue = {
@@ -37,6 +37,7 @@ export async function PATCH(req, { params }) {
 
     goal.title = newValue.title;
     goal.description = newValue.description;
+    goal.deadline = new Date(deadline);
 
     goal.history.push({
       type: "edit",
@@ -44,8 +45,8 @@ export async function PATCH(req, { params }) {
       oldValue,
       newValue,
       performedBy: {
-        clerkUserId: user.id,
-        name: user.fullName,
+        clerkUserId: currUser.id,
+        name: currUser.fullName,
       },
     });
 
@@ -54,6 +55,31 @@ export async function PATCH(req, { params }) {
     return NextResponse.json({ goal: { ...goal._doc, history: [...(goal._doc.history || [])].reverse() } }, { status: 200 });
   } catch (err) {
     console.error("Error editing goal:", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req, { params }) {
+  try {
+    const currUser = await currentUser();
+
+    if (currUser.primaryEmailAddress.emailAddress !== "priyanshuyadav0404@gmail.com") {
+      return new Response({ message: "Unauthorized" }, { status: 403 });
+    }
+
+    await connectToDatabase();
+
+    const { id: goalId } = params;
+
+    const deleteResult = await AdminGoal.deleteOne({ _id: goalId });
+
+    if (!deleteResult.deletedCount) {
+      return NextResponse.json({ message: "Goal not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ message: "Goal deleted successfully" }, { status: 200 });
+  } catch (err) {
+    console.error("Error deleting goal:", err);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

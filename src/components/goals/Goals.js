@@ -42,6 +42,7 @@ export default function Goals({ goals, setGoals, isAllowed }) {
     setEditedDeadline(goal?.deadline?.slice(0, 10) ?? "");
     setEditDialogOpen(true);
   };
+  
 
   const handleEditSave = async () => {
     if (!currentGoal) return;

@@ -9,6 +9,7 @@ import { Jost } from 'next/font/google';
 import { Suspense } from "react";
 import ClientProviders from "@/components/providers/ClientProviders";
 
+
 const jost = Jost({
   subsets: ['latin'],
   weights: ['100', '200', '300', '400', '500', '600', '700', '800', '900'],
@@ -35,6 +36,7 @@ export default function RootLayout({ children }) {
               <Suspense fallback={null}>
                 <TopLoadingBar />
                 <AuthHeader />
+                
                 <main>{children}</main>
               </Suspense>
             </ThemeRegistry>

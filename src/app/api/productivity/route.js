@@ -125,12 +125,12 @@ export async function PATCH(request) {
       return NextResponse.json({ message: "No existing entry found for today." }, { status: 404 });
     }
 
-    if (todayWork) existingEntry.todayWork = todayWork;
-    if (tomorrowGoal) existingEntry.tomorrowGoal = tomorrowGoal;
-    if (efficiencyRating) existingEntry.efficiencyRating = efficiencyRating;
-    if (reasonLowRating) existingEntry.reasonLowRating = reasonLowRating;
-    if (willAchieveGoal) existingEntry.willAchieveGoal = willAchieveGoal;
-    if (reasonNotAchieving) existingEntry.reasonNotAchieving = reasonNotAchieving;
+    if (typeof todayWork === "string") existingEntry.todayWork = todayWork;
+    if (typeof tomorrowGoal === "string") existingEntry.tomorrowGoal = tomorrowGoal;
+    if (typeof efficiencyRating === "number") existingEntry.efficiencyRating = efficiencyRating;
+    if (typeof reasonLowRating === "string") existingEntry.reasonLowRating = reasonLowRating;
+    if (typeof willAchieveGoal === "boolean") existingEntry.willAchieveGoal = willAchieveGoal;
+    if (typeof reasonNotAchieving === "string") existingEntry.reasonNotAchieving = reasonNotAchieving;
 
     await existingEntry.save();
 

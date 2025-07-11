@@ -1,16 +1,16 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
+  host: "smtp.gmail.com",
+  port: 465,
   secure: true,
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  auth: { user: process.env.NODEMAILER_USER, pass: process.env.NODEMAILER_PASSWORD },
 });
 
 // Function to send email
 export const sendEmail = (recipient, subject, text, html) => {
   const mailOptions = {
-    from: `${process.env.SMTP_FROM ?? process.env.SMTP_USER}`,
+    from: "Maddy Custom",
     to: recipient,
     subject,
     text,

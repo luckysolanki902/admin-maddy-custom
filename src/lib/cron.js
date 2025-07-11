@@ -4,18 +4,9 @@ const AdminGoal = require("@/models/admin/AdminGoal");
 const { sendEmail, fillTemplate } = require("@/components/utils/emailUtils");
 const fs = require("fs");
 const path = require("path");
+const { departmentAdmins } = require("@/lib/constants/user");
 
 const templatesPath = [__dirname, "..", "..", "..", "..", "src", "templates"];
-
-// Department Admins with email addresses and names
-// TODO get departmentAdmins with logic when they are defined
-const departmentAdmins = {
-  "web-d": { email: "luckysolanki902@gmail.com", name: "Lucky Solanki" },
-  design: { email: "i.prashant0323@gmail.com", name: "Prashant Kumar" },
-  // finance: { email: "finance-admin@example.com", name: "Finance Department Admin" },
-  marketing: { email: "vermatanya187@gmail.com", name: "Tanya Verma" },
-  production: { email: "sg.gupta2241@gmail.com", name: "Sumit Gupta" },
-};
 
 // Cron job that runs every day at midnight to check for expired deadlines
 cron.schedule("0 0 * * *", async () => {
@@ -40,7 +31,7 @@ cron.schedule("0 0 * * *", async () => {
         "Goal Title": goal.title,
         "Goal Description": goal.description,
         "Deadline Date": new Date(goal.deadline).toLocaleDateString(),
-        "Action URL": `https://admin-maddycustom.vercel.app/admin/departments/${goal.department}-goals`,
+        "Action URL": `${process.env.NEXT_PUBLIC_CLIENT_URL}/admin/departments/${goal.department}-goals`,
         "Current Year": new Date().getFullYear(),
       };
 
@@ -79,5 +70,60 @@ cron.schedule("0 0 * * *", async () => {
     });
   } catch (error) {
     console.error("Error checking expired goals:", error);
+  }
+});
+
+// Cron job that runs every day at 9 PM
+cron.schedule("0 21 * * *", async () => {
+  try {
+    await connectToDatabase();
+
+    // Build today's date range
+    const todayStr = new Date().toISOString().split("T")[0];
+    const start = new Date(todayStr);
+    const end = new Date(todayStr);
+    end.setDate(end.getDate() + 1);
+
+    // Fetch today's submissions
+    const todaysEntries = await AdminProductivity.find({
+      createdAt: { $gte: start, $lt: end },
+    })
+      .select("department")
+      .lean();
+
+    // Build list of departments that already submitted
+    const submittedDepartments = new Set(todaysEntries.map(entry => entry.department));
+
+    // Read HTML email template
+    const templatePath = path.resolve(...templatesPath, "daily-productivity-request.html");
+    let htmlTemplate = fs.readFileSync(templatePath, "utf8");
+
+    const subject = "Daily Productivity Update Request";
+    const text =
+      "This is a gentle reminder to please submit your department's daily productivity update today. You can use the provided link.";
+
+    // Send email to department admins only if they have NOT submitted
+    Object.entries(departmentAdmins).forEach(([dept, admin]) => {
+      if (!submittedDepartments.has(dept)) {
+        const variables = {
+          "Recipient Name": admin.name,
+          "Action URL": `${process.env.NEXT_PUBLIC_CLIENT_URL}/admin/productivity/form`,
+        };
+
+        const personalizedHtml = fillTemplate(htmlTemplate, variables);
+
+        sendEmail(admin.email, subject, text, personalizedHtml);
+      }
+    });
+
+    // const variables = {
+    //   "Recipient Name": "Sahil Yadav",
+    //   "Action URL": `${process.env.NEXT_PUBLIC_CLIENT_URL}/admin/productivity/form`,
+    // };
+
+    // const sahilHtml = fillTemplate(htmlTemplate, variables);
+    // sendEmail("sahilyadavind0908@gmail.com", subject, text, sahilHtml);
+  } catch (error) {
+    console.error("Error sending productivity request emails:", error);
   }
 });

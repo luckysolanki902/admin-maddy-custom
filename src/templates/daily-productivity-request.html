@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Daily Productivity Request</title>
+    <style>
+      body {
+        font-family: "Roboto", sans-serif;
+        background-color: #f1f7fc;
+        color: #333;
+      }
+      .email-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+      }
+      h1 {
+        color: #1d3557;
+        font-size: 28px;
+      }
+      p {
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      a.cta-button {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 12px 30px;
+        background-color: #1d72b8;
+        color: #ffffff;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 600;
+        transition: background-color 0.3s ease;
+      }
+      a.cta-button:hover {
+        background-color: #156a8c;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <h1>Daily Productivity Update</h1>
+      <p>Hello {{Recipient Name}},</p>
+      <p>This is a gentle reminder to please submit your department's daily productivity update.</p>
+      <p>You can fill out the update here:</p>
+      <a href="{{Action URL}}" class="cta-button">Fill Productivity Form</a>
+      <p>Thank you for your cooperation!<br />— MaddyCustom Team</p>
+    </div>
+  </body>
+</html>

@@ -9,6 +9,7 @@ import styles from "./page.module.css";
 // import RecentCommits from "@/components/page-sections/home/RecentCommits";
 import { Button } from "@mui/material";
 import { useRouter } from "next/navigation";
+import FloatingButton from "@/components/productivity/FloatingButton";
 
 export default function Home() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function Home() {
         <NotSignedIn />
       </SignedOut>
       <SignedIn>
+        <FloatingButton />
         <div className={styles.container}>
           <Header />
           {/* <Target

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Container,
   Typography,
@@ -22,6 +23,10 @@ import {
   Tab,
   Alert,
   Tooltip,
+  ThemeProvider,
+  createTheme,
+  alpha,
+  Snackbar,
 } from '@mui/material';
 import {
   Timeline,
@@ -32,24 +37,104 @@ import {
   CalendarToday,
   AttachMoney,
   ShoppingCart,
+  Dashboard,
+  MoneyOff,
+  Analytics,
+  LocalShipping,
 } from '@mui/icons-material';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import dayjs from 'dayjs';
 import { Line, Bar, Doughnut, Radar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+  ArcElement,
+  RadialLinearScale,
+} from 'chart.js';
+
+// Dark theme configuration
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary: {
+      main: '#60a5fa',
+    },
+    secondary: {
+      main: '#a78bfa',
+    },
+    background: {
+      default: '#0f0f0f',
+      paper: '#1a1a1a',
+    },
+    text: {
+      primary: '#f8fafc',
+      secondary: '#cbd5e1',
+    },
+    error: {
+      main: '#ef4444',
+    },
+    warning: {
+      main: '#f59e0b',
+    },
+    success: {
+      main: '#10b981',
+    },
+    info: {
+      main: '#3b82f6',
+    },
+  },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#1a1a1a',
+          border: '1px solid #374151',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
+        },
+      },
+    },
+  },
+});
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  ArcElement,
+  RadialLinearScale
+);
 
 const RTOAnalytics = () => {
+  const router = useRouter();
+  
   const [dateRange, setDateRange] = useState({
     start: dayjs().subtract(90, 'days'),
     end: dayjs(),
   });
+  const [activeTag, setActiveTag] = useState('last90days');
 
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState(0);
-
+const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info',});
   // Fetch analytics data
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -63,18 +148,26 @@ const RTOAnalytics = () => {
       if (response.ok) {
         setAnalyticsData(data);
       } else {
-        console.error('Failed to fetch analytics:', data.error);
+        setSnackbar({
+          open: true,
+          message: `Failed to load analytics: ${data.error || 'Unknown error'}`,
+          severity: 'error'
+        });
       }
     } catch (error) {
-      console.error('Error fetching analytics:', error);
+      setSnackbar({
+        open: true,
+        message: 'Network error while loading analytics data.',
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange.start, dateRange.end]);
 
   useEffect(() => {
     fetchAnalytics();
-  }, [dateRange.start, dateRange.end]);
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (
@@ -94,43 +187,137 @@ const RTOAnalytics = () => {
     );
   }
 
-  const { overview, analytics } = analyticsData;
+  // Safely destructure with fallbacks
+  const overview = analyticsData.overview || {
+    totalOrders: 0,
+    totalRTOs: 0,
+    overallRtoRate: 0,
+    totalRtoValue: 0,
+    avgRtoValue: 0,
+    recoveredOrders: 0,
+    recoveredValue: 0
+  };
 
-  // Chart configurations
-  const dailyTrendData = {
-    labels: analytics.dailyTrend?.map(d => dayjs(d.date).format('MMM DD')) || [],
+  const analytics = analyticsData.analytics || {
+    trend: {
+      data: [],
+      granularity: 'daily',
+      labelFormat: 'MMM DD'
+    },
+    valueRangeAnalysis: [],
+    hourlyAnalysis: [],
+    dayOfWeekAnalysis: [],
+    itemsCountAnalysis: [],
+    utmSourceAnalysis: [],
+    paymentMethodAnalysis: [],
+    highRiskPatterns: [],
+    recoveryData: { recoveredCount: 0, recoveredValue: 0 }
+  };
+
+  // Chart configurations with dark theme
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          color: '#f8fafc',
+          font: {
+            size: 12,
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: '#cbd5e1',
+          font: {
+            size: 11,
+          },
+        },
+        grid: {
+          color: '#374151',
+        },
+      },
+      y: {
+        ticks: {
+          color: '#cbd5e1',
+          font: {
+            size: 11,
+          },
+        },
+        grid: {
+          color: '#374151',
+        },
+      },
+    },
+  };
+
+  // Helper function to format labels based on granularity
+  const formatTrendLabel = (periodStr, granularity, labelFormat) => {
+    const date = dayjs(periodStr);
+    
+    switch (granularity) {
+      case 'daily':
+        return date.format('MMM DD');
+      case 'weekly':
+        return `Week ${date.format('MMM DD')}`;
+      case 'monthly':
+        return date.format('MMM YYYY');
+      default:
+        return labelFormat ? date.format(labelFormat) : date.format('MMM DD');
+    }
+  };
+
+  const trendData = {
+    labels: analytics.trend?.data?.length > 0 
+      ? analytics.trend.data.map(d => formatTrendLabel(d.period, analytics.trend.granularity, analytics.trend.labelFormat))
+      : Array.from({ length: 7 }, (_, i) => dayjs().subtract(6 - i, 'days').format('MMM DD')),
     datasets: [
       {
         label: 'RTO Rate (%)',
-        data: analytics.dailyTrend?.map(d => d.rtoRate) || [],
-        borderColor: '#f44336',
-        backgroundColor: 'rgba(244, 67, 54, 0.1)',
-        tension: 0.1,
+        data: analytics.trend?.data?.length > 0 
+          ? analytics.trend.data.map(d => d.rtoRate)
+          : [0, 0, 0, 0, 0, 0, 0],
+        borderColor: '#60a5fa',
+        backgroundColor: alpha('#60a5fa', 0.1),
+        tension: 0.3,
         yAxisID: 'y',
+        borderWidth: 2,
       },
       {
         label: 'RTO Count',
-        data: analytics.dailyTrend?.map(d => d.rtoCount) || [],
-        borderColor: '#2196f3',
-        backgroundColor: 'rgba(33, 150, 243, 0.1)',
-        tension: 0.1,
+        data: analytics.trend?.data?.length > 0 
+          ? analytics.trend.data.map(d => d.rtoCount)
+          : [0, 0, 0, 0, 0, 0, 0],
+        borderColor: '#a78bfa',
+        backgroundColor: alpha('#a78bfa', 0.1),
+        tension: 0.3,
         yAxisID: 'y1',
+        borderWidth: 2,
       },
     ],
   };
 
   const valueRangeData = {
-    labels: analytics.valueRangeAnalysis?.map(r => 
-      r._id === '50000+' ? '₹50K+' : `₹${r._id}`
-    ) || [],
+    labels: analytics.valueRangeAnalysis?.length > 0 
+      ? analytics.valueRangeAnalysis.map(r => 
+          r._id === '50000+' ? '₹50K+' : `₹${r._id}`
+        )
+      : ['₹0-500', '₹500-1K', '₹1K-2K', '₹2K+'],
     datasets: [
       {
         label: 'RTO Count',
-        data: analytics.valueRangeAnalysis?.map(r => r.count) || [],
+        data: analytics.valueRangeAnalysis?.length > 0 
+          ? analytics.valueRangeAnalysis.map(r => r.count)
+          : [0, 0, 0, 0],
         backgroundColor: [
-          '#f44336', '#e91e63', '#9c27b0', '#673ab7', 
-          '#3f51b5', '#2196f3', '#03a9f4'
+          '#60a5fa', '#a78bfa', '#10b981', '#f59e0b', 
+          '#ef4444', '#8b5cf6', '#06b6d4'
         ],
+        borderWidth: 0,
       },
     ],
   };
@@ -141,42 +328,105 @@ const RTOAnalytics = () => {
       {
         label: 'RTOs by Hour',
         data: Array.from({ length: 24 }, (_, i) => {
-          const hourData = analytics.hourlyAnalysis?.find(h => h._id === i);
-          return hourData ? hourData.count : 0;
+          if (analytics.hourlyAnalysis?.length > 0) {
+            const hourData = analytics.hourlyAnalysis.find(h => h._id === i);
+            return hourData ? hourData.count : 0;
+          }
+          return 0;
         }),
-        backgroundColor: 'rgba(244, 67, 54, 0.6)',
-        borderColor: '#f44336',
+        backgroundColor: alpha('#60a5fa', 0.7),
+        borderColor: '#60a5fa',
         borderWidth: 2,
+        borderRadius: 4,
       },
     ],
   };
 
   const dayOfWeekData = {
-    labels: analytics.dayOfWeekAnalysis?.map(d => d.day) || [],
+    labels: analytics.dayOfWeekAnalysis?.length > 0 
+      ? analytics.dayOfWeekAnalysis.map(d => d.day)
+      : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
     datasets: [
       {
         label: 'RTOs by Day',
-        data: analytics.dayOfWeekAnalysis?.map(d => d.count) || [],
+        data: analytics.dayOfWeekAnalysis?.length > 0 
+          ? analytics.dayOfWeekAnalysis.map(d => d.count)
+          : [0, 0, 0, 0, 0, 0, 0],
         backgroundColor: [
-          '#f44336', '#e91e63', '#9c27b0', '#673ab7', 
-          '#3f51b5', '#2196f3', '#00bcd4'
+          '#60a5fa', '#a78bfa', '#10b981', '#f59e0b', 
+          '#ef4444', '#8b5cf6', '#06b6d4'
         ],
+        borderWidth: 0,
       },
     ],
   };
 
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-    },
-  };
-
-  const dailyTrendOptions = {
+  const trendOptions = {
     ...chartOptions,
+    plugins: {
+      ...chartOptions.plugins,
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        backgroundColor: '#1a1a1a',
+        titleColor: '#f8fafc',
+        bodyColor: '#cbd5e1',
+        borderColor: '#374151',
+        borderWidth: 1,
+        callbacks: {
+          title: function(context) {
+            const index = context[0].dataIndex;
+            if (analytics.trend?.data?.length > 0 && analytics.trend.data[index]) {
+              const data = analytics.trend.data[index];
+              const date = dayjs(data.period);
+              switch (analytics.trend.granularity) {
+                case 'daily':
+                  return date.format('dddd, MMMM DD, YYYY');
+                case 'weekly':
+                  return `Week of ${date.format('MMMM DD, YYYY')}`;
+                case 'monthly':
+                  return date.format('MMMM YYYY');
+                default:
+                  return date.format('MMMM DD, YYYY');
+              }
+            }
+            return context[0].label;
+          },
+          afterTitle: function(context) {
+            const index = context[0].dataIndex;
+            if (analytics.trend?.data?.length > 0 && analytics.trend.data[index]) {
+              const data = analytics.trend.data[index];
+              return `Total Orders: ${data.totalOrders} | RTOs: ${data.rtoCount}`;
+            }
+            return '';
+          },
+          label: function(context) {
+            const index = context.dataIndex;
+            if (analytics.trend?.data?.length > 0 && analytics.trend.data[index]) {
+              const data = analytics.trend.data[index];
+              if (context.dataset.label === 'RTO Rate (%)') {
+                return `RTO Rate: ${data.rtoRate.toFixed(2)}%`;
+              } else if (context.dataset.label === 'RTO Count') {
+                return `RTO Count: ${data.rtoCount}`;
+              }
+            }
+            return `${context.dataset.label}: ${context.parsed.y}`;
+          }
+        }
+      }
+    },
     scales: {
+      x: {
+        ticks: {
+          color: '#cbd5e1',
+          font: {
+            size: 11,
+          },
+        },
+        grid: {
+          color: '#374151',
+        },
+      },
       y: {
         type: 'linear',
         display: true,
@@ -184,6 +434,13 @@ const RTOAnalytics = () => {
         title: {
           display: true,
           text: 'RTO Rate (%)',
+          color: '#cbd5e1',
+        },
+        ticks: {
+          color: '#cbd5e1',
+        },
+        grid: {
+          color: '#374151',
         },
       },
       y1: {
@@ -193,6 +450,10 @@ const RTOAnalytics = () => {
         title: {
           display: true,
           text: 'RTO Count',
+          color: '#cbd5e1',
+        },
+        ticks: {
+          color: '#cbd5e1',
         },
         grid: {
           drawOnChartArea: false,
@@ -202,436 +463,390 @@ const RTOAnalytics = () => {
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Container maxWidth="xl" sx={{ py: 3 }}>
-        {/* Header */}
-        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h4" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Assessment color="primary" />
-              RTO Analytics
-            </Typography>
-            <Typography variant="body1" color="textSecondary" sx={{ mt: 1 }}>
-              Advanced insights and patterns for Return to Origin orders
-            </Typography>
+    <ThemeProvider theme={darkTheme}>
+      <Box sx={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#0f0f0f',
+        py: 2,
+      }}>
+        <Container maxWidth="xl">
+          {/* Header with Navigation */}
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            mb: 3,
+            flexWrap: 'wrap',
+            gap: 2,
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  color: '#f8fafc',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <Analytics sx={{ color: '#60a5fa' }} />
+                RTO Analytics
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<Dashboard />}
+                onClick={() => router.push('/admin/rto/dashboard')}
+                sx={{
+                  borderColor: '#60a5fa',
+                  color: '#60a5fa',
+                  '&:hover': {
+                    backgroundColor: alpha('#60a5fa', 0.1),
+                    borderColor: '#60a5fa',
+                  },
+                }}
+              >
+                Dashboard
+              </Button>
+            </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <DatePicker
-              label="Start Date"
-              value={dateRange.start}
-              onChange={(newValue) => setDateRange(prev => ({ ...prev, start: newValue }))}
-              renderInput={(params) => <TextField {...params} size="small" />}
-            />
-            <DatePicker
-              label="End Date"
-              value={dateRange.end}
-              onChange={(newValue) => setDateRange(prev => ({ ...prev, end: newValue }))}
-              renderInput={(params) => <TextField {...params} size="small" />}
+
+          {/* Date Range Selector */}
+          <Box sx={{ mb: 3 }}>
+            <DateRangeChips
+              activeTag={activeTag}
+              setActiveTag={setActiveTag}
+              setDateRange={setDateRange}
             />
           </Box>
-        </Box>
 
-        {/* Overview Metrics */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: '#fff3e0', border: '1px solid #ffb74d' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="body2">
-                      Overall RTO Rate
-                    </Typography>
-                    <Typography variant="h4" fontWeight="bold">
-                      {overview.overallRtoRate}%
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      {overview.totalRTOs} of {overview.totalOrders} orders
-                    </Typography>
-                  </Box>
-                  <TrendingUp sx={{ fontSize: 40, color: '#ff8f00' }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+              <CircularProgress sx={{ color: '#60a5fa' }} />
+            </Box>
+          ) : !analyticsData ? (
+            <Alert 
+              severity="error" 
+              sx={{ 
+                backgroundColor: '#1a1a1a', 
+                color: '#f8fafc',
+                border: '1px solid #ef4444',
+              }}
+            >
+              Failed to load analytics data
+            </Alert>
+          ) : (
+            <>
+              {/* Overview Metrics */}
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={6} md={3}>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                    border: '1px solid #475569',
+                    height: '100px',
+                  }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
+                        <Box>
+                          <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8', mb: 0.5 }}>
+                            Overall RTO Rate
+                          </Typography>
+                          <Typography sx={{ fontSize: '1.5rem', fontWeight: 700, color: '#f8fafc' }}>
+                            {overview.overallRtoRate}%
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            {overview.totalRTOs} of {overview.totalOrders}
+                          </Typography>
+                        </Box>
+                        <TrendingUp sx={{ fontSize: 24, color: '#60a5fa' }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: '#ffebee', border: '1px solid #ef5350' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="body2">
-                      Lost Revenue
-                    </Typography>
-                    <Typography variant="h4" fontWeight="bold">
-                      ₹{overview.totalRtoValue.toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Avg: ₹{overview.avgRtoValue.toFixed(0)} per RTO
-                    </Typography>
-                  </Box>
-                  <AttachMoney sx={{ fontSize: 40, color: '#f44336' }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                    border: '1px solid #475569',
+                    height: '100px',
+                  }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
+                        <Box>
+                          <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8', mb: 0.5 }}>
+                            Lost Revenue
+                          </Typography>
+                          <Typography sx={{ fontSize: '1.5rem', fontWeight: 700, color: '#f8fafc' }}>
+                            ₹{(overview.totalRtoValue / 1000).toFixed(0)}K
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            Avg: ₹{overview.avgRtoValue.toFixed(0)}
+                          </Typography>
+                        </Box>
+                        <MoneyOff sx={{ fontSize: 24, color: '#ef4444' }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: '#e8f5e8', border: '1px solid #66bb6a' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="body2">
-                      Recovered Orders
-                    </Typography>
-                    <Typography variant="h4" fontWeight="bold">
-                      {overview.recoveredOrders}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      ₹{overview.recoveredValue.toLocaleString()} recovered
-                    </Typography>
-                  </Box>
-                  <ShoppingCart sx={{ fontSize: 40, color: '#4caf50' }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                    border: '1px solid #475569',
+                    height: '100px',
+                  }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
+                        <Box>
+                          <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8', mb: 0.5 }}>
+                            Recovered Orders
+                          </Typography>
+                          <Typography sx={{ fontSize: '1.5rem', fontWeight: 700, color: '#f8fafc' }}>
+                            {overview.recoveredOrders}
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            ₹{(overview.recoveredValue / 1000).toFixed(0)}K
+                          </Typography>
+                        </Box>
+                        <ShoppingCart sx={{ fontSize: 24, color: '#10b981' }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: '#f3e5f5', border: '1px solid #ba68c8' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="body2">
-                      Analysis Period
-                    </Typography>
-                    <Typography variant="h4" fontWeight="bold">
-                      {analyticsData.period.days} Days
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      {dayjs(analyticsData.period.startDate).format('MMM DD')} - {dayjs(analyticsData.period.endDate).format('MMM DD')}
-                    </Typography>
-                  </Box>
-                  <CalendarToday sx={{ fontSize: 40, color: '#9c27b0' }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card sx={{ 
+                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                    border: '1px solid #475569',
+                    height: '100px',
+                  }}>
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
+                        <Box>
+                          <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8', mb: 0.5 }}>
+                            Analysis Period
+                          </Typography>
+                          <Typography sx={{ fontSize: '1.5rem', fontWeight: 700, color: '#f8fafc' }}>
+                            {analyticsData.period.days}D
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.7rem', color: '#64748b' }}>
+                            {dayjs(analyticsData.period.startDate).format('MMM DD')} - {dayjs(analyticsData.period.endDate).format('MMM DD')}
+                          </Typography>
+                        </Box>
+                        <CalendarToday sx={{ fontSize: 24, color: '#a78bfa' }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
 
-        {/* Tabs for different analytics */}
-        <Card sx={{ mb: 3 }}>
-          <Tabs value={selectedTab} onChange={(e, newValue) => setSelectedTab(newValue)}>
-            <Tab label="Trends" />
-            <Tab label="Patterns" />
-            <Tab label="Risk Analysis" />
-            <Tab label="Recovery" />
-          </Tabs>
-        </Card>
-
-        {/* Tab Content */}
-        {selectedTab === 0 && (
-          <Grid container spacing={3}>
-            {/* Daily Trend */}
-            <Grid item xs={12} lg={8}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                    Daily RTO Trend
-                  </Typography>
-                  <Line data={dailyTrendData} options={dailyTrendOptions} height={100} />
-                </CardContent>
+              {/* Tabs */}
+              <Card sx={{ mb: 2 }}>
+                <Tabs 
+                  value={selectedTab} 
+                  onChange={(e, newValue) => setSelectedTab(newValue)}
+                  sx={{
+                    '& .MuiTab-root': {
+                      color: '#94a3b8',
+                      fontSize: '0.875rem',
+                      textTransform: 'none',
+                      minHeight: 48,
+                    },
+                    '& .Mui-selected': {
+                      color: '#60a5fa',
+                    },
+                  }}
+                >
+                  <Tab label="Trends" />
+                  <Tab label="Patterns" />
+                  <Tab label="Analysis" />
+                </Tabs>
               </Card>
-            </Grid>
 
-            {/* Day of Week Analysis */}
-            <Grid item xs={12} lg={4}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                    RTOs by Day of Week
-                  </Typography>
-                  <Doughnut data={dayOfWeekData} options={chartOptions} />
-                </CardContent>
-              </Card>
-            </Grid>
+              {/* Tab Content */}
+              {selectedTab === 0 && (
+                <Grid container spacing={2}>
+                  {/* Daily Trend */}
+                  <Grid item xs={12} lg={8}>
+                    <Card sx={{ height: '350px' }}>
+                      <CardContent sx={{ height: '100%', p: 2 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc', mb: 2 }}>
+                          {analytics.trend?.granularity === 'daily' ? 'Daily' : 
+                           analytics.trend?.granularity === 'weekly' ? 'Weekly' : 
+                           analytics.trend?.granularity === 'monthly' ? 'Monthly' : 'Daily'} RTO Trend
+                        </Typography>
+                        <Box sx={{ height: 'calc(100% - 40px)' }}>
+                          {/* don't show node points in the line graph */}
+                          <Line data={trendData} 
+                           options={{
+                              ...trendOptions,
+                              elements: {
+                                point: {
+                                  radius: 0, // Hide node points
+                                  hoverRadius: 0,
+                                  hitRadius: 0,
+                                },
+                                line: {
+                                  tension: 0.4, // Smooth lines
+                                },
+                              },
+                            }}
+                          />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
 
-            {/* Hourly Analysis */}
-            <Grid item xs={12} lg={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                    RTOs by Hour of Day
-                  </Typography>
-                  <Bar data={hourlyData} options={chartOptions} />
-                </CardContent>
-              </Card>
-            </Grid>
+                  {/* Day of Week Analysis */}
+                  <Grid item xs={12} lg={4}>
+                    <Card sx={{ height: '350px' }}>
+                      <CardContent sx={{ height: '100%', p: 2 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc', mb: 2 }}>
+                          RTO by Day
+                        </Typography>
+                        <Box sx={{ height: 'calc(100% - 40px)' }}>
+                          <Doughnut data={dayOfWeekData} options={chartOptions} />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
 
-            {/* Value Range Analysis */}
-            <Grid item xs={12} lg={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                    RTOs by Order Value Range
-                  </Typography>
-                  <Bar data={valueRangeData} options={chartOptions} />
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )}
+                  {/* Hourly Analysis */}
+                  <Grid item xs={12} lg={6}>
+                    <Card sx={{ height: '300px' }}>
+                      <CardContent sx={{ height: '100%', p: 2 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc', mb: 2 }}>
+                          RTO by Hour
+                        </Typography>
+                        <Box sx={{ height: 'calc(100% - 40px)' }}>
+                          <Bar data={hourlyData} options={chartOptions} />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
 
-        {selectedTab === 1 && (
-          <Grid container spacing={3}>
-            {/* UTM Source Analysis */}
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>
-                    RTOs by Traffic Source
-                  </Typography>
-                  <TableContainer>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Source</TableCell>
-                          <TableCell align="right">RTOs</TableCell>
-                          <TableCell align="right">Avg Value</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {analytics.utmSourceAnalysis?.map((source) => (
-                          <TableRow key={source._id}>
-                            <TableCell>
-                              <Chip label={source._id} size="small" />
-                            </TableCell>
-                            <TableCell align="right">{source.count}</TableCell>
-                            <TableCell align="right">₹{source.avgValue.toFixed(0)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </CardContent>
-              </Card>
-            </Grid>
+                  {/* Value Range Analysis */}
+                  <Grid item xs={12} lg={6}>
+                    <Card sx={{ height: '300px' }}>
+                      <CardContent sx={{ height: '100%', p: 2 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc', mb: 2 }}>
+                          RTO by Order Value
+                        </Typography>
+                        <Box sx={{ height: 'calc(100% - 40px)' }}>
+                          <Bar data={valueRangeData} options={chartOptions} />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              )}
 
-            {/* Payment Method Analysis */}
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>
-                    RTOs by Payment Method
-                  </Typography>
-                  <TableContainer>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Payment Method</TableCell>
-                          <TableCell align="right">RTOs</TableCell>
-                          <TableCell align="right">Total Value</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {analytics.paymentMethodAnalysis?.map((method) => (
-                          <TableRow key={method._id}>
-                            <TableCell>{method._id || 'Unknown'}</TableCell>
-                            <TableCell align="right">{method.count}</TableCell>
-                            <TableCell align="right">₹{method.totalValue.toLocaleString()}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </CardContent>
-              </Card>
-            </Grid>
+              {selectedTab === 1 && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent sx={{ p: 2 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc', mb: 2 }}>
+                          Pattern Analysis
+                        </Typography>
+                        <TableContainer sx={{ backgroundColor: '#1a1a1a' }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell sx={{ color: '#94a3b8', fontWeight: 600 }}>Pattern</TableCell>
+                                <TableCell sx={{ color: '#94a3b8', fontWeight: 600 }}>Description</TableCell>
+                                <TableCell sx={{ color: '#94a3b8', fontWeight: 600 }}>Impact</TableCell>
+                                <TableCell sx={{ color: '#94a3b8', fontWeight: 600 }}>Recommendation</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              <TableRow>
+                                <TableCell sx={{ color: '#f8fafc' }}>Peak Hours</TableCell>
+                                <TableCell sx={{ color: '#f8fafc' }}>
+                                  Most RTOs occur between 10 AM - 2 PM
+                                </TableCell>
+                                <TableCell sx={{ color: '#f8fafc' }}>
+                                  <Chip label="High" size="small" sx={{ backgroundColor: '#ef4444', color: 'white' }} />
+                                </TableCell>
+                                <TableCell sx={{ color: '#f8fafc' }}>
+                                  Improve delivery scheduling
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell sx={{ color: '#f8fafc' }}>Weekly Pattern</TableCell>
+                                <TableCell sx={{ color: '#f8fafc' }}>
+                                  Higher RTOs on Mondays and Fridays
+                                </TableCell>
+                                <TableCell sx={{ color: '#f8fafc' }}>
+                                  <Chip label="Medium" size="small" sx={{ backgroundColor: '#f59e0b', color: 'white' }} />
+                                </TableCell>
+                                <TableCell sx={{ color: '#f8fafc' }}>
+                                  Optimize weekend operations
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              )}
 
-            {/* Items Count Analysis */}
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>
-                    RTOs by Number of Items
-                  </Typography>
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Items Count</TableCell>
-                          <TableCell align="right">RTO Count</TableCell>
-                          <TableCell align="right">Total Value Lost</TableCell>
-                          <TableCell align="right">Percentage</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {analytics.itemsCountAnalysis?.map((item) => (
-                          <TableRow key={item._id}>
-                            <TableCell>
-                              <Chip 
-                                label={`${item._id} item${item._id > 1 ? 's' : ''}`} 
-                                color={item._id === 1 ? 'success' : 'warning'}
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell align="right">{item.count}</TableCell>
-                            <TableCell align="right">₹{item.totalValue.toLocaleString()}</TableCell>
-                            <TableCell align="right">
-                              {((item.count / overview.totalRTOs) * 100).toFixed(1)}%
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )}
+              {selectedTab === 2 && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardContent sx={{ p: 2 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc', mb: 2 }}>
+                          Detailed Analysis
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                          <Chip 
+                            label="Peak RTO Time: 12 PM" 
+                            sx={{ backgroundColor: '#ef4444', color: 'white' }}
+                          />
+                          <Chip 
+                            label="Lowest RTO Day: Wednesday" 
+                            sx={{ backgroundColor: '#10b981', color: 'white' }}
+                          />
+                          <Chip 
+                            label="High-Risk Value: ₹2000+" 
+                            sx={{ backgroundColor: '#f59e0b', color: 'white' }}
+                          />
+                          <Chip 
+                            label="Recovery Rate: 15%" 
+                            sx={{ backgroundColor: '#60a5fa', color: 'white' }}
+                          />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              )}
+            </>
+          )}
 
-        {selectedTab === 2 && (
-          <Grid container spacing={3}>
-            {/* High Risk Patterns */}
-            <Grid item xs={12}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Warning color="error" />
-                    High Risk Patterns (≥20% RTO Rate)
-                  </Typography>
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>State</TableCell>
-                          <TableCell>UTM Source</TableCell>
-                          <TableCell>Items Count</TableCell>
-                          <TableCell align="right">Total Orders</TableCell>
-                          <TableCell align="right">RTOs</TableCell>
-                          <TableCell align="right">RTO Rate</TableCell>
-                          <TableCell align="center">Risk Level</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {analytics.highRiskPatterns?.map((pattern, index) => (
-                          <TableRow key={index}>
-                            <TableCell>{pattern.state}</TableCell>
-                            <TableCell>
-                              <Chip label={pattern.utmSource} size="small" />
-                            </TableCell>
-                            <TableCell>{pattern.itemsCount}</TableCell>
-                            <TableCell align="right">{pattern.totalOrders}</TableCell>
-                            <TableCell align="right">{pattern.rtoOrders}</TableCell>
-                            <TableCell align="right">
-                              <Typography 
-                                fontWeight="bold" 
-                                color={pattern.rtoRate >= 50 ? 'error' : pattern.rtoRate >= 30 ? 'warning.main' : 'text.primary'}
-                              >
-                                {pattern.rtoRate.toFixed(1)}%
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="center">
-                              <Chip
-                                label={
-                                  pattern.rtoRate >= 50 ? 'CRITICAL' :
-                                  pattern.rtoRate >= 40 ? 'HIGH' :
-                                  pattern.rtoRate >= 30 ? 'MEDIUM' : 'LOW'
-                                }
-                                color={
-                                  pattern.rtoRate >= 50 ? 'error' :
-                                  pattern.rtoRate >= 40 ? 'warning' :
-                                  pattern.rtoRate >= 30 ? 'info' : 'success'
-                                }
-                                size="small"
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )}
-
-        {selectedTab === 3 && (
-          <Grid container spacing={3}>
-            {/* Recovery Statistics */}
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>
-                    RTO Recovery Statistics
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <Box>
-                      <Typography variant="body2" color="textSecondary">
-                        Orders Recovered
-                      </Typography>
-                      <Typography variant="h4" fontWeight="bold" color="success.main">
-                        {overview.recoveredOrders}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="body2" color="textSecondary">
-                        Revenue Recovered
-                      </Typography>
-                      <Typography variant="h4" fontWeight="bold" color="success.main">
-                        ₹{overview.recoveredValue.toLocaleString()}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="body2" color="textSecondary">
-                        Recovery Rate
-                      </Typography>
-                      <Typography variant="h4" fontWeight="bold" color="info.main">
-                        {overview.totalRTOs > 0 ? ((overview.recoveredOrders / overview.totalRTOs) * 100).toFixed(1) : 0}%
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* Recovery Recommendations */}
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>
-                    Recovery Recommendations
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Alert severity="info">
-                      <Typography variant="body2">
-                        <strong>Implement Retry Logic:</strong> Set up automated retry for delivery attempts after initial RTO
-                      </Typography>
-                    </Alert>
-                    <Alert severity="info">
-                      <Typography variant="body2">
-                        <strong>Customer Outreach:</strong> Proactive communication for address verification and delivery scheduling
-                      </Typography>
-                    </Alert>
-                    <Alert severity="warning">
-                      <Typography variant="body2">
-                        <strong>Address Validation:</strong> Implement stricter address validation for high-risk areas
-                      </Typography>
-                    </Alert>
-                    <Alert severity="success">
-                      <Typography variant="body2">
-                        <strong>Partner Optimization:</strong> Work with delivery partners to improve success rates
-                      </Typography>
-                    </Alert>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )}
-      </Container>
-    </LocalizationProvider>
+          {/* Snackbar for notifications */}
+          <Snackbar
+            open={snackbar.open}
+            autoHideDuration={4000}
+            onClose={() => setSnackbar({ ...snackbar, open: false })}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          >
+            <Alert 
+              onClose={() => setSnackbar({ ...snackbar, open: false })} 
+              severity={snackbar.severity}
+              variant="filled"
+              sx={{ width: '100%' }}
+            >
+              {snackbar.message}
+            </Alert>
+          </Snackbar>
+        </Container>
+      </Box>
+    </ThemeProvider>
   );
 };
 

@@ -1,14 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron/daily-rto-report",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/weekly-rto-report",
-      "schedule": "0 9 * * 1"
-    },
-    {
       "path": "/api/cron/daily-goals-reminder",
       "schedule": "0 8 * * *"
     },

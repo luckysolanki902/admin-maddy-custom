@@ -3,6 +3,7 @@ import Order from '@/models/Order';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import User from '@/models/User';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -36,11 +37,12 @@ export async function GET(req) {
 
     const skip = (page - 1) * limit;
 
-    // Base query for RTO orders
+    // Base query for RTO orders - exclude pending/failed payments
     let baseQuery = {
       deliveryStatus: {
         $in: ['returned', 'returnInitiated', 'lost', 'undelivered', 'cancelled']
-      }
+      },
+      paymentStatus: { $nin: ['pending', 'failed'] }
     };
 
     // Apply date range filter
@@ -116,7 +118,7 @@ export async function GET(req) {
       const currentStart = dayjs(startDate);
       const currentEnd = dayjs(endDate);
       const periodDuration = currentEnd.diff(currentStart, 'days');
-      
+
       const previousStart = currentStart.subtract(periodDuration, 'days');
       const previousEnd = currentStart.subtract(1, 'day');
 
@@ -124,6 +126,7 @@ export async function GET(req) {
         deliveryStatus: {
           $in: ['returned', 'returnInitiated', 'lost', 'undelivered', 'cancelled']
         },
+        paymentStatus: { $nin: ['pending', 'failed'] },
         createdAt: {
           $gte: previousStart.toDate(),
           $lte: previousEnd.toDate()
@@ -172,41 +175,104 @@ export async function GET(req) {
       { $limit: 20 }
     ]);
 
-    // Get monthly RTO trend for the chart
-    const monthlyRtoTrend = await Order.aggregate([
+    // Determine granularity based on date range
+    let granularity = 'monthly'; // default
+    let groupBy = {
+      year: { $year: '$createdAt' },
+      month: { $month: '$createdAt' }
+    };
+    let sortBy = { '_id.year': 1, '_id.month': 1 };
+    let labelFormat = 'YYYY-MM';
+    let matchCondition = {
+      $expr: {
+        $and: [
+          { $eq: [{ $year: '$createdAt' }, '$$year'] },
+          { $eq: [{ $month: '$createdAt' }, '$$month'] }
+        ]
+      }
+    };
+
+    if (startDate && endDate) {
+      const start = dayjs(startDate);
+      const end = dayjs(endDate);
+      const diffDays = end.diff(start, 'days') + 1; // Include both start and end dates
+
+      if (diffDays <= 7) {
+        // Daily granularity for 7 days or less
+        granularity = 'daily';
+        groupBy = {
+          year: { $year: '$createdAt' },
+          month: { $month: '$createdAt' },
+          day: { $dayOfMonth: '$createdAt' }
+        };
+        sortBy = { '_id.year': 1, '_id.month': 1, '_id.day': 1 };
+        labelFormat = 'YYYY-MM-DD';
+        matchCondition = {
+          $expr: {
+            $and: [
+              { $eq: [{ $year: '$createdAt' }, '$$year'] },
+              { $eq: [{ $month: '$createdAt' }, '$$month'] },
+              { $eq: [{ $dayOfMonth: '$createdAt' }, '$$day'] }
+            ]
+          }
+        };
+      } else if (diffDays <= 60) {
+        // Weekly granularity for 8-60 days
+        granularity = 'weekly';
+        groupBy = {
+          year: { $year: '$createdAt' },
+          week: { $week: '$createdAt' }
+        };
+        sortBy = { '_id.year': 1, '_id.week': 1 };
+        labelFormat = 'YYYY-[W]WW';
+        matchCondition = {
+          $expr: {
+            $and: [
+              { $eq: [{ $year: '$createdAt' }, '$$year'] },
+              { $eq: [{ $week: '$createdAt' }, '$$week'] }
+            ]
+          }
+        };
+      }
+      // For more than 60 days, use monthly (default)
+    }
+
+    // Get RTO trend for the chart with flexible granularity
+    const rtoTrendData = await Order.aggregate([
       {
         $match: {
           deliveryStatus: {
             $in: ['returned', 'returnInitiated', 'lost', 'undelivered', 'cancelled']
           },
+          paymentStatus: { $nin: ['pending', 'failed'] },
           createdAt: {
-            $gte: dayjs().subtract(12, 'months').startOf('month').toDate(),
-            $lte: dayjs().endOf('month').toDate()
+            $gte: dayjs(startDate || dayjs().subtract(12, 'months').startOf('month')).toDate(),
+            $lte: dayjs(endDate || dayjs().endOf('month')).toDate()
           }
         }
       },
       {
         $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
+          _id: groupBy,
           rtoCount: { $sum: 1 }
         }
       },
       {
         $lookup: {
           from: 'orders',
-          let: { year: '$_id.year', month: '$_id.month' },
+          let: granularity === 'daily' 
+            ? { year: '$_id.year', month: '$_id.month', day: '$_id.day' }
+            : granularity === 'weekly' 
+            ? { year: '$_id.year', week: '$_id.week' }
+            : { year: '$_id.year', month: '$_id.month' },
           pipeline: [
             {
               $match: {
-                $expr: {
-                  $and: [
-                    { $eq: [{ $year: '$createdAt' }, '$$year'] },
-                    { $eq: [{ $month: '$createdAt' }, '$$month'] },
-                    { $nin: ['$paymentStatus', ['pending', 'failed']] }
-                  ]
+                ...matchCondition,
+                paymentStatus: { $nin: ['pending', 'failed'] },
+                createdAt: {
+                  $gte: dayjs(startDate || dayjs().subtract(12, 'months').startOf('month')).toDate(),
+                  $lte: dayjs(endDate || dayjs().endOf('month')).toDate()
                 }
               }
             },
@@ -217,19 +283,55 @@ export async function GET(req) {
       },
       {
         $project: {
-          month: {
-            $concat: [
-              { $toString: '$_id.year' },
-              '-',
-              {
-                $cond: {
-                  if: { $lt: ['$_id.month', 10] },
-                  then: { $concat: ['0', { $toString: '$_id.month' }] },
-                  else: { $toString: '$_id.month' }
-                }
+          period: granularity === 'daily' 
+            ? {
+                $concat: [
+                  { $toString: '$_id.year' },
+                  '-',
+                  {
+                    $cond: {
+                      if: { $lt: ['$_id.month', 10] },
+                      then: { $concat: ['0', { $toString: '$_id.month' }] },
+                      else: { $toString: '$_id.month' }
+                    }
+                  },
+                  '-',
+                  {
+                    $cond: {
+                      if: { $lt: ['$_id.day', 10] },
+                      then: { $concat: ['0', { $toString: '$_id.day' }] },
+                      else: { $toString: '$_id.day' }
+                    }
+                  }
+                ]
               }
-            ]
-          },
+            : granularity === 'weekly'
+            ? {
+                $concat: [
+                  { $toString: '$_id.year' },
+                  '-W',
+                  {
+                    $cond: {
+                      if: { $lt: ['$_id.week', 10] },
+                      then: { $concat: ['0', { $toString: '$_id.week' }] },
+                      else: { $toString: '$_id.week' }
+                    }
+                  }
+                ]
+              }
+            : {
+                $concat: [
+                  { $toString: '$_id.year' },
+                  '-',
+                  {
+                    $cond: {
+                      if: { $lt: ['$_id.month', 10] },
+                      then: { $concat: ['0', { $toString: '$_id.month' }] },
+                      else: { $toString: '$_id.month' }
+                    }
+                  }
+                ]
+              },
           rtoCount: 1,
           totalOrders: { $arrayElemAt: ['$totalOrdersData.totalOrders', 0] },
           rtoRate: {
@@ -242,10 +344,11 @@ export async function GET(req) {
               },
               100
             ]
-          }
+          },
+          granularity: { $literal: granularity }
         }
       },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
+      { $sort: sortBy }
     ]);
 
     // Add RTO reason to orders that don't have it (based on delivery status)
@@ -263,7 +366,11 @@ export async function GET(req) {
       rtoTrend: parseFloat(rtoTrend.toFixed(2)),
       topRtoReasons,
       rtosByState,
-      monthlyRtoTrend,
+      rtoTrendData: {
+        data: rtoTrendData,
+        granularity,
+        labelFormat
+      },
       rtoOrders: ordersWithReason,
       totalPages,
       currentPage: page,

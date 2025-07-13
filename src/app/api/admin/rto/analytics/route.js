@@ -32,50 +32,64 @@ export async function GET(req) {
       }
     };
 
-    // 1. Daily RTO Trend
-    const dailyRtoTrend = await Order.aggregate([
+    // Determine granularity based on date range
+    const diffDays = dayjs(endDate).diff(dayjs(startDate), 'days') + 1;
+    let granularity = 'monthly';
+    let dateFormat = '%Y-%m';
+    let sortField = '_id';
+
+    if (diffDays <= 7) {
+      granularity = 'daily';
+      dateFormat = '%Y-%m-%d';
+    } else if (diffDays <= 60) {
+      granularity = 'weekly';
+      dateFormat = '%Y-%U'; // Year-Week format
+    }
+
+    // RTO Trend with flexible granularity
+    const rtoTrend = await Order.aggregate([
       { $match: rtoQuery },
       {
         $group: {
           _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+            $dateToString: { format: dateFormat, date: "$createdAt" }
           },
           rtoCount: { $sum: 1 },
           rtoValue: { $sum: '$totalAmount' }
         }
       },
-      { $sort: { '_id': 1 } }
+      { $sort: { [sortField]: 1 } }
     ]);
 
-    // Get total orders for each day to calculate daily RTO rates
-    const dailyTotalOrders = await Order.aggregate([
+    // Get total orders for each period to calculate RTO rates
+    const totalOrdersByPeriod = await Order.aggregate([
       { $match: periodQuery },
       {
         $group: {
           _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+            $dateToString: { format: dateFormat, date: "$createdAt" }
           },
           totalCount: { $sum: 1 }
         }
       }
     ]);
 
-    // Merge daily data
-    const dailyTrendMap = new Map(dailyTotalOrders.map(d => [d._id, { ...d, rtoCount: 0, rtoValue: 0 }]));
-    dailyRtoTrend.forEach(d => {
-      if (dailyTrendMap.has(d._id)) {
-        dailyTrendMap.get(d._id).rtoCount = d.rtoCount;
-        dailyTrendMap.get(d._id).rtoValue = d.rtoValue;
+    // Merge trend data
+    const trendMap = new Map(totalOrdersByPeriod.map(d => [d._id, { ...d, rtoCount: 0, rtoValue: 0 }]));
+    rtoTrend.forEach(d => {
+      if (trendMap.has(d._id)) {
+        trendMap.get(d._id).rtoCount = d.rtoCount;
+        trendMap.get(d._id).rtoValue = d.rtoValue;
       }
     });
 
-    const dailyAnalytics = Array.from(dailyTrendMap.values()).map(d => ({
-      date: d._id,
+    const trendAnalytics = Array.from(trendMap.values()).map(d => ({
+      period: d._id,
       totalOrders: d.totalCount,
       rtoCount: d.rtoCount,
       rtoValue: d.rtoValue,
       rtoRate: d.totalCount > 0 ? (d.rtoCount / d.totalCount) * 100 : 0
-    })).sort((a, b) => a.date.localeCompare(b.date));
+    })).sort((a, b) => a.period.localeCompare(b.period));
 
     // 2. RTO by Order Value Ranges
     const rtoByValueRange = await Order.aggregate([
@@ -276,7 +290,11 @@ export async function GET(req) {
         recoveredValue: rtoRecovery[0]?.recoveredValue || 0
       },
       analytics: {
-        dailyTrend: dailyAnalytics,
+        trend: {
+          data: trendAnalytics,
+          granularity,
+          dateFormat
+        },
         valueRangeAnalysis: rtoByValueRange,
         itemsCountAnalysis: rtoByItemsCount,
         utmSourceAnalysis: rtoByUtmSource,

@@ -110,5 +110,73 @@ export const emailTemplates = {
         <p style="margin-top: 20px; font-size: 12px; color: #666;">This is an automated notification from MaddyCustom Feature Request System.</p>
       </div>
     `
+  }),
+
+  // Daily goals reminder
+  dailyGoalsReminder: (goals, department) => ({
+    subject: `Daily Goals Update - ${department}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <h2 style="color: #333;">Daily Goals Update - ${department}</h2>
+        <p>Here are your pending goals for the ${department} department:</p>
+        <div style="margin: 20px 0;">
+          ${goals.map(goal => `
+            <div style="background-color: #f9f9f9; padding: 15px; margin: 10px 0; border-radius: 6px; border-left: 4px solid #007bff;">
+              <h4 style="margin: 0 0 10px 0; color: #333;">${goal.title}</h4>
+              ${goal.description ? `<p style="margin: 5px 0; color: #666;">${goal.description}</p>` : ''}
+              <p style="margin: 5px 0; font-size: 14px;"><strong>Deadline:</strong> ${new Date(goal.deadline).toLocaleDateString()}</p>
+              <p style="margin: 5px 0; font-size: 14px;"><strong>Status:</strong> ${goal.isCompleted ? 'Completed' : 'Pending'}</p>
+            </div>
+          `).join('')}
+        </div>
+        <p style="margin-top: 20px; font-size: 12px; color: #666;">This is an automated daily reminder from MaddyCustom Goals System.</p>
+      </div>
+    `
+  }),
+
+  // Deadline warning
+  deadlineWarning: (goals, department) => ({
+    subject: `⚠️ Goal Deadline Alert - ${department}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <h2 style="color: #ff6b35;">⚠️ Goal Deadline Alert - ${department}</h2>
+        <p>The following goals have deadlines today:</p>
+        <div style="margin: 20px 0;">
+          ${goals.map(goal => `
+            <div style="background-color: #fff3cd; padding: 15px; margin: 10px 0; border-radius: 6px; border-left: 4px solid #ff6b35;">
+              <h4 style="margin: 0 0 10px 0; color: #333;">${goal.title}</h4>
+              ${goal.description ? `<p style="margin: 5px 0; color: #666;">${goal.description}</p>` : ''}
+              <p style="margin: 5px 0; font-size: 14px; color: #ff6b35;"><strong>Deadline: TODAY</strong></p>
+            </div>
+          `).join('')}
+        </div>
+        <p style="margin-top: 20px; font-size: 12px; color: #666;">This is an automated deadline alert from MaddyCustom Goals System.</p>
+      </div>
+    `
+  }),
+
+  // Overdue goals
+  overdueGoals: (goals, department) => ({
+    subject: `🚨 Overdue Goals Alert - ${department}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <h2 style="color: #dc3545;">🚨 Overdue Goals Alert - ${department}</h2>
+        <p>The following goals have exceeded their deadlines:</p>
+        <div style="margin: 20px 0;">
+          ${goals.map(goal => {
+            const daysOverdue = Math.floor((new Date() - new Date(goal.deadline)) / (1000 * 60 * 60 * 24));
+            return `
+              <div style="background-color: #f8d7da; padding: 15px; margin: 10px 0; border-radius: 6px; border-left: 4px solid #dc3545;">
+                <h4 style="margin: 0 0 10px 0; color: #333;">${goal.title}</h4>
+                ${goal.description ? `<p style="margin: 5px 0; color: #666;">${goal.description}</p>` : ''}
+                <p style="margin: 5px 0; font-size: 14px; color: #dc3545;"><strong>Overdue by ${daysOverdue} day(s)</strong></p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>Original Deadline:</strong> ${new Date(goal.deadline).toLocaleDateString()}</p>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <p style="margin-top: 20px; font-size: 12px; color: #666;">This is an automated overdue alert from MaddyCustom Goals System.</p>
+      </div>
+    `
   })
 };

@@ -31,7 +31,7 @@ export default function Home() {
 
           <StatusContainer />
           <DepartmentLinks />
-          <RecentCommits repoName={"maddycustom-production"} repoOwner={"Maddy-Custom"} />
+          {/* <RecentCommits repoName={"maddycustom-production"} repoOwner={"Maddy-Custom"} /> */}
           <Button
             sx={{ my: 2 }}
             onClick={() => {

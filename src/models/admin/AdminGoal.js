@@ -15,20 +15,6 @@ const GoalHistorySchema = new mongoose.Schema(
       },
     },
 
-    oldValue: {
-      type: Object,
-      required: function () {
-        return this.type === "edit";
-      },
-    },
-
-    newValue: {
-      type: Object,
-      required: function () {
-        return this.type === "edit";
-      },
-    },
-
     modifiedAt: {
       type: Date,
       default: Date.now,

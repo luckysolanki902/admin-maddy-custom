@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Box,
   Typography,
@@ -14,8 +14,14 @@ import {
   Container,
   Divider,
   Skeleton,
+  InputAdornment,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
+import {
+  Add as AddIcon,
+  CalendarToday as CalendarIcon,
+  Description as DescriptionIcon,
+  Title as TitleIcon,
+} from "@mui/icons-material";
 import Goals from "@/components/goals/Goals";
 import { useUser } from "@clerk/nextjs";
 
@@ -27,6 +33,10 @@ export default function AdminGoalsPage({ department }) {
   const [newDesc, setNewDesc] = useState("");
   const [newDeadline, setNewDeadline] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const titleRef = useRef(null);
+  const descRef = useRef(null);
+  const deadlineRef = useRef(null);
 
   const { user } = useUser();
   const isAllowed = user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com" || user?.primaryEmailAddress?.emailAddress === "luckysolanki902@gmail.com";
@@ -50,6 +60,30 @@ export default function AdminGoalsPage({ department }) {
 
   const handleAddGoal = async () => {
     setIsSubmitting(true);
+    
+    // Create optimistic goal with temporary ID
+    const tempId = `temp_${Date.now()}`;
+    const optimisticGoal = {
+      _id: tempId,
+      title: newTitle,
+      description: newDesc,
+      department,
+      deadline: newDeadline ? new Date(newDeadline).toISOString() : null,
+      isCompleted: false,
+      createdAt: new Date().toISOString(),
+      history: [{
+        type: "created",
+        modifiedAt: new Date().toISOString(),
+        performedBy: {
+          clerkUserId: user.id,
+          name: user.fullName,
+        },
+      }],
+    };
+
+    // Optimistic update - immediately add to UI
+    setGoals(prev => [optimisticGoal, ...prev]);
+
     try {
       const res = await fetch("/api/goals", {
         method: "POST",
@@ -65,17 +99,45 @@ export default function AdminGoalsPage({ department }) {
       const data = await res.json();
 
       if (res.ok) {
-        setGoals(prev => [data.goal, ...prev]);
+        // Replace optimistic goal with real server response
+        setGoals(prev => prev.map(g => 
+          g._id === tempId ? data.goal : g
+        ));
         setNewTitle("");
         setNewDesc("");
         setNewDeadline("");
         setOpenDialog(false);
+      } else {
+        // Remove optimistic goal on error
+        setGoals(prev => prev.filter(g => g._id !== tempId));
+        console.error("Add goal failed:", data.message);
       }
     } catch (err) {
+      // Remove optimistic goal on network error
+      setGoals(prev => prev.filter(g => g._id !== tempId));
       console.error("Add goal failed", err);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleKeyPress = (event, nextRef) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (nextRef) {
+        nextRef.current?.focus();
+      } else {
+        handleAddGoal();
+      }
+    }
+  };
+
+  const handleDialogOpen = () => {
+    setOpenDialog(true);
+    // Focus on title field after dialog opens
+    setTimeout(() => {
+      titleRef.current?.focus();
+    }, 100);
   };
 
   return (
@@ -99,15 +161,16 @@ export default function AdminGoalsPage({ department }) {
                 fontWeight: "bold",
                 textTransform: "capitalize",
                 fontFamily: "Jost, Arial, sans-serif",
+                color: "text.primary",
               }}
             >
-              🎯 {department} Goals
+              {department} Goals
             </Typography>
 
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => setOpenDialog(true)}
+              onClick={handleDialogOpen}
               disabled={!isAllowed}
               sx={{
                 ...(isAllowed ? {} : { display: "none" }),
@@ -117,6 +180,10 @@ export default function AdminGoalsPage({ department }) {
                 py: 2,
                 mt: { xs: 2, md: 0 },
                 alignSelf: { xs: "stretch", sm: "stretch", md: "unset" },
+                bgcolor: "primary.main",
+                "&:hover": {
+                  bgcolor: "primary.dark",
+                },
               }}
             >
               Add Goal
@@ -150,47 +217,123 @@ export default function AdminGoalsPage({ department }) {
                   fontWeight: "medium",
                 }}
               >
-                <i>No goals yet</i> 🥲
+                No goals yet
               </Typography>
             </Box>
           )}
         </Container>
 
-        <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>📝 Create a New Goal</DialogTitle>
+        <Dialog 
+          open={openDialog} 
+          onClose={() => setOpenDialog(false)} 
+          maxWidth="sm" 
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+            }
+          }}
+        >
+          <DialogTitle sx={{ pb: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <AddIcon color="primary" />
+              <Typography variant="h6" component="span">
+                Create New Goal
+              </Typography>
+            </Box>
+          </DialogTitle>
           <Divider />
-          <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 2 }}>
-            <TextField
-              label="Goal Title"
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              fullWidth
-              disabled={isSubmitting}
-            />
-            <TextField
-              label="Description"
-              value={newDesc}
-              onChange={e => setNewDesc(e.target.value)}
-              fullWidth
-              multiline
-              minRows={3}
-              disabled={isSubmitting}
-            />
-            <TextField
-              label="Deadline"
-              type="date"
-              value={newDeadline}
-              onChange={e => setNewDeadline(e.target.value)}
-              fullWidth
-              disabled={isSubmitting}
-              InputLabelProps={{ shrink: true }}
-            />
+          <DialogContent sx={{ pt: 3 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <TextField
+                inputRef={titleRef}
+                label="Goal Title"
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                onKeyPress={e => handleKeyPress(e, descRef)}
+                fullWidth
+                disabled={isSubmitting}
+                autoFocus
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <TitleIcon color="action" fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2,
+                  },
+                }}
+              />
+              
+              <TextField
+                inputRef={descRef}
+                label="Description"
+                value={newDesc}
+                onChange={e => setNewDesc(e.target.value)}
+                onKeyPress={e => handleKeyPress(e, deadlineRef)}
+                fullWidth
+                multiline
+                minRows={3}
+                disabled={isSubmitting}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start" sx={{ alignSelf: "flex-start", mt: 1 }}>
+                      <DescriptionIcon color="action" fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2,
+                  },
+                }}
+              />
+              
+              <TextField
+                inputRef={deadlineRef}
+                label="Deadline"
+                type="date"
+                value={newDeadline}
+                onChange={e => setNewDeadline(e.target.value)}
+                onKeyPress={e => handleKeyPress(e, null)}
+                fullWidth
+                disabled={isSubmitting}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <CalendarIcon color="action" fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2,
+                  },
+                }}
+              />
+            </Box>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)} disabled={isSubmitting}>
+          <DialogActions sx={{ p: 3, pt: 2 }}>
+            <Button 
+              onClick={() => setOpenDialog(false)} 
+              disabled={isSubmitting}
+              sx={{ borderRadius: 2 }}
+            >
               Cancel
             </Button>
-            <Button onClick={handleAddGoal} variant="contained" disabled={!newTitle.trim() || isSubmitting}>
+            <Button 
+              onClick={handleAddGoal} 
+              variant="contained" 
+              disabled={!newTitle.trim() || isSubmitting}
+              sx={{ 
+                borderRadius: 2,
+                minWidth: 80,
+              }}
+            >
               {isSubmitting ? "Adding..." : "Add"}
             </Button>
           </DialogActions>

@@ -9,9 +9,6 @@ export async function PATCH(req, { params }) {
   try {
     const currUser = await currentUser();
 
-    if (currUser.primaryEmailAddress.emailAddress !== "priyanshuyadav0404@gmail.com" && currUser.primaryEmailAddress.emailAddress !== "luckysolanki902@gmail.com") {
-      return new Response("Unauthorized", { status: 403 });
-    }
 
     await connectToDatabase();
 

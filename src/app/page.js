@@ -6,7 +6,7 @@ import StatusContainer from "@/components/page-sections/home/StatusContainer";
 import DepartmentLinks from "@/components/page-sections/home/DepartmentLinks";
 import styles from "./page.module.css";
 // import Target from '@/components/page-sections/home/Target';
-import RecentCommits from "@/components/page-sections/home/RecentCommits";
+// import RecentCommits from "@/components/page-sections/home/RecentCommits";
 import { Button } from "@mui/material";
 import { useRouter } from "next/navigation";
 

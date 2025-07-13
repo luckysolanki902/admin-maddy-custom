@@ -267,7 +267,7 @@ export default function Goals({ goals, setGoals, isAllowed }) {
                 }}>
                   <IconButton
                     size="small"
-                    disabled={!isAllowed || isToggling || isOptimistic}
+                    disabled={ isToggling || isOptimistic}
                     onClick={() => handleToggle(goal._id, !goal.isCompleted)}
                     sx={{ 
                       transition: "all 0.2s ease-in-out",

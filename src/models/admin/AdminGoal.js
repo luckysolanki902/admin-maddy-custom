@@ -7,6 +7,7 @@ const GoalHistorySchema = new mongoose.Schema(
       enum: ["status", "edit", "created"],
       required: true,
     },
+    
 
     status: {
       type: Boolean,

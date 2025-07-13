@@ -255,16 +255,23 @@ export default function Goals({ goals, setGoals, isAllowed }) {
                   "&:hover": {
                     bgcolor: goal.isCompleted ? "action.selected" : "action.hover",
                   },
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 2,
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "flex-start", mr: 2 }}>
+                {/* Checkbox Section - Fixed Width */}
+                <Box sx={{ 
+                  flexShrink: 0,
+                  pt: 0.5,
+                }}>
                   <IconButton
                     size="small"
                     disabled={!isAllowed || isToggling || isOptimistic}
                     onClick={() => handleToggle(goal._id, !goal.isCompleted)}
                     sx={{ 
-                      mt: 0.5,
                       transition: "all 0.2s ease-in-out",
+                      p: 0.5,
                     }}
                   >
                     {goal.isCompleted ? (
@@ -289,102 +296,179 @@ export default function Goals({ goals, setGoals, isAllowed }) {
                   </IconButton>
                 </Box>
 
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                {/* Content Section - Flexible Width */}
+                <Box sx={{ 
+                  flex: 1, 
+                  minWidth: 0, // Allows text to truncate properly
+                  pr: { xs: 1, sm: 2 },
+                }}>
+                  {/* Title and Chip Row */}
+                  <Box sx={{ 
+                    display: "flex", 
+                    alignItems: { xs: "flex-start", sm: "center" }, 
+                    gap: 1, 
+                    mb: 1,
+                    flexDirection: { xs: "column", sm: "row" },
+                  }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        textDecoration: goal.isCompleted ? "line-through" : "none",
+                        opacity: goal.isCompleted ? 0.7 : 1,
+                        fontWeight: 500,
+                        fontSize: { xs: "1rem", sm: "1.25rem" },
+                        lineHeight: 1.2,
+                        wordBreak: "break-word",
+                        flex: { sm: 1 },
+                      }}
+                    >
+                      {goal.title}
+                    </Typography>
+                    {goal.deadline && (
+                      <Box sx={{ flexShrink: 0 }}>
+                        {getDeadlineChip(goal.deadline, goal.isCompleted)}
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Description and Deadline Info */}
+                  <Box>
+                    {goal.description && (
                       <Typography
-                        variant="h6"
+                        variant="body2"
+                        color="text.secondary"
                         sx={{
-                          textDecoration: goal.isCompleted ? "line-through" : "none",
+                          mb: 1,
                           opacity: goal.isCompleted ? 0.7 : 1,
-                          fontWeight: 500,
+                          wordBreak: "break-word",
+                          lineHeight: 1.4,
                         }}
                       >
-                        {goal.title}
+                        {goal.description}
                       </Typography>
-                      {goal.deadline && getDeadlineChip(goal.deadline, goal.isCompleted)}
-                    </Box>
-                  }
-                  secondary={
-                    <Box>
-                      {goal.description && (
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{
-                            mb: 1,
-                            opacity: goal.isCompleted ? 0.7 : 1,
-                          }}
-                        >
-                          {goal.description}
-                        </Typography>
-                      )}
-                      {goal.deadline && (
-                        <Typography variant="caption" color="text.secondary">
-                          Deadline: {new Date(goal.deadline).toLocaleDateString()}
-                        </Typography>
-                      )}
-                    </Box>
-                  }
-                  sx={{ flex: 1 }}
-                />
+                    )}
+                    {goal.deadline && (
+                      <Typography 
+                        variant="caption" 
+                        color="text.secondary"
+                        sx={{ 
+                          display: "block",
+                          fontSize: { xs: "0.7rem", sm: "0.75rem" },
+                        }}
+                      >
+                        Deadline: {new Date(goal.deadline).toLocaleDateString()}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
 
+                {/* Actions Section - Fixed Width */}
                 {isAllowed && (
-                  <ListItemSecondaryAction>
-                    <Box sx={{ display: "flex", gap: 0.5 }}>
-                      <IconButton
-                        size="small"
-                        onClick={() => openEditDialog(goal)}
-                        disabled={!isAllowed || isToggling || isOptimistic}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteGoal(goal._id)}
-                        disabled={!isAllowed || isToggling || isOptimistic}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => setExpandedGoalId(isExpanded ? null : goal._id)}
-                        disabled={!isAllowed || isToggling || isOptimistic}
-                      >
-                        {isExpanded ? <ExpandLessIcon fontSize="small" /> : <HistoryIcon fontSize="small" />}
-                      </IconButton>
-                    </Box>
-                  </ListItemSecondaryAction>
+                  <Box sx={{ 
+                    flexShrink: 0,
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    gap: { xs: 0.5, sm: 0.5 },
+                    alignItems: "center",
+                  }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => openEditDialog(goal)}
+                      disabled={!isAllowed || isToggling || isOptimistic}
+                      sx={{ 
+                        p: { xs: 0.75, sm: 0.5 },
+                        minWidth: "auto",
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteGoal(goal._id)}
+                      disabled={!isAllowed || isToggling || isOptimistic}
+                      sx={{ 
+                        p: { xs: 0.75, sm: 0.5 },
+                        minWidth: "auto",
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => setExpandedGoalId(isExpanded ? null : goal._id)}
+                      disabled={!isAllowed || isToggling || isOptimistic}
+                      sx={{ 
+                        p: { xs: 0.75, sm: 0.5 },
+                        minWidth: "auto",
+                      }}
+                    >
+                      {isExpanded ? <ExpandLessIcon fontSize="small" /> : <HistoryIcon fontSize="small" />}
+                    </IconButton>
+                  </Box>
                 )}
               </ListItem>
 
               <Collapse in={isExpanded}>
-                <Box sx={{ px: 3, py: 2, bgcolor: "action.hover" }}>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
+                <Box sx={{ 
+                  px: { xs: 2, sm: 3 }, 
+                  py: 2, 
+                  bgcolor: "action.hover" 
+                }}>
+                  <Typography 
+                    variant="subtitle2" 
+                    color="text.secondary" 
+                    sx={{ 
+                      mb: 1, 
+                      fontWeight: 600,
+                      fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                    }}
+                  >
                     Activity History
                   </Typography>
                   {goal.history.length === 0 ? (
-                    <Typography variant="body2" color="text.disabled">
+                    <Typography 
+                      variant="body2" 
+                      color="text.disabled"
+                      sx={{ fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
+                    >
                       No activity yet
                     </Typography>
                   ) : (
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Box sx={{ 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      gap: { xs: 1, sm: 1.5 },
+                    }}>
                       {goal.history.map((h, idx) => (
                         <Box
                           key={idx}
                           sx={{
                             display: "flex",
-                            alignItems: "center",
-                            gap: 2,
-                            p: 1.5,
+                            flexDirection: { xs: "column", sm: "row" },
+                            alignItems: { xs: "stretch", sm: "center" },
+                            gap: { xs: 1, sm: 2 },
+                            p: { xs: 1, sm: 1.5 },
                             bgcolor: "background.paper",
                             borderRadius: 1,
                             border: "1px solid",
                             borderColor: "divider",
                           }}
                         >
-                          <Box sx={{ minWidth: 0, flex: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          <Box sx={{ 
+                            minWidth: 0, 
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: { xs: "column", sm: "row" },
+                            alignItems: { xs: "flex-start", sm: "center" },
+                            gap: { xs: 0.5, sm: 2 },
+                          }}>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                fontWeight: 500,
+                                fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                              }}
+                            >
                               {h.type === "status"
                                 ? h.status
                                   ? "Completed"
@@ -393,7 +477,14 @@ export default function Goals({ goals, setGoals, isAllowed }) {
                                 ? "Edited"
                                 : "Created"}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography 
+                              variant="caption" 
+                              color="text.secondary"
+                              sx={{
+                                fontSize: { xs: "0.7rem", sm: "0.75rem" },
+                                lineHeight: 1.2,
+                              }}
+                            >
                               by {h.performedBy.name} on{" "}
                               {new Date(h.modifiedAt).toLocaleDateString()} at{" "}
                               {new Date(h.modifiedAt).toLocaleTimeString([], {

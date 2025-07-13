@@ -143,16 +143,16 @@ export default function AdminGoalsPage({ department }) {
   return (
     <>
       <CssBaseline />
-      <Box sx={{ minHeight: "100vh", bgcolor: "background.default", pt: 8, pb: 4, px: 2 }}>
-        <Container maxWidth={{ xs: "md", lg: "md" }}>
+      <Box sx={{ minHeight: "100vh", bgcolor: "background.default", pt: 8, pb: 4, px: { xs: 1, sm: 2 } }}>
+        <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
           <Box
             sx={{
               display: "flex",
               flexDirection: { xs: "column", sm: "column", md: "row" },
               justifyContent: "space-between",
               alignItems: { xs: "flex-start", md: "center" },
-              mb: 4,
-              gap: 2,
+              mb: { xs: 3, sm: 4 },
+              gap: { xs: 2, sm: 2, md: 2 },
             }}
           >
             <Typography
@@ -162,6 +162,8 @@ export default function AdminGoalsPage({ department }) {
                 textTransform: "capitalize",
                 fontFamily: "Jost, Arial, sans-serif",
                 color: "text.primary",
+                fontSize: { xs: "1.75rem", sm: "2.125rem", md: "3rem" },
+                lineHeight: 1.2,
               }}
             >
               {department} Goals
@@ -176,11 +178,12 @@ export default function AdminGoalsPage({ department }) {
                 ...(isAllowed ? {} : { display: "none" }),
                 borderRadius: 2,
                 fontWeight: 600,
-                px: 3,
-                py: 2,
-                mt: { xs: 2, md: 0 },
-                alignSelf: { xs: "stretch", sm: "stretch", md: "unset" },
+                px: { xs: 2, sm: 3 },
+                py: { xs: 1.5, sm: 2 },
+                mt: { xs: 1, md: 0 },
+                alignSelf: { xs: "stretch", sm: "flex-start", md: "unset" },
                 bgcolor: "primary.main",
+                fontSize: { xs: "0.875rem", sm: "1rem" },
                 "&:hover": {
                   bgcolor: "primary.dark",
                 },
@@ -191,23 +194,34 @@ export default function AdminGoalsPage({ department }) {
           </Box>
 
           {loading ? (
-            <>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {[1, 2, 3].map(i => (
-                <Skeleton key={i} variant="rectangular" height={80} sx={{ mb: 2, borderRadius: 2 }} />
+                <Skeleton 
+                  key={i} 
+                  variant="rectangular" 
+                  height={{ xs: 100, sm: 80 }} 
+                  sx={{ 
+                    borderRadius: 2,
+                    bgcolor: "action.hover",
+                  }} 
+                />
               ))}
-            </>
+            </Box>
           ) : goals.length ? (
             <Goals isAllowed={isAllowed} goals={goals} setGoals={setGoals} />
           ) : (
             <Box
               sx={{
                 display: "flex",
+                flexDirection: "column",
                 justifyContent: "center",
                 alignItems: "center",
-                height: 200,
+                minHeight: { xs: 200, sm: 250 },
                 bgcolor: "background.paper",
                 borderRadius: 2,
                 boxShadow: 1,
+                p: { xs: 3, sm: 4 },
+                textAlign: "center",
               }}
             >
               <Typography
@@ -215,9 +229,20 @@ export default function AdminGoalsPage({ department }) {
                 sx={{
                   color: "text.secondary",
                   fontWeight: "medium",
+                  fontSize: { xs: "1.25rem", sm: "1.5rem" },
+                  mb: 1,
                 }}
               >
                 No goals yet
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  fontSize: { xs: "0.875rem", sm: "1rem" },
+                }}
+              >
+                Create your first goal to get started
               </Typography>
             </Box>
           )}

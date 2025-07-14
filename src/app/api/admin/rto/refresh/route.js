@@ -30,7 +30,6 @@ export async function POST(req) {
       }
     }).lean();
 
-    console.log(`Found ${ordersToCheck.length} orders to check for RTO updates`);
 
     // Sync with Shiprocket data
     try {
@@ -39,7 +38,6 @@ export async function POST(req) {
         dayjs(endDate).toDate()
       );
 
-      console.log(`Retrieved ${shiprocketOrders.length} orders from Shiprocket`);
 
       // Create a map of Shiprocket orders by order_id for quick lookup
       const shiprocketMap = new Map();
@@ -196,7 +194,6 @@ async function identifyPotentialRTOs(startDate, endDate) {
       });
     }
 
-    console.log(`Flagged ${suspiciousOrders.length} orders as potential RTOs for review`);
 
   } catch (error) {
     console.error('Error identifying potential RTOs:', error);

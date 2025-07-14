@@ -35,6 +35,7 @@ dayjs.extend(timezone);
  * - utmTerm: String
  * - utmContent: String
  * - variants: Comma-separated String of SpecificCategoryVariant IDs
+ * - specificCategories: Comma-separated String of SpecificCategory IDs
  * - onlyIncludeSelectedVariants: Boolean
  * - singleVariantOnly: Boolean
  * - singleItemCountOnly: Boolean
@@ -61,6 +62,7 @@ export async function GET(req) {
     const utmTerm = searchParams.get('utmTerm') || '';
     const utmContent = searchParams.get('utmContent') || '';
     const variantsParam = searchParams.get('variants') || ''; // Consistent naming
+    const specificCategoriesParam = searchParams.get('specificCategories') || '';
     const onlyIncludeSelectedVariants = searchParams.get('onlyIncludeSelectedVariants') === 'true';
     const singleVariantOnly = searchParams.get('singleVariantOnly') === 'true';
     const singleItemCountOnly = searchParams.get('singleItemCountOnly') === 'true';
@@ -206,6 +208,27 @@ export async function GET(req) {
             1
           ]
         };
+      }
+    }
+
+    // Apply Specific Category Filters
+    if (specificCategoriesParam) {
+      const specCatIds = specificCategoriesParam.split(',').filter(id => mongoose.Types.ObjectId.isValid(id));
+      if (specCatIds.length > 0) {
+        // Fetch Products that have specificCategory in specCatIds
+        const products = await Product.find({
+          specificCategory: { $in: specCatIds }
+        }).select('_id').lean();
+
+        const productIdsFromSpecCats = products.map(product => product._id);
+
+        if (productIdsFromSpecCats.length === 0) {
+          // If no products match the specific categories, return no results
+          baseQuery['items.product'] = { $in: [] };
+        } else {
+          // Include orders that have any product from the selected specific categories
+          baseQuery['items.product'] = { $in: productIdsFromSpecCats };
+        }
       }
     }
 

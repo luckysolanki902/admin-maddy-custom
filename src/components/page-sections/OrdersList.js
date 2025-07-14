@@ -181,10 +181,6 @@ const OrdersList = ({
     return '0.00';
   })();
   useEffect(() => {
-    console.log('Debug - cacData:', cacData);
-    console.log('Debug - cacData.checkoutToPurchaseRatio:', cacData.checkoutToPurchaseRatio);
-    console.log('Debug - typeof cacData.checkoutToPurchaseRatio:', typeof cacData.checkoutToPurchaseRatio);
-    console.log('Debug - calculated checkoutToPurchaseRatio:', checkoutToPurchaseRatio);
   }, [cacData, checkoutToPurchaseRatio]);
   // Essential metrics for closed state - updated per requirements
   const essentialMetrics = [

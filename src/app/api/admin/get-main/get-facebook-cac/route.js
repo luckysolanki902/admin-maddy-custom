@@ -61,7 +61,6 @@ export async function POST(req) {
     // Fetch Data from Meta Ads API
     const response = await fetch(url);
     const data = await response.json();
-console.log('data flattened from all arrays and objects nested is:', JSON.stringify(data, null, 2));
     if (response.ok) {
       // Check if data is present
       if (!data.data || data.data.length === 0) {

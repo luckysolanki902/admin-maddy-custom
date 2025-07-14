@@ -47,6 +47,9 @@ const FiltersDrawer = ({
   variants,
   selectedVariants,
   setSelectedVariants,
+  specificCategories,
+  selectedSpecificCategories,
+  setSelectedSpecificCategories,
   onlyIncludeSelectedVariants,
   setOnlyIncludeSelectedVariants,
   singleVariantOnly,
@@ -61,35 +64,22 @@ const FiltersDrawer = ({
   const isSyncButtonVisible =
     paymentStatusFilter === 'successful' && shiprocketFilter === 'pending';
 
-  const handleVariantChange = variantId => event => {
+  const handleSpecCategoryChange = specCatId => event => {
     const checked = event.target.checked;
-    if (singleVariantOnly) {
-      if (checked) {
-        if (selectedVariants.length === 1) {
-          setSnackbarMessage('Only one variant can be selected.');
-          setOpenSnackbar(true);
-        } else {
-          setSelectedVariants([variantId]);
-        }
-      } else {
-        setSelectedVariants(selectedVariants.filter(id => id !== variantId));
-      }
+    if (checked) {
+      setSelectedSpecificCategories(prev => [...prev, specCatId]);
+      
+      // Automatically select all variants from this specific category
+      const categoryVariants = variants.filter(v => v.specificCategory?._id === specCatId);
+      const variantIds = categoryVariants.map(v => v._id);
+      setSelectedVariants(prev => [...new Set([...prev, ...variantIds])]);
     } else {
-      if (checked) {
-        setSelectedVariants(prev => [...prev, variantId]);
-      } else {
-        setSelectedVariants(prev => prev.filter(id => id !== variantId));
-      }
-    }
-  };
-
-  const handleSingleVariantSwitch = event => {
-    const on = event.target.checked;
-    setSingleVariantOnly(on);
-    if (on && selectedVariants.length > 1) {
-      setSelectedVariants([]);
-      setSnackbarMessage('Multiple variants deselected. Only one now.');
-      setOpenSnackbar(true);
+      setSelectedSpecificCategories(prev => prev.filter(id => id !== specCatId));
+      
+      // Remove all variants from this specific category
+      const categoryVariants = variants.filter(v => v.specificCategory?._id === specCatId);
+      const variantIds = categoryVariants.map(v => v._id);
+      setSelectedVariants(prev => prev.filter(id => !variantIds.includes(id)));
     }
   };
 
@@ -188,50 +178,44 @@ const FiltersDrawer = ({
 
       <Accordion sx={{ bgcolor: '#2C2C2C', color: 'white', mt: 2 }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: 'white' }} />}>
-          <Typography>Variant Filters</Typography>
+          <Typography>Specific Category Filters</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <FormGroup>
-            {variants.length === 0
-              ? <Typography>No variants available.</Typography>
-              : variants.map(v => (
-                  <FormControlLabel
-                    key={v._id}
-                    control={
-                      <Checkbox
-                        checked={selectedVariants.includes(v._id)}
-                        onChange={handleVariantChange(v._id)}
-                        sx={{
-                          color: 'white',
-                          '&.Mui-checked': { color: '#2D7EE8' },
-                        }}
-                      />
-                    }
-                    label={v.name}
-                  />
-                ))
+            {specificCategories.length === 0
+              ? <Typography>No specific categories available.</Typography>
+              : specificCategories.map(cat => {
+                  const categoryVariants = variants.filter(v => v.specificCategory?._id === cat._id);
+                  const selectedCategoryVariants = selectedVariants.filter(vId => 
+                    categoryVariants.some(cv => cv._id === vId)
+                  );
+                  
+                  return (
+                    <FormControlLabel
+                      key={cat._id}
+                      control={
+                        <Checkbox
+                          checked={selectedSpecificCategories.includes(cat._id)}
+                          onChange={handleSpecCategoryChange(cat._id)}
+                          sx={{
+                            color: 'white',
+                            '&.Mui-checked': { color: '#2D7EE8' },
+                          }}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography>{cat.name}</Typography>
+                          {/* <Typography variant="caption" sx={{ color: '#999' }}>
+                            {selectedCategoryVariants.length} of {categoryVariants.length} variants selected
+                          </Typography> */}
+                        </Box>
+                      }
+                    />
+                  );
+                })
             }
           </FormGroup>
-          <Box mt={2}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={onlyIncludeSelectedVariants}
-                  onChange={e => setOnlyIncludeSelectedVariants(e.target.checked)}
-                />
-              }
-              label="Only Include Selected"
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={singleVariantOnly}
-                  onChange={handleSingleVariantSwitch}
-                />
-              }
-              label="Single Variant"
-            />
-          </Box>
         </AccordionDetails>
       </Accordion>
 

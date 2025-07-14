@@ -82,6 +82,10 @@ const OrderListFull = ({ isAdmin }) => {
   const [singleVariantOnly, setSingleVariantOnly] = useState(false);
   const [singleItemCountOnly, setSingleItemCountOnly] = useState(false);
 
+  // Specific Category filters
+  const [specificCategories, setSpecificCategories] = useState([]);
+  const [selectedSpecificCategories, setSelectedSpecificCategories] = useState([]);
+
   // Problematic orders
   const [selectedProblematicFilter, setSelectedProblematicFilter] = useState('');
   const [problematicOrderData, setProblematicOrderData] = useState({ orders: [], totalOrders: 0, totalPages: 1, totalItems: 0 });
@@ -110,18 +114,46 @@ const OrderListFull = ({ isAdmin }) => {
   // Variant snackbar
   const [variantSnackbar, setVariantSnackbar] = useState({ open: false, message: '', severity: 'warning' });
 
-  // Refs to prevent duplicate UTM/variant fetches
+  // Refs to prevent duplicate UTM/variant/spec cat fetches
   const hasFetchedVariants = useRef(false);
   const hasFetchedUTM = useRef(false);
+  const hasFetchedSpecCategories = useRef(false);
 
   /*****************************************************
-   * Fetch Variants when FiltersDrawer opens
+   * Fetch Variants and Specific Categories when FiltersDrawer opens
    *****************************************************/
   useEffect(() => {
     if (!isFiltersDrawerOpen || hasFetchedVariants.current) return;
+    
+    // Fetch grouped variants and specific categories
     fetch('/api/admin/get-main/get-category-variants')
       .then(res => res.json().then(data => {
-        if (res.ok) setVariants(data);
+        if (res.ok) {
+          // Extract all variants from grouped data
+          const allVariants = [];
+          const specCategories = [];
+          
+          data.forEach(group => {
+            specCategories.push({
+              _id: group.id,
+              name: group.name
+            });
+            group.options.forEach(variant => {
+              allVariants.push({
+                _id: variant.id,
+                name: variant.name,
+                thumbnail: variant.thumbnail,
+                specificCategory: {
+                  _id: group.id,
+                  name: group.name
+                }
+              });
+            });
+          });
+          
+          setVariants(allVariants);
+          setSpecificCategories(specCategories);
+        }
         hasFetchedVariants.current = true;
       }))
       .catch(console.error);
@@ -172,6 +204,7 @@ const OrderListFull = ({ isAdmin }) => {
       if (v) qp.push(`utm${k.charAt(0).toUpperCase() + k.slice(1)}=${encodeURIComponent(v)}`);
     });
     if (selectedVariants.length) qp.push(`variants=${selectedVariants.join(',')}`);
+    if (selectedSpecificCategories.length) qp.push(`specificCategories=${selectedSpecificCategories.join(',')}`);
     if (onlyIncludeSelectedVariants) qp.push('onlyIncludeSelectedVariants=true');
     if (singleVariantOnly) qp.push('singleVariantOnly=true');
     if (singleItemCountOnly) qp.push('singleItemCountOnly=true');
@@ -208,6 +241,7 @@ const OrderListFull = ({ isAdmin }) => {
     paymentStatusFilter,
     selectedUTMFilters,
     selectedVariants,
+    selectedSpecificCategories,
     onlyIncludeSelectedVariants,
     singleVariantOnly,
     singleItemCountOnly,
@@ -239,6 +273,7 @@ const OrderListFull = ({ isAdmin }) => {
       if (v) qp.push(`utm${k.charAt(0).toUpperCase() + k.slice(1)}=${encodeURIComponent(v)}`);
     });
     if (selectedVariants.length) qp.push(`variants=${selectedVariants.join(',')}`);
+    if (selectedSpecificCategories.length) qp.push(`specificCategories=${selectedSpecificCategories.join(',')}`);
     if (onlyIncludeSelectedVariants) qp.push('onlyIncludeSelectedVariants=true');
     if (singleVariantOnly) qp.push('singleVariantOnly=true');
     if (singleItemCountOnly) qp.push('singleItemCountOnly=true');
@@ -268,6 +303,7 @@ const OrderListFull = ({ isAdmin }) => {
     paymentStatusFilter,
     selectedUTMFilters,
     selectedVariants,
+    selectedSpecificCategories,
     onlyIncludeSelectedVariants,
     singleVariantOnly,
     singleItemCountOnly,
@@ -413,6 +449,7 @@ const OrderListFull = ({ isAdmin }) => {
     setActiveTag('today');
     setDateRange({ start: dayjs().startOf('day'), end: dayjs().endOf('day') });
     setSelectedVariants([]);
+    setSelectedSpecificCategories([]);
     setOnlyIncludeSelectedVariants(false);
     setSingleVariantOnly(false);
     setSingleItemCountOnly(false);
@@ -536,6 +573,9 @@ const OrderListFull = ({ isAdmin }) => {
           variants={variants}
           selectedVariants={selectedVariants}
           setSelectedVariants={setSelectedVariants}
+          specificCategories={specificCategories}
+          selectedSpecificCategories={selectedSpecificCategories}
+          setSelectedSpecificCategories={setSelectedSpecificCategories}
           onlyIncludeSelectedVariants={onlyIncludeSelectedVariants}
           setOnlyIncludeSelectedVariants={setOnlyIncludeSelectedVariants}
           singleVariantOnly={singleVariantOnly}

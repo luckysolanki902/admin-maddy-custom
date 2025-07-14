@@ -156,14 +156,12 @@ export default function CatalogueDownloader() {
 
         const images = refElement.querySelectorAll('img');
         if (images.length === 0) {
-          console.log('Preload images: No images found to preload.');
           resolve(); // Resolve if no images
           return;
         }
 
         let loadedCount = 0;
         const totalImages = images.length;
-        console.log(`Preload images: Found ${totalImages} images.`);
 
         const imageLoadPromises = Array.from(images).map(imgTag => {
           return new Promise((imgResolve, imgReject) => {
@@ -172,7 +170,6 @@ export default function CatalogueDownloader() {
             } else {
               const newImg = new Image(); // Use a new Image object to force load
               newImg.onload = () => {
-                console.log(`Image loaded: ${imgTag.src}`);
                 imgResolve();
               };
               newImg.onerror = () => {
@@ -186,7 +183,6 @@ export default function CatalogueDownloader() {
         
         Promise.all(imageLoadPromises)
           .then(() => {
-            console.log('All image preloading attempts finished.');
             resolve();
           })
           .catch(error => {
@@ -203,9 +199,7 @@ export default function CatalogueDownloader() {
     };
 
     try {
-      console.log('Starting image preloading...');
       await preloadImagesInRef(pdfRef.current);
-      console.log('Image preloading complete. Triggering print.');
       // A short delay after preloading before print can sometimes help browsers
       await new Promise(resolve => setTimeout(resolve, 500)); 
       handlePrint(); // This will call onBeforeGetContent again, but preloading is done

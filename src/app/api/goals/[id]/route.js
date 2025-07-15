@@ -12,15 +12,22 @@ export async function PATCH(req, { params }) {
     await connectToDatabase();
 
     const { id: goalId } = params;
-    const { title, description, deadline } = await req.json();
+    const { title, description, deadline, priority } = await req.json();
 
-    if (!title && !description) {
+    if (!title && !description && deadline === undefined && !priority) {
       return NextResponse.json({ message: "Nothing to update" }, { status: 400 });
     }
 
     const goal = await AdminGoal.findById(goalId);
     if (!goal) {
       return NextResponse.json({ message: "Goal not found" }, { status: 404 });
+    }
+
+    // Validate priority if provided
+    const validPriorities = ["low", "medium", "high", "urgent"];
+    let goalPriority = goal.priority;
+    if (priority && validPriorities.includes(priority)) {
+      goalPriority = priority;
     }
 
     // Validate deadline if provided
@@ -39,6 +46,7 @@ export async function PATCH(req, { params }) {
     goal.title = title?.trim() ?? goal.title;
     goal.description = description?.trim() ?? goal.description;
     goal.deadline = parsedDeadline;
+    goal.priority = goalPriority;
 
     goal.history.push({
       type: "edit",

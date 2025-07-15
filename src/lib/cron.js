@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const { connectToDatabase } = require("@/lib/db");
 const AdminGoal = require("@/models/admin/AdminGoal");
+const AdminProductivity = require("@/models/admin/AdminProductivity");
 const { sendEmail, fillTemplate } = require("@/components/utils/emailUtils");
 const fs = require("fs");
 const path = require("path");

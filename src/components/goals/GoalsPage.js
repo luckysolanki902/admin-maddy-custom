@@ -15,12 +15,22 @@ import {
   Divider,
   Skeleton,
   InputAdornment,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Switch,
+  FormControlLabel,
+  Chip,
+  Grid,
 } from "@mui/material";
 import {
   Add as AddIcon,
   CalendarToday as CalendarIcon,
   Description as DescriptionIcon,
   Title as TitleIcon,
+  Sort as SortIcon,
+  FilterList as FilterIcon,
 } from "@mui/icons-material";
 import Goals from "@/components/goals/Goals";
 import { useUser } from "@clerk/nextjs";
@@ -32,11 +42,18 @@ export default function AdminGoalsPage({ department }) {
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newDeadline, setNewDeadline] = useState("");
+  const [newPriority, setNewPriority] = useState("medium");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Sorting and filtering states
+  const [sortBy, setSortBy] = useState("priority");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [showCompleted, setShowCompleted] = useState(true);
 
   const titleRef = useRef(null);
   const descRef = useRef(null);
   const deadlineRef = useRef(null);
+  const priorityRef = useRef(null);
 
   const { user } = useUser();
   const isAllowed = user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com" || user?.primaryEmailAddress?.emailAddress === "luckysolanki902@gmail.com";
@@ -45,7 +62,14 @@ export default function AdminGoalsPage({ department }) {
     async function fetchGoals() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/goals?department=${encodeURIComponent(department)}`);
+        const params = new URLSearchParams({
+          department: department,
+          sortBy: sortBy,
+          sortOrder: sortOrder,
+          showCompleted: showCompleted.toString()
+        });
+        
+        const res = await fetch(`/api/goals?${params}`);
         const data = await res.json();
         setGoals(data.goals || []);
       } catch (err) {
@@ -56,7 +80,7 @@ export default function AdminGoalsPage({ department }) {
     }
 
     fetchGoals();
-  }, [department]);
+  }, [department, sortBy, sortOrder, showCompleted]);
 
   const handleAddGoal = async () => {
     setIsSubmitting(true);
@@ -69,6 +93,7 @@ export default function AdminGoalsPage({ department }) {
       description: newDesc,
       department,
       deadline: newDeadline ? new Date(newDeadline).toISOString() : null,
+      priority: newPriority,
       isCompleted: false,
       createdAt: new Date().toISOString(),
       history: [{
@@ -93,6 +118,7 @@ export default function AdminGoalsPage({ department }) {
           description: newDesc,
           department,
           deadline: newDeadline,
+          priority: newPriority,
         }),
       });
 
@@ -106,6 +132,7 @@ export default function AdminGoalsPage({ department }) {
         setNewTitle("");
         setNewDesc("");
         setNewDeadline("");
+        setNewPriority("medium");
         setOpenDialog(false);
       } else {
         // Remove optimistic goal on error
@@ -191,6 +218,91 @@ export default function AdminGoalsPage({ department }) {
             >
               Add Goal
             </Button>
+          </Box>
+
+          {/* Sorting and Filtering Controls */}
+          <Box
+            sx={{
+              mb: 3,
+              p: 3,
+              bgcolor: "background.paper",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Sort By</InputLabel>
+                  <Select
+                    value={sortBy}
+                    label="Sort By"
+                    onChange={(e) => setSortBy(e.target.value)}
+                    startAdornment={
+                      <InputAdornment position="start">
+                        <SortIcon fontSize="small" />
+                      </InputAdornment>
+                    }
+                  >
+                    <MenuItem value="priority">Priority</MenuItem>
+                    <MenuItem value="deadline">Deadline</MenuItem>
+                    <MenuItem value="createdAt">Created Date</MenuItem>
+                    <MenuItem value="title">Title</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Order</InputLabel>
+                  <Select
+                    value={sortOrder}
+                    label="Order"
+                    onChange={(e) => setSortOrder(e.target.value)}
+                  >
+                    <MenuItem value="desc">Descending</MenuItem>
+                    <MenuItem value="asc">Ascending</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={showCompleted}
+                      onChange={(e) => setShowCompleted(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label="Show Completed"
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Chip
+                    label={`${goals.length} goals`}
+                    color="primary"
+                    variant="outlined"
+                    size="small"
+                  />
+                  <Chip
+                    label={`${goals.filter(g => !g.isCompleted).length} pending`}
+                    color="warning"
+                    variant="outlined"
+                    size="small"
+                  />
+                  <Chip
+                    label={`${goals.filter(g => g.isCompleted).length} completed`}
+                    color="success"
+                    variant="outlined"
+                    size="small"
+                  />
+                </Box>
+              </Grid>
+            </Grid>
           </Box>
 
           {loading ? (
@@ -316,6 +428,44 @@ export default function AdminGoalsPage({ department }) {
                   },
                 }}
               />
+              
+              <FormControl fullWidth disabled={isSubmitting}>
+                <InputLabel>Priority</InputLabel>
+                <Select
+                  inputRef={priorityRef}
+                  value={newPriority}
+                  label="Priority"
+                  onChange={(e) => setNewPriority(e.target.value)}
+                  sx={{
+                    borderRadius: 2,
+                  }}
+                >
+                  <MenuItem value="low">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip label="Low" size="small" color="success" variant="outlined" />
+                      <Typography>Low Priority</Typography>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="medium">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip label="Medium" size="small" color="info" variant="outlined" />
+                      <Typography>Medium Priority</Typography>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="high">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip label="High" size="small" color="warning" variant="outlined" />
+                      <Typography>High Priority</Typography>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="urgent">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip label="Urgent" size="small" color="error" variant="outlined" />
+                      <Typography>Urgent Priority</Typography>
+                    </Box>
+                  </MenuItem>
+                </Select>
+              </FormControl>
               
               <TextField
                 inputRef={deadlineRef}

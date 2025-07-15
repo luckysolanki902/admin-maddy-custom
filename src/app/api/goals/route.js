@@ -11,6 +11,9 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const department = decodeURIComponent(searchParams.get("department") || "").trim();
+    const sortBy = searchParams.get("sortBy") || "priority"; // priority, deadline, createdAt, title
+    const sortOrder = searchParams.get("sortOrder") || "desc"; // asc, desc
+    const showCompleted = searchParams.get("showCompleted") === "true";
 
     if (!department) {
       return NextResponse.json({ message: "Department parameter is required." }, { status: 400 });
@@ -24,11 +27,57 @@ export async function GET(request) {
 
     const sendHistory = currUser.primaryEmailAddress.emailAddress === "priyanshuyadav0404@gmail.com";
 
-    const goals = await AdminGoal.find({
+    // Build query filter
+    const filter = {
       department: { $regex: new RegExp(`^${department}$`, "i") },
-    })
-      .sort({ createdAt: -1 })
+    };
+
+    if (!showCompleted) {
+      filter.isCompleted = false;
+    }
+
+    // Build sort object
+    let sortObj = {};
+    
+    if (sortBy === "priority") {
+      // Custom priority sorting: urgent > high > medium > low
+      const priorityOrder = { "urgent": 4, "high": 3, "medium": 2, "low": 1 };
+      sortObj = { priority: sortOrder === "desc" ? -1 : 1, createdAt: -1 };
+    } else if (sortBy === "deadline") {
+      // Handle null deadlines by putting them at the end
+      sortObj = { deadline: sortOrder === "desc" ? -1 : 1, priority: -1, createdAt: -1 };
+    } else if (sortBy === "createdAt") {
+      sortObj = { createdAt: sortOrder === "desc" ? -1 : 1 };
+    } else if (sortBy === "title") {
+      sortObj = { title: sortOrder === "desc" ? -1 : 1 };
+    } else {
+      // Default: priority-based smart sorting
+      sortObj = { 
+        isCompleted: 1, // Show incomplete first
+        priority: -1,   // Then by priority (urgent first)
+        deadline: 1,    // Then by deadline (closest first)
+        createdAt: -1   // Finally by creation date (newest first)
+      };
+    }
+
+    const goals = await AdminGoal.find(filter)
+      .sort(sortObj)
       .lean();
+
+    // Custom priority sorting for better UX
+    if (sortBy === "priority") {
+      const priorityOrder = { "urgent": 4, "high": 3, "medium": 2, "low": 1 };
+      goals.sort((a, b) => {
+        const aPriority = priorityOrder[a.priority] || 0;
+        const bPriority = priorityOrder[b.priority] || 0;
+        
+        if (sortOrder === "desc") {
+          return bPriority - aPriority || new Date(b.createdAt) - new Date(a.createdAt);
+        } else {
+          return aPriority - bPriority || new Date(a.createdAt) - new Date(b.createdAt);
+        }
+      });
+    }
 
     goals.forEach(goal => (goal.history = sendHistory ? goal.history.reverse() : []));
 
@@ -49,11 +98,15 @@ export async function POST(req) {
 
     await connectToDatabase();
 
-    const { title, description, department, deadline } = await req.json();
+    const { title, description, department, deadline, priority } = await req.json();
 
     if (!title.trim() || !department.trim()) {
       return NextResponse.json({ message: "Missing required fields: title, department" }, { status: 400 });
     }
+
+    // Validate priority
+    const validPriorities = ["low", "medium", "high", "urgent"];
+    const goalPriority = validPriorities.includes(priority) ? priority : "medium";
 
     // Validate deadline
     let parsedDeadline = null;
@@ -68,6 +121,7 @@ export async function POST(req) {
       title: title.trim(),
       description: description?.trim() || null,
       department: department.trim(),
+      priority: goalPriority,
       isCompleted: false,
       deadline: parsedDeadline,
       history: [

@@ -20,6 +20,10 @@ import {
   Button,
   Chip,
   InputAdornment,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { useState, useRef } from "react";
 import {
@@ -42,6 +46,7 @@ export default function Goals({ goals, setGoals, isAllowed }) {
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDesc, setEditedDesc] = useState("");
   const [editedDeadline, setEditedDeadline] = useState("");
+  const [editedPriority, setEditedPriority] = useState("medium");
   const [isSaving, setIsSaving] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -49,12 +54,14 @@ export default function Goals({ goals, setGoals, isAllowed }) {
   const titleRef = useRef(null);
   const descRef = useRef(null);
   const deadlineRef = useRef(null);
+  const priorityRef = useRef(null);
 
   const openEditDialog = goal => {
     setCurrentGoal(goal);
     setEditedTitle(goal.title ?? "");
     setEditedDesc(goal.description ?? "");
     setEditedDeadline(goal?.deadline?.slice(0, 10) ?? "");
+    setEditedPriority(goal.priority ?? "medium");
     setEditDialogOpen(true);
     setTimeout(() => {
       titleRef.current?.focus();
@@ -74,6 +81,7 @@ export default function Goals({ goals, setGoals, isAllowed }) {
       title: editedTitle,
       description: editedDesc,
       deadline: editedDeadline ? new Date(editedDeadline).toISOString() : null,
+      priority: editedPriority,
     };
     
     setGoals(prev => prev.map(g => 
@@ -88,6 +96,7 @@ export default function Goals({ goals, setGoals, isAllowed }) {
           title: editedTitle,
           description: editedDesc,
           deadline: editedDeadline,
+          priority: editedPriority,
         }),
       });
       
@@ -234,6 +243,29 @@ export default function Goals({ goals, setGoals, isAllowed }) {
     );
   };
 
+  const getPriorityChip = (priority) => {
+    const priorityConfig = {
+      low: { color: "success", label: "Low", variant: "outlined" },
+      medium: { color: "info", label: "Medium", variant: "outlined" },
+      high: { color: "warning", label: "High", variant: "filled" },
+      urgent: { color: "error", label: "Urgent", variant: "filled" },
+    };
+    
+    const config = priorityConfig[priority] || priorityConfig.medium;
+    
+    return (
+      <Chip
+        size="small"
+        label={config.label}
+        color={config.color}
+        variant={config.variant}
+        sx={{
+          fontWeight: priority === 'urgent' || priority === 'high' ? 600 : 400,
+        }}
+      />
+    );
+  };
+
   return (
     <Paper elevation={2} sx={{ borderRadius: 3, bgcolor: "background.paper", overflow: "hidden" }}>
       <List sx={{ p: 0 }}>
@@ -324,11 +356,10 @@ export default function Goals({ goals, setGoals, isAllowed }) {
                     >
                       {goal.title}
                     </Typography>
-                    {goal.deadline && (
-                      <Box sx={{ flexShrink: 0 }}>
-                        {getDeadlineChip(goal.deadline, goal.isCompleted)}
-                      </Box>
-                    )}
+                    <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, flexWrap: 'wrap' }}>
+                      {getPriorityChip(goal.priority)}
+                      {goal.deadline && getDeadlineChip(goal.deadline, goal.isCompleted)}
+                    </Box>
                   </Box>
 
                   {/* Description and Deadline Info */}
@@ -575,6 +606,44 @@ export default function Goals({ goals, setGoals, isAllowed }) {
                 },
               }}
             />
+            
+            <FormControl fullWidth disabled={isSaving}>
+              <InputLabel>Priority</InputLabel>
+              <Select
+                inputRef={priorityRef}
+                value={editedPriority}
+                label="Priority"
+                onChange={(e) => setEditedPriority(e.target.value)}
+                sx={{
+                  borderRadius: 2,
+                }}
+              >
+                <MenuItem value="low">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label="Low" size="small" color="success" variant="outlined" />
+                    <Typography>Low Priority</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="medium">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label="Medium" size="small" color="info" variant="outlined" />
+                    <Typography>Medium Priority</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="high">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label="High" size="small" color="warning" variant="outlined" />
+                    <Typography>High Priority</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="urgent">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label="Urgent" size="small" color="error" variant="outlined" />
+                    <Typography>Urgent Priority</Typography>
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
             
             <TextField
               inputRef={deadlineRef}

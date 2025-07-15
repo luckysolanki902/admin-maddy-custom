@@ -352,6 +352,19 @@ export default function ProductivityOverview() {
                         py: 2,
                       }}
                     >
+                      Creative Calendar
+                    </TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        bgcolor: 'rgba(0, 0, 0, 0.8)',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: 'rgba(255, 255, 255, 0.9)',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        py: 2,
+                      }}
+                    >
                       Actions
                     </TableCell>
                   </TableRow>
@@ -567,6 +580,34 @@ export default function ProductivityOverview() {
                               )}
                             </TableCell>
                             
+                            {/* Design Department Creative Calendar */}
+                            <TableCell align="center" sx={{ py: 2.5 }}>
+                              {submission && dept === 'design' ? (
+                                <Chip
+                                  label={submission.followedCreativeCalendar ? 'Followed' : 'Deviated'}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: submission.followedCreativeCalendar 
+                                      ? 'rgba(34, 197, 94, 0.2)' 
+                                      : 'rgba(251, 191, 36, 0.2)',
+                                    color: submission.followedCreativeCalendar ? '#22c55e' : '#f59e0b',
+                                    border: `1px solid ${submission.followedCreativeCalendar 
+                                      ? 'rgba(34, 197, 94, 0.3)' 
+                                      : 'rgba(251, 191, 36, 0.3)'}`,
+                                    fontWeight: 500,
+                                    fontSize: '0.75rem',
+                                  }}
+                                />
+                              ) : (
+                                <Typography
+                                  variant="body2"
+                                  sx={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                                >
+                                  {dept === 'design' ? '—' : 'N/A'}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            
                             <TableCell align="center" sx={{ py: 2.5 }}>
                               {submission && (
                                 <Tooltip title="View Details">
@@ -594,7 +635,7 @@ export default function ProductivityOverview() {
                           {isExpanded && submission && (
                             <TableRow>
                               <TableCell 
-                                colSpan={6} 
+                                colSpan={7} 
                                 sx={{ 
                                   py: 0,
                                   borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
@@ -701,6 +742,64 @@ export default function ProductivityOverview() {
                                             {submission.reasonNotAchieving}
                                           </Typography>
                                         </Box>
+                                      )}
+
+                                      {/* Design Department Fields */}
+                                      {dept === 'design' && (
+                                        <>
+                                          <Box>
+                                            <Typography
+                                              variant="subtitle2"
+                                              sx={{
+                                                fontWeight: 600,
+                                                color: '#06b6d4',
+                                                mb: 1,
+                                              }}
+                                            >
+                                              Creative Calendar Adherence
+                                            </Typography>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                              <Chip
+                                                label={submission.followedCreativeCalendar ? 'Followed' : 'Deviated'}
+                                                size="small"
+                                                sx={{
+                                                  bgcolor: submission.followedCreativeCalendar 
+                                                    ? 'rgba(34, 197, 94, 0.2)' 
+                                                    : 'rgba(251, 191, 36, 0.2)',
+                                                  color: submission.followedCreativeCalendar ? '#22c55e' : '#f59e0b',
+                                                  border: `1px solid ${submission.followedCreativeCalendar 
+                                                    ? 'rgba(34, 197, 94, 0.3)' 
+                                                    : 'rgba(251, 191, 36, 0.3)'}`,
+                                                  fontWeight: 500,
+                                                }}
+                                              />
+                                            </Box>
+                                          </Box>
+
+                                          {!submission.followedCreativeCalendar && submission.creativeCalendarDeviation && (
+                                            <Box>
+                                              <Typography
+                                                variant="subtitle2"
+                                                sx={{
+                                                  fontWeight: 600,
+                                                  color: '#f59e0b',
+                                                  mb: 1,
+                                                }}
+                                              >
+                                                Creative Calendar Deviation Reason
+                                              </Typography>
+                                              <Typography
+                                                variant="body2"
+                                                sx={{
+                                                  color: 'rgba(255, 255, 255, 0.8)',
+                                                  lineHeight: 1.6,
+                                                }}
+                                              >
+                                                {submission.creativeCalendarDeviation}
+                                              </Typography>
+                                            </Box>
+                                          )}
+                                        </>
                                       )}
                                     </Stack>
                                   </Box>

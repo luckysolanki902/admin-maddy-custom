@@ -3,7 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/db";
 import AdminGoal from "@/models/admin/AdminGoal";
 import { sendEmail } from "@/lib/nodemailer";
-import departmentHeads from "@/utils/departmentHeads";
+import { departmentAdmins } from "@/lib/constants/user";
 
 export async function PATCH(req, { params }) {
   try {
@@ -52,7 +52,7 @@ export async function PATCH(req, { params }) {
     await goal.save();
 
     // Send email notification to department head
-    const departmentHeadEmail = departmentHeads[goal.department];
+    const departmentHeadEmail = departmentAdmins[goal.department]?.email;
     if (departmentHeadEmail) {
       try {
         await sendEmail({

@@ -28,6 +28,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
+import { departmentAdmins } from "@/lib/constants/user";
 
 export default function ProductivityForm() {
   const { user } = useUser();
@@ -46,6 +47,8 @@ export default function ProductivityForm() {
     reasonLowRating: "",
     willAchieveGoal: true,
     reasonNotAchieving: "",
+    followedCreativeCalendar: true,
+    creativeCalendarDeviation: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -54,14 +57,20 @@ export default function ProductivityForm() {
   const [isEditing, setIsEditing] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 
+  const isEqualToExisting = existingEntry && Object.keys(existingEntry).every(key => existingEntry[key] === form[key]);
+
+  // Get user's department
+  const userDepartment = user ? Object.entries(departmentAdmins).find(([, admin]) => admin.email === user.primaryEmailAddress?.emailAddress)?.[0] : null;
+  const isDesignDepartment = userDepartment === 'design';
+
   const isFormIncomplete =
     !form.todayWork.trim() ||
     !form.tomorrowGoal.trim() ||
     !form.efficiencyRating ||
     (form.efficiencyRating <= 3 && !form.reasonLowRating.trim()) ||
-    (!form.willAchieveGoal && !form.reasonNotAchieving.trim());
-
-  const isEqualToExisting = existingEntry && Object.keys(existingEntry).every(key => existingEntry[key] === form[key]);
+    (!form.willAchieveGoal && !form.reasonNotAchieving.trim()) ||
+    (isDesignDepartment && form.followedCreativeCalendar === undefined) ||
+    (isDesignDepartment && !form.followedCreativeCalendar && !form.creativeCalendarDeviation.trim());
 
   // Auto-focus management
   const focusNext = useCallback((currentRef, nextRef) => {
@@ -106,6 +115,8 @@ export default function ProductivityForm() {
             reasonLowRating: data.reasonLowRating || "",
             willAchieveGoal: data.willAchieveGoal ?? true,
             reasonNotAchieving: data.reasonNotAchieving || "",
+            followedCreativeCalendar: data.followedCreativeCalendar ?? true,
+            creativeCalendarDeviation: data.creativeCalendarDeviation || "",
           };
 
           setForm(newEntry);
@@ -265,6 +276,7 @@ export default function ProductivityForm() {
                 existingEntry={existingEntry} 
                 onEdit={() => setIsEditing(true)}
                 loading={disableAll}
+                userDepartment={userDepartment}
               />
             ) : (
               <EditableForm
@@ -284,6 +296,8 @@ export default function ProductivityForm() {
                 existingEntry={existingEntry}
                 onCancel={() => setIsEditing(false)}
                 disableAll={disableAll}
+                userDepartment={userDepartment}
+                isDesignDepartment={isDesignDepartment}
               />
             )}
           </Paper>
@@ -294,7 +308,7 @@ export default function ProductivityForm() {
 }
 
 // Read-only view component
-function ReadOnlyView({ existingEntry, onEdit, loading }) {
+function ReadOnlyView({ existingEntry, onEdit, loading, userDepartment }) {
   return (
     <Fade in timeout={600}>
       <Box>
@@ -416,6 +430,56 @@ function ReadOnlyView({ existingEntry, onEdit, loading }) {
               content={existingEntry.reasonNotAchieving}
             />
           )}
+
+          {/* Design Department Fields */}
+          {userDepartment === 'design' && (
+            <>
+              <InfoCard
+                icon="🎨"
+                title="Creative Calendar Adherence"
+                content={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {existingEntry.followedCreativeCalendar ? (
+                      <>
+                        <CheckCircleIcon sx={{ color: '#22c55e', fontSize: 20 }} />
+                        <Typography sx={{ color: '#22c55e', fontWeight: 500 }}>
+                          Followed creative calendar
+                        </Typography>
+                      </>
+                    ) : (
+                      <>
+                        <Box sx={{ 
+                          width: 20, 
+                          height: 20, 
+                          borderRadius: '50%', 
+                          bgcolor: '#f59e0b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12,
+                          color: 'white',
+                          fontWeight: 'bold'
+                        }}>
+                          !
+                        </Box>
+                        <Typography sx={{ color: '#f59e0b', fontWeight: 500 }}>
+                          Did not follow creative calendar
+                        </Typography>
+                      </>
+                    )}
+                  </Box>
+                }
+              />
+
+              {!existingEntry.followedCreativeCalendar && existingEntry.creativeCalendarDeviation && (
+                <InfoCard
+                  icon="📝"
+                  title="Deviation Reason"
+                  content={existingEntry.creativeCalendarDeviation}
+                />
+              )}
+            </>
+          )}
         </Stack>
       </Box>
     </Fade>
@@ -483,7 +547,9 @@ function EditableForm({
   isEqualToExisting, 
   existingEntry, 
   onCancel, 
-  disableAll 
+  disableAll,
+  userDepartment,
+  isDesignDepartment
 }) {
   const handleChange = (field, value) => {
     setForm({ ...form, [field]: value });
@@ -794,6 +860,114 @@ function EditableForm({
                       color: 'rgba(255, 255, 255, 0.7)',
                       '&.Mui-focused': {
                         color: '#f59e0b',
+                      },
+                    },
+                    '& .MuiInputBase-input': {
+                      color: '#ffffff',
+                    },
+                  }}
+                />
+              </FormSection>
+            </Box>
+          )}
+
+          {/* Design Department Specific: Creative Calendar */}
+          {isDesignDepartment && (
+            <FormSection>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  fontWeight: 600,
+                  mb: 2,
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                Creative Calendar Adherence
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={form.followedCreativeCalendar}
+                    onChange={e => handleChange("followedCreativeCalendar", e.target.checked)}
+                    disabled={disableAll}
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.3)',
+                      '&.Mui-checked': {
+                        color: '#8b5cf6',
+                      },
+                      '& .MuiSvgIcon-root': {
+                        fontSize: 24,
+                      },
+                    }}
+                  />
+                }
+                label={
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      fontWeight: 500,
+                      letterSpacing: '-0.01em',
+                    }}
+                  >
+                    Today&apos;s creative calendar goal was achieved
+                  </Typography>
+                }
+                sx={{ mb: 2 }}
+              />
+            </FormSection>
+          )}
+
+          {/* Conditional: Creative Calendar Deviation Reason */}
+          {isDesignDepartment && !form.followedCreativeCalendar && (
+            <Box
+              sx={{
+                opacity: 1,
+                transform: 'translateY(0)',
+                animation: 'fadeInUp 0.4s ease-out',
+                '@keyframes fadeInUp': {
+                  '0%': {
+                    opacity: 0,
+                    transform: 'translateY(20px)',
+                  },
+                  '100%': {
+                    opacity: 1,
+                    transform: 'translateY(0)',
+                  },
+                },
+              }}
+            >
+              <FormSection>
+                <TextField
+                  label="Why didn't the work follow the creative calendar?"
+                  multiline
+                  rows={3}
+                  fullWidth
+                  variant="outlined"
+                  value={form.creativeCalendarDeviation}
+                  onChange={e => handleChange("creativeCalendarDeviation", e.target.value)}
+                  disabled={disableAll}
+                  placeholder="Explain the reason for deviation from the planned creative calendar..."
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      bgcolor: 'rgba(255, 255, 255, 0.04)',
+                      borderRadius: 3,
+                      '& fieldset': {
+                        borderColor: 'rgba(139, 92, 246, 0.3)',
+                        transition: 'border-color 0.2s ease',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(139, 92, 246, 0.5)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#8b5cf6',
+                      },
+                    },
+                    '& .MuiInputLabel-root': {
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      '&.Mui-focused': {
+                        color: '#8b5cf6',
                       },
                     },
                     '& .MuiInputBase-input': {

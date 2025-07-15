@@ -14,6 +14,9 @@ const productivitySchema = new mongoose.Schema(
     reasonLowRating: { type: String, default: null },
     willAchieveGoal: { type: Boolean, required: true },
     reasonNotAchieving: { type: String, default: null },
+    // Design department specific field
+    followedCreativeCalendar: { type: Boolean, default: null },
+    creativeCalendarDeviation: { type: String, default: null },
   },
   { timestamps: true }
 );

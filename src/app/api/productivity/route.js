@@ -62,7 +62,16 @@ export async function POST(req) {
 
     await connectToDatabase();
 
-    const { todayWork, tomorrowGoal, efficiencyRating, reasonLowRating, willAchieveGoal, reasonNotAchieving } = await req.json();
+    const { 
+      todayWork, 
+      tomorrowGoal, 
+      efficiencyRating, 
+      reasonLowRating, 
+      willAchieveGoal, 
+      reasonNotAchieving,
+      followedCreativeCalendar,
+      creativeCalendarDeviation
+    } = await req.json();
 
     if (!todayWork || !tomorrowGoal || !efficiencyRating || willAchieveGoal === undefined) {
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
@@ -77,6 +86,11 @@ export async function POST(req) {
 
     const [department] = departmentEntry;
 
+    // Validate design department specific fields
+    if (department === 'design' && followedCreativeCalendar === undefined) {
+      return NextResponse.json({ message: "Creative calendar field is required for design department" }, { status: 400 });
+    }
+
     const newEntry = await AdminProductivity.create({
       user: {
         clerkUserId: currUser.id,
@@ -90,6 +104,8 @@ export async function POST(req) {
       reasonLowRating: efficiencyRating <= 3 ? reasonLowRating : null,
       willAchieveGoal,
       reasonNotAchieving: willAchieveGoal === false ? reasonNotAchieving : null,
+      followedCreativeCalendar: department === 'design' ? followedCreativeCalendar : null,
+      creativeCalendarDeviation: department === 'design' && followedCreativeCalendar === false ? creativeCalendarDeviation : null,
     });
 
     return NextResponse.json(newEntry, { status: 201 });
@@ -108,8 +124,16 @@ export async function PATCH(request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const { todayWork, tomorrowGoal, efficiencyRating, reasonLowRating, willAchieveGoal, reasonNotAchieving } =
-      await request.json();
+    const { 
+      todayWork, 
+      tomorrowGoal, 
+      efficiencyRating, 
+      reasonLowRating, 
+      willAchieveGoal, 
+      reasonNotAchieving,
+      followedCreativeCalendar,
+      creativeCalendarDeviation
+    } = await request.json();
 
     const todayStr = dayjs().format("YYYY-MM-DD");
     const start = new Date(todayStr);
@@ -131,6 +155,12 @@ export async function PATCH(request) {
     if (typeof reasonLowRating === "string") existingEntry.reasonLowRating = reasonLowRating;
     if (typeof willAchieveGoal === "boolean") existingEntry.willAchieveGoal = willAchieveGoal;
     if (typeof reasonNotAchieving === "string") existingEntry.reasonNotAchieving = reasonNotAchieving;
+    
+    // Handle design department specific fields
+    if (existingEntry.department === 'design') {
+      if (typeof followedCreativeCalendar === "boolean") existingEntry.followedCreativeCalendar = followedCreativeCalendar;
+      if (typeof creativeCalendarDeviation === "string") existingEntry.creativeCalendarDeviation = creativeCalendarDeviation;
+    }
 
     await existingEntry.save();
 

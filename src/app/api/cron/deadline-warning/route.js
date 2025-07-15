@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import AdminGoal from "@/models/admin/AdminGoal";
 import { sendEmail, emailTemplates } from "@/lib/nodemailer";
-import departmentHeads from "@/utils/departmentHeads";
+import { departmentAdmins } from "@/lib/constants/user";
 
 export async function GET() {
   try {
@@ -13,11 +13,11 @@ export async function GET() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const departments = Object.keys(departmentHeads);
+    const departments = Object.keys(departmentAdmins);
     const notifications = [];
 
     for (const department of departments) {
-      const departmentHeadEmail = departmentHeads[department];
+      const departmentHeadEmail = departmentAdmins[department].email;
       
       // Get goals with deadline today
       const todayGoals = await AdminGoal.find({

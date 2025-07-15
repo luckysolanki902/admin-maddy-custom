@@ -3,7 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/db";
 import AdminGoal from "@/models/admin/AdminGoal";
 import { sendEmail, emailTemplates } from "@/lib/nodemailer";
-import departmentHeads from "@/utils/departmentHeads";
+import { departmentAdmins } from "@/lib/constants/user";
 
 export async function GET(request) {
   try {
@@ -83,7 +83,7 @@ export async function POST(req) {
     });
 
     // Send email notification to department head
-    const departmentHeadEmail = departmentHeads[department];
+    const departmentHeadEmail = departmentAdmins[department]?.email;
     if (departmentHeadEmail) {
       try {
         await sendEmail({

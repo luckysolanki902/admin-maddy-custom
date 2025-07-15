@@ -2,17 +2,17 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import AdminGoal from "@/models/admin/AdminGoal";
 import { sendEmail, emailTemplates } from "@/lib/nodemailer";
-import departmentHeads from "@/utils/departmentHeads";
+import { departmentAdmins } from "@/lib/constants/user";
 
 export async function GET() {
   try {
     await connectToDatabase();
 
-    const departments = Object.keys(departmentHeads);
+    const departments = Object.keys(departmentAdmins);
     const notifications = [];
 
     for (const department of departments) {
-      const departmentHeadEmail = departmentHeads[department];
+      const departmentHeadEmail = departmentAdmins[department].email;
       
       // Get all pending goals for this department
       const goals = await AdminGoal.find({

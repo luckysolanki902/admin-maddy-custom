@@ -2,7 +2,7 @@
 // TODO get departmentAdmins with logic when they are defined
 export const departmentAdmins = {
   "web-d": { email: "luckysolanki902@gmail.com", name: "Lucky Solanki" },
-  design: { email: "luckysolanki9027@gmail.com", name: "Prashant Kumar" },
+  design: { email: "i.prashant0323@gmail.com", name: "Prashant Kumar" },
   // finance: { email: "finance-admin@example.com", name: "Finance Department Admin" },
   marketing: { email: "vermatanya187@gmail.com", name: "Tanya Verma" },
   production: { email: "sg.gupta2241@gmail.com", name: "Sumit Gupta" },

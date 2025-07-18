@@ -38,7 +38,7 @@ export async function POST(req) {
     const query = {
       paymentStatus: { $in: ['paidPartially', 'allPaid'] },
       deliveryStatus: 'pending',
-      shiprocketOrderId: { $exists: false },
+      // shiprocketOrderId: { $exists: false },
     };
 
     if (start && end) {
@@ -92,39 +92,83 @@ export async function POST(req) {
           try {
             console.info(`Processing Order ID: ${order._id}`);
 
+            // Log order details for debugging
+            console.info('Order address:', JSON.stringify(order.address, null, 2));
+            console.info('Order items:', JSON.stringify(order.items, null, 2));
+            console.info('Order payment details:', JSON.stringify(order.paymentDetails, null, 2));
+
             // Calculate dimensions and weight
             const dimensionsAndWeight = await getDimensionsAndWeight(order.items);
+            console.info('Dimensions and weight calculated:', JSON.stringify(dimensionsAndWeight, null, 2));
+            
             const { length, breadth, height, weight } = dimensionsAndWeight;
 
             // Prepare Shiprocket order data
-            const [firstName, ...lastNameParts] = order.address.receiverName.split(' ');
-            const lastName = lastNameParts.join(' ');
+            const fullName = order.address.receiverName.trim();
+            const nameParts = fullName.split(' ').filter(part => part.length > 0);
+            const firstName = nameParts[0] || 'Customer';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            console.info(`Name parsing - Full name: "${fullName}", Parts: ${JSON.stringify(nameParts)}, First: "${firstName}", Last: "${lastName}"`);
 
             const shiprocketOrderData = {
               order_id: order._id.toString(),
               order_date: order.createdAt.toISOString(),
               billing_customer_name: firstName,
-              billing_last_name: lastName || '',
-              billing_address: `${order.address.addressLine1} ${order.address.addressLine2 || ''}`,
+              billing_last_name: lastName,
+              billing_address: `${order.address.addressLine1} ${order.address.addressLine2 || ''}`.trim(),
               billing_city: order.address.city,
-              billing_pincode: order.address.pincode,
+              billing_pincode: order.address.pincode.toString(),
               billing_state: order.address.state,
-              billing_country: order.address.country,
-              billing_phone: order.address.receiverPhoneNumber,
+              billing_country: order.address.country || 'India',
+              billing_phone: order.address.receiverPhoneNumber.toString(),
+              billing_email: order.address.receiverEmail || 'noreply@maddycustom.com',
               shipping_is_billing: true,
               order_items: order.items.map((item) => ({
                 name: item.name,
-                sku: item.sku,
+                sku: item.sku || `SKU-${item._id}`,
                 units: item.quantity,
                 selling_price: item.priceAtPurchase,
+                discount: 0,
+                tax: 0,
+                hsn: 0,
               })),
               payment_method: order.paymentDetails.amountDueCod > 0 ? 'COD' : 'Prepaid',
+              shipping_charges: 0,
+              giftwrap_charges: 0,
+              transaction_charges: 0,
+              total_discount: 0,
               sub_total: order.paymentDetails.amountDueCod > 0 ? order.paymentDetails.amountDueCod : order.totalAmount,
-              length,
-              breadth,
-              height,
-              weight,
+              length: Math.max(length, 1),
+              breadth: Math.max(breadth, 1),
+              height: Math.max(height, 1),
+              weight: Math.max(weight, 0.1),
             };
+
+            console.info(`billing_customer_name value: "${shiprocketOrderData.billing_customer_name}", type: ${typeof shiprocketOrderData.billing_customer_name}, length: ${shiprocketOrderData.billing_customer_name?.length}`);
+
+            // Validate required fields
+            const requiredFields = ['order_id', 'billing_customer_name', 'billing_address', 'billing_city', 'billing_pincode', 'billing_state', 'billing_country', 'billing_phone'];
+            const missingFields = requiredFields.filter(field => {
+              const value = shiprocketOrderData[field];
+              const isEmpty = !value || value === '' || (typeof value === 'string' && value.trim() === '');
+              console.info(`Field "${field}": value="${value}", isEmpty=${isEmpty}`);
+              return isEmpty;
+            });
+            
+            if (missingFields.length > 0) {
+              console.error(`Missing required fields for Order ID: ${order._id}:`, missingFields);
+              console.error('Shiprocket order data:', JSON.stringify(shiprocketOrderData, null, 2));
+              failedCount += 1;
+              details.push({
+                orderId: order._id.toString(),
+                deliveryStatusResponse: 'Failed - Missing required fields',
+                error: `Missing fields: ${missingFields.join(', ')}`,
+              });
+              return;
+            }
+
+            console.info(`Prepared Shiprocket order data for Order ID: ${order._id}:`, JSON.stringify(shiprocketOrderData, null, 2));
 
             // Create Shiprocket order
             const response = await createShiprocketOrder(shiprocketOrderData);
@@ -156,10 +200,19 @@ export async function POST(req) {
             }
           } catch (orderError) {
             console.error(`Error processing Order ID: ${order._id}`, orderError);
+            
+            // Log detailed error information for debugging
+            if (orderError.response) {
+              console.error('Response status:', orderError.response.status);
+              console.error('Response data:', JSON.stringify(orderError.response.data, null, 2));
+              console.error('Request data sent:', JSON.stringify(shiprocketOrderData, null, 2));
+            }
+            
             failedCount += 1;
             details.push({
               orderId: order._id.toString(),
               deliveryStatusResponse: 'Failed',
+              error: orderError.response?.data || orderError.message,
             });
           }
         })
@@ -185,3 +238,4 @@ export async function POST(req) {
     );
   }
 }
+

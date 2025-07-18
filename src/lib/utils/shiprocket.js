@@ -19,18 +19,27 @@ export async function getShiprocketToken() {
 }
 
 export async function createShiprocketOrder(orderData) {
-  const token = await getShiprocketToken();
-  const res = await axios.post(
-    'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc',
-    orderData,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+  try {
+    const token = await getShiprocketToken();
+    console.info('Sending order data to Shiprocket:', JSON.stringify(orderData, null, 2));
+    
+    const res = await axios.post(
+      'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc',
+      orderData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
       }
-    }
-  );
-  return res.data;
+    );
+    
+    console.info('Shiprocket response:', JSON.stringify(res.data, null, 2));
+    return res.data;
+  } catch (error) {
+    console.error('Shiprocket API error:', error.response?.data || error.message);
+    throw error;
+  }
 }
 
 export async function trackShiprocketOrder(orderId) {

@@ -1,110 +1,307 @@
-/* Grid layout for Department Links */
+/* Modern Department Links - Beautiful & Responsive */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 3rem auto;
+  padding: 0 2rem;
+}
+
+/* Section Header */
+.sectionHeader {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.sectionTitle {
+  font-size: clamp(2.5rem, 4vw, 3.5rem);
+  font-weight: 800;
+  margin: 0 0 1rem 0;
+  background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.7) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.sectionSubtitle {
+  font-size: clamp(1.1rem, 2vw, 1.3rem);
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  font-weight: 300;
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Grid Layout */
 .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 40px;
-    width: 80%;
-    max-width: 800px;
-    margin: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+/* Department Container */
+.department {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2rem;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.department::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--dept-color), transparent);
+  opacity: 0.6;
+}
+
+.department:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px var(--dept-glow);
+  border-color: var(--dept-color);
+}
+
+/* Department Header */
+.departmentHeader {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.departmentName {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, sans-serif;
+  text-shadow: 0 0 10px currentColor;
+}
+
+.departmentDesc {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  font-weight: 300;
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Department Actions */
+.departmentActions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Main Department Box */
+.box {
+  flex: 1;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--dept-glow);
+  border-radius: 16px;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: var(--dept-color);
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 500;
+  font-size: 1.1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  min-height: 120px;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.box::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg, transparent, var(--dept-glow), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  animation: shimmer 3s infinite;
+}
+
+.box:hover::before {
+  opacity: 0.1;
+}
+
+.box:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 15px 30px var(--dept-glow);
+  border-color: var(--dept-color);
+  color: #ffffff;
+}
+
+.boxLabel {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Goals Button */
+.goals {
+  background: linear-gradient(135deg, var(--dept-color) 0%, var(--dept-glow) 100%);
+  color: #000000;
+  border: 1px solid var(--dept-color);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  text-decoration: none;
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.goals:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 10px 25px var(--dept-glow);
+  filter: brightness(1.1);
+}
+
+/* Department-Specific Styling */
+.marketingBox {
+  --dept-color: rgb(255, 220, 100);
+  --dept-glow: rgba(255, 220, 100, 0.25);
+}
+
+.designBox {
+  --dept-color: rgb(28, 251, 255);
+  --dept-glow: rgba(28, 251, 255, 0.25);
+}
+
+.webdBox {
+  --dept-color: rgb(255, 58, 97);
+  --dept-glow: rgba(255, 58, 97, 0.25);
+}
+
+.productionBox {
+  --dept-color: rgb(255, 255, 255);
+  --dept-glow: rgba(255, 255, 255, 0.25);
+}
+
+.financeBox {
+  --dept-color: rgb(11, 162, 101);
+  --dept-glow: rgba(11, 162, 101, 0.25);
+}
+
+.masterAdminBox {
+  --dept-color: rgb(255, 100, 100);
+  --dept-glow: rgba(255, 100, 100, 0.25);
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(45deg);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.department {
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.department:nth-child(1) { animation-delay: 0.1s; }
+.department:nth-child(2) { animation-delay: 0.2s; }
+.department:nth-child(3) { animation-delay: 0.3s; }
+.department:nth-child(4) { animation-delay: 0.4s; }
+.department:nth-child(5) { animation-delay: 0.5s; }
+.department:nth-child(6) { animation-delay: 0.6s; }
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 1rem;
+    margin: 2rem auto;
   }
   
-  /* Department Container */
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
   .department {
-    display: flex;
+    padding: 1.5rem;
+  }
+  
+  .departmentActions {
     flex-direction: column;
-    gap: 10px;
+    gap: 1rem;
   }
   
-  /* Generic Department Box */
   .box {
-    background-color: #444;
-    margin: 30px;
-    padding: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: 10px;
-    font-size: 1.6rem;
-    font-weight: 300;
-    font-family: 'Jost', sans-serif;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    position: relative;
-    height: 180px;
+    width: 100%;
+    min-height: 100px;
+    padding: 1.5rem;
   }
   
-  .box:hover {
-    transform: translateY(-5px);
-  }
-  
-  /* Goals Box */
   .goals {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px;
-    font-size: 1.3rem;
-    margin-left: 40px;
-    border-radius: 0.4rem;
-    text-align: center;
-    width: 110px;
-    height: 70px;
-    text-decoration: none;
-    font-weight: bold;
-    transition: all 0.3s ease-in-out;
+    width: 100%;
+    padding: 0.8rem 1rem;
   }
-  
-  /* Department-Specific Shadows */
-  .marketingBox {
-    box-shadow: 0px 0px 11.34px rgba(255, 255, 0, 0.4);
-  }
-  
-  .designBox {
-    box-shadow: 0px 0px 11.34px rgba(0, 255, 229, 0.4);
-  }
-  
-  .webdBox {
-    box-shadow: 0px 0px 11.34px rgba(255, 89, 144, 0.4);
-  }
-  
-  .productionBox {
-    box-shadow: 0px 0px 11.34px rgba(255, 255, 255, 0.4);
-  }
+}
 
-  .financeBox {
-    /* // greenish money type shadow */
-    box-shadow: 0px 0px 11.34px rgba(144, 238, 144, 0.4);
-    
-  }
-
-  
-  /* Responsive Design */
-  @media (max-width: 600px) {
-    .goals {
-      width: 55px;
-      height: 30px;
-      font-size: 0.8rem;
-      font-weight: 500;
-    }
+@media (max-width: 480px) {
+  .container {
+    margin: 1.5rem auto;
   }
   
-  @media (max-width: 768px) {
-    .box {
-      padding: 20px;
-      font-size: 1.2rem;
-      height: 100px;
-      width: 30vw;
-      border-radius: 0.6rem;
-    }
-    .grid {
-      width: 100%;
-      gap: 25px 15px;
-    }
-    .goals {
-      width: 55px;
-      height: 30px;
-      font-size: 0.8rem;
-      font-weight: 500;
-    }
+  .sectionHeader {
+    margin-bottom: 2rem;
   }
+  
+  .department {
+    padding: 1.25rem;
+  }
+  
+  .box {
+    min-height: 90px;
+    padding: 1.25rem;
+  }
+}
   

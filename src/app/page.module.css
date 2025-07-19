@@ -1,24 +1,89 @@
-/* General Layout for the Home Page */
+/* Modern Home Page Layout - Beautiful & Responsive */
 .container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   min-height: 100vh;
-  background-color: #464646;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
   color: #fff;
-  font-family: Arial, sans-serif;
-  /* padding: 0 1rem; */
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   overflow-x: hidden;
-  width: 100vw;
-  min-width: 100vw;
+  width: 100%;
+  padding: 2rem 0;
+  gap: 2rem;
+  position: relative;
 }
 
+.container::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 20%, rgba(255, 240, 28, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(28, 251, 255, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 40% 70%, rgba(255, 58, 97, 0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Enhanced spacing and layout */
+.container > :first-child {
+  margin-top: 1rem;
+}
+
+.container > :last-child {
+  margin-bottom: 2rem;
+}
+
+/* Account button styling */
+.container button {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 16px !important;
+  padding: 12px 32px !important;
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 1rem !important;
+  text-transform: none !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+}
+
+.container button:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 12px 40px rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
   .container {
-    justify-content: flex-start;
-    min-height: 100vh;
-    font-family: Arial, sans-serif;
-    overflow-x: hidden;
+    padding: 1rem 0;
+    gap: 1.5rem;
+  }
+  
+  .container > :first-child {
+    margin-top: 0.5rem;
+  }
+  
+  .container > :last-child {
+    margin-bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0.5rem 0;
+    gap: 1rem;
   }
 }

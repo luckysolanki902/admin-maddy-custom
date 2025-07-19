@@ -1,59 +1,258 @@
+/* Modern Department Homepage - Beautiful & Responsive */
 .main {
-    background-color: #464646;
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
+    min-height: 100vh;
 }
 
 .container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    /* justify-content: center; */
     min-height: 100vh;
-    font-family: Jost, sans-serif;
-    max-width: 800px;
+    font-family: 'Jost', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    max-width: 1200px;
     padding: 2rem;
-    margin: auto;
+    margin: 0 auto;
+    gap: 3rem;
+}
+
+/* Header Section */
+.header {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.titleContainer {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(20px);
+    border: 1px solid;
+    border-radius: 20px;
+    padding: 2.5rem 3rem;
+    text-align: center;
+    max-width: 600px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.titleContainer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--theme-color), transparent);
+    opacity: 0.6;
 }
 
 .title {
-    font-size: 3rem;
+    font-size: clamp(2.5rem, 5vw, 4rem);
     font-weight: 900;
-    color: rgba(255, 255, 255, 0.24);
-    margin-bottom: 2rem;
+    margin: 0 0 1rem 0;
+    color: var(--theme-color);
+    text-shadow: 0 0 30px var(--glow-color);
+    position: relative;
 }
 
 .quote {
-    font-size: 1.7rem;
-    font-weight: 200;
+    font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+    font-weight: 300;
     font-style: italic;
+    line-height: 1.6;
+    opacity: 0.9;
+    margin: 0;
+}
+
+/* Options Grid */
+.optionsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 900px;
+    margin: 1rem 0;
+}
+
+.optionCard {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 0;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 120px;
+}
+
+.optionCard::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--theme-color), transparent);
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+}
+
+.optionCard:hover::before {
+    opacity: 1;
+}
+
+.optionCard:hover {
+    transform: translateY(-8px);
+    box-shadow: 
+        0 20px 40px var(--hover-glow),
+        0 0 0 1px var(--theme-color);
+    border-color: var(--theme-color);
+}
+
+.cardContent {
+    display: flex;
+    align-items: center;
+    padding: 2rem;
+    height: 100%;
+    gap: 1.5rem;
+    position: relative;
+}
+
+.cardNumber {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--theme-color);
+    opacity: 0.7;
+    min-width: 3rem;
     text-align: center;
+    font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 
-.optionsDiv {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 4rem 0;
-    gap: 3rem;
+.cardText {
+    flex: 1;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.4;
+    transition: color 0.3s ease;
+}
+
+.optionCard:hover .cardText {
+    color: #ffffff;
+}
+
+.cardArrow {
+    font-size: 1.2rem;
+    color: var(--theme-color);
+    opacity: 0.6;
+    transition: all 0.3s ease;
+    transform: translateX(0);
+}
+
+.optionCard:hover .cardArrow {
+    opacity: 1;
+    transform: translateX(4px);
+}
+
+/* Footer */
+.footer {
     width: 100%;
-}
-
-.option {
     display: flex;
-    align-items: center;
     justify-content: center;
-    padding: 1rem 3rem;
-    /* border: 1px solid #fff; */
-    border-radius: 0.7rem;
-    width: 100%;
-    transition: all 0.3 cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    margin-top: 2rem;
 }
 
-.option:hover {
-    scale: 0.99;
+.comingSoon {
+    font-size: 1rem;
+    font-weight: 400;
+    text-align: center;
+    padding: 1.5rem 2rem;
+    border: 1px solid;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(10px);
+    font-style: italic;
 }
 
-.comingsoon {
-    font-size: 1.8rem;
-    font-weight: 100;
-    color: rgba(255, 255, 255, 0.25);
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+        gap: 2rem;
+    }
+    
+    .titleContainer {
+        padding: 2rem 1.5rem;
+        border-radius: 16px;
+    }
+    
+    .optionsGrid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .optionCard {
+        min-height: 100px;
+    }
+    
+    .cardContent {
+        padding: 1.5rem;
+        gap: 1rem;
+    }
+    
+    .cardNumber {
+        font-size: 1.2rem;
+        min-width: 2.5rem;
+    }
+    
+    .cardText {
+        font-size: 1rem;
+    }
 }
+
+@media (max-width: 480px) {
+    .container {
+        padding: 0.75rem;
+    }
+    
+    .titleContainer {
+        padding: 1.5rem 1rem;
+    }
+    
+    .cardContent {
+        padding: 1.25rem;
+    }
+    
+    .optionCard {
+        min-height: 90px;
+    }
+}
+
+/* Animation for cards */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.optionCard {
+    animation: slideInUp 0.6s ease-out;
+    animation-fill-mode: both;
+}
+
+.optionCard:nth-child(1) { animation-delay: 0.1s; }
+.optionCard:nth-child(2) { animation-delay: 0.2s; }
+.optionCard:nth-child(3) { animation-delay: 0.3s; }
+.optionCard:nth-child(4) { animation-delay: 0.4s; }
+.optionCard:nth-child(5) { animation-delay: 0.5s; }
+.optionCard:nth-child(6) { animation-delay: 0.6s; }

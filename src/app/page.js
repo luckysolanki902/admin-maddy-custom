@@ -11,6 +11,9 @@ import { Button } from "@mui/material";
 import { useRouter } from "next/navigation";
 import FloatingButton from "@/components/productivity/FloatingButton";
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
   const router = useRouter();
   return (

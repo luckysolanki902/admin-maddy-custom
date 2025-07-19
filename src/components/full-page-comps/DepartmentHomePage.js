@@ -8,8 +8,8 @@ export default function DepartmentHomePage({ department = 'Marketing', quote, op
         Design: 'rgb(28, 251, 255)',
         Web: 'rgb(255, 58, 97)',
         Production: 'rgb(255, 255, 255)',
-        Admin: 'rgb(11, 162, 101)',
-        Finance: 'rgb(255, 220, 100)',
+        Admin: 'rgb(255, 100, 100)',
+        Finance: 'rgb(11, 162, 101)',
     };
 
     // Utility function to convert RGB to RGBA

@@ -3,185 +3,297 @@ import React, { useState, useEffect, useMemo } from 'react';
 import styles from './styles/StatusContainer.module.css';
 
 const StatusContainer = () => {
-  const [statusMetrics, setStatusMetrics] = useState(null);
-  const [lateCount, setLateCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  // Marketing data (dynamic - never cached if zero)
+  const [marketingData, setMarketingData] = useState({
+    roas: null,
+    cac: null,
+    spend: 0,
+    revenue: 0,
+    revenueAfterTax: 0,
+    isLoading: true
+  });
+
+  // Production data (dynamic)
+  const [productionData, setProductionData] = useState({
+    shipmentDelays: null,
+    productLaunches: 1, // Static for now
+    isLoading: true
+  });
+
+  // Design data (static)
+  const [designData] = useState({
+    instaPosts: 5,
+    designReviews: 8,
+    isLoading: false
+  });
+
   const [lastFetched, setLastFetched] = useState(null);
   const [fetchError, setFetchError] = useState(false);
 
-  const retryFetch = () => {
-    setFetchError(false);
-    setIsLoading(true);
-    // Clear cache to force fresh fetch
-    localStorage.removeItem('departmentStatus');
-    localStorage.removeItem('departmentStatusTimestamp');
-    // Trigger re-fetch
-    window.location.reload();
+  // Check if we should use cache for marketing data
+  const shouldUseMarketingCache = (cachedData) => {
+    if (!cachedData?.marketingData) return false;
+    // Never cache if CAC, ROAS, or spend is zero/null
+    const { cac, roas, spend } = cachedData.marketingData;
+    return cac > 0 && roas > 0 && spend > 0;
   };
 
-  useEffect(() => {
-    // Cache duration: 4 hours in milliseconds
-    const CACHE_DURATION = 4 * 60 * 60 * 1000;
-    
-    // Calculate dates for today
-    const today = new Date();
-    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
-    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
+  // Fetch Marketing Data
+  const fetchMarketingData = async () => {
+    try {
+      setMarketingData(prev => ({ ...prev, isLoading: true }));
+      
+      const today = new Date();
+      const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
 
-    async function fetchStatusData() {
-      // Check if we have cached data
+      // Check cache first (only if valid data exists)
       const cached = localStorage.getItem('departmentStatus');
       const cacheTimestamp = localStorage.getItem('departmentStatusTimestamp');
       
       if (cached && cacheTimestamp) {
         const timeDiff = Date.now() - parseInt(cacheTimestamp);
+        const CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 hours
+        
         if (timeDiff < CACHE_DURATION) {
           const parsedData = JSON.parse(cached);
-          
-          // Validate cached data
-          const validStatusMetrics = (parsedData.statusMetrics && parsedData.statusMetrics.cac !== undefined) 
-            ? parsedData.statusMetrics 
-            : { cac: 85, roas: 2.0, spend: 1000, revenueAfterTax: 2000 };
-          
-          setStatusMetrics(validStatusMetrics);
-          setLateCount(parsedData.lateCount || 0);
-          setLastFetched(new Date(parseInt(cacheTimestamp)));
-          setIsLoading(false);
-          return;
+          if (shouldUseMarketingCache(parsedData)) {
+            setMarketingData({ ...parsedData.marketingData, isLoading: false });
+            setLastFetched(new Date(parseInt(cacheTimestamp)));
+            return;
+          }
         }
       }
 
-      try {
-        setIsLoading(true);
-        
-        // Fetch status metrics (CAC and ROAS) for today
-        const [
-          statusResponse,
-          lateCountResponse,
-        ] = await Promise.all([
-          fetch('/api/admin/department-targets/status-metrics', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              startDate: startDate,
-              endDate: endDate,
-            }),
-          }),
-          fetch(`/api/admin/department-targets/production/track-shipment-delays?startDate=${startDate}&endDate=${endDate}`),
-        ]);
+      // Fetch fresh data
+      const [ordersResponse, cacResponse] = await Promise.all([
+        fetch(`/api/admin/get-main/get-orders?startDate=${startDate}&endDate=${endDate}&limit=1000`),
+        fetch('/api/admin/get-main/get-facebook-cac', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startDate, endDate }),
+        })
+      ]);
 
-        // Check if all responses are ok
-        if (!statusResponse.ok || !lateCountResponse.ok) {
-          throw new Error('One or more API calls failed');
-        }
+      const ordersData = ordersResponse.ok ? await ordersResponse.json() : {};
+      const cacData = cacResponse.ok ? await cacResponse.json() : {};
 
-        const statusJson = await statusResponse.json();
-        const lateCountJson = await lateCountResponse.json();
+      // Process data
+      const revenue = ordersData?.revenue || 0;
+      const revenueAfterTax = revenue > 0 ? revenue - (revenue * 18 / 118) : 0;
+      const spend = cacData?.spend || 0;
+      const cac = cacData?.cac || 0;
+      const roas = spend > 0 ? revenueAfterTax / spend : 0;
 
-        // Validate status metrics data
-        const validStatusMetrics = (statusJson.success && statusJson.data) 
-          ? statusJson.data 
-          : { cac: 85, roas: 2.0, spend: 1000, revenueAfterTax: 2000, ordersCount: 10 };
-        
-        setStatusMetrics(validStatusMetrics);
-        setLateCount(lateCountJson.lateCount || 0);
+      const newMarketingData = {
+        roas,
+        cac,
+        spend,
+        revenue,
+        revenueAfterTax,
+        isLoading: false
+      };
 
-        // Cache the data only if fetch was successful
-        const dataToCache = {
-          statusMetrics: validStatusMetrics,
-          lateCount: lateCountJson.lateCount || 0,
-        };
-        
+      setMarketingData(newMarketingData);
+
+      // Cache only if we have valid non-zero data
+      if (roas > 0 && cac > 0 && spend > 0) {
         const timestamp = Date.now();
+        const dataToCache = { marketingData: newMarketingData };
         localStorage.setItem('departmentStatus', JSON.stringify(dataToCache));
         localStorage.setItem('departmentStatusTimestamp', timestamp.toString());
         setLastFetched(new Date(timestamp));
-
-      } catch (error) {
-        console.error('Error fetching status data:', error);
-        setFetchError(true);
-        
-        // If fetch fails and we have no cached data, set default values
-        if (!cached) {
-          setStatusMetrics({ cac: 85, roas: 2.0, spend: 1000, revenueAfterTax: 2000, ordersCount: 10 });
-          setLateCount(2);
-        }
-        
-        // Don't cache failed requests - let it retry next time
-      } finally {
-        setIsLoading(false);
       }
+
+    } catch (error) {
+      console.error('Marketing data fetch error:', error);
+      setMarketingData(prev => ({ ...prev, isLoading: false }));
+      setFetchError(true);
     }
-    fetchStatusData();
+  };
+
+  // Fetch Production Data
+  const fetchProductionData = async () => {
+    try {
+      setProductionData(prev => ({ ...prev, isLoading: true }));
+      
+      const today = new Date();
+      const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
+
+      const response = await fetch(`/api/admin/department-targets/production/track-shipment-delays?startDate=${startDate}&endDate=${endDate}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setProductionData({
+          shipmentDelays: data.lateCount || 0,
+          productLaunches: 1, // Static value for now
+          isLoading: false
+        });
+      } else {
+        throw new Error('Production API failed');
+      }
+
+    } catch (error) {
+      console.error('Production data fetch error:', error);
+      setProductionData({
+        shipmentDelays: 0,
+        productLaunches: 1,
+        isLoading: false
+      });
+      setFetchError(true);
+    }
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchMarketingData();
+    fetchProductionData();
   }, []);
 
-  // Memoized department status calculations
+  // Calculate department statuses
   const departmentStatus = useMemo(() => {
-    const cacValue = statusMetrics?.cac;
-    const roasValue = statusMetrics?.roas;
-    
-    // CAC status: Lower is better
-    // < 100: Healthy (Green), < 150: Warning (Orange), >= 150: Critical (Red)
-    const cacStatus = cacValue !== undefined ? 
-      (cacValue < 100 ? 'healthy' : cacValue < 150 ? 'warning' : 'critical') : 'loading';
-    
-    // ROAS status: Higher is better
-    // >= 3: Healthy (Green), >= 2.5: Warning (Orange), < 2.5: Critical (Red)
-    const roasStatus = roasValue !== undefined ? 
-      (roasValue >= 3 ? 'healthy' : roasValue >= 2.5 ? 'warning' : 'critical') : 'loading';
-    
-    // Marketing status: Both CAC and ROAS need to be good
-    const marketingStatus = (cacStatus === 'healthy' && roasStatus === 'healthy') ? 'healthy' : 
-                           (cacStatus === 'critical' || roasStatus === 'critical') ? 'critical' : 'warning';
+    // Marketing Status Logic
+    const getMarketingStatus = () => {
+      if (marketingData.isLoading) return 'loading';
+      
+      const { roas, cac } = marketingData;
+      
+      // If no data available
+      if (roas === null || cac === null || roas === 0 || cac === 0) {
+        return 'warning';
+      }
 
-    // Production logic: 1+ product launch per month is good
-    const currentProductLaunches = 1; // This should come from your API
-    const productionStatus = currentProductLaunches >= 1 ? 'healthy' : 'warning';
-    
-    const designStatus = 'healthy'; // Assuming design metrics are always good for now
+      // CAC status: < 150 healthy, < 200 warning, >= 200 critical
+      const cacStatus = cac < 150 ? 'healthy' : cac < 200 ? 'warning' : 'critical';
+      
+      // ROAS status: >= 3 healthy, >= 2.5 warning, < 2.5 critical
+      const roasStatus = roas >= 3 ? 'healthy' : roas >= 2.5 ? 'warning' : 'critical';
+      
+      // Overall marketing status: worst of both
+      if (cacStatus === 'critical' || roasStatus === 'critical') return 'critical';
+      if (cacStatus === 'warning' || roasStatus === 'warning') return 'warning';
+      return 'healthy';
+    };
+
+    // Production Status Logic
+    const getProductionStatus = () => {
+      if (productionData.isLoading) return 'loading';
+      
+      const { shipmentDelays, productLaunches } = productionData;
+      
+      // Shipment delays: <= 6 healthy, <= 10 warning, > 10 critical
+      const delayStatus = shipmentDelays <= 6 ? 'healthy' : shipmentDelays <= 10 ? 'warning' : 'critical';
+      
+      // Product launches: >= 1 healthy (for now always healthy)
+      const launchStatus = productLaunches >= 1 ? 'healthy' : 'warning';
+      
+      // Overall production status: worst of both
+      if (delayStatus === 'critical' || launchStatus === 'critical') return 'critical';
+      if (delayStatus === 'warning' || launchStatus === 'warning') return 'warning';
+      return 'healthy';
+    };
+
+    // Design Status Logic (Static - always healthy)
+    const getDesignStatus = () => {
+      if (designData.isLoading) return 'loading';
+      return 'healthy'; // Always healthy for now
+    };
 
     return {
       marketing: {
-        status: marketingStatus,
+        status: getMarketingStatus(),
         metrics: [
-          { label: 'ROAS', current: roasValue ? roasValue.toFixed(2) : '...', target: '3.0', unit: 'x' },
-          { label: 'CAC', current: cacValue ? `₹${Math.round(cacValue)}` : '...', target: '₹100', unit: '' }
+          {
+            label: 'ROAS',
+            current: marketingData.isLoading ? 'Loading...' : 
+                    marketingData.roas > 0 ? marketingData.roas.toFixed(2) : '0.00',
+            target: '3.0',
+            unit: 'x',
+            isLoading: marketingData.isLoading
+          },
+          {
+            label: 'CAC',
+            current: marketingData.isLoading ? 'Loading...' : 
+                    marketingData.cac > 0 ? `₹${Math.round(marketingData.cac)}` : '₹0',
+            target: '₹150',
+            unit: '',
+            isLoading: marketingData.isLoading
+          }
         ]
       },
       production: {
-        status: productionStatus,
+        status: getProductionStatus(),
         metrics: [
-          { label: 'Shipment Delays', current: lateCount, target: '6', unit: '/3days' },
-          { label: 'Product Launches', current: currentProductLaunches, target: '1', unit: '/month' }
+          {
+            label: 'Shipment Delays',
+            current: productionData.isLoading ? 'Loading...' : productionData.shipmentDelays,
+            target: '6',
+            unit: '/3days',
+            isLoading: productionData.isLoading
+          },
+          {
+            label: 'Product Launches',
+            current: productionData.productLaunches,
+            target: '1',
+            unit: '/month',
+            isLoading: false
+          }
         ]
       },
       design: {
-        status: designStatus,
+        status: getDesignStatus(),
         metrics: [
-          { label: 'Insta Posts', current: '5', target: '5', unit: '/day' },
-          { label: 'Design Reviews', current: '8', target: '10', unit: '/week' }
+          {
+            label: 'Insta Posts',
+            current: designData.instaPosts,
+            target: '5',
+            unit: '/day',
+            isLoading: false
+          },
+          {
+            label: 'Design Reviews',
+            current: designData.designReviews,
+            target: '10',
+            unit: '/week',
+            isLoading: false
+          }
         ]
       }
     };
-  }, [statusMetrics, lateCount]);
+  }, [marketingData, productionData, designData]);
 
-  const StatusCard = ({ title, department, icon }) => {
+  const StatusCard = ({ title, department }) => {
+    if (!department || !department.metrics) {
+      return (
+        <div className={`${styles.statusCard} ${styles.loading}`}>
+          <div className={styles.cardHeader}>
+            <div className={styles.titleSection}>
+              <h3 className={styles.cardTitle}>{title}</h3>
+            </div>
+            <div className={`${styles.statusIndicator} ${styles.loading}`}>
+              <div className={styles.statusDot}></div>
+              <span className={styles.statusText}>Loading...</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const status = department.status;
-    const isHealthy = status === 'healthy';
-    const isWarning = status === 'warning';
-    const isCritical = status === 'critical';
     
     return (
       <div className={`${styles.statusCard} ${styles[status]}`}>
         <div className={styles.cardHeader}>
           <div className={styles.titleSection}>
-            {/* <span className={styles.cardIcon}>{icon}</span> */}
             <h3 className={styles.cardTitle}>{title}</h3>
           </div>
           <div className={`${styles.statusIndicator} ${styles[status]}`}>
             <div className={styles.statusDot}></div>
             <span className={styles.statusText}>
-              {isHealthy ? 'On Track' : isWarning ? 'Attention' : 'Critical'}
+              {status === 'healthy' ? 'On Track' : 
+               status === 'warning' ? 'Attention' : 
+               status === 'critical' ? 'Critical' : 'Loading...'}
             </span>
           </div>
         </div>
@@ -201,9 +313,9 @@ const StatusContainer = () => {
                   className={styles.progressFill} 
                   style={{ 
                     width: (() => {
+                      if (metric.isLoading) return '0%';
                       if (!metric.current || !metric.target) return '0%';
                       
-                      // Convert current and target to numbers
                       const currentStr = String(metric.current);
                       const targetStr = String(metric.target);
                       
@@ -223,21 +335,21 @@ const StatusContainer = () => {
     );
   };
 
+  // Loading check
+  const isOverallLoading = marketingData.isLoading && productionData.isLoading;
+
   return (
     <div className={styles.statusContainer}>
-      {fetchError && !isLoading && (
+      {fetchError && (
         <div className={styles.errorContainer}>
           <div className={styles.errorCard}>
             <h3>⚠️ Connection Issue</h3>
-            <p>Unable to fetch the latest department data. Showing cached information or defaults.</p>
-            <button onClick={retryFetch} className={styles.retryButton}>
-              🔄 Retry
-            </button>
+            <p>Some department data may be unavailable due to network issues.</p>
           </div>
         </div>
       )}
       
-      {isLoading && (
+      {isOverallLoading && (
         <div className={styles.loadingOverlay}>
           <div className={styles.loadingSpinner}></div>
           <span>Loading department status...</span>
@@ -248,17 +360,14 @@ const StatusContainer = () => {
         <StatusCard 
           title="Marketing" 
           department={departmentStatus.marketing}
-          icon="📈"
         />
         <StatusCard 
           title="Production" 
           department={departmentStatus.production}
-          icon="🏭"
         />
         <StatusCard 
           title="Design" 
           department={departmentStatus.design}
-          icon="🎨"
         />
       </div>
       

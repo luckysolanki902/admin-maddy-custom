@@ -70,7 +70,7 @@ export async function POST(req) {
             purchaseCount: 0, 
             checkouts: 0, 
             checkoutToPurchaseRatio: 0, 
-            cac: 'N/A' 
+            cac: 0 
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
@@ -86,8 +86,8 @@ export async function POST(req) {
       // Calculate checkout to purchase ratio
       const checkoutToPurchaseRatio = checkouts > 0 ? ((purchases / checkouts) * 100).toFixed(2) : 0;
 
-      // Since Meta CAC is now calculated on the frontend, set it to 'N/A'
-      const cac = 'N/A';
+      // Calculate CAC: Cost Per Acquisition (spend / purchases)
+      const cac = purchases > 0 ? spend / purchases : 0;
 
       console.info({ spend, purchaseCount: purchases, checkouts, checkoutToPurchaseRatio, cac });
 

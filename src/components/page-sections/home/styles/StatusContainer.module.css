@@ -14,7 +14,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(10, 10, 10, 0.9);
+  background: #414141;
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
@@ -73,8 +73,8 @@
   }
   
   .statusCard {
-    min-width: 220px;
-    width: 220px;
+    min-width: 250px;
+    width: 250px;
   }
 }
 
@@ -136,6 +136,14 @@
   background: linear-gradient(90deg, transparent, #ef4444, transparent);
 }
 
+.statusCard.loading {
+  --status-color: rgba(255, 255, 255, 0.3);
+}
+
+.statusCard.loading::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+}
+
 @keyframes pulse {
   0%, 100% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
@@ -143,6 +151,41 @@
   50% {
     box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
   }
+}
+
+/* Admin Card Styling */
+.adminCard {
+  --status-color: rgba(255, 255, 255, 0.8) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.adminCard::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent) !important;
+}
+
+.adminCard.healthy {
+  --status-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.adminCard.healthy::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent) !important;
+}
+
+.adminCard.warning {
+  --status-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.adminCard.warning::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent) !important;
+}
+
+.adminCard.critical {
+  --status-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.adminCard.critical::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent) !important;
 }
 
 /* Card Header */
@@ -200,6 +243,12 @@
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.statusIndicator.loading {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .statusDot {
@@ -332,8 +381,8 @@
   .statusCard {
     padding: 0.625rem;
     border-radius: 6px;
-    min-width: 200px;
-    width: 200px;
+    min-width: 220px;
+    width: 220px;
   }
   
   .cardHeader {

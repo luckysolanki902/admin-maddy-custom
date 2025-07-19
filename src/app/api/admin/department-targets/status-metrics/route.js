@@ -1,16 +1,12 @@
-import connectToDatabase from '@/lib/db';
+import {connectToDatabase} from '@/lib/db';
 import Order from '@/models/Order';
 import dayjs from 'dayjs';
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(request) {
   try {
     await connectToDatabase();
 
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate } = await request.json();
     
     // Default to today if no dates provided
     const start = startDate ? dayjs(startDate).startOf('day') : dayjs().startOf('day');
@@ -82,7 +78,7 @@ export default async function handler(req, res) {
     // Calculate ROAS
     const roas = cacData.spend > 0 ? revenueAfterTax / cacData.spend : 0;
 
-    res.status(200).json({
+    return Response.json({
       success: true,
       data: {
         revenue: totalRevenue,
@@ -103,9 +99,12 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Error calculating status metrics:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
+    return Response.json(
+      { 
+        error: 'Internal server error',
+        message: error.message 
+      },
+      { status: 500 }
+    );
   }
 }

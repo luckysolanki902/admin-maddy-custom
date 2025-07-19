@@ -106,7 +106,6 @@ export async function GET(request) {
     const THRESHOLD = 3;
     const isThresholdExceeded = lateCount > THRESHOLD;
 
-
     // Return only late orders
     return NextResponse.json({
       totalOrders: orders.length,

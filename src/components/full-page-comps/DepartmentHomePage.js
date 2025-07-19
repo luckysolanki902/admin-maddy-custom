@@ -9,7 +9,7 @@ export default function DepartmentHomePage({ department = 'Marketing', quote, op
         Web: 'rgb(255, 58, 97)',
         Production: 'rgb(255, 255, 255)',
         Admin: 'rgb(11, 162, 101)',
-        Finance: 'rgb(11, 162, 101)',
+        Finance: 'rgb(255, 220, 100)',
     };
 
     // Utility function to convert RGB to RGBA

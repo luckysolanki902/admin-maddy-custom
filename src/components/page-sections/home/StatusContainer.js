@@ -29,6 +29,54 @@ const StatusContainer = () => {
 
   const [lastFetched, setLastFetched] = useState(null);
   const [fetchError, setFetchError] = useState(false);
+  const [hoveredMetric, setHoveredMetric] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+  // Metric threshold definitions for tooltips
+  const metricThresholds = {
+    'ROAS': {
+      title: 'Return on Ad Spend',
+      healthy: '≥ 3.0x',
+      warning: '2.5x - 2.99x',
+      critical: '< 2.5x',
+      description: 'Revenue generated per rupee spent on ads'
+    },
+    'CAC': {
+      title: 'Customer Acquisition Cost',
+      healthy: '< ₹150',
+      warning: '₹150 - ₹199',
+      critical: '≥ ₹200',
+      description: 'Cost to acquire one customer'
+    },
+    'Shipment Delays': {
+      title: 'Late Shipments',
+      healthy: '≤ 6 orders',
+      warning: '7 - 10 orders',
+      critical: '> 10 orders',
+      description: 'Orders delayed beyond 2 days per 3-day period'
+    },
+    'Product Launches': {
+      title: 'New Products',
+      healthy: '≥ 1 product',
+      warning: '< 1 product',
+      critical: 'No launches',
+      description: 'New products launched per month'
+    },
+    'Insta Posts': {
+      title: 'Instagram Content',
+      healthy: '≥ 5 posts',
+      warning: '3 - 4 posts',
+      critical: '< 3 posts',
+      description: 'Daily Instagram posts for brand engagement'
+    },
+    'Design Reviews': {
+      title: 'Design Quality Control',
+      healthy: '≥ 8 reviews',
+      warning: '5 - 7 reviews',
+      critical: '< 5 reviews',
+      description: 'Weekly design reviews and approvals'
+    }
+  };
 
   // Check if we should use cache for marketing data
   const shouldUseMarketingCache = (cachedData) => {
@@ -149,7 +197,7 @@ const StatusContainer = () => {
   useEffect(() => {
     fetchMarketingData();
     fetchProductionData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calculate department statuses
   const departmentStatus = useMemo(() => {
@@ -299,37 +347,56 @@ const StatusContainer = () => {
         </div>
         
         <div className={styles.metricsGrid}>
-          {department.metrics.map((metric, index) => (
-            <div key={index} className={styles.metricItem}>
-              <div className={styles.metricLabel}>{metric.label}</div>
-              <div className={styles.metricValues}>
-                <span className={styles.currentValue}>{metric.current}</span>
-                <span className={styles.targetDivider}>/</span>
-                <span className={styles.targetValue}>{metric.target}</span>
-                <span className={styles.unit}>{metric.unit}</span>
+          {department.metrics.map((metric, index) => {
+            const thresholdInfo = metricThresholds[metric.label];
+            const metricKey = `${title}-${metric.label}`;
+            
+            return (
+              <div 
+                key={index} 
+                className={styles.metricItem}
+                onMouseEnter={(e) => {
+                  setHoveredMetric(metricKey);
+                  setTooltipPosition({ 
+                    x: e.currentTarget.getBoundingClientRect().left + e.currentTarget.offsetWidth / 2, 
+                    y: e.currentTarget.getBoundingClientRect().top 
+                  });
+                }}
+                onMouseLeave={() => {
+                  setHoveredMetric(null);
+                  setTooltipPosition({ x: 0, y: 0 });
+                }}
+              >
+                <div className={styles.metricLabel}>{metric.label}</div>
+                <div className={styles.metricValues}>
+                  <span className={styles.currentValue}>{metric.current}</span>
+                  <span className={styles.targetDivider}>/</span>
+                  <span className={styles.targetValue}>{metric.target}</span>
+                  <span className={styles.unit}>{metric.unit}</span>
+                </div>
+                <div className={styles.progressBar}>
+                  <div 
+                    className={styles.progressFill} 
+                    style={{ 
+                      width: (() => {
+                        if (metric.isLoading) return '0%';
+                        if (!metric.current || !metric.target) return '0%';
+                        
+                        const currentStr = String(metric.current);
+                        const targetStr = String(metric.target);
+                        
+                        const currentValue = parseFloat(currentStr.replace(/[^\d.]/g, '')) || 0;
+                        const targetValue = parseFloat(targetStr.replace(/[^\d.]/g, '')) || 1;
+                        
+                        const percentage = Math.min((currentValue / targetValue) * 100, 100);
+                        return `${percentage}%`;
+                      })()
+                    }}
+                  ></div>
+                </div>
               </div>
-              <div className={styles.progressBar}>
-                <div 
-                  className={styles.progressFill} 
-                  style={{ 
-                    width: (() => {
-                      if (metric.isLoading) return '0%';
-                      if (!metric.current || !metric.target) return '0%';
-                      
-                      const currentStr = String(metric.current);
-                      const targetStr = String(metric.target);
-                      
-                      const currentValue = parseFloat(currentStr.replace(/[^\d.]/g, '')) || 0;
-                      const targetValue = parseFloat(targetStr.replace(/[^\d.]/g, '')) || 1;
-                      
-                      const percentage = Math.min((currentValue / targetValue) * 100, 100);
-                      return `${percentage}%`;
-                    })()
-                  }}
-                ></div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -376,6 +443,44 @@ const StatusContainer = () => {
           <span>Last updated: {lastFetched.toLocaleTimeString()}</span>
         </div>
       )}
+      
+      {/* Global Tooltip */}
+      {hoveredMetric && (() => {
+        const [title, metricLabel] = hoveredMetric.split('-');
+        const thresholdInfo = metricThresholds[metricLabel];
+        
+        if (!thresholdInfo) return null;
+        
+        return (
+          <div 
+            className={styles.globalTooltip}
+            style={{
+              left: `${tooltipPosition.x}px`,
+              top: `${tooltipPosition.y - 10}px`,
+              transform: 'translateX(-50%) translateY(-100%)'
+            }}
+          >
+            <div className={styles.tooltipHeader}>
+              <h4>{thresholdInfo.title}</h4>
+              <p>{thresholdInfo.description}</p>
+            </div>
+            <div className={styles.tooltipThresholds}>
+              <div className={`${styles.thresholdItem} ${styles.healthy}`}>
+                <span className={styles.thresholdLabel}>Healthy:</span>
+                <span className={styles.thresholdValue}>{thresholdInfo.healthy}</span>
+              </div>
+              <div className={`${styles.thresholdItem} ${styles.warning}`}>
+                <span className={styles.thresholdLabel}>Attention:</span>
+                <span className={styles.thresholdValue}>{thresholdInfo.warning}</span>
+              </div>
+              <div className={`${styles.thresholdItem} ${styles.critical}`}>
+                <span className={styles.thresholdLabel}>Critical:</span>
+                <span className={styles.thresholdValue}>{thresholdInfo.critical}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

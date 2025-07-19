@@ -467,7 +467,7 @@ export default function ProductivityOverview() {
                       variant="outlined"
                       startIcon={<DownloadIcon />}
                       onClick={exportToExcel}
-                      disabled={submissions.length === 0}
+                      disabled={loading || submissions.length === 0}
                       sx={{
                         borderColor: 'rgba(59, 130, 246, 0.5)',
                         color: '#3b82f6',
@@ -475,6 +475,10 @@ export default function ProductivityOverview() {
                           borderColor: '#3b82f6',
                           bgcolor: 'rgba(59, 130, 246, 0.1)',
                         },
+                        '&:disabled': {
+                          borderColor: 'rgba(255, 255, 255, 0.2)',
+                          color: 'rgba(255, 255, 255, 0.4)',
+                        }
                       }}
                     >
                       Export Excel

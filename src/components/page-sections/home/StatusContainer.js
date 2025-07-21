@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
+import { Tooltip } from '@mui/material';
 import styles from './styles/StatusContainer.module.css';
 
 const StatusContainer = () => {
@@ -29,8 +30,6 @@ const StatusContainer = () => {
 
   const [lastFetched, setLastFetched] = useState(null);
   const [fetchError, setFetchError] = useState(false);
-  const [hoveredMetric, setHoveredMetric] = useState(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   // Metric threshold definitions for tooltips
   const metricThresholds = {
@@ -349,52 +348,79 @@ const StatusContainer = () => {
         <div className={styles.metricsGrid}>
           {department.metrics.map((metric, index) => {
             const thresholdInfo = metricThresholds[metric.label];
-            const metricKey = `${title}-${metric.label}`;
             
-            return (
-              <div 
-                key={index} 
-                className={styles.metricItem}
-                onMouseEnter={(e) => {
-                  setHoveredMetric(metricKey);
-                  setTooltipPosition({ 
-                    x: e.currentTarget.getBoundingClientRect().left + e.currentTarget.offsetWidth / 2, 
-                    y: e.currentTarget.getBoundingClientRect().top 
-                  });
-                }}
-                onMouseLeave={() => {
-                  setHoveredMetric(null);
-                  setTooltipPosition({ x: 0, y: 0 });
-                }}
-              >
-                <div className={styles.metricLabel}>{metric.label}</div>
-                <div className={styles.metricValues}>
-                  <span className={styles.currentValue}>{metric.current}</span>
-                  <span className={styles.targetDivider}>/</span>
-                  <span className={styles.targetValue}>{metric.target}</span>
-                  <span className={styles.unit}>{metric.unit}</span>
+            const tooltipContent = thresholdInfo ? (
+              <div>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                  {thresholdInfo.title}
                 </div>
-                <div className={styles.progressBar}>
-                  <div 
-                    className={styles.progressFill} 
-                    style={{ 
-                      width: (() => {
-                        if (metric.isLoading) return '0%';
-                        if (!metric.current || !metric.target) return '0%';
-                        
-                        const currentStr = String(metric.current);
-                        const targetStr = String(metric.target);
-                        
-                        const currentValue = parseFloat(currentStr.replace(/[^\d.]/g, '')) || 0;
-                        const targetValue = parseFloat(targetStr.replace(/[^\d.]/g, '')) || 1;
-                        
-                        const percentage = Math.min((currentValue / targetValue) * 100, 100);
-                        return `${percentage}%`;
-                      })()
-                    }}
-                  ></div>
+                <div style={{ marginBottom: '8px', fontSize: '0.9em' }}>
+                  {thresholdInfo.description}
+                </div>
+                <div style={{ fontSize: '0.85em' }}>
+                  <div style={{ color: '#4caf50', marginBottom: '2px' }}>
+                    Healthy: {thresholdInfo.healthy}
+                  </div>
+                  <div style={{ color: '#ff9800', marginBottom: '2px' }}>
+                    Attention: {thresholdInfo.warning}
+                  </div>
+                  <div style={{ color: '#f44336' }}>
+                    Critical: {thresholdInfo.critical}
+                  </div>
                 </div>
               </div>
+            ) : '';
+            
+            return (
+              <Tooltip
+                key={index}
+                title={tooltipContent}
+                arrow
+                placement="top"
+                componentsProps={{
+                  tooltip: {
+                    sx: {
+                      bgcolor: 'rgba(55, 65, 81, 0.95)',
+                      color: 'white',
+                      fontSize: '0.875rem',
+                      maxWidth: '280px',
+                      '& .MuiTooltip-arrow': {
+                        color: 'rgba(55, 65, 81, 0.95)',
+                      },
+                    },
+                  },
+                }}
+              >
+                <div className={styles.metricItem}>
+                  <div className={styles.metricLabel}>{metric.label}</div>
+                  <div className={styles.metricValues}>
+                    <span className={styles.currentValue}>{metric.current}</span>
+                    <span className={styles.targetDivider}>/</span>
+                    <span className={styles.targetValue}>{metric.target}</span>
+                    <span className={styles.unit}>{metric.unit}</span>
+                  </div>
+                  <div className={styles.progressBar}>
+                    <div 
+                      className={styles.progressFill} 
+                      style={{ 
+                        width: (() => {
+                          if (metric.isLoading) return '0%';
+                          if (!metric.current || !metric.target) return '0%';
+                          
+                          const currentStr = String(metric.current);
+                          const targetStr = String(metric.target);
+                          
+                          const currentValue = parseFloat(currentStr.replace(/[^\d.]/g, '')) || 0;
+                          const targetValue = parseFloat(targetStr.replace(/[^\d.]/g, '')) || 1;
+                          
+                          const percentage = Math.min((currentValue / targetValue) * 100, 100);
+                          return `${percentage}%`;
+                        })()
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              </Tooltip>
             );
           })}
         </div>
@@ -443,44 +469,6 @@ const StatusContainer = () => {
           <span>Last updated: {lastFetched.toLocaleTimeString()}</span>
         </div>
       )}
-      
-      {/* Global Tooltip */}
-      {hoveredMetric && (() => {
-        const [title, metricLabel] = hoveredMetric.split('-');
-        const thresholdInfo = metricThresholds[metricLabel];
-        
-        if (!thresholdInfo) return null;
-        
-        return (
-          <div 
-            className={styles.globalTooltip}
-            style={{
-              left: `${tooltipPosition.x}px`,
-              top: `${tooltipPosition.y - 10}px`,
-              transform: 'translateX(-50%) translateY(-100%)'
-            }}
-          >
-            <div className={styles.tooltipHeader}>
-              <h4>{thresholdInfo.title}</h4>
-              <p>{thresholdInfo.description}</p>
-            </div>
-            <div className={styles.tooltipThresholds}>
-              <div className={`${styles.thresholdItem} ${styles.healthy}`}>
-                <span className={styles.thresholdLabel}>Healthy:</span>
-                <span className={styles.thresholdValue}>{thresholdInfo.healthy}</span>
-              </div>
-              <div className={`${styles.thresholdItem} ${styles.warning}`}>
-                <span className={styles.thresholdLabel}>Attention:</span>
-                <span className={styles.thresholdValue}>{thresholdInfo.warning}</span>
-              </div>
-              <div className={`${styles.thresholdItem} ${styles.critical}`}>
-                <span className={styles.thresholdLabel}>Critical:</span>
-                <span className={styles.thresholdValue}>{thresholdInfo.critical}</span>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 };

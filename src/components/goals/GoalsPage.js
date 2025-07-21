@@ -48,7 +48,7 @@ export default function AdminGoalsPage({ department }) {
   // Sorting and filtering states
   const [sortBy, setSortBy] = useState("priority");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [showCompleted, setShowCompleted] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const titleRef = useRef(null);
   const descRef = useRef(null);

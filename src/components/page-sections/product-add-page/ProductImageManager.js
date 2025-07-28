@@ -57,12 +57,12 @@ const ProductImageManager = ({
       return;
     }
 
-    // Validate file sizes (5MB limit per image)
-    const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+    // Validate file sizes (100MB limit per image)
+    const maxSizeInBytes = 100 * 1024 * 1024; // 100MB
     const oversizedFiles = selected.filter(file => file.size > maxSizeInBytes);
     
     if (oversizedFiles.length > 0) {
-      alert(`The following files exceed the 5MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`);
+      alert(`The following files exceed the 100MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`);
       return;
     }
 
@@ -86,11 +86,11 @@ const ProductImageManager = ({
           alert('Invalid file type. Only JPEG images are allowed.');
           return;
         }
-        
-        // Validate file size (5MB limit)
-        const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+
+        // Validate file size (100MB limit)
+        const maxSizeInBytes = 100 * 1024 * 1024; // 100MB
         if (file.size > maxSizeInBytes) {
-          alert('File size exceeds the 5MB limit. Please choose a smaller file.');
+          alert('File size exceeds the 100MB limit. Please choose a smaller file.');
           return;
         }
         

@@ -28,6 +28,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import slugify from 'slugify';
 
 import ImageUpload from '@/components/utils/ImageUpload';
+import ProductImageManager from '@/components/page-sections/product-add-page/ProductImageManager';
+import ProductImagePreview from '@/components/page-sections/product-add-page/ProductImagePreview';
 import CategorySelector from '@/components/layout/CategorySelector';
 import VariantNameConflictDialog from '@/components/page-sections/common/VariantNameConflictDialog';
 import OptionForm from '@/components/page-sections/options/OptionForm';
@@ -211,12 +213,14 @@ const AddProductPage = () => {
      │  MAIN SUBMIT (Add Product)                              │
      ╰──────────────────────────────────────────────────────────╯ */
   const handleFormSubmit = async () => {
-    if (
-      !name ||
-      !productImages.length ||
-      !mainTag
-    ) {
-      alert('Please fill all required fields.');
+    // Validation
+    const errors = [];
+    if (!name) errors.push('Product name is required');
+    if (!productImages.length) errors.push('At least one product image is required');
+    if (!mainTag) errors.push('Main tag is required');
+    
+    if (errors.length > 0) {
+      setErrorAlert(errors.join(', '));
       return;
     }
 
@@ -343,14 +347,7 @@ const AddProductPage = () => {
       setMainTag('');
       setPrice(0);
       setMRP(1000);
-      setDisplayOrder(0);      // ...existing code...
-      // Optionally, enforce file size limits client-side
-      const maxSizeInBytes = type === "main" ? 5 * 1024 * 1024 : 50 * 1024 * 1024; // 5MB for main, 50MB for design
-      if (file.size > maxSizeInBytes) {
-        setErrorAlert(`File size exceeds the limit of ${type === "main" ? "5MB" : "50MB"}. Please choose a smaller file.`);
-        return;
-      }
-      // ...existing code...
+      setDisplayOrder(0);
       setProductImages([]);
       setProductionTemplateImage(null);
       setSkuSerial(skuSerial + 1);
@@ -436,14 +433,14 @@ const AddProductPage = () => {
       {/* ───── Product form ───── */}
       <Grid container spacing={4}>
         <Grid item xs={12}>
-          <ImageUpload
+          <ProductImageManager
             label="Product Images (JPG)"
             accept="image/jpeg"
-            multiple
             files={productImages}
             onFilesChange={setProductImages}
             max={5}
           />
+          <ProductImagePreview files={productImages} />
         </Grid>
 
         <Grid item xs={12}>

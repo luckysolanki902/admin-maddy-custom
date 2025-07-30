@@ -42,9 +42,9 @@ const StatusContainer = () => {
     },
     'CAC': {
       title: 'Customer Acquisition Cost',
-      healthy: '< ₹150',
-      warning: '₹150 - ₹199',
-      critical: '≥ ₹200',
+      healthy: '< ₹250',
+      warning: '₹250 - ₹299',
+      critical: '≥ ₹300',
       description: 'Cost to acquire one customer'
     },
     'Shipment Delays': {
@@ -211,8 +211,8 @@ const StatusContainer = () => {
         return 'warning';
       }
 
-      // CAC status: < 200 healthy, < 250 warning, >= 250 critical
-      const cacStatus = cac < 200 ? 'healthy' : cac < 250 ? 'warning' : 'critical';
+      // CAC status: < 250 healthy, < 300 warning, >= 300 critical
+      const cacStatus = cac < 250 ? 'healthy' : cac < 300 ? 'warning' : 'critical';
       
       // ROAS status: >= 3 healthy, >= 2.5 warning, < 2.5 critical
       const roasStatus = roas >= 3 ? 'healthy' : roas >= 2.5 ? 'warning' : 'critical';

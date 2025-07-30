@@ -211,8 +211,8 @@ const StatusContainer = () => {
         return 'warning';
       }
 
-      // CAC status: < 150 healthy, < 200 warning, >= 200 critical
-      const cacStatus = cac < 150 ? 'healthy' : cac < 200 ? 'warning' : 'critical';
+      // CAC status: < 200 healthy, < 250 warning, >= 250 critical
+      const cacStatus = cac < 200 ? 'healthy' : cac < 250 ? 'warning' : 'critical';
       
       // ROAS status: >= 3 healthy, >= 2.5 warning, < 2.5 critical
       const roasStatus = roas >= 3 ? 'healthy' : roas >= 2.5 ? 'warning' : 'critical';
@@ -263,7 +263,7 @@ const StatusContainer = () => {
             label: 'CAC',
             current: marketingData.isLoading ? 'Loading...' : 
                     marketingData.cac > 0 ? `₹${Math.round(marketingData.cac)}` : '₹0',
-            target: '₹150',
+            target: '₹200',
             unit: '',
             isLoading: marketingData.isLoading
           }

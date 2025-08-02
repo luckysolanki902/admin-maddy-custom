@@ -42,7 +42,6 @@ import {
 } from "@mui/icons-material";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useUser } from "@clerk/nextjs";
-import { sortByPriorityOrder } from "@/lib/utils/priorityOrder";
 
 export default function Goals({ goals, setGoals, isAllowed, department }) {
   const [expandedGoalId, setExpandedGoalId] = useState(null);
@@ -66,61 +65,40 @@ export default function Goals({ goals, setGoals, isAllowed, department }) {
   const deadlineRef = useRef(null);
   const priorityRef = useRef(null);
 
-  // Sort goals by priority order
-  const sortedGoals = sortByPriorityOrder(goals);
-
   // Handle drag and drop reordering
   const handleDragEnd = async (result) => {
     if (!result.destination || !canReorder) return;
-    if (result.source.index === result.destination.index) return;
 
-    const draggedGoal = sortedGoals[result.source.index];
-    if (draggedGoal.isCompleted) return; // Don't allow reordering completed goals
+    const items = Array.from(goals);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
 
-    // Only work with incomplete goals for positioning
-    const incompleteGoals = sortedGoals.filter(g => !g.isCompleted);
-    const newPosition = result.destination.index;
-
-    // Create optimistic reordering - only reorder visually, don't change priority order yet
-    const reorderedGoals = Array.from(sortedGoals);
-    const [movedGoal] = reorderedGoals.splice(result.source.index, 1);
-    reorderedGoals.splice(result.destination.index, 0, movedGoal);
-    
-    // Immediately update UI for smooth experience
-    setGoals(reorderedGoals);
+    // Optimistically update the UI
+    setGoals(items);
     setIsReordering(true);
 
     try {
+      const goalIds = items.map(goal => goal._id);
       const response = await fetch('/api/goals/reorder', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          draggedGoalId: draggedGoal._id,
-          newPosition,
+          goalIds,
           department
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        // Revert on error - go back to original sorted order
-        setGoals(sortedGoals);
-        console.error('Failed to reorder goal:', data.message);
-      } else {
-        // Update the moved goal's priority order in the state
-        setGoals(prev => prev.map(goal => 
-          goal._id === draggedGoal._id 
-            ? { ...goal, priorityOrder: data.newPriorityOrder }
-            : goal
-        ));
+        // Revert on error
+        setGoals(goals);
+        console.error('Failed to reorder goals');
       }
     } catch (error) {
       // Revert on error
-      setGoals(sortedGoals);
-      console.error('Error reordering goal:', error);
+      setGoals(goals);
+      console.error('Error reordering goals:', error);
     } finally {
       setIsReordering(false);
     }
@@ -315,7 +293,9 @@ export default function Goals({ goals, setGoals, isAllowed, department }) {
 
   const getPriorityChip = (priority) => {
     const priorityConfig = {
+      low: { color: "success", label: "Low", variant: "outlined" },
       medium: { color: "info", label: "Medium", variant: "outlined" },
+      high: { color: "warning", label: "High", variant: "filled" },
       urgent: { color: "error", label: "Urgent", variant: "filled" },
     };
     
@@ -328,7 +308,7 @@ export default function Goals({ goals, setGoals, isAllowed, department }) {
         color={config.color}
         variant={config.variant}
         sx={{
-          fontWeight: priority === 'urgent' ? 600 : 400,
+          fontWeight: priority === 'urgent' || priority === 'high' ? 600 : 400,
         }}
       />
     );
@@ -348,14 +328,14 @@ export default function Goals({ goals, setGoals, isAllowed, department }) {
                 transition: "opacity 0.2s ease-in-out"
               }}
             >
-              {sortedGoals.map((goal, index) => {
+              {goals.map((goal, index) => {
                 const isExpanded = expandedGoalId === goal._id;
                 const isToggling = togglingId === goal._id;
                 const isDeleting = deletingId === goal._id;
                 const isOptimistic = goal._id?.startsWith?.('temp_');
                 
                 // Calculate priority number for incomplete goals only
-                const incompleteGoals = sortedGoals.filter(g => !g.isCompleted);
+                const incompleteGoals = goals.filter(g => !g.isCompleted);
                 const priorityNumber = !goal.isCompleted ? incompleteGoals.findIndex(g => g._id === goal._id) + 1 : null;
 
                 return (
@@ -390,15 +370,14 @@ export default function Goals({ goals, setGoals, isAllowed, department }) {
                             gap: 2,
                           }}
                         >
-                          {/* Priority Number and Drag Handle - Fixed Width */}
+                          {/* Priority Number - Fixed Width */}
                           <Box sx={{ 
                             flexShrink: 0,
                             pt: 0.5,
-                            minWidth: 60,
+                            minWidth: 40,
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'flex-start',
-                            gap: 1
+                            justifyContent: 'center'
                           }}>
                             {priorityNumber && (
                               <Avatar
@@ -411,7 +390,6 @@ export default function Goals({ goals, setGoals, isAllowed, department }) {
                                   color: 'primary.contrastText',
                                   border: '2px solid',
                                   borderColor: 'primary.light',
-                                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                 }}
                               >
                                 {priorityNumber}
@@ -421,17 +399,13 @@ export default function Goals({ goals, setGoals, isAllowed, department }) {
                               <Box
                                 {...provided.dragHandleProps}
                                 sx={{
+                                  ml: 1,
                                   display: 'flex',
                                   alignItems: 'center',
                                   cursor: 'grab',
                                   opacity: 0.6,
-                                  color: 'text.secondary',
-                                  '&:hover': { 
-                                    opacity: 1,
-                                    color: 'primary.main'
-                                  },
-                                  '&:active': { cursor: 'grabbing' },
-                                  transition: 'all 0.2s ease-in-out'
+                                  '&:hover': { opacity: 1 },
+                                  '&:active': { cursor: 'grabbing' }
                                 }}
                               >
                                 <DragIndicatorIcon fontSize="small" />
@@ -540,243 +514,306 @@ export default function Goals({ goals, setGoals, isAllowed, department }) {
                             </IconButton>
                           </Box>
 
-                          {/* Actions Section - Fixed Width */}
-                          {isAllowed && (
-                            <Box sx={{ 
-                              flexShrink: 0,
-                              display: "flex",
-                              flexDirection: { xs: "column", sm: "row" },
-                              gap: { xs: 0.5, sm: 0.5 },
-                              alignItems: "center",
-                            }}>
-                              <IconButton
-                                size="small"
-                                onClick={() => openEditDialog(goal)}
-                                disabled={!isAllowed || isToggling || isOptimistic}
-                                sx={{ 
-                                  p: { xs: 0.75, sm: 0.5 },
-                                  minWidth: "auto",
-                                }}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeleteGoal(goal._id)}
-                                disabled={!isAllowed || isToggling || isOptimistic}
-                                sx={{ 
-                                  p: { xs: 0.75, sm: 0.5 },
-                                  minWidth: "auto",
-                                }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                onClick={() => setExpandedGoalId(isExpanded ? null : goal._id)}
-                                disabled={!isAllowed || isToggling || isOptimistic}
-                                sx={{ 
-                                  p: { xs: 0.75, sm: 0.5 },
-                                  minWidth: "auto",
-                                }}
-                              >
-                                {isExpanded ? <ExpandLessIcon fontSize="small" /> : <HistoryIcon fontSize="small" />}
-                              </IconButton>
-                            </Box>
-                          )}
-                        </ListItem>
+                {/* Actions Section - Fixed Width */}
+                {isAllowed && (
+                  <Box sx={{ 
+                    flexShrink: 0,
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    gap: { xs: 0.5, sm: 0.5 },
+                    alignItems: "center",
+                  }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => openEditDialog(goal)}
+                      disabled={!isAllowed || isToggling || isOptimistic}
+                      sx={{ 
+                        p: { xs: 0.75, sm: 0.5 },
+                        minWidth: "auto",
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteGoal(goal._id)}
+                      disabled={!isAllowed || isToggling || isOptimistic}
+                      sx={{ 
+                        p: { xs: 0.75, sm: 0.5 },
+                        minWidth: "auto",
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => setExpandedGoalId(isExpanded ? null : goal._id)}
+                      disabled={!isAllowed || isToggling || isOptimistic}
+                      sx={{ 
+                        p: { xs: 0.75, sm: 0.5 },
+                        minWidth: "auto",
+                      }}
+                    >
+                      {isExpanded ? <ExpandLessIcon fontSize="small" /> : <HistoryIcon fontSize="small" />}
+                    </IconButton>
+                  </Box>
+                )}
+              </ListItem>
 
-                        <Collapse in={isExpanded}>
+              <Collapse in={isExpanded}>
+                <Box sx={{ 
+                  px: { xs: 2, sm: 3 }, 
+                  py: 2, 
+                  bgcolor: "action.hover" 
+                }}>
+                  <Typography 
+                    variant="subtitle2" 
+                    color="text.secondary" 
+                    sx={{ 
+                      mb: 1, 
+                      fontWeight: 600,
+                      fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                    }}
+                  >
+                    Activity History
+                  </Typography>
+                  {goal.history.length === 0 ? (
+                    <Typography 
+                      variant="body2" 
+                      color="text.disabled"
+                      sx={{ fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
+                    >
+                      No activity yet
+                    </Typography>
+                  ) : (
+                    <Box sx={{ 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      gap: { xs: 1, sm: 1.5 },
+                    }}>
+                      {goal.history.map((h, idx) => (
+                        <Box
+                          key={idx}
+                          sx={{
+                            display: "flex",
+                            flexDirection: { xs: "column", sm: "row" },
+                            alignItems: { xs: "stretch", sm: "center" },
+                            gap: { xs: 1, sm: 2 },
+                            p: { xs: 1, sm: 1.5 },
+                            bgcolor: "background.paper",
+                            borderRadius: 1,
+                            border: "1px solid",
+                            borderColor: "divider",
+                          }}
+                        >
                           <Box sx={{ 
-                            px: { xs: 2, sm: 3 }, 
-                            py: 2, 
-                            bgcolor: "action.hover" 
+                            minWidth: 0, 
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: { xs: "column", sm: "row" },
+                            alignItems: { xs: "flex-start", sm: "center" },
+                            gap: { xs: 0.5, sm: 2 },
                           }}>
                             <Typography 
-                              variant="subtitle2" 
-                              color="text.secondary" 
+                              variant="body2" 
                               sx={{ 
-                                mb: 1, 
-                                fontWeight: 600,
+                                fontWeight: 500,
                                 fontSize: { xs: "0.8rem", sm: "0.875rem" },
                               }}
                             >
-                              Activity History
+                              {h.type === "status"
+                                ? h.status
+                                  ? "Completed"
+                                  : "Reopened"
+                                : h.type === "edit"
+                                ? "Edited"
+                                : "Created"}
                             </Typography>
-                            {goal.history.length === 0 ? (
-                              <Typography 
-                                variant="body2" 
-                                color="text.disabled"
-                                sx={{ fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
-                              >
-                                No activity yet
-                              </Typography>
-                            ) : (
-                              <Box sx={{ 
-                                display: "flex", 
-                                flexDirection: "column", 
-                                gap: { xs: 1, sm: 1.5 },
-                              }}>
-                                {goal.history.map((h, idx) => (
-                                  <Box
-                                    key={idx}
-                                    sx={{
-                                      display: "flex",
-                                      flexDirection: { xs: "column", sm: "row" },
-                                      alignItems: { xs: "stretch", sm: "center" },
-                                      gap: { xs: 1, sm: 2 },
-                                      p: { xs: 1, sm: 1.5 },
-                                      bgcolor: "background.paper",
-                                      borderRadius: 1,
-                                      border: "1px solid",
-                                      borderColor: "divider",
-                                    }}
-                                  >
-                                    <Box sx={{ 
-                                      minWidth: 0, 
-                                      flex: 1,
-                                      display: "flex",
-                                      flexDirection: { xs: "column", sm: "row" },
-                                      alignItems: { xs: "flex-start", sm: "center" },
-                                      gap: { xs: 0.5, sm: 2 },
-                                    }}>
-                                      <Typography 
-                                        variant="body2" 
-                                        sx={{ 
-                                          fontWeight: 500,
-                                          fontSize: { xs: "0.8rem", sm: "0.875rem" },
-                                        }}
-                                      >
-                                        {h.type === "created" 
-                                          ? "Goal created"
-                                          : h.type === "edit"
-                                          ? "Goal edited"
-                                          : h.status
-                                          ? "Goal completed"
-                                          : "Goal reopened"
-                                        }
-                                      </Typography>
-                                      <Typography 
-                                        variant="body2" 
-                                        color="text.secondary"
-                                        sx={{ fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
-                                      >
-                                        by {h.performedBy.name}
-                                      </Typography>
-                                    </Box>
-                                    <Typography 
-                                      variant="caption" 
-                                      color="text.secondary"
-                                      sx={{ 
-                                        flexShrink: 0,
-                                        fontSize: { xs: "0.7rem", sm: "0.75rem" },
-                                      }}
-                                    >
-                                      {new Date(h.modifiedAt).toLocaleString()}
-                                    </Typography>
-                                  </Box>
-                                ))}
-                              </Box>
-                            )}
+                            <Typography 
+                              variant="caption" 
+                              color="text.secondary"
+                              sx={{
+                                fontSize: { xs: "0.7rem", sm: "0.75rem" },
+                                lineHeight: 1.2,
+                              }}
+                            >
+                              by {h.performedBy.name} on{" "}
+                              {new Date(h.modifiedAt).toLocaleDateString()} at{" "}
+                              {new Date(h.modifiedAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </Typography>
                           </Box>
-                        </Collapse>
-
-                        {index < sortedGoals.length - 1 && <Divider />}
-                      </Box>
-                    )}
-                  </Draggable>
-                );
-              })}
-              {provided.placeholder}
-            </List>
-          )}
-        </Droppable>
-      </DragDropContext>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              </Collapse>
+              
+              {index < goals.length - 1 && <Divider />}
+            </Box>
+          );
+        })}
+      </List>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Goal</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <TextField
-            ref={titleRef}
-            autoFocus
-            margin="dense"
-            label="Title"
-            fullWidth
-            variant="outlined"
-            value={editedTitle}
-            onChange={e => setEditedTitle(e.target.value)}
-            onKeyPress={e => handleKeyPress(e, descRef)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <TitleIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 2 }}
-          />
-          
-          <TextField
-            ref={descRef}
-            margin="dense"
-            label="Description"
-            fullWidth
-            multiline
-            rows={3}
-            variant="outlined"
-            value={editedDesc}
-            onChange={e => setEditedDesc(e.target.value)}
-            onKeyPress={e => handleKeyPress(e, deadlineRef)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start" sx={{ alignSelf: "flex-start", mt: 1 }}>
-                  <DescriptionIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 2 }}
-          />
-          
-          <TextField
-            ref={deadlineRef}
-            margin="dense"
-            label="Deadline"
-            type="date"
-            fullWidth
-            variant="outlined"
-            value={editedDeadline}
-            onChange={e => setEditedDeadline(e.target.value)}
-            onKeyPress={e => handleKeyPress(e, priorityRef)}
-            InputLabelProps={{ shrink: true }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <CalendarIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 2 }}
-          />
-          
-          <FormControl fullWidth variant="outlined">
-            <InputLabel>Priority</InputLabel>
-            <Select
-              ref={priorityRef}
-              value={editedPriority}
-              onChange={e => setEditedPriority(e.target.value)}
-              label="Priority"
-            >
-              <MenuItem value="medium">Medium</MenuItem>
-              <MenuItem value="urgent">Urgent</MenuItem>
-            </Select>
-          </FormControl>
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+          },
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <EditIcon color="primary" />
+            <Typography variant="h6" component="span">
+              Edit Goal
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <TextField
+              inputRef={titleRef}
+              label="Goal Title"
+              value={editedTitle}
+              onChange={e => setEditedTitle(e.target.value)}
+              onKeyPress={e => handleKeyPress(e, descRef)}
+              fullWidth
+              disabled={isSaving}
+              autoFocus
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <TitleIcon color="action" fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                },
+              }}
+            />
+            
+            <TextField
+              inputRef={descRef}
+              label="Description"
+              value={editedDesc}
+              onChange={e => setEditedDesc(e.target.value)}
+              onKeyPress={e => handleKeyPress(e, deadlineRef)}
+              multiline
+              minRows={3}
+              fullWidth
+              disabled={isSaving}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start" sx={{ alignSelf: "flex-start", mt: 1 }}>
+                    <DescriptionIcon color="action" fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                },
+              }}
+            />
+            
+            <FormControl fullWidth disabled={isSaving}>
+              <InputLabel>Priority</InputLabel>
+              <Select
+                inputRef={priorityRef}
+                value={editedPriority}
+                label="Priority"
+                onChange={(e) => setEditedPriority(e.target.value)}
+                sx={{
+                  borderRadius: 2,
+                }}
+              >
+                <MenuItem value="low">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label="Low" size="small" color="success" variant="outlined" />
+                    <Typography>Low Priority</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="medium">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label="Medium" size="small" color="info" variant="outlined" />
+                    <Typography>Medium Priority</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="high">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label="High" size="small" color="warning" variant="outlined" />
+                    <Typography>High Priority</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="urgent">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label="Urgent" size="small" color="error" variant="outlined" />
+                    <Typography>Urgent Priority</Typography>
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
+            
+            <TextField
+              inputRef={deadlineRef}
+              label="Deadline"
+              type="date"
+              value={editedDeadline}
+              onChange={e => setEditedDeadline(e.target.value)}
+              onKeyPress={e => handleKeyPress(e, null)}
+              fullWidth
+              disabled={isSaving}
+              InputLabelProps={{ shrink: true }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <CalendarIcon color="action" fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                },
+              }}
+            />
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)} disabled={isSaving}>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button
+            onClick={() => setEditDialogOpen(false)}
+            disabled={isSaving}
+            sx={{ borderRadius: 2 }}
+          >
             Cancel
           </Button>
-          <Button onClick={handleEditSave} variant="contained" disabled={isSaving}>
+          <Button
+            onClick={handleEditSave}
+            variant="contained"
+            disabled={
+              isSaving ||
+              !editedTitle.trim() ||
+              (editedTitle.trim() === (currentGoal?.title?.trim() ?? "") &&
+                editedDesc.trim() === (currentGoal?.description?.trim() ?? "") &&
+                editedDeadline === (currentGoal?.deadline?.slice(0, 10) ?? ""))
+            }
+            sx={{
+              borderRadius: 2,
+              minWidth: 80,
+            }}
+          >
             {isSaving ? "Saving..." : "Save"}
           </Button>
         </DialogActions>

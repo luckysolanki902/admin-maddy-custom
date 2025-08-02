@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/db";
 import AdminGoal from "@/models/admin/AdminGoal";
-import { sendEmail, emailTemplates } from "@/lib/nodemailer";
+import { sendEmail } from "@/lib/nodemailer";
 import { departmentAdmins } from "@/lib/constants/user";
+import { getLastPriorityOrder, getNextPriorityOrder, getPriorityOrderBetween, getPreviousPriorityOrder, generatePriorityOrder } from "@/lib/utils/priorityOrder";
 
 export async function GET(request) {
   try {
@@ -11,8 +12,8 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const department = decodeURIComponent(searchParams.get("department") || "").trim();
-    const sortBy = searchParams.get("sortBy") || "priority"; // priority, deadline, createdAt, title
-    const sortOrder = searchParams.get("sortOrder") || "desc"; // asc, desc
+    const sortBy = searchParams.get("sortBy") || "priorityOrder"; // priorityOrder, priority, deadline, createdAt, title
+    const sortOrder = searchParams.get("sortOrder") || "asc"; // asc, desc
     const showCompleted = searchParams.get("showCompleted") === "true";
 
     if (!department) {
@@ -22,10 +23,10 @@ export async function GET(request) {
     const currUser = await currentUser();
 
     if (!currUser) {
-      return new Response({ message: "Unauthorized" }, { status: 403 });
+      return NextResponse.json({ message: "Unauthorized - User not authenticated" }, { status: 401 });
     }
 
-    const sendHistory = currUser.primaryEmailAddress.emailAddress === "priyanshuyadav0404@gmail.com";
+    const sendHistory = currUser.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com";
 
     // Build query filter
     const filter = {
@@ -50,13 +51,13 @@ export async function GET(request) {
       sortObj = { createdAt: sortOrder === "desc" ? -1 : 1 };
     } else if (sortBy === "title") {
       sortObj = { title: sortOrder === "desc" ? -1 : 1 };
+    } else if (sortBy === "priorityOrder") {
+      sortObj = { priorityOrder: sortOrder === "desc" ? -1 : 1 };
     } else {
-      // Default: priority-based smart sorting
+      // Default: priorityOrder-based sorting for incomplete goals, then by completion status
       sortObj = { 
-        isCompleted: 1, // Show incomplete first
-        priority: -1,   // Then by priority (urgent first)
-        deadline: 1,    // Then by deadline (closest first)
-        createdAt: -1   // Finally by creation date (newest first)
+        isCompleted: 1,      // Show incomplete first
+        priorityOrder: 1     // Then by priority order (a, b, c...)
       };
     }
 
@@ -92,20 +93,24 @@ export async function POST(req) {
   try {
     const currUser = await currentUser();
 
+    if (!currUser || !currUser.primaryEmailAddress) {
+      return NextResponse.json({ message: "Unauthorized - User not authenticated" }, { status: 401 });
+    }
+
     if (currUser.primaryEmailAddress.emailAddress !== "priyanshuyadav0404@gmail.com" && currUser.primaryEmailAddress.emailAddress !== "luckysolanki902@gmail.com") {
-      return new Response({ message: "Unauthorized" }, { status: 403 });
+      return NextResponse.json({ message: "Unauthorized - Insufficient permissions" }, { status: 403 });
     }
 
     await connectToDatabase();
 
-    const { title, description, department, deadline, priority } = await req.json();
+    const { title, description, department, deadline, priority, priorityPosition } = await req.json();
 
     if (!title.trim() || !department.trim()) {
       return NextResponse.json({ message: "Missing required fields: title, department" }, { status: 400 });
     }
 
     // Validate priority
-    const validPriorities = ["low", "medium", "high", "urgent"];
+    const validPriorities = ["medium", "urgent"];
     const goalPriority = validPriorities.includes(priority) ? priority : "medium";
 
     // Validate deadline
@@ -117,11 +122,67 @@ export async function POST(req) {
       }
     }
 
+    // Handle priority order based on position
+    let newPriorityOrder;
+    
+    if (priorityPosition !== undefined && priorityPosition >= 0) {
+      // Get incomplete goals for this department, sorted by priority order
+      const incompleteGoals = await AdminGoal.find({ 
+        department: department.trim(),
+        isCompleted: false 
+      }).sort({ priorityOrder: 1 }).lean();
+
+      if (priorityPosition === 0) {
+        // Insert at the very beginning (top priority)
+        if (incompleteGoals.length === 0) {
+          newPriorityOrder = 'a';
+        } else {
+          // Simple approach: regenerate all priority orders
+          // Set new goal to 'a' and shift everything else
+          newPriorityOrder = 'a';
+          
+          // Update all existing goals to new positions
+          const bulkOps = incompleteGoals.map((goal, index) => ({
+            updateOne: {
+              filter: { _id: goal._id },
+              update: { priorityOrder: generatePriorityOrder(index + 1) }
+            }
+          }));
+          
+          if (bulkOps.length > 0) {
+            await AdminGoal.bulkWrite(bulkOps);
+          }
+        }
+      } else if (priorityPosition >= incompleteGoals.length) {
+        // Insert at the end
+        if (incompleteGoals.length === 0) {
+          newPriorityOrder = 'a';
+        } else {
+          const lastOrder = incompleteGoals[incompleteGoals.length - 1].priorityOrder;
+          newPriorityOrder = getNextPriorityOrder(lastOrder);
+        }
+      } else {
+        // Insert between existing goals - use the between function
+        const prevOrder = priorityPosition > 0 ? incompleteGoals[priorityPosition - 1].priorityOrder : null;
+        const nextOrder = incompleteGoals[priorityPosition].priorityOrder;
+        newPriorityOrder = getPriorityOrderBetween(prevOrder, nextOrder);
+      }
+    } else {
+      // Default behavior - add to the end
+      const lastGoal = await AdminGoal.findOne({ 
+        department: department.trim(),
+        isCompleted: false 
+      }).sort({ priorityOrder: -1 }).lean();
+      
+      newPriorityOrder = lastGoal ? getNextPriorityOrder(lastGoal.priorityOrder) : 'a';
+    }
+
     const goal = await AdminGoal.create({
       title: title.trim(),
       description: description?.trim() || null,
       department: department.trim(),
       priority: goalPriority,
+      priorityOrder: newPriorityOrder,
       isCompleted: false,
       deadline: parsedDeadline,
       history: [

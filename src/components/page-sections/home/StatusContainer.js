@@ -263,7 +263,7 @@ const StatusContainer = () => {
             label: 'CAC',
             current: marketingData.isLoading ? 'Loading...' : 
                     marketingData.cac > 0 ? `₹${Math.round(marketingData.cac)}` : '₹0',
-            target: '₹200',
+            target: '₹250',
             unit: '',
             isLoading: marketingData.isLoading
           }

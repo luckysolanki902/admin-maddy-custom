@@ -43,19 +43,19 @@ export default function AdminGoalsPage({ department }) {
   const [newDesc, setNewDesc] = useState("");
   const [newDeadline, setNewDeadline] = useState("");
   const [newPriority, setNewPriority] = useState("medium");
+  const [newPriorityPosition, setNewPriorityPosition] = useState(0); // 0 = top, 1+ = position
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  const { user } = useUser();
   // Sorting and filtering states
-  const [sortBy, setSortBy] = useState("priority");
-  const [sortOrder, setSortOrder] = useState("desc");
-  const [showCompleted, setShowCompleted] = useState(true);
-
+  const [sortBy, setSortBy] = useState("priorityOrder");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [showCompleted, setShowCompleted] = useState(user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com"); // only true for priyanshu
   const titleRef = useRef(null);
   const descRef = useRef(null);
   const deadlineRef = useRef(null);
   const priorityRef = useRef(null);
 
-  const { user } = useUser();
   const isAllowed = user?.primaryEmailAddress?.emailAddress === "priyanshuyadav0404@gmail.com" || user?.primaryEmailAddress?.emailAddress === "luckysolanki902@gmail.com";
 
   useEffect(() => {
@@ -110,16 +110,23 @@ export default function AdminGoalsPage({ department }) {
     setGoals(prev => [optimisticGoal, ...prev]);
 
     try {
+      const goalData = {
+        title: newTitle,
+        description: newDesc,
+        department,
+        deadline: newDeadline,
+        priority: newPriority,
+      };
+
+      // Add priority position if user has permission and position is selected
+      if (isAllowed && newPriorityPosition !== null) {
+        goalData.priorityPosition = newPriorityPosition;
+      }
+
       const res = await fetch("/api/goals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newTitle,
-          description: newDesc,
-          department,
-          deadline: newDeadline,
-          priority: newPriority,
-        }),
+        body: JSON.stringify(goalData),
       });
 
       const data = await res.json();
@@ -133,6 +140,7 @@ export default function AdminGoalsPage({ department }) {
         setNewDesc("");
         setNewDeadline("");
         setNewPriority("medium");
+        setNewPriorityPosition(null);
         setOpenDialog(false);
       } else {
         // Remove optimistic goal on error
@@ -320,7 +328,7 @@ export default function AdminGoalsPage({ department }) {
               ))}
             </Box>
           ) : goals.length ? (
-            <Goals isAllowed={isAllowed} goals={goals} setGoals={setGoals} />
+            <Goals isAllowed={isAllowed} goals={goals} setGoals={setGoals} department={department} />
           ) : (
             <Box
               sx={{
@@ -428,46 +436,8 @@ export default function AdminGoalsPage({ department }) {
                   },
                 }}
               />
-              
-              <FormControl fullWidth disabled={isSubmitting}>
-                <InputLabel>Priority</InputLabel>
-                <Select
-                  inputRef={priorityRef}
-                  value={newPriority}
-                  label="Priority"
-                  onChange={(e) => setNewPriority(e.target.value)}
-                  sx={{
-                    borderRadius: 2,
-                  }}
-                >
-                  <MenuItem value="low">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Chip label="Low" size="small" color="success" variant="outlined" />
-                      <Typography>Low Priority</Typography>
-                    </Box>
-                  </MenuItem>
-                  <MenuItem value="medium">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Chip label="Medium" size="small" color="info" variant="outlined" />
-                      <Typography>Medium Priority</Typography>
-                    </Box>
-                  </MenuItem>
-                  <MenuItem value="high">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Chip label="High" size="small" color="warning" variant="outlined" />
-                      <Typography>High Priority</Typography>
-                    </Box>
-                  </MenuItem>
-                  <MenuItem value="urgent">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Chip label="Urgent" size="small" color="error" variant="outlined" />
-                      <Typography>Urgent Priority</Typography>
-                    </Box>
-                  </MenuItem>
-                </Select>
-              </FormControl>
-              
-              <TextField
+
+                      <TextField
                 inputRef={deadlineRef}
                 label="Deadline"
                 type="date"
@@ -490,6 +460,202 @@ export default function AdminGoalsPage({ department }) {
                   },
                 }}
               />
+              
+              {/* Priority Section */}
+              <Box>
+
+                       <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: 'text.primary' }}>
+                  Priority & Position
+                </Typography>
+                {/* Priority Position Selector */}
+                {isAllowed && (
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                      Choose position in priority list:
+                    </Typography>
+                    
+                    {(() => {
+                      const incompleteGoals = goals.filter(g => !g.isCompleted);
+                      const totalPositions = incompleteGoals.length + 1;
+                      
+                      return (
+                        <Box sx={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: 0.5,
+                          maxHeight: 180,
+                          overflowY: 'auto',
+                          bgcolor: 'rgba(255, 255, 255, 0.02)',
+                          borderRadius: 1.5,
+                          p: 1.5,
+                          border: '1px solid rgba(255, 255, 255, 0.1)'
+                        }}>
+                          {/* Quick options */}
+                          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                            <Button
+                              size="small"
+                              variant={newPriorityPosition === 0 ? 'contained' : 'outlined'}
+                              onClick={() => setNewPriorityPosition(0)}
+                              sx={{
+                                flex: 1,
+                                borderRadius: 1,
+                                fontSize: '0.75rem',
+                                py: 0.5,
+                                bgcolor: newPriorityPosition === 0 ? 'primary.main' : 'transparent',
+                                borderColor: 'rgba(255, 255, 255, 0.2)',
+                                color: newPriorityPosition === 0 ? 'black' : 'white',
+                                '&:hover': {
+                                  bgcolor: newPriorityPosition === 0 ? 'primary.dark' : 'rgba(255, 255, 255, 0.05)',
+                                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                                }
+                              }}
+                            >
+                              Top Priority
+                            </Button>
+                            <Button
+                              size="small"
+                              variant={newPriorityPosition === totalPositions - 1 ? 'contained' : 'outlined'}
+                              onClick={() => setNewPriorityPosition(totalPositions - 1)}
+                              sx={{
+                                flex: 1,
+                                borderRadius: 1,
+                                fontSize: '0.75rem',
+                                py: 0.5,
+                                bgcolor: newPriorityPosition === totalPositions - 1 ? 'primary.main' : 'transparent',
+                                borderColor: 'rgba(255, 255, 255, 0.2)',
+                                color: newPriorityPosition === totalPositions - 1 ? 'black' : 'white',
+                                '&:hover': {
+                                  bgcolor: newPriorityPosition === totalPositions - 1 ? 'primary.dark' : 'rgba(255, 255, 255, 0.05)',
+                                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                                }
+                              }}
+                            >
+                              Bottom
+                            </Button>
+                          </Box>
+
+                          {/* Specific positions if there are existing goals */}
+                          {incompleteGoals.length > 0 && (
+                            <>
+                              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', mb: 0.5, fontSize: '0.7rem', fontWeight: 500 }}>
+                                Or place between existing goals:
+                              </Typography>
+                              
+                              {incompleteGoals.map((goal, index) => (
+                                <Box
+                                  key={goal._id}
+                                  onClick={() => setNewPriorityPosition(index + 1)}
+                                  sx={{
+                                    p: 1.5,
+                                    borderRadius: 1,
+                                    bgcolor: newPriorityPosition === index + 1 ? 'rgba(25, 118, 210, 0.2)' : 'transparent',
+                                    border: '1px solid',
+                                    borderColor: newPriorityPosition === index + 1 ? 'rgba(25, 118, 210, 0.6)' : 'rgba(255, 255, 255, 0.12)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': {
+                                      bgcolor: newPriorityPosition === index + 1 ? 'rgba(25, 118, 210, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                      borderColor: newPriorityPosition === index + 1 ? 'rgba(25, 118, 210, 0.7)' : 'rgba(255, 255, 255, 0.2)',
+                                    }
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, justifyContent: 'space-between' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+                                      <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.5,
+                                        minWidth: 'fit-content'
+                                      }}>
+                                        <Typography variant="caption" sx={{ 
+                                          color: 'rgba(255, 255, 255, 0.5)', 
+                                          fontSize: '0.7rem',
+                                          fontWeight: 500
+                                        }}>
+                                          After
+                                        </Typography>
+                                        <Box sx={{
+                                          width: 18,
+                                          height: 18,
+                                          borderRadius: '50%',
+                                          bgcolor: 'rgba(255, 255, 255, 0.15)',
+                                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                                          color: 'rgba(255, 255, 255, 0.8)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          fontSize: '0.65rem',
+                                          fontWeight: 600,
+                                        }}>
+                                          {index + 1}
+                                        </Box>
+                                      </Box>
+                                      <Typography variant="body2" sx={{ 
+                                        color: 'rgba(255, 255, 255, 0.85)',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 500,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                        {goal.title}
+                                      </Typography>
+                                    </Box>
+                                    {/* <Chip 
+                                      label={goal.priority || 'medium'} 
+                                      size="small" 
+                                      sx={{
+                                        height: 18,
+                                        fontSize: '0.65rem',
+                                        fontWeight: 600,
+                                        bgcolor: goal.priority === 'urgent' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(33, 150, 243, 0.2)',
+                                        color: goal.priority === 'urgent' ? 'rgba(255, 183, 177, 1)' : 'rgba(144, 202, 249, 1)',
+                                        border: '1px solid',
+                                        borderColor: goal.priority === 'urgent' ? 'rgba(244, 67, 54, 0.4)' : 'rgba(33, 150, 243, 0.4)',
+                                      }}
+                                    /> */}
+                                  </Box>
+                                </Box>
+                              ))}
+                            </>
+                          )}
+                        </Box>
+                      );
+                    })()}
+                  </Box>
+                )}
+
+         
+                
+                {/* Priority Level */}
+                <FormControl fullWidth disabled={isSubmitting} sx={{ mb: 3, mt: 3 }}>
+                  <InputLabel>Priority Level</InputLabel>
+                  <Select
+                    inputRef={priorityRef}
+                    value={newPriority}
+                    label="Priority Level"
+                    onChange={(e) => setNewPriority(e.target.value)}
+                    sx={{
+                      borderRadius: 2,
+                    }}
+                  >
+                    <MenuItem value="medium">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip label="Medium" size="small" color="info" variant="outlined" />
+                        <Typography>Medium Priority</Typography>
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="urgent">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip label="Urgent" size="small" color="error" variant="filled" />
+                        <Typography>Urgent Priority</Typography>
+                      </Box>
+                    </MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+              
+      
             </Box>
           </DialogContent>
           <DialogActions sx={{ p: 3, pt: 2 }}>

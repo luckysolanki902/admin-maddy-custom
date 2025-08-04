@@ -290,24 +290,110 @@ export default function AdminGoalsPage({ department }) {
 
               <Grid item xs={12} sm={6} md={4}>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip
-                    label={`${goals.length} goals`}
-                    color="primary"
-                    variant="outlined"
-                    size="small"
-                  />
-                  <Chip
-                    label={`${goals.filter(g => !g.isCompleted).length} pending`}
-                    color="warning"
-                    variant="outlined"
-                    size="small"
-                  />
-                  <Chip
-                    label={`${goals.filter(g => g.isCompleted).length} completed`}
-                    color="success"
-                    variant="outlined"
-                    size="small"
-                  />
+                  {(() => {
+                    const totalGoals = goals.length;
+                    const pendingGoals = goals.filter(g => !g.isCompleted).length;
+                    const completedGoals = goals.filter(g => g.isCompleted).length;
+                    
+                    // Color psychology based on urgency and sort order
+                    const getStatColor = (value, maxValue, isReversed = false) => {
+                      if (maxValue === 0) return 'default';
+                      
+                      const ratio = value / maxValue;
+                      let urgencyLevel;
+                      
+                      if (isReversed) {
+                        // When descending, lower numbers are more critical
+                        urgencyLevel = 1 - ratio;
+                      } else {
+                        // When ascending, higher numbers are more critical
+                        urgencyLevel = ratio;
+                      }
+                      
+                      if (urgencyLevel >= 0.7) return 'error'; // Critical/Red
+                      if (urgencyLevel >= 0.4) return 'warning'; // Warning/Orange
+                      if (urgencyLevel >= 0.2) return 'info'; // Info/Blue
+                      return 'success'; // Success/Green
+                    };
+                    
+                    const isDescending = sortOrder === 'desc';
+                    const maxCount = Math.max(totalGoals, pendingGoals, completedGoals);
+                    
+                    return (
+                      <>
+                        <Chip
+                          label={`${totalGoals} goals`}
+                          color={getStatColor(totalGoals, maxCount, isDescending)}
+                          variant="outlined"
+                          size="small"
+                          sx={{
+                            fontWeight: 600,
+                            borderWidth: 1.5,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            '&:hover': {
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                              borderWidth: 2,
+                            }
+                          }}
+                        />
+                        <Chip
+                          label={`${pendingGoals} pending`}
+                          color={getStatColor(pendingGoals, maxCount, isDescending)}
+                          variant="filled"
+                          size="small"
+                          sx={{
+                            fontWeight: 600,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            '&:hover': {
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.16)',
+                            },
+                            // Subtle emphasis for high pending count
+                            ...(pendingGoals >= maxCount * 0.7 && pendingGoals > 0 && {
+                              position: 'relative',
+                              '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                top: -1,
+                                left: -1,
+                                right: -1,
+                                bottom: -1,
+                                borderRadius: 'inherit',
+                                background: 'currentColor',
+                                opacity: 0,
+                                animation: 'professional-pulse 3s ease-in-out infinite',
+                                zIndex: -1,
+                              },
+                              '@keyframes professional-pulse': {
+                                '0%, 100%': { opacity: 0 },
+                                '50%': { opacity: 0.1 },
+                              }
+                            })
+                          }}
+                        />
+                        <Chip
+                          label={`${completedGoals} completed`}
+                          color={completedGoals === 0 ? 'default' : 'success'}
+                          variant="outlined"
+                          size="small"
+                          sx={{
+                            fontWeight: 600,
+                            borderWidth: 1.5,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            '&:hover': {
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                              borderWidth: 2,
+                            }
+                          }}
+                        />
+                      </>
+                    );
+                  })()}
                 </Box>
               </Grid>
             </Grid>
@@ -328,7 +414,7 @@ export default function AdminGoalsPage({ department }) {
               ))}
             </Box>
           ) : goals.length ? (
-            <Goals isAllowed={isAllowed} goals={goals} setGoals={setGoals} department={department} />
+            <Goals isAllowed={isAllowed} goals={goals} setGoals={setGoals} department={department} sortOrder={sortOrder} />
           ) : (
             <Box
               sx={{
@@ -575,17 +661,57 @@ export default function AdminGoalsPage({ department }) {
                                           After
                                         </Typography>
                                         <Box sx={{
-                                          width: 18,
-                                          height: 18,
+                                          width: 22,
+                                          height: 22,
                                           borderRadius: '50%',
-                                          bgcolor: 'rgba(255, 255, 255, 0.15)',
-                                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                                          color: 'rgba(255, 255, 255, 0.8)',
+                                          bgcolor: (() => {
+                                            // Professional color psychology
+                                            const position = index + 1;
+                                            const totalIncomplete = incompleteGoals.length;
+                                            const urgencyRatio = position / totalIncomplete;
+                                            
+                                            if (urgencyRatio <= 0.3) return '#d32f2f'; // Critical red
+                                            if (urgencyRatio <= 0.6) return '#f57c00'; // Warning orange
+                                            return '#1976d2'; // Normal blue
+                                          })(),
+                                          border: '2px solid',
+                                          borderColor: (() => {
+                                            const position = index + 1;
+                                            const totalIncomplete = incompleteGoals.length;
+                                            const urgencyRatio = position / totalIncomplete;
+                                            
+                                            if (urgencyRatio <= 0.3) return '#f44336'; // Lighter red border
+                                            if (urgencyRatio <= 0.6) return '#ff9800'; // Lighter orange border
+                                            return '#42a5f5'; // Lighter blue border
+                                          })(),
+                                          color: '#ffffff',
                                           display: 'flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
-                                          fontSize: '0.65rem',
+                                          fontSize: '0.7rem',
                                           fontWeight: 600,
+                                          boxShadow: (() => {
+                                            const position = index + 1;
+                                            const totalIncomplete = incompleteGoals.length;
+                                            const urgencyRatio = position / totalIncomplete;
+                                            
+                                            if (urgencyRatio <= 0.3) return '0 2px 8px rgba(211, 47, 47, 0.2)'; // Red shadow
+                                            if (urgencyRatio <= 0.6) return '0 2px 8px rgba(245, 124, 0, 0.2)'; // Orange shadow
+                                            return '0 2px 8px rgba(25, 118, 210, 0.15)'; // Blue shadow
+                                          })(),
+                                          transition: 'all 0.2s ease-in-out',
+                                          '&:hover': {
+                                            transform: 'translateY(-1px)',
+                                            boxShadow: (() => {
+                                              const position = index + 1;
+                                              const totalIncomplete = incompleteGoals.length;
+                                              const urgencyRatio = position / totalIncomplete;
+                                              
+                                              if (urgencyRatio <= 0.3) return '0 3px 12px rgba(211, 47, 47, 0.3)';
+                                              if (urgencyRatio <= 0.6) return '0 3px 12px rgba(245, 124, 0, 0.3)';
+                                              return '0 3px 12px rgba(25, 118, 210, 0.25)';
+                                            })(),
+                                          }
                                         }}>
                                           {index + 1}
                                         </Box>

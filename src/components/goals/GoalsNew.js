@@ -42,9 +42,8 @@ import {
 } from "@mui/icons-material";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useUser } from "@clerk/nextjs";
-import { sortByPriorityOrder } from "@/lib/utils/priorityOrder";
 
-export default function Goals({ goals, setGoals, isAllowed, department, sortOrder }) {
+export default function Goals({ goals, setGoals, isAllowed, department }) {
   const [expandedGoalId, setExpandedGoalId] = useState(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [currentGoal, setCurrentGoal] = useState(null);
@@ -66,61 +65,40 @@ export default function Goals({ goals, setGoals, isAllowed, department, sortOrde
   const deadlineRef = useRef(null);
   const priorityRef = useRef(null);
 
-  // Sort goals by priority order
-  const sortedGoals = sortByPriorityOrder(goals);
-
   // Handle drag and drop reordering
   const handleDragEnd = async (result) => {
     if (!result.destination || !canReorder) return;
-    if (result.source.index === result.destination.index) return;
 
-    const draggedGoal = sortedGoals[result.source.index];
-    if (draggedGoal.isCompleted) return; // Don't allow reordering completed goals
+    const items = Array.from(goals);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
 
-    // Only work with incomplete goals for positioning
-    const incompleteGoals = sortedGoals.filter(g => !g.isCompleted);
-    const newPosition = result.destination.index;
-
-    // Create optimistic reordering - only reorder visually, don't change priority order yet
-    const reorderedGoals = Array.from(sortedGoals);
-    const [movedGoal] = reorderedGoals.splice(result.source.index, 1);
-    reorderedGoals.splice(result.destination.index, 0, movedGoal);
-    
-    // Immediately update UI for smooth experience
-    setGoals(reorderedGoals);
+    // Optimistically update the UI
+    setGoals(items);
     setIsReordering(true);
 
     try {
+      const goalIds = items.map(goal => goal._id);
       const response = await fetch('/api/goals/reorder', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          draggedGoalId: draggedGoal._id,
-          newPosition,
+          goalIds,
           department
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        // Revert on error - go back to original sorted order
-        setGoals(sortedGoals);
-        console.error('Failed to reorder goal:', data.message);
-      } else {
-        // Update the moved goal's priority order in the state
-        setGoals(prev => prev.map(goal => 
-          goal._id === draggedGoal._id 
-            ? { ...goal, priorityOrder: data.newPriorityOrder }
-            : goal
-        ));
+        // Revert on error
+        setGoals(goals);
+        console.error('Failed to reorder goals');
       }
     } catch (error) {
       // Revert on error
-      setGoals(sortedGoals);
-      console.error('Error reordering goal:', error);
+      setGoals(goals);
+      console.error('Error reordering goals:', error);
     } finally {
       setIsReordering(false);
     }
@@ -315,7 +293,9 @@ export default function Goals({ goals, setGoals, isAllowed, department, sortOrde
 
   const getPriorityChip = (priority) => {
     const priorityConfig = {
+      low: { color: "success", label: "Low", variant: "outlined" },
       medium: { color: "info", label: "Medium", variant: "outlined" },
+      high: { color: "warning", label: "High", variant: "filled" },
       urgent: { color: "error", label: "Urgent", variant: "filled" },
     };
     
@@ -328,7 +308,7 @@ export default function Goals({ goals, setGoals, isAllowed, department, sortOrde
         color={config.color}
         variant={config.variant}
         sx={{
-          fontWeight: priority === 'urgent' ? 600 : 400,
+          fontWeight: priority === 'urgent' || priority === 'high' ? 600 : 400,
         }}
       />
     );
@@ -348,58 +328,15 @@ export default function Goals({ goals, setGoals, isAllowed, department, sortOrde
                 transition: "opacity 0.2s ease-in-out"
               }}
             >
-              {sortedGoals.map((goal, index) => {
+              {goals.map((goal, index) => {
                 const isExpanded = expandedGoalId === goal._id;
                 const isToggling = togglingId === goal._id;
                 const isDeleting = deletingId === goal._id;
                 const isOptimistic = goal._id?.startsWith?.('temp_');
                 
                 // Calculate priority number for incomplete goals only
-                const incompleteGoals = sortedGoals.filter(g => !g.isCompleted);
+                const incompleteGoals = goals.filter(g => !g.isCompleted);
                 const priorityNumber = !goal.isCompleted ? incompleteGoals.findIndex(g => g._id === goal._id) + 1 : null;
-                
-                // Professional color psychology for position numbers
-                const getPositionColor = (position, totalIncomplete) => {
-                  if (!position || !totalIncomplete) return {
-                    primary: '#1976d2',
-                    secondary: '#42a5f5',
-                    shadow: 'rgba(25, 118, 210, 0.15)'
-                  };
-                  
-                  let displayPosition = position;
-                  if (sortOrder === 'desc') {
-                    displayPosition = totalIncomplete - position + 1;
-                  }
-                  
-                  const urgencyRatio = displayPosition / totalIncomplete;
-                  
-                  if (urgencyRatio <= 0.3) {
-                    return {
-                      primary: '#d32f2f',
-                      secondary: '#f44336',
-                      shadow: 'rgba(211, 47, 47, 0.2)'
-                    }; // Critical red
-                  } else if (urgencyRatio <= 0.6) {
-                    return {
-                      primary: '#f57c00',
-                      secondary: '#ff9800',
-                      shadow: 'rgba(245, 124, 0, 0.2)'
-                    }; // Warning orange
-                  } else {
-                    return {
-                      primary: '#1976d2',
-                      secondary: '#42a5f5',
-                      shadow: 'rgba(25, 118, 210, 0.15)'
-                    }; // Normal blue
-                  }
-                };
-                
-                const positionColors = priorityNumber ? getPositionColor(priorityNumber, incompleteGoals.length) : {
-                  primary: '#1976d2',
-                  secondary: '#42a5f5',
-                  shadow: 'rgba(25, 118, 210, 0.15)'
-                };
-                const displayPriorityNumber = priorityNumber && sortOrder === 'desc' ? incompleteGoals.length - priorityNumber + 1 : priorityNumber;
 
                 return (
                   <Draggable 
@@ -446,50 +383,18 @@ export default function Goals({ goals, setGoals, isAllowed, department, sortOrde
                             {priorityNumber && (
                               <Avatar
                                 sx={{
-                                  width: 30,
-                                  height: 30,
+                                  width: 28,
+                                  height: 28,
                                   fontSize: '0.875rem',
                                   fontWeight: 600,
-                                  bgcolor: positionColors.primary,
-                                  color: 'white',
+                                  bgcolor: 'primary.main',
+                                  color: 'primary.contrastText',
                                   border: '2px solid',
-                                  borderColor: positionColors.secondary,
-                                  boxShadow: `0 3px 12px ${positionColors.shadow}, 0 1px 3px rgba(0,0,0,0.1)`,
-                                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                  '&:hover': {
-                                    transform: 'translateY(-1px)',
-                                    boxShadow: `0 4px 16px ${positionColors.shadow}, 0 2px 4px rgba(0,0,0,0.15)`,
-                                    borderColor: positionColors.primary,
-                                  },
-                                  // Subtle pulse for critical positions
-                                  ...(displayPriorityNumber <= Math.ceil(incompleteGoals.length * 0.3) && {
-                                    '&::before': {
-                                      content: '""',
-                                      position: 'absolute',
-                                      top: -2,
-                                      left: -2,
-                                      right: -2,
-                                      bottom: -2,
-                                      borderRadius: '50%',
-                                      background: positionColors.primary,
-                                      opacity: 0,
-                                      animation: 'subtle-pulse 3s ease-in-out infinite',
-                                      zIndex: -1,
-                                    },
-                                    '@keyframes subtle-pulse': {
-                                      '0%, 100%': { 
-                                        opacity: 0,
-                                        transform: 'scale(1)',
-                                      },
-                                      '50%': { 
-                                        opacity: 0.1,
-                                        transform: 'scale(1.1)',
-                                      },
-                                    },
-                                  }),
+                                  borderColor: 'primary.light',
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                 }}
                               >
-                                {displayPriorityNumber}
+                                {priorityNumber}
                               </Avatar>
                             )}
                             {canReorder && !goal.isCompleted && (
@@ -756,7 +661,7 @@ export default function Goals({ goals, setGoals, isAllowed, department, sortOrde
                           </Box>
                         </Collapse>
 
-                        {index < sortedGoals.length - 1 && <Divider />}
+                        {index < goals.length - 1 && <Divider />}
                       </Box>
                     )}
                   </Draggable>
@@ -842,7 +747,9 @@ export default function Goals({ goals, setGoals, isAllowed, department, sortOrde
               onChange={e => setEditedPriority(e.target.value)}
               label="Priority"
             >
+              <MenuItem value="low">Low</MenuItem>
               <MenuItem value="medium">Medium</MenuItem>
+              <MenuItem value="high">High</MenuItem>
               <MenuItem value="urgent">Urgent</MenuItem>
             </Select>
           </FormControl>

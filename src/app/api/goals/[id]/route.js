@@ -24,9 +24,9 @@ export async function PATCH(req, { params }) {
     }
 
     // Validate priority if provided
-    const validPriorities = ["medium", "urgent"];
+    // const validPriorities = ["medium", "urgent"];
     let goalPriority = goal.priority;
-    if (priority && validPriorities.includes(priority)) {
+    if (priority) {
       goalPriority = priority;
     }
 

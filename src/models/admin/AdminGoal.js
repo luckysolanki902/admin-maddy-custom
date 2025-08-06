@@ -65,7 +65,7 @@ const AdminGoalSchema = new mongoose.Schema(
 
     priority: {
       type: String,
-      enum: ["medium", "urgent"],
+      // enum: ["medium", "urgent"],
       default: "medium",
       index: true,
     },

@@ -23,11 +23,15 @@ import {
   Info as InfoIcon,
   ViewCarousel,
   NewReleases,
-  Apps
+  Apps,
+  DirectionsCar,
+  CarRepair
 } from '@mui/icons-material';
 import HeroCarouselManager from '@/components/admin/display-assets/HeroCarouselManager';
 import NewArrivalsManager from '@/components/admin/display-assets/NewArrivalsManager';
 import CategorySliderManager from '@/components/admin/display-assets/CategorySliderManager';
+import CarInteriorsCarousel from '@/components/admin/display-assets/CarInteriorsCarousel';
+import CarExteriorsCarousel from '@/components/admin/display-assets/CarExteriorsCarousel';
 
 const pageOptions = [
   { value: 'homepage', label: 'Homepage', icon: <HomeIcon /> },
@@ -36,7 +40,9 @@ const pageOptions = [
 const componentTabs = [
   { value: 'hero', label: 'Hero Carousel', icon: <ViewCarousel />, description: 'Main banner slides at the top of the page' },
   { value: 'new-arrivals', label: 'New Arrivals', icon: <NewReleases />, description: 'Featured products and latest items' },
-  { value: 'categories', label: 'Category Slider', icon: <Apps />, description: 'Category navigation cards' }
+  { value: 'categories', label: 'Category Slider', icon: <Apps />, description: 'Category navigation cards' },
+  { value: 'car-interiors', label: 'Car Interiors', icon: <DirectionsCar />, description: 'Car interior showcase carousel' },
+  { value: 'car-exteriors', label: 'Car Exteriors', icon: <CarRepair />, description: 'Car exterior showcase carousel' }
 ];
 
 export default function DisplayAssetsPage() {
@@ -60,6 +66,10 @@ export default function DisplayAssetsPage() {
         return <NewArrivalsManager page={selectedPage} />;
       case 'categories':
         return <CategorySliderManager page={selectedPage} />;
+      case 'car-interiors':
+        return <CarInteriorsCarousel page={selectedPage} />;
+      case 'car-exteriors':
+        return <CarExteriorsCarousel page={selectedPage} />;
       default:
         return <HeroCarouselManager page={selectedPage} />;
     }

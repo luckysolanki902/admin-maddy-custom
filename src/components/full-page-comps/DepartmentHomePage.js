@@ -72,28 +72,7 @@ export default function DepartmentHomePage({ department = 'Marketing', quote, op
                         </Link>
                     ))}
                     
-                    {department === 'Web-d' && (
-                        <Link
-                            href={'#'}
-                            className={styles.optionCard}
-                            style={{ 
-                                '--theme-color': 'rgb(255, 58, 97)',
-                                '--glow-color': convertRgbToRgba('rgb(255, 58, 97)', 0.15),
-                                '--border-color': convertRgbToRgba('rgb(255, 58, 97)', 0.3),
-                                '--hover-glow': convertRgbToRgba('rgb(255, 58, 97)', 0.25)
-                            }}
-                        >
-                            <div className={styles.cardContent}>
-                                <div className={styles.cardNumber}>
-                                    {String((options?.length || 0) + 1).padStart(2, '0')}
-                                </div>
-                                <div className={styles.cardText}>
-                                    Open VS Code
-                                </div>
-                                <div className={styles.cardArrow}>→</div>
-                            </div>
-                        </Link>
-                    )}
+    
                 </div>
 
                 {/* Footer */}

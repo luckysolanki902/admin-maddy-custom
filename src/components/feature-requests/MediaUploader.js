@@ -112,7 +112,7 @@ const getRelativePath = (url) => {
   if (!url) return '';
   
   // Check if URL is already an S3/CloudFront URL
-  const s3Pattern = /(https?:\/\/[^\/]+\.amazonaws\.com\/|https?:\/\/[^\/]+\.cloudfront\.net\/)(.*)/;
+  const s3Pattern = /(https?:\/\/[^/]+\.amazonaws\.com\/|https?:\/\/[^/]+\.cloudfront\.net\/)(.*)/;
   const match = url.match(s3Pattern);
   
   if (match && match[2]) {

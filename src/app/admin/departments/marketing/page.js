@@ -3,7 +3,6 @@ import React from 'react';
 
 export default function Marketing() {
   const optionsWithLinks = [
-    { text: 'Feature Requests Dashboard', link: '/admin/feature-requests/manage' },
 
     { text: 'Coupon Metrics', link: '/admin/manage/coupons-metrics' },
     { text: 'Offer Management', link: '/admin/manage/offers' },

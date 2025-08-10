@@ -22,6 +22,13 @@ const s3 = new S3Client({
  */
 export const getPresignedUrl = async (fullPath, fileType = "application/octet-stream", operation = "putObject") => {
   try {
+    console.log('AWS Config check:', {
+      region: process.env.AWS_REGION ? 'SET' : 'MISSING',
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
+      bucket: process.env.AWS_BUCKET ? 'SET' : 'MISSING'
+    });
+    
     let command;
 
     if (operation === "putObject") {
@@ -39,6 +46,8 @@ export const getPresignedUrl = async (fullPath, fileType = "application/octet-st
       throw new Error("Invalid operation for presigned URL.");
     }
 
+    console.log('Generating presigned URL for key:', fullPath);
+    
     // Generate a presigned URL valid for 15 minutes (900 seconds)
     const presignedUrl = await getSignedUrl(s3, command, { expiresIn: 900 });
 
@@ -47,6 +56,18 @@ export const getPresignedUrl = async (fullPath, fileType = "application/octet-st
       fullPath.startsWith("/") ? fullPath.slice(1) : fullPath
     }`;
 
+    console.log('Generated URLs:', { presignedUrl: 'GENERATED', finalUrl: url });
+    
+    // Test the presigned URL format
+    console.log('Presigned URL details:', {
+      bucket: process.env.AWS_BUCKET,
+      region: process.env.AWS_REGION,
+      key: fullPath.startsWith("/") ? fullPath.slice(1) : fullPath,
+      presignedUrlLength: presignedUrl.length,
+      hasSignature: presignedUrl.includes('X-Amz-Signature'),
+      hasCredential: presignedUrl.includes('X-Amz-Credential')
+    });
+    
     return { presignedUrl, url };
   } catch (error) {
     console.error("Error generating presigned URL:", error);

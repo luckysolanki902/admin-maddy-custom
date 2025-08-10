@@ -1,0 +1,592 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
+import {
+  Box,
+  Typography,
+  Button,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Switch,
+  FormControlLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+  IconButton,
+  Chip,
+  Alert,
+  CircularProgress,
+  Fade,
+  Zoom
+} from '@mui/material';
+import {
+  Add,
+  Edit,
+  Delete,
+  Visibility,
+  VisibilityOff,
+  DragIndicator,
+  ViewCarousel,
+  CheckCircle,
+  SwapHoriz
+} from '@mui/icons-material';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import MediaUploader from './MediaUploader';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { getImageUrl } from '@/utils/imageUtils';
+
+export default function HeroCarouselManager({ page = 'homepage' }) {
+  const [slides, setSlides] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingSlide, setEditingSlide] = useState(null);
+  const [formData, setFormData] = useState({
+    content: '',
+    content2: '',
+    link: 'https://www.maddycustom.com/',
+    mediaType: 'image',
+    useSameMediaForAllDevices: true,
+    isActive: true
+  });
+  const [currentMedia, setCurrentMedia] = useState(null);
+
+  const fetchSlides = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`/api/admin/display-assets?page=${page}&componentType=carousel`);
+      if (response.data.success) {
+        // Filter for hero carousel slides
+        const heroSlides = response.data.data.filter(item => 
+          item.componentName === 'hero-carousel'
+        );
+        setSlides(heroSlides);
+      }
+    } catch (error) {
+      console.error('Error fetching slides:', error);
+      toast.error('Failed to fetch slides');
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
+
+  useEffect(() => {
+    fetchSlides();
+  }, [fetchSlides]);
+
+  const handleCreateNew = () => {
+    setEditingSlide(null);
+    setFormData({
+      content: '',
+      content2: '',
+      link: 'https://www.maddycustom.com/',
+      mediaType: 'image',
+      useSameMediaForAllDevices: true,
+      isActive: true
+    });
+    setCurrentMedia(null);
+    setDialogOpen(true);
+  };
+
+  const handleEdit = (slide) => {
+    setEditingSlide(slide);
+    setFormData({
+      content: slide.content,
+      content2: slide.content2 || '',
+      link: slide.link || '',
+      mediaType: slide.mediaType,
+      useSameMediaForAllDevices: slide.useSameMediaForAllDevices,
+      isActive: slide.isActive
+    });
+    setCurrentMedia(slide.media);
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.content || !currentMedia?.desktop) {
+      toast.error('Please fill in all required fields and upload media');
+      return;
+    }
+
+    try {
+      const slideData = {
+        ...formData,
+        componentName: 'hero-carousel',
+        componentType: 'carousel',
+        page,
+        media: formData.useSameMediaForAllDevices 
+          ? { desktop: currentMedia.desktop, mobile: currentMedia.desktop }
+          : { desktop: currentMedia.desktop, mobile: currentMedia.mobile }
+      };
+
+      if (editingSlide) {
+        await axios.put(`/api/admin/display-assets/${editingSlide.componentId}`, slideData);
+        toast.success('Slide updated successfully');
+      } else {
+        await axios.post('/api/admin/display-assets', slideData);
+        toast.success('Slide created successfully');
+      }
+
+      setDialogOpen(false);
+      fetchSlides();
+    } catch (error) {
+      console.error('Error saving slide:', error);
+      toast.error(error.response?.data?.error || 'Failed to save slide');
+    }
+  };
+
+  const handleMediaChange = useCallback((media) => {
+    setCurrentMedia(media);
+  }, []);
+
+  const handleReplaceImage = async (slide) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,video/*';
+    input.onchange = async (event) => {
+      const files = event.target.files;
+      if (files && files.length > 0) {
+        try {
+          // Upload new image
+          const uploadResponse = await axios.post('/api/admin/display-assets/presigned-url', {
+            fileName: files[0].name,
+            fileType: files[0].type,
+            fileExtension: files[0].name.split('.').pop(),
+            deviceType: 'desktop'
+          });
+
+          const { presignedUrl, url } = uploadResponse.data;
+
+          await axios.put(presignedUrl, files[0], {
+            headers: {
+              'Content-Type': files[0].type,
+            },
+          });
+
+          // Update slide with new image
+          await axios.put(`/api/admin/display-assets/${slide.componentId}`, {
+            ...slide,
+            media: {
+              desktop: url,
+              mobile: url
+            }
+          });
+
+          toast.success('Image replaced successfully');
+          fetchSlides();
+        } catch (error) {
+          console.error('Error replacing image:', error);
+          toast.error('Failed to replace image');
+        }
+      }
+    };
+    input.click();
+  };
+
+  const handleDelete = async (slideId) => {
+    if (!confirm('Are you sure you want to delete this slide?')) return;
+
+    try {
+      await axios.delete(`/api/admin/display-assets/${slideId}`);
+      toast.success('Slide deleted successfully');
+      fetchSlides();
+    } catch (error) {
+      console.error('Error deleting slide:', error);
+      toast.error('Failed to delete slide');
+    }
+  };
+
+  const handleToggleActive = async (slide) => {
+    try {
+      await axios.put(`/api/admin/display-assets/${slide.componentId}`, {
+        ...slide,
+        isActive: !slide.isActive
+      });
+      toast.success(`Slide ${!slide.isActive ? 'activated' : 'deactivated'}`);
+      fetchSlides();
+    } catch (error) {
+      console.error('Error toggling slide status:', error);
+      toast.error('Failed to update slide status');
+    }
+  };
+
+  const onDragEnd = async (result) => {
+    if (!result.destination) return;
+
+    const items = Array.from(slides);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    setSlides(items);
+
+    // Update positions in database
+    try {
+      const updatePromises = items.map((slide, index) =>
+        axios.put(`/api/admin/display-assets/${slide.componentId}`, {
+          ...slide,
+          position: (index + 1).toString()
+        })
+      );
+      await Promise.all(updatePromises);
+      toast.success('Slide order updated');
+    } catch (error) {
+      console.error('Error updating slide order:', error);
+      toast.error('Failed to update slide order');
+      fetchSlides(); // Revert to original order
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ 
+        bgcolor: '#0d1117',
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: 3
+      }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          width: 80,
+          height: 80,
+          borderRadius: '50%',
+          bgcolor: 'rgba(88, 166, 255, 0.1)',
+          border: '2px solid rgba(88, 166, 255, 0.3)'
+        }}>
+          <CircularProgress size={40} sx={{ color: '#58a6ff' }} />
+        </Box>
+        <Typography variant="h6" sx={{ color: '#f0f6fc', fontWeight: 600 }}>
+          Loading hero carousel...
+        </Typography>
+        <Typography variant="body2" sx={{ color: '#7d8590' }}>
+          Please wait while we fetch your slide data
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ 
+      bgcolor: '#0d1117',
+      minHeight: '100vh',
+      p: 3
+    }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mb: 4,
+        p: 3,
+        bgcolor: '#161b22',
+        borderRadius: '16px',
+        border: '1px solid #30363d'
+      }}>
+        <Box>
+          <Typography variant="h4" sx={{ 
+            color: '#f0f6fc', 
+            fontWeight: 700,
+            mb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2
+          }}>
+            <ViewCarousel sx={{ color: '#f85149' }} />
+            Hero Carousel
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#7d8590' }}>
+            Manage hero slides for your homepage banner
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={handleCreateNew}
+          sx={{
+            bgcolor: '#f85149',
+            color: '#fff',
+            borderRadius: '12px',
+            px: 3,
+            py: 1.5,
+            textTransform: 'none',
+            fontWeight: 600,
+            boxShadow: '0 4px 12px rgba(248, 81, 73, 0.3)',
+            '&:hover': {
+              bgcolor: '#fd8c73',
+              boxShadow: '0 6px 16px rgba(248, 81, 73, 0.4)',
+              transform: 'translateY(-2px)'
+            },
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+          }}
+        >
+          Add Slide
+        </Button>
+      </Box>
+
+      {slides.length === 0 ? (
+        <Card sx={{ p: 4, textAlign: 'center', bgcolor: 'grey.50' }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            No hero slides found
+          </Typography>
+          <Typography variant="body2" color="text.secondary" mb={3}>
+            Create your first hero slide to showcase featured content
+          </Typography>
+          <Button variant="contained" startIcon={<Add />} onClick={handleCreateNew}>
+            Create First Slide
+          </Button>
+        </Card>
+      ) : (
+        <DragDropContext onDragEnd={onDragEnd}>
+          <Droppable droppableId="slides">
+            {(provided) => (
+              <Grid container spacing={2} {...provided.droppableProps} ref={provided.innerRef}>
+                {slides.map((slide, index) => (
+                  <Draggable key={slide.componentId} draggableId={slide.componentId} index={index}>
+                    {(provided, snapshot) => (
+                      <Grid
+                        item
+                        xs={12}
+                        sm={6}
+                        md={4}
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        style={{
+                          ...provided.draggableProps.style,
+                          opacity: snapshot.isDragging ? 0.8 : 1
+                        }}
+                      >
+                        <Card 
+                          sx={{ 
+                            position: 'relative',
+                            '&:hover .drag-handle': { opacity: 1 }
+                          }}
+                        >
+                          <Box
+                            {...provided.dragHandleProps}
+                            className="drag-handle"
+                            sx={{
+                              position: 'absolute',
+                              top: 8,
+                              left: 8,
+                              zIndex: 1,
+                              opacity: 0,
+                              transition: 'opacity 0.2s',
+                              bgcolor: 'rgba(0,0,0,0.7)',
+                              borderRadius: '4px',
+                              p: 0.5
+                            }}
+                          >
+                            <DragIndicator sx={{ color: 'white', fontSize: 16 }} />
+                          </Box>
+
+                          {slide.media?.desktop && (
+                            <Box sx={{ height: 150, overflow: 'hidden', position: 'relative' }}>
+                              {slide.mediaType === 'video' ? (
+                                <video
+                                  src={getImageUrl(slide.media.desktop)}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <Image
+                                  src={getImageUrl(slide.media.desktop)}
+                                  alt={slide.content}
+                                  fill
+                                  style={{ objectFit: 'cover' }}
+                                />
+                              )}
+                              {!slide.isActive && (
+                                <Box
+                                  sx={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    bgcolor: 'rgba(0,0,0,0.5)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Chip label="Inactive" color="default" />
+                                </Box>
+                              )}
+                            </Box>
+                          )}
+
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom noWrap>
+                              {slide.content}
+                            </Typography>
+                            {slide.content2 && (
+                              <Typography variant="body2" color="text.secondary" noWrap>
+                                {slide.content2}
+                              </Typography>
+                            )}
+                            {slide.link && (
+                              <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 1 }}>
+                                Links to: {slide.link}
+                              </Typography>
+                            )}
+                          </CardContent>
+
+                          <CardActions sx={{ justifyContent: 'space-between' }}>
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={slide.isActive}
+                                  onChange={() => handleToggleActive(slide)}
+                                  size="small"
+                                />
+                              }
+                              label="Active"
+                            />
+                            <Box>
+                              <IconButton size="small" onClick={() => handleEdit(slide)}>
+                                <Edit />
+                              </IconButton>
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleReplaceImage(slide)}
+                                sx={{ color: '#f39c12' }}
+                                title="Replace Image"
+                              >
+                                <SwapHoriz />
+                              </IconButton>
+                              <IconButton 
+                                size="small" 
+                                color="error" 
+                                onClick={() => handleDelete(slide.componentId)}
+                              >
+                                <Delete />
+                              </IconButton>
+                            </Box>
+                          </CardActions>
+                        </Card>
+                      </Grid>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </Grid>
+            )}
+          </Droppable>
+        </DragDropContext>
+      )}
+
+      {/* Create/Edit Dialog */}
+      <Dialog 
+        open={dialogOpen} 
+        onClose={() => setDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          {editingSlide ? 'Edit Hero Slide' : 'Create Hero Slide'}
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={3} sx={{ mt: 1 }}>
+            {/* Use Same Media Switch - First */}
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.useSameMediaForAllDevices}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      useSameMediaForAllDevices: e.target.checked 
+                    }))}
+                  />
+                }
+                label="Use same media for all devices"
+              />
+            </Grid>
+
+            {/* Media Upload Section */}
+            <Grid item xs={12}>
+              <MediaUploader
+                componentType="slider"
+                requireMobile={!formData.useSameMediaForAllDevices}
+                onUploadComplete={() => {}} // Not used anymore
+                existingMedia={currentMedia}
+                onMediaChange={handleMediaChange}
+              />
+            </Grid>
+
+            {/* Form Fields */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Alt Text / Title"
+                value={formData.content}
+                onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                required
+                multiline
+                rows={2}
+                placeholder="Main title or alt text for the slide"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                select
+                label="Media Type"
+                value={formData.mediaType}
+                onChange={(e) => setFormData(prev => ({ ...prev, mediaType: e.target.value }))}
+              >
+                <MenuItem value="image">Image</MenuItem>
+                <MenuItem value="video">Video</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Subtitle / Description (Optional)"
+                value={formData.content2}
+                onChange={(e) => setFormData(prev => ({ ...prev, content2: e.target.value }))}
+                multiline
+                rows={2}
+                placeholder="Subtitle, description, or additional content"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Link URL (optional)"
+                value={formData.link}
+                onChange={(e) => setFormData(prev => ({ ...prev, link: e.target.value }))}
+                placeholder="https://www.maddycustom.com/"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button 
+            onClick={() => setDialogOpen(false)}
+            variant="outlined"
+            sx={{ px: 3, py: 1.5 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={!formData.content || !currentMedia?.desktop}
+            sx={{ px: 4, py: 1.5 }}
+          >
+            {editingSlide ? 'Update Slide' : 'Create Slide'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}

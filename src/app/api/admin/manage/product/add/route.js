@@ -37,6 +37,7 @@ export async function POST(req) {
       designTemplate,
       productSource,
       images,
+      inventoryData, // New field for inventory
     } = data;
 
     // Validate required fields
@@ -119,6 +120,19 @@ export async function POST(req) {
     }`;
     const titleCaseTitle = toTitleCase(constructedTitle);
 
+    // Create inventory data if provided
+    let inventoryId = null;
+    if (inventoryData) {
+      const { availableQuantity, reservedQuantity, reorderLevel } = inventoryData;
+      const newInventory = new (require('@/models/Inventory'))({
+        availableQuantity: availableQuantity || 0,
+        reservedQuantity: reservedQuantity || 0,
+        reorderLevel: reorderLevel || 50,
+      });
+      const savedInventory = await newInventory.save();
+      inventoryId = savedInventory._id;
+    }
+
     // Create a new product
     const newProduct = new Product({
       name: titleCaseName,
@@ -140,6 +154,7 @@ export async function POST(req) {
       freebies,
       sku,
       productSource,
+      ...(inventoryId && { inventoryData: inventoryId }), // Include inventory if created
       ...(designTemplate ? { designTemplate } : {}), // Only include designTemplate if it exists
     });
 

@@ -21,6 +21,8 @@ const OptionForm = ({
   baseSku,
   serial,
   onAdded,        // callback(optionObject)
+  requiresInventory = false, // whether options need inventory
+  inventoryDefaults = null, // default inventory values
 }) => {
   const [sku, setSku]           = useState(`${baseSku}-${serial}`);
   const [pairs, setPairs]       = useState([{ k: '', v: '' }]);
@@ -28,6 +30,47 @@ const OptionForm = ({
   const [thumbType, setThumbType]   = useState('hex');   // 'hex' | 'image'
   const [thumbnail, setThumbnail]   = useState('');      // hex or File
   const [saving, setSaving]     = useState(false);
+  
+  // Inventory fields (conditional)
+  const [inventoryData, setInventoryData] = useState({
+    availableQuantity: inventoryDefaults?.availableQuantity || 0,
+    reservedQuantity: inventoryDefaults?.reservedQuantity || 0,
+    reorderLevel: inventoryDefaults?.reorderLevel || Math.round((inventoryDefaults?.availableQuantity || 0) * 0.3),
+  });
+
+  // Update reorder level when available quantity changes
+  const handleAvailableQuantityChange = (newQuantity) => {
+    const quantity = parseInt(newQuantity, 10) || 0;
+    setInventoryData(prev => {
+      // For first product (no defaults), calculate 30% of available quantity
+      // For subsequent products, keep existing reorder level unless it exceeds new quantity
+      let newReorderLevel;
+      if (!inventoryDefaults?.reorderLevel) {
+        // First product - calculate 30%
+        newReorderLevel = Math.round(quantity * 0.3);
+      } else {
+        // Subsequent products - keep existing or adjust if too high
+        newReorderLevel = Math.min(prev.reorderLevel, quantity - 1);
+      }
+      
+      return {
+        ...prev,
+        availableQuantity: quantity,
+        reorderLevel: Math.max(0, newReorderLevel) // Ensure it's not negative
+      };
+    });
+  };
+
+  // Validate and update reorder level
+  const handleReorderLevelChange = (newReorderLevel) => {
+    const reorderLevel = parseInt(newReorderLevel, 10) || 0;
+    const maxReorderLevel = Math.max(0, inventoryData.availableQuantity - 1);
+    
+    setInventoryData(prev => ({
+      ...prev,
+      reorderLevel: Math.min(reorderLevel, maxReorderLevel)
+    }));
+  };
 
   const handlePairChange = (idx, field, value) => {
     setPairs((prev) =>
@@ -100,6 +143,8 @@ const OptionForm = ({
         optionDetails,
         images      : imgPaths.map((p) => '/' + p),
         thumbnail   : thumbType === 'hex' ? thumbnail : '/' + thumbnailPath,
+        // Include inventory data if required
+        ...(requiresInventory && { inventoryData }),
       };
 
       const res = await fetch('/api/admin/manage/option/add', {
@@ -119,6 +164,15 @@ const OptionForm = ({
       setImages([]);
       setThumbnail('');
       setThumbType('hex');
+      // Reset inventory if required
+      if (requiresInventory) {
+        const defaultAvailableQty = inventoryDefaults?.availableQuantity || 0;
+        setInventoryData({
+          availableQuantity: defaultAvailableQty,
+          reservedQuantity: inventoryDefaults?.reservedQuantity || 0,
+          reorderLevel: inventoryDefaults?.reorderLevel || Math.round(defaultAvailableQty * 0.3),
+        });
+      }
     } catch (err) {
       alert(err.message);
     } finally {
@@ -219,6 +273,57 @@ const OptionForm = ({
             />
           )}
         </Grid>
+
+        {/* Conditional Inventory Section */}
+        {requiresInventory && (
+          <>
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+                Inventory Details
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Available Quantity"
+                type="number"
+                value={inventoryData.availableQuantity}
+                inputProps={{ min: 0 }}
+                onChange={(e) => handleAvailableQuantityChange(e.target.value)}
+                required
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Reserved Quantity"
+                type="number"
+                value={inventoryData.reservedQuantity}
+                inputProps={{ min: 0 }}
+                onChange={(e) => setInventoryData(prev => ({
+                  ...prev,
+                  reservedQuantity: parseInt(e.target.value, 10) || 0
+                }))}
+                required
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Reorder Level"
+                type="number"
+                value={inventoryData.reorderLevel}
+                inputProps={{ 
+                  min: 0, 
+                  max: Math.max(0, inventoryData.availableQuantity - 1)
+                }}
+                onChange={(e) => handleReorderLevelChange(e.target.value)}
+                required
+                fullWidth
+                helperText={`Max: ${Math.max(0, inventoryData.availableQuantity - 1)} (must be less than available)`}
+              />
+            </Grid>
+          </>
+        )}
 
         {/* submit */}
         <Grid item xs={12}>

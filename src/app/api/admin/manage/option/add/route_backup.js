@@ -1,5 +1,36 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
+import { connectToDatabase }    /* normalise image paths (ensure leading "/") */
+    const imagePaths = images.map((p) => (p.startsWith('/') ? p : `/${p}`));
+
+    /* create inventory if provided as object */
+    let inventoryId = null;
+    if (inventoryData) {
+      if (typeof inventoryData === 'object' && !ObjectId.isValid(inventoryData)) {
+        // Create new inventory record
+        const { availableQuantity, reservedQuantity, reorderLevel } = inventoryData;
+        const Inventory = require('@/models/Inventory');
+        const newInventory = new Inventory({
+          availableQuantity: availableQuantity || 0,
+          reservedQuantity: reservedQuantity || 0,
+          reorderLevel: reorderLevel || 50,
+        });
+        const savedInventory = await newInventory.save();
+        inventoryId = savedInventory._id;
+      } else {
+        // Use existing inventory ID
+        inventoryId = inventoryData;
+      }
+    }
+
+    /* ───────────── create & save ───────────── */
+    const newOption = new Option({
+      product,
+      sku,
+      optionDetails: optionDetails || {},
+      images: imagePaths,
+      thumbnail: thumbnail || '',
+      ...(inventoryId && { inventoryData: inventoryId }),
+    });/db';
 
 import Product from '@/models/Product';
 import Option from '@/models/Option';
@@ -71,28 +102,8 @@ export async function POST(req) {
       return NextResponse.json({ error: 'SKU already exists.' }, { status: 400 });
     }
 
-    /* normalise image paths (ensure leading "/") */
+    /* normalise image paths (ensure leading “/”) */
     const imagePaths = images.map((p) => (p.startsWith('/') ? p : `/${p}`));
-
-    /* create inventory if provided as object */
-    let inventoryId = null;
-    if (inventoryData) {
-      if (typeof inventoryData === 'object' && !ObjectId.isValid(inventoryData)) {
-        // Create new inventory record
-        const { availableQuantity, reservedQuantity, reorderLevel } = inventoryData;
-        const Inventory = require('@/models/Inventory');
-        const newInventory = new Inventory({
-          availableQuantity: availableQuantity || 0,
-          reservedQuantity: reservedQuantity || 0,
-          reorderLevel: reorderLevel || 50,
-        });
-        const savedInventory = await newInventory.save();
-        inventoryId = savedInventory._id;
-      } else {
-        // Use existing inventory ID
-        inventoryId = inventoryData;
-      }
-    }
 
     /* ───────────── create & save ───────────── */
     const newOption = new Option({
@@ -101,7 +112,7 @@ export async function POST(req) {
       optionDetails: optionDetails || {},
       images: imagePaths,
       thumbnail: thumbnail || '',
-      ...(inventoryId && { inventoryData: inventoryId }),
+      inventoryData,
     });
 
     await newOption.save();

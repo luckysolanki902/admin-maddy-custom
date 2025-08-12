@@ -31,7 +31,29 @@ import slugify from 'slugify';
 
 import ImageUpload from '@/components/utils/ImageUpload';
 import ProductImageManager from '@/components/page-sections/product-add-page/ProductImageManager';
-import ProductImagePreview from '@/components/page-sections/product-add-page/ProductImagePreview';
+import ProductImagePreview from '@/comp      {/* ───── Options accordion (after product saved and if options are enabled) ───── */}
+      {savedProduct && enableOptions && (
+        <Accordion defaultExpanded sx={{ mt: 4 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6">
+              Options for "{savedProduct.name}"
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <OptionForm
+              product={savedProduct}
+              baseSku={savedProduct.sku}
+              serial={1}
+              onAdded={() => setSuccessAlert(true)}
+              requiresInventory={enableInventory}
+              inventoryDefaults={{
+                availableQuantity: inventoryData.availableQuantity,
+                reorderLevel: inventoryData.reorderLevel,
+              }}
+            />
+          </AccordionDetails>
+        </Accordion>
+      )}/product-add-page/ProductImagePreview';
 import CategorySelector from '@/components/layout/CategorySelector';
 import VariantNameConflictDialog from '@/components/page-sections/common/VariantNameConflictDialog';
 import OptionForm from '@/components/page-sections/options/OptionForm';
@@ -598,7 +620,7 @@ const AddProductPage = () => {
               onChange={(e) => setPricingMode(e.target.value)}
             >
               <MenuItem value="price">Set Price & MRP</MenuItem>
-              <MenuItem value="discount">Set Price & Discount % to auto-set MRP</MenuItem>
+              <MenuItem value="discount">Set Price & Discount %</MenuItem>
             </Select>
           </FormControl>
         </Grid>
@@ -737,117 +759,38 @@ const AddProductPage = () => {
           </>
         )}
 
-        {/* Product Configuration Summary */}
+        {/* Show current SKU and info */}
         {firstProductDetails && (
           <Grid item xs={12}>
-            <Box 
-              sx={{ 
-                p: 2, 
-                borderRadius: 1, 
-                mt: 2,
-                backgroundColor: '#2d2d2d',
-                border: '1px solid #ffffffff'
-              }}
-            >
-              <Typography variant="subtitle1" sx={{ mb: 2, color: '#f3f3f3ff', fontWeight: 600 }}>
-                Product Configuration
+            <Box sx={{ p: 2, borderRadius: 1, mt: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Next SKU:</strong> {firstProductDetails.nextSku}
               </Typography>
-              
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#c8c8c8ff', fontSize: '0.875rem' }}>
-                      SKU
+              <Typography variant="body2" color="text.secondary">
+                <strong>Has First Product:</strong> {firstProductDetails.hasFirstProduct ? 'Yes' : 'No (This will be the first product)'}
+              </Typography>
+              {firstProductDetails.hasFirstProduct ? (
+                <>
+                  {firstProductDetails.requiresInventory && (
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Inventory Required:</strong> Yes (based on first product)
                     </Typography>
-                    <Typography variant="body1" sx={{ 
-                      fontFamily: 'monospace',
-                      fontSize: '0.95rem',
-                      fontWeight: 600,
-                      color: '#ffffffff'
-                    }}>
-                      {firstProductDetails.nextSku}
+                  )}
+                  {firstProductDetails.requiresOptions && (
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Options Available:</strong> Yes (based on first product)
                     </Typography>
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#c8c8c8ff', fontSize: '0.875rem' }}>
-                      Type
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontSize: '0.95rem', color: '#ffffffff' }}>
-                      {firstProductDetails.hasFirstProduct ? 'Additional Product' : 'First Product'}
-                    </Typography>
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#c8c8c8ff', fontSize: '0.875rem' }}>
-                      Inventory
-                    </Typography>
-                    <Typography variant="body1" sx={{ 
-                      fontSize: '0.95rem', 
-                      color: firstProductDetails.hasFirstProduct 
-                        ? (firstProductDetails.requiresInventory ? '#198754' : '#dc3545')
-                        : (enableInventory ? '#198754' : '#dc3545'),
-                      fontWeight: 500
-                    }}>
-                      {firstProductDetails.hasFirstProduct 
-                        ? (firstProductDetails.requiresInventory ? 'Required' : 'Not Used')
-                        : (enableInventory ? 'Enabled' : 'Disabled')
-                      }
-                    </Typography>
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#6c757d', fontSize: '0.875rem' }}>
-                      Options
-                    </Typography>
-                    <Typography variant="body1" sx={{ 
-                      fontSize: '0.95rem', 
-                      color: firstProductDetails.hasFirstProduct 
-                        ? (firstProductDetails.requiresOptions ? '#198754' : '#dc3545')
-                        : (enableOptions ? '#198754' : '#dc3545'),
-                      fontWeight: 500
-                    }}>
-                      {firstProductDetails.hasFirstProduct 
-                        ? (firstProductDetails.requiresOptions ? 'Available' : 'Not Used')
-                        : (enableOptions ? 'Enabled' : 'Disabled')
-                      }
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-
-              {firstProductDetails.hasFirstProduct && (
-                <Box sx={{ 
-                  mt: 2, 
-                  p: 1.5, 
-                  backgroundColor: '#d1ecf1',
-                  border: '1px solid #bee5eb',
-                  borderRadius: 1
-                }}>
-                  <Typography variant="body2" sx={{ color: '#0c5460', fontSize: '0.875rem' }}>
-                    Configuration follows existing products in this variant
+                  )}
+                </>
+              ) : (
+                <>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Inventory Enabled:</strong> {enableInventory ? 'Yes' : 'No'}
                   </Typography>
-                </Box>
-              )}
-              
-              {!firstProductDetails.hasFirstProduct && (
-                <Box sx={{ 
-                  mt: 2, 
-                  p: 1.5, 
-                  backgroundColor: '#d1e7dd',
-                  border: '1px solid #badbcc',
-                  borderRadius: 1
-                }}>
-                  <Typography variant="body2" sx={{ color: '#0a3622', fontSize: '0.875rem' }}>
-                    First product - your choices will set the pattern
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Options Enabled:</strong> {enableOptions ? 'Yes' : 'No'}
                   </Typography>
-                </Box>
+                </>
               )}
             </Box>
           </Grid>
@@ -868,31 +811,15 @@ const AddProductPage = () => {
         </Grid>
       </Grid>
 
-      {/* ───── Enhanced Options accordion (after product saved) ───── */}
+      {/* ───── Options accordion (after product saved) ───── */}
       {savedProduct && (
-        <Accordion 
-          defaultExpanded 
-          sx={{ 
-            mt: 4,
-            borderRadius: 2,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            border: '1px solid #e0e0e0',
-            '&:before': { display: 'none' }
-          }}
-        >
-          <AccordionSummary 
-            expandIcon={<ExpandMoreIcon />}
-            sx={{ 
-              backgroundColor: '#f8f9fa',
-              borderRadius: '8px 8px 0 0',
-              minHeight: 56
-            }}
-          >
-            <Typography variant="h6" sx={{ color: '#2c3e50', fontWeight: 600 }}>
-              🔧 Options for &quot;{savedProduct.name}&quot;
+        <Accordion defaultExpanded sx={{ mt: 4 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6">
+              Options for “{savedProduct.name}”
             </Typography>
           </AccordionSummary>
-          <AccordionDetails sx={{ p: 3 }}>
+          <AccordionDetails>
             <OptionForm
               product={savedProduct}
               baseSku={savedProduct.sku}

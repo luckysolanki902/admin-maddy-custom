@@ -11,7 +11,6 @@ export default function Design() {
     { text: 'Design Search', link: '/admin/manage/orders/sku-search' },
     { text: 'Review Manager', link: '/admin/manage/reviews' },
     {text: 'Design Groups', link: '/admin/design-groups' },
-
   ];
 
   return (

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../../lib/db';
-import Product from '../../../../../models/Product';
+import Product from '@/models/Product';
 
 export async function GET() {
   try {
@@ -10,7 +10,7 @@ export async function GET() {
     const groupedProducts = await Product.aggregate([
       {
         $match: {
-          designGroupId: { $exists: true, $ne: null, $ne: '' }
+          designGroupId: { $exists: true, $ne: null }
         }
       },
       {
@@ -22,7 +22,7 @@ export async function GET() {
               name: '$name',
               images: '$images',
               MRP: '$MRP',
-              sellingPrice: '$sellingPrice',
+              price: '$price',
               specificCategoryVariant: '$specificCategoryVariant'
             }
           },

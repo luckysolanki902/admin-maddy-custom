@@ -103,6 +103,13 @@ export default function DesignGroupsPage() {
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [groupProductsToRemove, setGroupProductsToRemove] = useState([]);
   const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [availableProductsLoading, setAvailableProductsLoading] = useState(false);
+  const [searchProductsQuery, setSearchProductsQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState(''); // Separate input value for debouncing
+  const [selectedProductsToAdd, setSelectedProductsToAdd] = useState([]);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
+  const [addingProducts, setAddingProducts] = useState(false);
 
   // Fetch specific categories
   const fetchSpecificCategories = useCallback(async () => {
@@ -123,14 +130,41 @@ export default function DesignGroupsPage() {
 
   // Fetch existing groups
   const fetchExistingGroups = useCallback(async () => {
+    setExistingGroupsLoading(true);
     try {
       const response = await fetch('/api/admin/design-groups/existing-groups');
       if (response.ok) {
         const data = await response.json();
         setExistingGroups(data.groups || []);
+      } else {
+        console.error('Failed to fetch existing groups:', response.status);
       }
     } catch (error) {
       console.error('Error fetching existing groups:', error);
+    } finally {
+      setExistingGroupsLoading(false);
+    }
+  }, []);
+
+  // Fetch available products for adding to groups
+  const fetchAvailableProducts = useCallback(async (searchQuery = '', categoryFilter = '') => {
+    setAvailableProductsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery.trim()) params.append('search', searchQuery.trim());
+      if (categoryFilter.trim()) params.append('category', categoryFilter.trim());
+      params.append('limit', '20');
+
+      const response = await fetch(`/api/admin/design-groups/available-products?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableProducts(data.products || []);
+      }
+    } catch (error) {
+      console.error('Error fetching available products:', error);
+      toast.error('Failed to fetch available products');
+    } finally {
+      setAvailableProductsLoading(false);
     }
   }, []);
 
@@ -383,6 +417,54 @@ export default function DesignGroupsPage() {
     }
   }, [selectedProducts, fetchExistingGroups]);
 
+  // Add products to existing group
+  const addProductsToGroup = useCallback(async () => {
+    if (!selectedGroup || selectedProductsToAdd.length === 0) {
+      toast.error('Please select products to add');
+      return;
+    }
+
+    setAddingProducts(true);
+    try {
+      const response = await fetch('/api/admin/design-groups/add-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          designGroupId: selectedGroup.designGroupId,
+          productIds: selectedProductsToAdd
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`${data.modifiedCount} products added to group!`);
+        
+        // Close dialog and reset state
+        setAddProductDialogOpen(false);
+        setSelectedProductsToAdd([]);
+        setSearchInputValue('');
+        setSearchProductsQuery('');
+        setSelectedCategoryFilter('');
+        
+        // Refresh both available products and existing groups
+        fetchExistingGroups();
+        
+        // If we still have the dialog open, refresh the available products
+        if (addProductDialogOpen) {
+          fetchAvailableProducts();
+        }
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to add products to group');
+      }
+    } catch (error) {
+      console.error('Error adding products to group:', error);
+      toast.error('Error adding products to group');
+    } finally {
+      setAddingProducts(false);
+    }
+  }, [selectedGroup, selectedProductsToAdd, fetchExistingGroups, fetchAvailableProducts, addProductDialogOpen]);
+
   // Start grouping mode
   const startGrouping = () => {
     setGroupingMode(true);
@@ -406,6 +488,35 @@ export default function DesignGroupsPage() {
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [handleKeyPress]);
+
+  // Debounce search query
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setSearchProductsQuery(searchInputValue);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchInputValue]);
+
+  // Fetch products when search query or category filter changes
+  useEffect(() => {
+    if (addProductDialogOpen) {
+      fetchAvailableProducts(searchProductsQuery, selectedCategoryFilter);
+    }
+  }, [searchProductsQuery, selectedCategoryFilter, addProductDialogOpen, fetchAvailableProducts]);
+
+  // Handle search on Enter key
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setSearchProductsQuery(searchInputValue);
+    }
+  };
+
+  // Manual search trigger
+  const handleManualSearch = () => {
+    setSearchProductsQuery(searchInputValue);
+  };
 
   // Initialize
   useEffect(() => {
@@ -960,6 +1071,8 @@ export default function DesignGroupsPage() {
                         border: '1px solid rgba(255, 255, 255, 0.1)',
                         borderRadius: 2,
                         position: 'relative',
+                        flex: 1,
+                        height: '100%'
                       }}
                     >
                       {product.images?.[0] ? (
@@ -1032,7 +1145,7 @@ export default function DesignGroupsPage() {
                             display: 'block',
                           }}
                         >
-                          ₹{product.MRP} • ₹{product.sellingPrice}
+                          ₹{product.price}
                         </Typography>
                       </CardContent>
                       
@@ -1068,76 +1181,14 @@ export default function DesignGroupsPage() {
               </Grid>
               
               <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {selectedProducts.length > 0 && (
-                  <Box
-                    sx={{
-                      p: 2,
-                      bgcolor: 'rgba(34, 197, 94, 0.1)',
-                      border: '1px solid rgba(34, 197, 94, 0.3)',
-                      borderRadius: 2,
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ color: '#22c55e', fontWeight: 500 }}>
-                      {selectedProducts.length} products ready to be added to this group
-                    </Typography>
-                  </Box>
-                )}
-                
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <Button
                     variant="outlined"
                     startIcon={<AddIcon />}
-                    onClick={async () => {
-                      if (selectedProducts.length === 0) {
-                        toast.info('Select products from the main interface first, then use this button to add them to this group');
-                        return;
-                      }
-                      
-                      try {
-                        const response = await fetch('/api/admin/design-groups/add-products', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            designGroupId: selectedGroup.designGroupId,
-                            productIds: selectedProducts.map(p => p.productId)
-                          })
-                        });
-
-                        if (response.ok) {
-                          const data = await response.json();
-                          toast.success(`${data.modifiedCount} products added to group ${selectedGroup.designGroupId}`);
-                          
-                          // Clear selected products after adding them
-                          setSelectedProducts([]);
-                          
-                          // Close dialog and refresh
-                          setGroupDialogOpen(false);
-                          fetchExistingGroups();
-                          
-                          // Update products in current view to reflect the changes
-                          const addedProductIds = selectedProducts.map(p => p.productId);
-                          setProducts(prev => {
-                            const newProducts = { ...prev };
-                            Object.keys(newProducts).forEach(variantId => {
-                              newProducts[variantId] = newProducts[variantId].map(product => {
-                                if (addedProductIds.includes(product._id)) {
-                                  return { ...product, designGroupId: selectedGroup.designGroupId };
-                                }
-                                return product;
-                              });
-                            });
-                            return newProducts;
-                          });
-                          
-                        } else {
-                          toast.error('Failed to add products to group');
-                        }
-                      } catch (error) {
-                        console.error('Error adding products to group:', error);
-                        toast.error('Error adding products to group');
-                      }
+                    onClick={() => {
+                      setAddProductDialogOpen(true);
+                      fetchAvailableProducts();
                     }}
-                    disabled={selectedProducts.length === 0}
                     sx={{
                       borderColor: 'rgba(34, 197, 94, 0.5)',
                       color: '#22c55e',
@@ -1145,13 +1196,9 @@ export default function DesignGroupsPage() {
                         borderColor: '#22c55e',
                         bgcolor: 'rgba(34, 197, 94, 0.1)',
                       },
-                      '&:disabled': {
-                        borderColor: 'rgba(255, 255, 255, 0.2)',
-                        color: 'rgba(255, 255, 255, 0.4)',
-                      },
                     }}
                   >
-                    Add Products {selectedProducts.length > 0 && `(${selectedProducts.length})`}
+                    Add Products to Group
                   </Button>
                 
                 {groupProductsToRemove.length > 0 && (
@@ -1274,6 +1321,393 @@ export default function DesignGroupsPage() {
             }}
           >
             Delete Group
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Products Dialog */}
+      <Dialog
+        open={addProductDialogOpen}
+        onClose={() => {
+          setAddProductDialogOpen(false);
+          setSelectedProductsToAdd([]);
+          setSearchInputValue('');
+          setSearchProductsQuery('');
+          setSelectedCategoryFilter('');
+        }}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1a1a1a',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: 4,
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: '#ffffff', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <AddIcon sx={{ color: '#22c55e' }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Add Products to Group
+              </Typography>
+              {selectedGroup && (
+                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                  {selectedGroup.designGroupId}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 3 }}>
+          {/* Search and Filter Bar */}
+          <Box sx={{ mb: 3 }}>
+            <Grid container spacing={2}>
+              {/* Search Field */}
+              <Grid item xs={12} md={8}>
+                <TextField
+                  placeholder="Search products (e.g., 'window wrap' or 'wrap window')..."
+                  value={searchInputValue}
+                  onChange={(e) => setSearchInputValue(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  variant="outlined"
+                  fullWidth
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: '#ffffff',
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      '& fieldset': {
+                        borderColor: 'rgba(255, 255, 255, 0.2)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#22c55e',
+                      },
+                    },
+                    '& .MuiOutlinedInput-input::placeholder': {
+                      color: 'rgba(255, 255, 255, 0.5)',
+                    },
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <IconButton
+                        onClick={handleManualSearch}
+                        size="small"
+                        sx={{ color: 'rgba(255, 255, 255, 0.6)', mr: 1 }}
+                      >
+                        <SearchIcon fontSize="small" />
+                      </IconButton>
+                    ),
+                    endAdornment: searchInputValue && (
+                      <IconButton
+                        onClick={() => {
+                          setSearchInputValue('');
+                          setSearchProductsQuery('');
+                        }}
+                        size="small"
+                        sx={{ color: 'rgba(255, 255, 255, 0.6)' }}
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    ),
+                  }}
+                />
+              </Grid>
+              
+              {/* Category Filter */}
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                    Filter by Category
+                  </InputLabel>
+                  <Select
+                    value={selectedCategoryFilter}
+                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                    sx={{
+                      color: '#ffffff',
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255, 255, 255, 0.2)',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#22c55e',
+                      },
+                      '& .MuiSvgIcon-root': {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                      },
+                    }}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          bgcolor: '#1e293b',
+                          color: '#ffffff',
+                          '& .MuiMenuItem-root:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          },
+                        },
+                      },
+                    }}
+                  >
+                    <MenuItem value="">All Categories</MenuItem>
+                    {[...new Set(availableProducts.map(p => p.categoryName))].map((categoryName) => (
+                      <MenuItem key={categoryName} value={categoryName}>
+                        {categoryName}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </Box>
+
+          {/* Selection Summary */}
+          {selectedProductsToAdd.length > 0 && (
+            <Box
+              sx={{
+                p: 2,
+                bgcolor: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                borderRadius: 2,
+                mb: 3,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Typography variant="body2" sx={{ color: '#22c55e', fontWeight: 500 }}>
+                {selectedProductsToAdd.length} product{selectedProductsToAdd.length > 1 ? 's' : ''} selected
+              </Typography>
+              <Button
+                size="small"
+                onClick={() => setSelectedProductsToAdd([])}
+                sx={{ color: '#22c55e' }}
+              >
+                Clear Selection
+              </Button>
+            </Box>
+          )}
+
+          {/* Products Grid */}
+          {availableProductsLoading ? (
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              py: 8,
+              gap: 2
+            }}>
+              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Loading available products...
+              </Typography>
+              <LinearProgress sx={{ width: '60%', color: '#22c55e' }} />
+            </Box>
+          ) : (
+            <Grid container spacing={2} sx={{ maxHeight: 400, overflowY: 'auto' }}>
+              {availableProducts.length === 0 && !availableProductsLoading ? (
+                <Grid item xs={12}>
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 6, 
+                    color: 'rgba(255, 255, 255, 0.7)' 
+                  }}>
+                    <Typography variant="body1">
+                      {searchProductsQuery || selectedCategoryFilter 
+                        ? 'No products found matching your search criteria'
+                        : 'No products available to add'
+                      }
+                    </Typography>
+                  </Box>
+                </Grid>
+              ) : (
+                availableProducts.map((product) => (
+                  <Grid item xs={12} sm={6} md={4} lg={3} key={product._id}>
+                    <Card
+                      onClick={() => {
+                        setSelectedProductsToAdd(prev => 
+                          prev.includes(product._id)
+                            ? prev.filter(id => id !== product._id)
+                            : [...prev, product._id]
+                        );
+                      }}
+                      sx={{
+                        cursor: 'pointer',
+                        bgcolor: selectedProductsToAdd.includes(product._id) 
+                          ? 'rgba(34, 197, 94, 0.2)' 
+                          : 'rgba(255, 255, 255, 0.05)',
+                        border: selectedProductsToAdd.includes(product._id)
+                          ? '2px solid #22c55e'
+                          : '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: 2,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: selectedProductsToAdd.includes(product._id)
+                            ? '0 8px 32px rgba(34, 197, 94, 0.3)'
+                            : '0 8px 32px rgba(0, 0, 0, 0.2)',
+                        },
+                        position: 'relative',
+                      }}
+                    >
+                      {selectedProductsToAdd.includes(product._id) && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            zIndex: 2,
+                            bgcolor: '#22c55e',
+                            borderRadius: '50%',
+                            p: 0.5,
+                          }}
+                        >
+                          <CheckCircleIcon sx={{ color: '#ffffff', fontSize: 16 }} />
+                        </Box>
+                      )}
+
+                      {product.images?.[0] ? (
+                        <CardMedia
+                          component="img"
+                          height="100"
+                          image={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images[0]}`}
+                          alt={product.name}
+                          sx={{ objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <Box
+                          sx={{
+                            height: 100,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: 'rgba(255, 255, 255, 0.02)',
+                          }}
+                        >
+                          <ImageIcon sx={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 24 }} />
+                        </Box>
+                      )}
+                      
+                      <CardContent sx={{ p: 1.5 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: '#ffffff',
+                            fontWeight: 500,
+                            fontSize: '0.8rem',
+                            lineHeight: 1.2,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            mb: 1,
+                          }}
+                        >
+                          {product.name}
+                        </Typography>
+                        
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+                          <Chip
+                            label={product.categoryName}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(59, 130, 246, 0.2)',
+                              color: '#3b82f6',
+                              fontSize: '0.65rem',
+                              height: 16,
+                            }}
+                          />
+                          <Chip
+                            label={product.variantName}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(139, 92, 246, 0.2)',
+                              color: '#8b5cf6',
+                              fontSize: '0.65rem',
+                              height: 16,
+                            }}
+                          />
+                        </Box>
+                        
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            fontSize: '0.7rem',
+                          }}
+                        >
+                          ₹{product.price}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))
+              )}
+            </Grid>
+          )}
+
+          {availableProducts.length === 0 && !availableProductsLoading && (
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              py: 6,
+              gap: 2
+            }}>
+              <ImageIcon sx={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: 48 }} />
+              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                No products available to add
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.4)' }}>
+                All products are already assigned to design groups
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <Button
+            onClick={() => {
+              setAddProductDialogOpen(false);
+              setSelectedProductsToAdd([]);
+              setSearchInputValue('');
+              setSearchProductsQuery('');
+              setSelectedCategoryFilter('');
+            }}
+            sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+          >
+            Cancel
+          </Button>
+          
+          <Button
+            variant="contained"
+            onClick={addProductsToGroup}
+            disabled={selectedProductsToAdd.length === 0 || addingProducts}
+            sx={{
+              bgcolor: '#22c55e',
+              color: '#ffffff',
+              fontWeight: 600,
+              minWidth: 140,
+              '&:hover': {
+                bgcolor: '#16a34a',
+              },
+              '&:disabled': {
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                color: 'rgba(255, 255, 255, 0.4)',
+              },
+            }}
+          >
+            {addingProducts 
+              ? 'Adding...' 
+              : `Add ${selectedProductsToAdd.length} Product${selectedProductsToAdd.length !== 1 ? 's' : ''} to Group`
+            }
           </Button>
         </DialogActions>
       </Dialog>

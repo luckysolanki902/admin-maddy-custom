@@ -32,6 +32,7 @@ import {
   Zoom,
   LinearProgress,
   TextField,
+  CircularProgress,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -68,12 +69,12 @@ const generateGroupColor = (groupId) => {
   for (let i = 0; i < groupId.length; i++) {
     hash = groupId.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
+
   // Generate HSL color with good contrast
   const hue = Math.abs(hash) % 360;
   const saturation = 60 + (Math.abs(hash) % 30); // 60-90%
   const lightness = 45 + (Math.abs(hash) % 20); // 45-65%
-  
+
   return {
     primary: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
     background: `hsla(${hue}, ${saturation}%, ${lightness}%, 0.1)`,
@@ -83,7 +84,7 @@ const generateGroupColor = (groupId) => {
 
 export default function DesignGroupsPage() {
   const theme = useTheme();
-  
+
   // State management
   const [specificCategories, setSpecificCategories] = useState([]);
   const [variants, setVariants] = useState({});
@@ -99,6 +100,7 @@ export default function DesignGroupsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [productSearchQueries, setProductSearchQueries] = useState({});
   const [existingGroups, setExistingGroups] = useState([]);
+  const [existingGroupsLoading, setExistingGroupsLoading] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [groupProductsToRemove, setGroupProductsToRemove] = useState([]);
@@ -110,6 +112,17 @@ export default function DesignGroupsPage() {
   const [selectedProductsToAdd, setSelectedProductsToAdd] = useState([]);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
   const [addingProducts, setAddingProducts] = useState(false);
+
+  // Edit group info states
+  const [isEditingGroupInfo, setIsEditingGroupInfo] = useState(false);
+  const [editingGroupName, setEditingGroupName] = useState('');
+  const [editingGroupTags, setEditingGroupTags] = useState([]);
+  const [newTag, setNewTag] = useState('');
+
+  // Create group states
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupTags, setNewGroupTags] = useState([]);
+  const [newGroupTag, setNewGroupTag] = useState('');
 
   // Fetch specific categories
   const fetchSpecificCategories = useCallback(async () => {
@@ -129,13 +142,21 @@ export default function DesignGroupsPage() {
   }, []);
 
   // Fetch existing groups
-  const fetchExistingGroups = useCallback(async () => {
+  const fetchExistingGroups = useCallback(async (updateSelected = false) => {
     setExistingGroupsLoading(true);
     try {
       const response = await fetch('/api/admin/design-groups/existing-groups');
       if (response.ok) {
         const data = await response.json();
         setExistingGroups(data.groups || []);
+
+        // Update selectedGroup if requested and it exists in the new data
+        if (updateSelected && selectedGroup) {
+          const updatedGroup = data.groups.find(g => g.designGroupId === selectedGroup.designGroupId);
+          if (updatedGroup) {
+            setSelectedGroup(updatedGroup);
+          }
+        }
       } else {
         console.error('Failed to fetch existing groups:', response.status);
       }
@@ -144,7 +165,7 @@ export default function DesignGroupsPage() {
     } finally {
       setExistingGroupsLoading(false);
     }
-  }, []);
+  }, []); // Removed selectedGroup dependency to prevent infinite re-renders
 
   // Fetch available products for adding to groups
   const fetchAvailableProducts = useCallback(async (searchQuery = '', categoryFilter = '') => {
@@ -227,25 +248,25 @@ export default function DesignGroupsPage() {
 
   // Update row
   const updateRow = async (index, field, value) => {
-    setSelectedRows(prev => prev.map((row, i) => 
+    setSelectedRows(prev => prev.map((row, i) =>
       i === index ? { ...row, [field]: value } : row
     ));
-    
+
     // Auto-fetch variants when specCat is selected
     if (field === 'specCatId' && value) {
       const fetchedVariants = await fetchVariants(value);
-      
+
       // Auto-select variant if there's only one
       if (fetchedVariants && fetchedVariants.length === 1) {
         // Update the selected row immediately with the auto-selected variant
-        setSelectedRows(prev => prev.map((row, i) => 
+        setSelectedRows(prev => prev.map((row, i) =>
           i === index ? { ...row, variantId: fetchedVariants[0]._id } : row
         ));
         // Also fetch products for the auto-selected variant
         fetchProducts(fetchedVariants[0]._id);
       }
     }
-    
+
     // Auto-fetch products when variant is selected
     if (field === 'variantId' && value) {
       fetchProducts(value);
@@ -257,11 +278,11 @@ export default function DesignGroupsPage() {
     return specificCategories.filter(specCat => {
       const specCatVariants = variants[specCat._id] || [];
       if (specCatVariants.length === 0) return true; // Show if variants not loaded yet
-      
+
       const selectedVariantIds = selectedRows
         .filter(row => row.specCatId === specCat._id && row.variantId)
         .map(row => row.variantId);
-      
+
       return selectedVariantIds.length < specCatVariants.length;
     });
   }, [specificCategories, variants, selectedRows]);
@@ -272,14 +293,14 @@ export default function DesignGroupsPage() {
     const selectedVariantIds = selectedRows
       .filter(row => row.specCatId === specCatId && row.variantId)
       .map(row => row.variantId);
-    
+
     return specCatVariants.filter(variant => !selectedVariantIds.includes(variant._id));
   };
 
   // Filter specific categories based on search
   const filteredSpecificCategories = useMemo(() => {
     if (!searchQuery.trim()) return getAvailableSpecificCategories();
-    
+
     return getAvailableSpecificCategories().filter(specCat =>
       specCat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       specCat.description?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -290,9 +311,9 @@ export default function DesignGroupsPage() {
   const getFilteredProducts = (variantId) => {
     const variantProducts = products[variantId] || [];
     const searchQuery = productSearchQueries[variantId] || '';
-    
+
     let filteredProducts = variantProducts;
-    
+
     if (searchQuery.trim()) {
       filteredProducts = variantProducts.filter(product =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -300,12 +321,12 @@ export default function DesignGroupsPage() {
         product.designGroupId?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-    
+
     // Sort products: ungrouped first, then grouped by designGroupId
     return filteredProducts.sort((a, b) => {
       const aHasGroup = !!a.designGroupId;
       const bHasGroup = !!b.designGroupId;
-      
+
       if (aHasGroup && !bHasGroup) return 1;
       if (!aHasGroup && bHasGroup) return -1;
       if (aHasGroup && bHasGroup) {
@@ -337,7 +358,7 @@ export default function DesignGroupsPage() {
           toast.warning(`This product already belongs to group ${product.designGroupId}`);
           return prev;
         }
-        
+
         // Check if this variant already has a product selected in the current group
         const variantAlreadySelected = prev.find(p => p.variantId === variantId);
         if (variantAlreadySelected) {
@@ -370,23 +391,25 @@ export default function DesignGroupsPage() {
 
     const groupId = generateDesignGroupId();
     setLoading(true);
-    
+
     try {
       const response = await fetch('/api/admin/design-groups/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           groupId,
-          products: selectedProducts.map(p => p.productId)
+          products: selectedProducts.map(p => p.productId),
+          name: newGroupName.trim() || `Group ${Date.now()}`,
+          tags: newGroupTags
         })
       });
 
       if (response.ok) {
         toast.success(`Design group ${groupId} created! Ready for next group 🎉`);
-        
+
         // Optimistic UI update: Remove products that now have design group IDs from the local state
         const groupedProductIds = selectedProducts.map(p => p.productId);
-        
+
         // Update products state to remove the grouped products from their respective variants
         setProducts(prev => {
           const newProducts = { ...prev };
@@ -400,10 +423,15 @@ export default function DesignGroupsPage() {
           });
           return newProducts;
         });
-        
+
         // Clear only the selected products, keep variants and categories
         setSelectedProducts([]);
-        
+
+        // Clear form after successful creation
+        setNewGroupName('');
+        setNewGroupTags([]);
+        setNewGroupTag('');
+
         // Refresh existing groups to show the new group
         fetchExistingGroups();
       } else {
@@ -415,7 +443,7 @@ export default function DesignGroupsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedProducts, fetchExistingGroups]);
+  }, [selectedProducts, fetchExistingGroups, newGroupName, newGroupTags]);
 
   // Add products to existing group
   const addProductsToGroup = useCallback(async () => {
@@ -438,17 +466,17 @@ export default function DesignGroupsPage() {
       if (response.ok) {
         const data = await response.json();
         toast.success(`${data.modifiedCount} products added to group!`);
-        
+
         // Close dialog and reset state
         setAddProductDialogOpen(false);
         setSelectedProductsToAdd([]);
         setSearchInputValue('');
         setSearchProductsQuery('');
         setSelectedCategoryFilter('');
-        
-        // Refresh both available products and existing groups
-        fetchExistingGroups();
-        
+
+        // Refresh both available products and existing groups (this will also update selectedGroup)
+        await fetchExistingGroups(true);
+
         // If we still have the dialog open, refresh the available products
         if (addProductDialogOpen) {
           fetchAvailableProducts();
@@ -474,7 +502,7 @@ export default function DesignGroupsPage() {
   // Handle keyboard shortcuts
   const handleKeyPress = useCallback((event) => {
     if (!groupingMode) return;
-    
+
     if (event.key === 'Escape') {
       cancelGrouping();
     } else if (event.key === 'Enter') {
@@ -516,7 +544,7 @@ export default function DesignGroupsPage() {
   // Manual search trigger
   const handleManualSearch = () => {
     setSearchProductsQuery(searchInputValue);
-  };
+  };``
 
   // Initialize
   useEffect(() => {
@@ -689,7 +717,7 @@ export default function DesignGroupsPage() {
                       {selectedProducts.length < 2 ? 'Select at least 2 products' : 'Ready to create group • Variants will stay selected for next group'}
                     </Typography>
                   </Box>
-                  
+
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     {selectedProducts.map((_, index) => (
                       <Box
@@ -711,6 +739,136 @@ export default function DesignGroupsPage() {
         </Fade>
 
         {loading && <LinearProgress sx={{ mb: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />}
+
+        {/* Group Creation Form */}
+        {groupingMode && selectedProducts.length >= 2 && (
+          <Fade in timeout={800}>
+            <Paper
+              elevation={0}
+              sx={{
+                background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.03) 100%)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                borderRadius: 2,
+                p: 3,
+                mb: 4,
+              }}
+            >
+              <Typography variant="h6" sx={{ color: '#22c55e', mb: 2, fontWeight: 600 }}>
+                Group Details
+              </Typography>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Group Name"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    variant="outlined"
+                    fullWidth
+                    placeholder="Enter a name for this design group"
+                    error={newGroupName.length > 200}
+                    helperText={`${newGroupName.length}/200 characters`}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        color: '#ffffff',
+                        '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
+                        '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
+                        '&.Mui-focused fieldset': { borderColor: '#22c55e' }
+                      },
+                      '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
+                      '& .MuiFormHelperText-root': { color: 'rgba(255, 255, 255, 0.5)' }
+                    }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
+                      Tags (max 10):
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                      {newGroupTags.map((tag, index) => (
+                        <Chip
+                          key={index}
+                          label={tag}
+                          onDelete={() => {
+                            setNewGroupTags(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          size="small"
+                          sx={{
+                            bgcolor: 'rgba(34, 197, 94, 0.2)',
+                            color: '#22c55e',
+                            '& .MuiChip-deleteIcon': { color: '#22c55e' }
+                          }}
+                        />
+                      ))}
+                    </Box>
+
+                    {newGroupTags.length < 10 && (
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <TextField
+                          label="Add tag"
+                          value={newGroupTag}
+                          onChange={(e) => setNewGroupTag(e.target.value)}
+                          variant="outlined"
+                          size="small"
+                          fullWidth
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && newGroupTag.trim() && !newGroupTags.includes(newGroupTag.trim())) {
+                              setNewGroupTags(prev => [...prev, newGroupTag.trim()]);
+                              setNewGroupTag('');
+                            }
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              color: '#ffffff',
+                              '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
+                              '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
+                              '&.Mui-focused fieldset': { borderColor: '#22c55e' }
+                            },
+                            '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' }
+                          }}
+                        />
+                        <Button
+                          onClick={() => {
+                            if (newGroupTag.trim() && !newGroupTags.includes(newGroupTag.trim())) {
+                              setNewGroupTags(prev => [...prev, newGroupTag.trim()]);
+                              setNewGroupTag('');
+                            }
+                          }}
+                          disabled={!newGroupTag.trim() || newGroupTags.includes(newGroupTag.trim())}
+                          sx={{ color: '#22c55e', minWidth: '80px' }}
+                        >
+                          Add
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
+
+              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+                <Button
+                  variant="contained"
+                  onClick={saveDesignGroup}
+                  disabled={loading || selectedProducts.length < 2 || newGroupName.length > 200}
+                  sx={{
+                    bgcolor: '#22c55e',
+                    color: '#ffffff',
+                    px: 4,
+                    py: 1.5,
+                    fontSize: '1.1rem',
+                    fontWeight: 600,
+                    '&:hover': { bgcolor: '#16a34a' },
+                    '&:disabled': { bgcolor: 'rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.3)' }
+                  }}
+                >
+                  {loading ? <CircularProgress size={24} sx={{ color: 'rgba(255, 255, 255, 0.5)' }} /> : 'Create Design Group'}
+                </Button>
+              </Box>
+            </Paper>
+          </Fade>
+        )}
 
         {/* Category Selection Rows */}
         {groupingMode && (
@@ -790,7 +948,7 @@ export default function DesignGroupsPage() {
                   onProductSearchChange={(query) => setProductSearchQuery(row.variantId, query)}
                 />
               ))}
-              
+
               <Box sx={{ mt: 2, textAlign: 'center' }}>
                 <Button
                   variant="outlined"
@@ -812,55 +970,8 @@ export default function DesignGroupsPage() {
           </Fade>
         )}
 
-        {/* Instructions */}
-        {!groupingMode && (
-          <Fade in timeout={1200}>
-            <Paper
-              elevation={0}
-              sx={{
-                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: 4,
-                p: 4,
-                textAlign: 'center',
-              }}
-            >
-              <AutoAwesomeIcon sx={{ fontSize: 48, color: '#3b82f6', mb: 2 }} />
-              <Typography variant="h5" sx={{ color: '#ffffff', mb: 2, fontWeight: 600 }}>
-                Welcome to Design Groups Manager
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 3, maxWidth: 600, mx: 'auto' }}>
-                Create design groups by linking products from different categories. Perfect for recommendations like matching bonnet wraps with window pillar wraps of the same design.
-              </Typography>
-              
-              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4, mt: 4 }}>
-                <FeatureCard
-                  icon={<CategoryIcon />}
-                  title="Select Categories"
-                  description="Choose different specific categories and variants"
-                />
-                <FeatureCard
-                  icon={<LinkIcon />}
-                  title="Link Products"
-                  description="Click on product cards to group them together"
-                />
-                <FeatureCard
-                  icon={<LocalOfferIcon />}
-                  title="Auto Group ID"
-                  description="Get unique DESXXXXXYY format group IDs automatically"
-                />
-              </Box>
-              
-              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)', mt: 3 }}>
-                Keyboard shortcuts: <strong>ESC</strong> to cancel, <strong>Enter</strong> to save
-              </Typography>
-            </Paper>
-          </Fade>
-        )}
-
         {/* Existing Groups Section */}
-        {existingGroups.length > 0 && (
+        {(existingGroups.length > 0 || existingGroupsLoading) && (
           <Fade in timeout={800}>
             <Paper
               elevation={0}
@@ -890,139 +1001,235 @@ export default function DesignGroupsPage() {
               </Box>
 
               <Grid container spacing={3}>
-                {existingGroups.map((group) => (
-                  <Grid item xs={12} md={6} lg={4} key={group.designGroupId}>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        background: `linear-gradient(135deg, ${generateGroupColor(group.designGroupId).background}20 0%, ${generateGroupColor(group.designGroupId).background}10 100%)`,
-                        border: `1px solid ${generateGroupColor(group.designGroupId).border}`,
-                        borderRadius: 3,
-                        p: 3,
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          transform: 'translateY(-4px)',
-                          boxShadow: `0 8px 32px ${generateGroupColor(group.designGroupId).background}30`,
-                          border: `1px solid ${generateGroupColor(group.designGroupId).primary}`,
-                        },
-                      }}
-                      onClick={() => {
-                        setSelectedGroup(group);
-                        setGroupDialogOpen(true);
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                        <Chip
-                          label={group.designGroupId}
-                          size="small"
-                          sx={{
-                            bgcolor: generateGroupColor(group.designGroupId).background,
-                            color: generateGroupColor(group.designGroupId).primary,
-                            border: `1px solid ${generateGroupColor(group.designGroupId).border}`,
-                            fontWeight: 600,
-                          }}
-                        />
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-                          {group.productCount} products
-                        </Typography>
-                      </Box>
-
-                      {/* Product Collage */}
-                      <Box
+                {existingGroupsLoading ? (
+                  // Skeleton Loading
+                  Array.from({ length: 6 }, (_, index) => (
+                    <Grid item xs={12} md={6} lg={4} key={`skeleton-${index}`}>
+                      <Paper
+                        elevation={0}
                         sx={{
-                          display: 'grid',
-                          gridTemplateColumns: group.products.length === 1 ? '1fr' : 
-                                             group.products.length === 2 ? 'repeat(2, 1fr)' :
-                                             group.products.length === 3 ? 'repeat(2, 1fr)' :
-                                             'repeat(2, 1fr)',
-                          gridTemplateRows: group.products.length <= 2 ? '1fr' : 'repeat(2, 1fr)',
-                          gap: 1,
-                          height: 120,
-                          mb: 2,
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: 3,
+                          p: 3,
                         }}
                       >
-                        {group.products.slice(0, 4).map((product, index) => (
+                        {/* Header skeleton */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                           <Box
-                            key={product._id}
                             sx={{
-                              backgroundImage: product.images?.[0] ? 
-                                `url(${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images[0]})` : 
-                                'none',
-                              backgroundColor: product.images?.[0] ? 'transparent' : 'rgba(255, 255, 255, 0.05)',
-                              backgroundSize: 'cover',
-                              backgroundPosition: 'center',
+                              width: 120,
+                              height: 24,
+                              bgcolor: 'rgba(255, 255, 255, 0.1)',
+                              borderRadius: 4,
+                              animation: 'pulse 1.5s infinite',
+                              '@keyframes pulse': {
+                                '0%, 100%': { opacity: 1 },
+                                '50%': { opacity: 0.6 },
+                              },
+                            }}
+                          />
+                          <Box
+                            sx={{
+                              width: 80,
+                              height: 16,
+                              bgcolor: 'rgba(255, 255, 255, 0.1)',
                               borderRadius: 2,
-                              border: '1px solid rgba(255, 255, 255, 0.1)',
-                              gridColumn: group.products.length === 3 && index === 2 ? 'span 2' : 'span 1',
-                              position: 'relative',
-                              overflow: 'hidden',
+                              animation: 'pulse 1.5s infinite',
+                              animationDelay: '0.2s',
                             }}
-                          >
-                            {!product.images?.[0] && (
-                              <Box
-                                sx={{
-                                  position: 'absolute',
-                                  inset: 0,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                }}
-                              >
-                                <ImageIcon sx={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 24 }} />
-                              </Box>
-                            )}
-                            {index === 3 && group.products.length > 4 && (
-                              <Box
-                                sx={{
-                                  position: 'absolute',
-                                  inset: 0,
-                                  bgcolor: 'rgba(0, 0, 0, 0.7)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  color: '#ffffff',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                +{group.products.length - 3}
-                              </Box>
-                            )}
-                          </Box>
-                        ))}
-                      </Box>
+                          />
+                        </Box>
 
-                      {/* Category Summary */}
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {[...new Set(group.products.map(p => p.categoryName))].slice(0, 3).map((category, index) => (
-                          <Chip
-                            key={category}
-                            label={category}
-                            size="small"
+                        {/* Image grid skeleton */}
+                        <Box
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(2, 1fr)',
+                            gridTemplateRows: 'repeat(2, 1fr)',
+                            gap: 1,
+                            height: 120,
+                            mb: 2,
+                          }}
+                        >
+                          {Array.from({ length: 4 }, (_, imgIndex) => (
+                            <Box
+                              key={imgIndex}
+                              sx={{
+                                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                                borderRadius: 2,
+                                animation: 'pulse 1.5s infinite',
+                                animationDelay: `${imgIndex * 0.1}s`,
+                              }}
+                            />
+                          ))}
+                        </Box>
+
+                        {/* Action buttons skeleton */}
+                        <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                          <Box
                             sx={{
+                              flex: 1,
+                              height: 36,
                               bgcolor: 'rgba(255, 255, 255, 0.1)',
-                              color: 'rgba(255, 255, 255, 0.8)',
-                              fontSize: '0.7rem',
-                              height: 20,
+                              borderRadius: 2,
+                              animation: 'pulse 1.5s infinite',
+                              animationDelay: '0.4s',
                             }}
                           />
-                        ))}
-                        {[...new Set(group.products.map(p => p.categoryName))].length > 3 && (
-                          <Chip
-                            label={`+${[...new Set(group.products.map(p => p.categoryName))].length - 3}`}
-                            size="small"
+                          <Box
                             sx={{
+                              width: 36,
+                              height: 36,
                               bgcolor: 'rgba(255, 255, 255, 0.1)',
-                              color: 'rgba(255, 255, 255, 0.8)',
-                              fontSize: '0.7rem',
-                              height: 20,
+                              borderRadius: 2,
+                              animation: 'pulse 1.5s infinite',
+                              animationDelay: '0.6s',
                             }}
                           />
-                        )}
-                      </Box>
-                    </Paper>
-                  </Grid>
-                ))}
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  ))
+                ) : (
+                  existingGroups.map((group) => (
+                    <Grid item xs={12} md={6} lg={4} key={group.designGroupId}>
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          background: `linear-gradient(135deg, ${generateGroupColor(group.designGroupId).background}20 0%, ${generateGroupColor(group.designGroupId).background}10 100%)`,
+                          border: `1px solid ${generateGroupColor(group.designGroupId).border}`,
+                          borderRadius: 3,
+                          p: 3,
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease',
+                          '&:hover': {
+                            transform: 'translateY(-4px)',
+                            boxShadow: `0 8px 32px ${generateGroupColor(group.designGroupId).background}30`,
+                            border: `1px solid ${generateGroupColor(group.designGroupId).primary}`,
+                          },
+                        }}
+                        onClick={() => {
+                          setSelectedGroup(group);
+                          setEditingGroupName(group.name || '');
+                          setEditingGroupTags(group.tags || []);
+                          setNewTag('');
+                          setIsEditingGroupInfo(false);
+                          setGroupDialogOpen(true);
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                          <Chip
+                            label={group.designGroupId}
+                            size="small"
+                            sx={{
+                              bgcolor: generateGroupColor(group.designGroupId).background,
+                              color: generateGroupColor(group.designGroupId).primary,
+                              border: `1px solid ${generateGroupColor(group.designGroupId).border}`,
+                              fontWeight: 600,
+                            }}
+                          />
+                          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                            {group.productCount} products
+                          </Typography>
+                        </Box>
+
+                        {/* Product Collage */}
+                        <Box
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: group.products.length === 1 ? '1fr' :
+                              group.products.length === 2 ? 'repeat(2, 1fr)' :
+                                group.products.length === 3 ? 'repeat(2, 1fr)' :
+                                  'repeat(2, 1fr)',
+                            gridTemplateRows: group.products.length <= 2 ? '1fr' : 'repeat(2, 1fr)',
+                            gap: 1,
+                            height: 120,
+                            mb: 2,
+                          }}
+                        >
+                          {group.products.slice(0, 4).map((product, index) => (
+                            <Box
+                              key={product._id}
+                              sx={{
+                                backgroundImage: product.images?.[0] ?
+                                  `url(${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images[0]})` :
+                                  'none',
+                                backgroundColor: product.images?.[0] ? 'transparent' : 'rgba(255, 255, 255, 0.05)',
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                borderRadius: 2,
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                gridColumn: group.products.length === 3 && index === 2 ? 'span 2' : 'span 1',
+                                position: 'relative',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {!product.images?.[0] && (
+                                <Box
+                                  sx={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  <ImageIcon sx={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 24 }} />
+                                </Box>
+                              )}
+                              {index === 3 && group.products.length > 4 && (
+                                <Box
+                                  sx={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    bgcolor: 'rgba(0, 0, 0, 0.7)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#ffffff',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  +{group.products.length - 3}
+                                </Box>
+                              )}
+                            </Box>
+                          ))}
+                        </Box>
+
+                        {/* Category Summary */}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {[...new Set(group.products.map(p => p.categoryName))].slice(0, 3).map((category, index) => (
+                            <Chip
+                              key={category}
+                              label={category}
+                              size="small"
+                              sx={{
+                                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                fontSize: '0.7rem',
+                                height: 20,
+                              }}
+                            />
+                          ))}
+                          {[...new Set(group.products.map(p => p.categoryName))].length > 3 && (
+                            <Chip
+                              label={`+${[...new Set(group.products.map(p => p.categoryName))].length - 3}`}
+                              size="small"
+                              sx={{
+                                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                fontSize: '0.7rem',
+                                height: 20,
+                              }}
+                            />
+                          )}
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  ))
+                )}
               </Grid>
             </Paper>
           </Fade>
@@ -1032,7 +1239,13 @@ export default function DesignGroupsPage() {
       {/* Group Management Dialog */}
       <Dialog
         open={groupDialogOpen}
-        onClose={() => setGroupDialogOpen(false)}
+        onClose={() => {
+          setGroupDialogOpen(false);
+          setIsEditingGroupInfo(false);
+          setEditingGroupName('');
+          setEditingGroupTags([]);
+          setNewTag('');
+        }}
         maxWidth="md"
         fullWidth
         PaperProps={{
@@ -1058,11 +1271,265 @@ export default function DesignGroupsPage() {
             </Box>
           </Box>
         </DialogTitle>
-        
+
         <DialogContent sx={{ p: 3 }}>
+          {/* Group Info Edit Section */}
+          {selectedGroup && (
+            <Box sx={{ mb: 3, p: 2, bgcolor: 'rgba(255, 255, 255, 0.05)', borderRadius: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ color: '#ffffff' }}>
+                  Group Information
+                </Typography>
+                <Button
+                  onClick={() => setIsEditingGroupInfo(!isEditingGroupInfo)}
+                  sx={{
+                    color: isEditingGroupInfo ? '#ef4444' : '#3b82f6',
+                    minWidth: 'auto',
+                    p: 1
+                  }}
+                >
+                  {isEditingGroupInfo ? 'Cancel' : 'Edit'}
+                </Button>
+              </Box>
+
+              {isEditingGroupInfo ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    label="Group Name"
+                    value={editingGroupName}
+                    onChange={(e) => setEditingGroupName(e.target.value)}
+                    variant="outlined"
+                    size="small"
+                    error={editingGroupName.length > 100}
+                    helperText={`${editingGroupName.length}/100 characters`}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        color: '#ffffff',
+                        '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
+                        '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
+                        '&.Mui-focused fieldset': { borderColor: '#3b82f6' }
+                      },
+                      '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
+                      '& .MuiFormHelperText-root': { color: 'rgba(255, 255, 255, 0.5)' }
+                    }}
+                  />
+
+                  <Box>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
+                      Tags (max 10):
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                      {editingGroupTags.map((tag, index) => (
+                        <Chip
+                          key={index}
+                          label={tag}
+                          onDelete={() => {
+                            setEditingGroupTags(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          size="small"
+                          sx={{
+                            bgcolor: 'rgba(59, 130, 246, 0.2)',
+                            color: '#3b82f6',
+                            '& .MuiChip-deleteIcon': { color: '#3b82f6' }
+                          }}
+                        />
+                      ))}
+                    </Box>
+
+                    {editingGroupTags.length < 10 && (
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <TextField
+                          label="Add tag"
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          variant="outlined"
+                          size="small"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && newTag.trim() && !editingGroupTags.includes(newTag.trim())) {
+                              setEditingGroupTags(prev => [...prev, newTag.trim()]);
+                              setNewTag('');
+                            }
+                          }}
+                          sx={{
+                            flexGrow: 1,
+                            '& .MuiOutlinedInput-root': {
+                              color: '#ffffff',
+                              '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
+                              '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
+                              '&.Mui-focused fieldset': { borderColor: '#3b82f6' }
+                            },
+                            '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' }
+                          }}
+                        />
+                        <Button
+                          onClick={() => {
+                            if (newTag.trim() && !editingGroupTags.includes(newTag.trim())) {
+                              setEditingGroupTags(prev => [...prev, newTag.trim()]);
+                              setNewTag('');
+                            }
+                          }}
+                          disabled={!newTag.trim() || editingGroupTags.includes(newTag.trim())}
+                          sx={{ color: '#3b82f6' }}
+                        >
+                          Add
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                    <Button
+                      variant="contained"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/admin/design-groups/update-info', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              groupId: selectedGroup._id,
+                              name: editingGroupName,
+                              tags: editingGroupTags
+                            })
+                          });
+
+                          if (response.ok) {
+                            const data = await response.json();
+                            toast.success('Group information updated successfully');
+                            setIsEditingGroupInfo(false);
+                            await fetchExistingGroups(true); // Update selectedGroup after editing
+                          } else {
+                            const errorData = await response.json();
+                            toast.error(errorData.error || 'Failed to update group information');
+                          }
+                        } catch (error) {
+                          console.error('Error updating group info:', error);
+                          toast.error('Error updating group information');
+                        }
+                      }}
+                      disabled={editingGroupName.length === 0 || editingGroupName.length > 100}
+                      sx={{
+                        bgcolor: '#22c55e',
+                        '&:hover': { bgcolor: '#16a34a' }
+                      }}
+                    >
+                      Save Changes
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setEditingGroupName(selectedGroup.name || '');
+                        setEditingGroupTags(selectedGroup.tags || []);
+                        setNewTag('');
+                        setIsEditingGroupInfo(false);
+                      }}
+                      sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                    >
+                      Cancel
+                    </Button>
+                  </Box>
+                </Box>
+              ) : (
+                <Box>
+                  <Typography variant="body1" sx={{ color: '#ffffff', mb: 1 }}>
+                    <strong>Name:</strong> {selectedGroup.name || 'Unnamed Group'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mr: 1 }}>
+                      <strong>Tags:</strong>
+                    </Typography>
+                    {selectedGroup.tags && selectedGroup.tags.length > 0 ? (
+                      selectedGroup.tags.map((tag, index) => (
+                        <Chip
+                          key={index}
+                          label={tag}
+                          size="small"
+                          sx={{
+                            bgcolor: 'rgba(59, 130, 246, 0.2)',
+                            color: '#3b82f6'
+                          }}
+                        />
+                      ))
+                    ) : (
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                        No tags
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
+
           {selectedGroup && selectedGroup.products && (
             <Box>
               <Grid container spacing={2}>
+                {/* Add Products Card */}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Card
+                    sx={{
+                      bgcolor: 'rgba(34, 197, 94, 0.1)',
+                      border: '2px dashed rgba(34, 197, 94, 0.5)',
+                      borderRadius: 2,
+                      minHeight: 200,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        bgcolor: 'rgba(34, 197, 94, 0.15)',
+                        borderColor: '#22c55e',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 25px rgba(34, 197, 94, 0.3)',
+                      },
+                    }}
+                    onClick={() => {
+                      setAddProductDialogOpen(true);
+                      fetchAvailableProducts();
+                    }}
+                  >
+                    <CardContent sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      height: '100%',
+                      p: 3
+                    }}>
+                      <AddIcon sx={{
+                        fontSize: 48,
+                        color: '#22c55e',
+                        mb: 2,
+                        transition: 'transform 0.3s ease',
+                        '&:hover': {
+                          transform: 'scale(1.1)'
+                        }
+                      }} />
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          color: '#22c55e',
+                          fontWeight: 600,
+                          mb: 1,
+                        }}
+                      >
+                        Add Products
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: 'rgba(255, 255, 255, 0.7)',
+                          textAlign: 'center',
+                        }}
+                      >
+                        Click to add more products to this group
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Existing Products */}
                 {selectedGroup.products.map((product) => (
                   <Grid item xs={12} sm={6} md={4} key={product._id}>
                     <Card
@@ -1079,8 +1546,10 @@ export default function DesignGroupsPage() {
                         <CardMedia
                           component="img"
                           height="120"
-                          image={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images[0]}`}
-                          alt={product.name}
+     image={product.images?.[0] 
+          ? `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images[0].startsWith('/') ? product.images[0] : '/' + product.images[0]}` 
+          : '/placeholder-product.png'
+        }                            alt={product.name}
                           sx={{ objectFit: 'cover' }}
                         />
                       ) : (
@@ -1096,7 +1565,7 @@ export default function DesignGroupsPage() {
                           <ImageIcon sx={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 32 }} />
                         </Box>
                       )}
-                      
+
                       <CardContent sx={{ p: 2 }}>
                         <Typography
                           variant="body2"
@@ -1113,7 +1582,7 @@ export default function DesignGroupsPage() {
                         >
                           {product.name}
                         </Typography>
-                        
+
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
                           <Chip
                             label={product.categoryName}
@@ -1136,7 +1605,7 @@ export default function DesignGroupsPage() {
                             }}
                           />
                         </Box>
-                        
+
                         <Typography
                           variant="caption"
                           sx={{
@@ -1148,11 +1617,11 @@ export default function DesignGroupsPage() {
                           ₹{product.price}
                         </Typography>
                       </CardContent>
-                      
+
                       <IconButton
                         size="small"
                         onClick={() => {
-                          setGroupProductsToRemove(prev => 
+                          setGroupProductsToRemove(prev =>
                             prev.includes(product._id)
                               ? prev.filter(id => id !== product._id)
                               : [...prev, product._id]
@@ -1162,8 +1631,8 @@ export default function DesignGroupsPage() {
                           position: 'absolute',
                           top: 8,
                           right: 8,
-                          bgcolor: groupProductsToRemove.includes(product._id) 
-                            ? 'rgba(239, 68, 68, 0.9)' 
+                          bgcolor: groupProductsToRemove.includes(product._id)
+                            ? 'rgba(239, 68, 68, 0.9)'
                             : 'rgba(0, 0, 0, 0.6)',
                           color: '#ffffff',
                           '&:hover': {
@@ -1179,28 +1648,8 @@ export default function DesignGroupsPage() {
                   </Grid>
                 ))}
               </Grid>
-              
-              <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Button
-                    variant="outlined"
-                    startIcon={<AddIcon />}
-                    onClick={() => {
-                      setAddProductDialogOpen(true);
-                      fetchAvailableProducts();
-                    }}
-                    sx={{
-                      borderColor: 'rgba(34, 197, 94, 0.5)',
-                      color: '#22c55e',
-                      '&:hover': {
-                        borderColor: '#22c55e',
-                        bgcolor: 'rgba(34, 197, 94, 0.1)',
-                      },
-                    }}
-                  >
-                    Add Products to Group
-                  </Button>
-                
+
+              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
                 {groupProductsToRemove.length > 0 && (
                   <Button
                     variant="outlined"
@@ -1219,16 +1668,9 @@ export default function DesignGroupsPage() {
                           const data = await response.json();
                           toast.success(`${groupProductsToRemove.length} products removed from group`);
                           setGroupProductsToRemove([]);
-                          
-                          // Update the selected group to remove the products
-                          setSelectedGroup(prev => prev ? {
-                            ...prev,
-                            products: prev.products.filter(p => !groupProductsToRemove.includes(p._id)),
-                            productCount: prev.productCount - groupProductsToRemove.length
-                          } : null);
-                          
-                          // Refresh existing groups
-                          fetchExistingGroups();
+
+                          // Refresh existing groups to get updated data (this will also update selectedGroup)
+                          await fetchExistingGroups(true);
                         } else {
                           toast.error('Failed to remove products from group');
                         }
@@ -1249,25 +1691,30 @@ export default function DesignGroupsPage() {
                     Remove Selected ({groupProductsToRemove.length})
                   </Button>
                 )}
-                </Box>
               </Box>
             </Box>
           )}
         </DialogContent>
-        
+
         <DialogActions sx={{ p: 3, borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
           <Button
-            onClick={() => setGroupDialogOpen(false)}
+            onClick={() => {
+              setGroupDialogOpen(false);
+              setIsEditingGroupInfo(false);
+              setEditingGroupName('');
+              setEditingGroupTags([]);
+              setNewTag('');
+            }}
             sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
           >
             Close
           </Button>
-          
+
           <Button
             variant="outlined"
             onClick={async () => {
               if (!selectedGroup) return;
-              
+
               try {
                 const response = await fetch('/api/admin/design-groups/delete-group', {
                   method: 'POST',
@@ -1283,10 +1730,10 @@ export default function DesignGroupsPage() {
                   setGroupDialogOpen(false);
                   setSelectedGroup(null);
                   setGroupProductsToRemove([]);
-                  
+
                   // Refresh existing groups
-                  fetchExistingGroups();
-                  
+                  await fetchExistingGroups();
+
                   // Refresh products in the current view if grouping mode is active
                   if (groupingMode) {
                     // Refresh products for all selected variants
@@ -1360,7 +1807,7 @@ export default function DesignGroupsPage() {
             </Box>
           </Box>
         </DialogTitle>
-        
+
         <DialogContent sx={{ p: 3 }}>
           {/* Search and Filter Bar */}
           <Box sx={{ mb: 3 }}>
@@ -1417,7 +1864,7 @@ export default function DesignGroupsPage() {
                   }}
                 />
               </Grid>
-              
+
               {/* Category Filter */}
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
@@ -1496,10 +1943,10 @@ export default function DesignGroupsPage() {
 
           {/* Products Grid */}
           {availableProductsLoading ? (
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               justifyContent: 'center',
               py: 8,
               gap: 2
@@ -1513,13 +1960,13 @@ export default function DesignGroupsPage() {
             <Grid container spacing={2} sx={{ maxHeight: 400, overflowY: 'auto' }}>
               {availableProducts.length === 0 && !availableProductsLoading ? (
                 <Grid item xs={12}>
-                  <Box sx={{ 
-                    textAlign: 'center', 
-                    py: 6, 
-                    color: 'rgba(255, 255, 255, 0.7)' 
+                  <Box sx={{
+                    textAlign: 'center',
+                    py: 6,
+                    color: 'rgba(255, 255, 255, 0.7)'
                   }}>
                     <Typography variant="body1">
-                      {searchProductsQuery || selectedCategoryFilter 
+                      {searchProductsQuery || selectedCategoryFilter
                         ? 'No products found matching your search criteria'
                         : 'No products available to add'
                       }
@@ -1531,7 +1978,7 @@ export default function DesignGroupsPage() {
                   <Grid item xs={12} sm={6} md={4} lg={3} key={product._id}>
                     <Card
                       onClick={() => {
-                        setSelectedProductsToAdd(prev => 
+                        setSelectedProductsToAdd(prev =>
                           prev.includes(product._id)
                             ? prev.filter(id => id !== product._id)
                             : [...prev, product._id]
@@ -1539,8 +1986,8 @@ export default function DesignGroupsPage() {
                       }}
                       sx={{
                         cursor: 'pointer',
-                        bgcolor: selectedProductsToAdd.includes(product._id) 
-                          ? 'rgba(34, 197, 94, 0.2)' 
+                        bgcolor: selectedProductsToAdd.includes(product._id)
+                          ? 'rgba(34, 197, 94, 0.2)'
                           : 'rgba(255, 255, 255, 0.05)',
                         border: selectedProductsToAdd.includes(product._id)
                           ? '2px solid #22c55e'
@@ -1571,13 +2018,15 @@ export default function DesignGroupsPage() {
                           <CheckCircleIcon sx={{ color: '#ffffff', fontSize: 16 }} />
                         </Box>
                       )}
-
                       {product.images?.[0] ? (
                         <CardMedia
+                        
                           component="img"
                           height="100"
-                          image={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images[0]}`}
-                          alt={product.name}
+                          image={product.images?.[0]
+                            ? `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images[0].startsWith('/') ? product.images[0] : '/' + product.images[0]}`
+                            : '/placeholder-product.png'
+                          } alt={product.name}
                           sx={{ objectFit: 'cover' }}
                         />
                       ) : (
@@ -1593,7 +2042,7 @@ export default function DesignGroupsPage() {
                           <ImageIcon sx={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 24 }} />
                         </Box>
                       )}
-                      
+
                       <CardContent sx={{ p: 1.5 }}>
                         <Typography
                           variant="body2"
@@ -1611,7 +2060,7 @@ export default function DesignGroupsPage() {
                         >
                           {product.name}
                         </Typography>
-                        
+
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
                           <Chip
                             label={product.categoryName}
@@ -1634,7 +2083,7 @@ export default function DesignGroupsPage() {
                             }}
                           />
                         </Box>
-                        
+
                         <Typography
                           variant="caption"
                           sx={{
@@ -1653,10 +2102,10 @@ export default function DesignGroupsPage() {
           )}
 
           {availableProducts.length === 0 && !availableProductsLoading && (
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               justifyContent: 'center',
               py: 6,
               gap: 2
@@ -1671,7 +2120,7 @@ export default function DesignGroupsPage() {
             </Box>
           )}
         </DialogContent>
-        
+
         <DialogActions sx={{ p: 3, borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
           <Button
             onClick={() => {
@@ -1685,7 +2134,7 @@ export default function DesignGroupsPage() {
           >
             Cancel
           </Button>
-          
+
           <Button
             variant="contained"
             onClick={addProductsToGroup}
@@ -1704,8 +2153,8 @@ export default function DesignGroupsPage() {
               },
             }}
           >
-            {addingProducts 
-              ? 'Adding...' 
+            {addingProducts
+              ? 'Adding...'
               : `Add ${selectedProductsToAdd.length} Product${selectedProductsToAdd.length !== 1 ? 's' : ''} to Group`
             }
           </Button>
@@ -1715,41 +2164,17 @@ export default function DesignGroupsPage() {
   );
 }
 
-// Feature Card Component
-const FeatureCard = ({ icon, title, description }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      p: 3,
-      bgcolor: 'rgba(255, 255, 255, 0.05)',
-      borderRadius: 3,
-      border: '1px solid rgba(255, 255, 255, 0.1)',
-      minWidth: 160,
-    }}
-  >
-    <Box sx={{ color: '#3b82f6', mb: 1 }}>{icon}</Box>
-    <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
-      {title}
-    </Typography>
-    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)', textAlign: 'center' }}>
-      {description}
-    </Typography>
-  </Box>
-);
-
 // Category Row Component
-const CategoryRow = ({ 
-  row, 
-  index, 
+const CategoryRow = ({
+  row,
+  index,
   specificCategories,
   availableSpecificCategories,
-  variants, 
-  products, 
-  onUpdate, 
-  onRemove, 
-  onProductSelect, 
+  variants,
+  products,
+  onUpdate,
+  onRemove,
+  onProductSelect,
   isProductSelected,
   selectedProducts,
   productSearchQuery,
@@ -1760,7 +2185,7 @@ const CategoryRow = ({
 }) => {
   // Use all categories if row already has a selected category, otherwise use filtered/available ones
   const categoriesToShow = row.specCatId ? specificCategories : availableSpecificCategories;
-  
+
   return (
     <Zoom in timeout={500 + index * 100}>
       <Paper
@@ -1799,10 +2224,10 @@ const CategoryRow = ({
               Specific Category
             </InputLabel>
             {categoriesLoading ? (
-              <Box sx={{ 
-                height: 56, 
-                display: 'flex', 
-                alignItems: 'center', 
+              <Box sx={{
+                height: 56,
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
                 borderRadius: 1,
@@ -1842,10 +2267,10 @@ const CategoryRow = ({
               Variant
             </InputLabel>
             {variantsLoading ? (
-              <Box sx={{ 
-                height: 56, 
-                display: 'flex', 
-                alignItems: 'center', 
+              <Box sx={{
+                height: 56,
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
                 borderRadius: 1,
@@ -1886,10 +2311,10 @@ const CategoryRow = ({
         {row.variantId && (
           <Box>
             {productsLoading ? (
-              <Box sx={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
                 justifyContent: 'center',
                 py: 4,
                 gap: 2
@@ -1907,7 +2332,7 @@ const CategoryRow = ({
                     <Typography variant="h6" sx={{ color: '#ffffff', fontWeight: 600 }}>
                       Products ({products.length})
                     </Typography>
-                    
+
                     {/* Variant Selection Status */}
                     {selectedProducts.some(p => p.variantId === row.variantId) && (
                       <Chip
@@ -1923,7 +2348,7 @@ const CategoryRow = ({
                       />
                     )}
                   </Box>
-                  
+
                   {/* Product Search - Always visible */}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, maxWidth: 300 }}>
                     <SearchIcon sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 20 }} />
@@ -1997,18 +2422,18 @@ const CategoryRow = ({
                     ))}
                   </Box>
                 ) : (
-                  <Box sx={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
+                  <Box sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
                     justifyContent: 'center',
                     py: 4,
                     gap: 1
                   }}>
                     <ImageIcon sx={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: 40 }} />
                     <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-                      {productSearchQuery ? 
-                        `No products found matching "${productSearchQuery}"` : 
+                      {productSearchQuery ?
+                        `No products found matching "${productSearchQuery}"` :
                         'No products found for this variant'
                       }
                     </Typography>
@@ -2045,7 +2470,7 @@ const CategoryRow = ({
 const ProductCard = ({ product, isSelected, onClick }) => {
   const hasExistingGroup = !!product.designGroupId;
   const groupColors = hasExistingGroup ? generateGroupColor(product.designGroupId) : null;
-  
+
   return (
     <Card
       onClick={onClick}
@@ -2054,23 +2479,23 @@ const ProductCard = ({ product, isSelected, onClick }) => {
         maxWidth: 200,
         cursor: 'pointer',
         transition: 'all 0.2s ease',
-        background: isSelected 
+        background: isSelected
           ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%)'
           : hasExistingGroup
-          ? `linear-gradient(135deg, ${groupColors.background} 0%, ${groupColors.background} 100%)`
-          : 'linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%)',
-        border: isSelected 
-          ? '2px solid #3b82f6' 
+            ? `linear-gradient(135deg, ${groupColors.background} 0%, ${groupColors.background} 100%)`
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%)',
+        border: isSelected
+          ? '2px solid #3b82f6'
           : hasExistingGroup
-          ? `2px solid ${groupColors.border}`
-          : '1px solid rgba(255, 255, 255, 0.1)',
+            ? `2px solid ${groupColors.border}`
+            : '1px solid rgba(255, 255, 255, 0.1)',
         '&:hover': {
           transform: 'translateY(-4px)',
-          boxShadow: isSelected 
+          boxShadow: isSelected
             ? '0 12px 48px rgba(59, 130, 246, 0.3)'
             : hasExistingGroup
-            ? `0 12px 48px ${groupColors.border}`
-            : '0 12px 48px rgba(0, 0, 0, 0.2)',
+              ? `0 12px 48px ${groupColors.border}`
+              : '0 12px 48px rgba(0, 0, 0, 0.2)',
         },
         position: 'relative',
         opacity: hasExistingGroup ? 0.8 : 1,
@@ -2112,14 +2537,16 @@ const ProductCard = ({ product, isSelected, onClick }) => {
       <CardMedia
         component="img"
         height="120"
-        image={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images?.[0]}` || '/placeholder-product.png'}
-        alt={product.name}
+        image={product.images?.[0]
+          ? `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${product.images[0].startsWith('/') ? product.images[0] : '/' + product.images[0]}`
+          : '/placeholder-product.png'
+        } alt={product.name}
         sx={{
           objectFit: 'cover',
           filter: isSelected ? 'brightness(1.1)' : hasExistingGroup ? 'brightness(0.9)' : 'brightness(1)',
         }}
       />
-      
+
       <CardContent sx={{ p: 2 }}>
         <Typography
           variant="subtitle2"
@@ -2147,7 +2574,7 @@ const ProductCard = ({ product, isSelected, onClick }) => {
         >
           ₹{product.price}
         </Typography>
-        
+
         {product.designGroupId && (
           <Chip
             label={product.designGroupId}

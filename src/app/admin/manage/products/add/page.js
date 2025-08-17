@@ -65,6 +65,11 @@ const AddProductPage = () => {
   const [pricingMode, setPricingMode] = useState('price'); // 'price' or 'discount'
   const [discountPercentage, setDiscountPercentage] = useState(0);
 
+  /* ─────────────── design group selection (optional) ─────────── */
+  const [selectedDesignGroup, setSelectedDesignGroup] = useState('');
+  const [designGroups, setDesignGroups] = useState([]);
+  const [designGroupsLoading, setDesignGroupsLoading] = useState(false);
+
   /* ─────────────── inventory fields (conditional) ─────────────── */
   const [enableInventory, setEnableInventory] = useState(false);
   const [inventoryData, setInventoryData] = useState({
@@ -113,6 +118,20 @@ const AddProductPage = () => {
     }
   }, []);
 
+  /** fetch available design groups for selection */
+  const fetchDesignGroups = useCallback(async () => {
+    setDesignGroupsLoading(true);
+    try {
+      const res = await fetch('/api/admin/design-groups/list');
+      const data = await res.json();
+      if (res.ok) setDesignGroups(data.designGroups || []);
+    } catch (err) {
+      console.error('design groups fetch:', err.message);
+    } finally {
+      setDesignGroupsLoading(false);
+    }
+  }, []);
+
   /** fetch variant + category meta every time variantId changes */
   const fetchSpecificCategoryData = useCallback(async () => {
     if (!selectedVariantId) return;
@@ -136,6 +155,7 @@ const AddProductPage = () => {
     setDiscountPercentage(0);
     setEnableInventory(false);
     setEnableOptions(false);
+    setSelectedDesignGroup(''); // Reset design group selection
 
     try {
       // variant
@@ -289,6 +309,7 @@ const AddProductPage = () => {
      │  LIFE CYCLES                                            │
      ╰──────────────────────────────────────────────────────────╯ */
   useEffect(() => { fetchUniqueMainTags(); }, [fetchUniqueMainTags]);
+  useEffect(() => { fetchDesignGroups(); }, [fetchDesignGroups]);
   useEffect(() => { if (selectedVariantId) fetchSpecificCategoryData(); }, [selectedVariantId, fetchSpecificCategoryData]);
   useEffect(() => { fetchFirstProductDetails(); }, [fetchFirstProductDetails]);
 
@@ -448,6 +469,8 @@ const AddProductPage = () => {
         ...(designTemplateObj && { designTemplate: designTemplateObj }),
         images: imagePaths.map((p) => '/' + p),
         productSource: 'inhouse',
+        // Include design group if selected
+        ...(selectedDesignGroup && { designGroupId: selectedDesignGroup }),
         // Include inventory data if enabled
         ...(enableInventory && { 
           inventoryData: {
@@ -480,6 +503,7 @@ const AddProductPage = () => {
       setDisplayOrder(firstProductDetails.defaults?.displayOrder || 0);
       setProductImages([]);
       setProductionTemplateImage(null);
+      setSelectedDesignGroup(''); // Reset design group selection
       setErrorAlert('');
       setPricingMode('price');
       setDiscountPercentage(0);
@@ -707,6 +731,49 @@ const AddProductPage = () => {
             required
             fullWidth
           />
+        </Grid>
+
+        {/* Design Group Selection (Optional) */}
+        <Grid item xs={12}>
+          <FormControl fullWidth>
+            <InputLabel id="design-group-label">Design Group (Optional)</InputLabel>
+            <Select
+              labelId="design-group-label"
+              value={selectedDesignGroup}
+              label="Design Group (Optional)"
+              onChange={(e) => setSelectedDesignGroup(e.target.value)}
+              disabled={designGroupsLoading}
+            >
+              <MenuItem value="">No Design Group</MenuItem>
+              {designGroups.map((group) => (
+                <MenuItem key={group._id} value={group._id}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {group.thumbnail && (
+                      <Box
+                        component="img"
+                        src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${group.thumbnail}`}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          objectFit: 'cover',
+                          borderRadius: 1,
+                          border: '1px solid #e0e0e0'
+                        }}
+                      />
+                    )}
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {group.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {group.productCount} products
+                      </Typography>
+                    </Box>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Grid>
 
         {/* First Product Configuration (only show if this is the first product) */}

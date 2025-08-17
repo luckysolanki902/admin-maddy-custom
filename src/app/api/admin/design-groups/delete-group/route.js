@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../../lib/db';
 import Product from '@/models/Product';
+import DesignGroup from '@/models/DesignGroup';
+import mongoose from 'mongoose';
 
 export async function POST(request) {
   try {
@@ -8,8 +10,8 @@ export async function POST(request) {
     
     const { designGroupId } = await request.json();
     
-    // Validate designGroupId format
-    if (!designGroupId || !/^DES\d{5}[A-Z]{2}$/.test(designGroupId)) {
+    // Validate designGroupId (should be a valid MongoDB ObjectId)
+    if (!designGroupId || !mongoose.Types.ObjectId.isValid(designGroupId)) {
       return NextResponse.json(
         { error: 'Invalid design group ID format' },
         { status: 400 }
@@ -17,8 +19,8 @@ export async function POST(request) {
     }
     
     // Check if the design group exists
-    const existingGroupProducts = await Product.find({ designGroupId });
-    if (existingGroupProducts.length === 0) {
+    const designGroup = await DesignGroup.findById(designGroupId);
+    if (!designGroup) {
       return NextResponse.json(
         { error: 'Design group not found' },
         { status: 404 }
@@ -31,16 +33,12 @@ export async function POST(request) {
       { $unset: { designGroupId: "" } }
     );
     
-    if (result.modifiedCount === 0) {
-      return NextResponse.json(
-        { error: 'No products were updated' },
-        { status: 400 }
-      );
-    }
+    // Mark the design group as inactive instead of deleting it
+    await DesignGroup.findByIdAndUpdate(designGroupId, { isActive: false });
     
     return NextResponse.json({
       success: true,
-      message: `Design group ${designGroupId} deleted successfully`,
+      message: `Design group "${designGroup.name}" deleted successfully`,
       productsUnlinked: result.modifiedCount
     });
     

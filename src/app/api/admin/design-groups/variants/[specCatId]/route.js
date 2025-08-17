@@ -6,7 +6,7 @@ export async function GET(request, { params }) {
   try {
     await connectToDatabase();
     
-    const { specCatId } = params;
+    const { specCatId } = await params;
     
     const variants = await SpecificCategoryVariant.find({ 
       specificCategory: specCatId, 

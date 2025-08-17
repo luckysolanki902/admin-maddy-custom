@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../../lib/db';
 import Product from '@/models/Product';
+import DesignGroup from '@/models/DesignGroup';
+import mongoose from 'mongoose';
 
 export async function POST(request) {
   try {
@@ -8,8 +10,8 @@ export async function POST(request) {
     
     const { designGroupId, productIds } = await request.json();
     
-    // Validate designGroupId format
-    if (!designGroupId || !/^DES\d{5}[A-Z]{2}$/.test(designGroupId)) {
+    // Validate designGroupId (should be a valid MongoDB ObjectId)
+    if (!designGroupId || !mongoose.Types.ObjectId.isValid(designGroupId)) {
       return NextResponse.json(
         { error: 'Invalid design group ID format' },
         { status: 400 }
@@ -25,8 +27,8 @@ export async function POST(request) {
     }
     
     // Check if the design group exists
-    const existingGroupProducts = await Product.find({ designGroupId });
-    if (existingGroupProducts.length === 0) {
+    const designGroup = await DesignGroup.findById(designGroupId);
+    if (!designGroup) {
       return NextResponse.json(
         { error: 'Design group not found' },
         { status: 404 }
@@ -50,7 +52,7 @@ export async function POST(request) {
     // Update products to add them to the design group
     const result = await Product.updateMany(
       { _id: { $in: productIds } },
-      { $set: { designGroupId } }
+      { $set: { designGroupId: designGroupId } }
     );
     
     if (result.modifiedCount === 0) {
@@ -60,9 +62,23 @@ export async function POST(request) {
       );
     }
     
+    // Update design group thumbnail if it doesn't have one
+    if (!designGroup.thumbnail) {
+      const firstProduct = await Product.findOne({ 
+        _id: { $in: productIds },
+        images: { $exists: true, $not: { $size: 0 } }
+      });
+      
+      if (firstProduct && firstProduct.images && firstProduct.images.length > 0) {
+        await DesignGroup.findByIdAndUpdate(designGroupId, {
+          thumbnail: firstProduct.images[0]
+        });
+      }
+    }
+    
     return NextResponse.json({
       success: true,
-      message: `${result.modifiedCount} products added to design group ${designGroupId}`,
+      message: `${result.modifiedCount} products added to design group "${designGroup.name}"`,
       modifiedCount: result.modifiedCount
     });
     

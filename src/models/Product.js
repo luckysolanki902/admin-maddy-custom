@@ -134,10 +134,10 @@ const ProductSchema = new mongoose.Schema(
       ref: "Inventory",
     },
     designGroupId: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'DesignGroup',
       required: false,
       index: true,
-      match: /^DES\d{5}[A-Z]{2}$/,
     },
   },
   { timestamps: true }

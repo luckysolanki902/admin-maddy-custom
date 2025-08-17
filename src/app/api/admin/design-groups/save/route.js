@@ -1,20 +1,14 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../../lib/db';
 import Product from '../../../../../models/Product';
+import Option from '../../../../../models/Option';
+import DesignGroup from '../../../../../models/DesignGroup';
 
 export async function POST(request) {
   try {
     await connectToDatabase();
     
-    const { groupId, products } = await request.json();
-    
-    // Validate groupId format
-    if (!groupId || !/^DES\d{5}[A-Z]{2}$/.test(groupId)) {
-      return NextResponse.json(
-        { error: 'Invalid group ID format' },
-        { status: 400 }
-      );
-    }
+    const { groupId, products, name, tags } = await request.json();
     
     // Validate products array
     if (!products || !Array.isArray(products) || products.length < 2) {
@@ -24,22 +18,82 @@ export async function POST(request) {
       );
     }
     
-    // Check if group ID already exists
-    const existingGroup = await Product.findOne({ designGroupId: groupId });
-    if (existingGroup) {
+    // Validate name
+    const groupName = name?.trim() || groupId || `Group ${Date.now()}`;
+    if (groupName.length > 200) {
       return NextResponse.json(
-        { error: 'Group ID already exists' },
-        { status: 409 }
+        { error: 'Group name must be 200 characters or less' },
+        { status: 400 }
       );
     }
     
-    // Update all products with the design group ID
+    // Validate and clean tags
+    const cleanTags = (tags || [])
+      .filter(tag => tag && tag.trim())
+      .map(tag => tag.trim())
+      .slice(0, 10); // Ensure max 10 tags
+    
+    // Get the first product to determine thumbnail
+    const firstProduct = await Product.findById(products[0]).select('name images optionsAvailable');
+    if (!firstProduct) {
+      return NextResponse.json(
+        { error: 'Invalid product ID' },
+        { status: 400 }
+      );
+    }
+    
+    // Determine thumbnail from product images or option images/thumbnails
+    let thumbnail = null;
+    
+    // First try to get from product images
+    if (firstProduct.images && firstProduct.images.length > 0) {
+      thumbnail = firstProduct.images[0];
+    } 
+    // If no product images but has options, try to get from options
+    else if (firstProduct.optionsAvailable) {
+      try {
+        const options = await Option.find({ product: firstProduct._id })
+          .select('images thumbnail')
+          .limit(3);
+        
+        if (options && options.length > 0) {
+          // First check if any option has a specific thumbnail
+          const optionWithThumbnail = options.find(opt => opt.thumbnail);
+          if (optionWithThumbnail) {
+            thumbnail = optionWithThumbnail.thumbnail;
+          }
+          // Otherwise use the first image from any option
+          else {
+            const optionWithImages = options.find(opt => opt.images && opt.images.length > 0);
+            if (optionWithImages) {
+              thumbnail = optionWithImages.images[0];
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching option thumbnail for product:', firstProduct._id, error);
+      }
+    }
+    
+    // Create new design group with provided name and tags
+    const designGroup = new DesignGroup({
+      name: groupName,
+      tags: cleanTags,
+      thumbnail: thumbnail,
+      isActive: true
+    });
+    
+    const savedGroup = await designGroup.save();
+    
+    // Update all products with the design group ID (as ObjectId)
     const result = await Product.updateMany(
       { _id: { $in: products } },
-      { $set: { designGroupId: groupId } }
+      { $set: { designGroupId: savedGroup._id } }
     );
     
     if (result.modifiedCount === 0) {
+      // If no products were updated, remove the created group
+      await DesignGroup.findByIdAndDelete(savedGroup._id);
       return NextResponse.json(
         { error: 'No products were updated' },
         { status: 400 }
@@ -48,7 +102,9 @@ export async function POST(request) {
     
     return NextResponse.json({
       message: 'Design group created successfully',
-      groupId,
+      groupId: savedGroup._id.toString(),
+      groupName: savedGroup.name,
+      groupTags: savedGroup.tags,
       productsUpdated: result.modifiedCount
     });
     

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../../lib/db';
 import Product from '../../../../../models/Product';
+import Option from '../../../../../models/Option';
+import SpecificCategoryVariant from '../../../../../models/SpecificCategoryVariant';
+import SpecificCategory from '../../../../../models/SpecificCategory';
 
 export async function GET(request) {
   try {
@@ -51,7 +54,7 @@ export async function GET(request) {
           select: 'name'
         }
       })
-      .select('_id name title images price MRP specificCategoryVariant')
+      .select('_id name title images price MRP optionsAvailable specificCategoryVariant designGroupId')
       .limit(limit)
       .sort({ name: 1 });
 
@@ -63,18 +66,57 @@ export async function GET(request) {
       );
     }
 
-    // Transform the data to include category and variant names
-    const productsWithDetails = filteredProducts.map(product => ({
-      _id: product._id,
-      name: product.name,
-      title: product.title,
-      images: product.images,
-      price: product.price,
-      MRP: product.MRP,
-      variantId: product.specificCategoryVariant?._id,
-      variantName: product.specificCategoryVariant?.name || 'Unknown Variant',
-      categoryName: product.specificCategoryVariant?.specificCategory?.name || 'Unknown Category'
-    }));
+    // Transform the data to include category and variant names, and handle option images
+    const productsWithDetails = await Promise.all(
+      filteredProducts.map(async (product) => {
+        let images = product.images || [];
+        
+        // If product has no images but has options available, get images from options
+        if ((!images || images.length === 0) && product.optionsAvailable) {
+          try {
+            const options = await Option.find({ product: product._id })
+              .select('images thumbnail')
+              .sort({ createdAt: 1 }) // Get options in creation order
+              .limit(5); // Get first 5 options for images
+            
+            if (options && options.length > 0) {
+              // Collect all images from options, prioritizing those with thumbnails
+              const optionsWithThumbnails = options.filter(opt => opt.thumbnail);
+              const optionsWithImages = options.filter(opt => opt.images && opt.images.length > 0);
+              
+              // First use thumbnails from options
+              if (optionsWithThumbnails.length > 0) {
+                images = optionsWithThumbnails.map(opt => opt.thumbnail).slice(0, 3);
+              }
+              // Then use regular images from options
+              else if (optionsWithImages.length > 0) {
+                const optionImages = [];
+                for (const option of optionsWithImages) {
+                  optionImages.push(...option.images);
+                  if (optionImages.length >= 3) break;
+                }
+                images = optionImages.slice(0, 3);
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching option images for product:', product._id, error);
+          }
+        }
+
+        return {
+          _id: product._id,
+          name: product.name,
+          title: product.title,
+          images: images,
+          price: product.price,
+          MRP: product.MRP,
+          optionsAvailable: product.optionsAvailable,
+          variantId: product.specificCategoryVariant?._id,
+          variantName: product.specificCategoryVariant?.name || 'Unknown Variant',
+          categoryName: product.specificCategoryVariant?.specificCategory?.name || 'Unknown Category'
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,

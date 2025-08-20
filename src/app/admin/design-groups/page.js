@@ -118,11 +118,7 @@ export default function DesignGroupsPage() {
   const [editingGroupName, setEditingGroupName] = useState('');
   const [editingGroupTags, setEditingGroupTags] = useState([]);
   const [newTag, setNewTag] = useState('');
-
-  // Create group states
-  const [newGroupName, setNewGroupName] = useState('');
-  const [newGroupTags, setNewGroupTags] = useState([]);
-  const [newGroupTag, setNewGroupTag] = useState('');
+  const [isUpdatingGroupInfo, setIsUpdatingGroupInfo] = useState(false);
 
   // Fetch specific categories
   const fetchSpecificCategories = useCallback(async () => {
@@ -393,14 +389,17 @@ export default function DesignGroupsPage() {
     setLoading(true);
 
     try {
+      // Use the first product's name as the group name
+      const groupName = selectedProducts[0]?.name || `Group ${Date.now()}`;
+      
       const response = await fetch('/api/admin/design-groups/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           groupId,
           products: selectedProducts.map(p => p.productId),
-          name: newGroupName.trim() || `Group ${Date.now()}`,
-          tags: newGroupTags
+          name: groupName,
+          tags: [] // No tags by default
         })
       });
 
@@ -427,11 +426,6 @@ export default function DesignGroupsPage() {
         // Clear only the selected products, keep variants and categories
         setSelectedProducts([]);
 
-        // Clear form after successful creation
-        setNewGroupName('');
-        setNewGroupTags([]);
-        setNewGroupTag('');
-
         // Refresh existing groups to show the new group
         fetchExistingGroups();
       } else {
@@ -443,7 +437,7 @@ export default function DesignGroupsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedProducts, fetchExistingGroups, newGroupName, newGroupTags]);
+  }, [selectedProducts, fetchExistingGroups]);
 
   // Add products to existing group
   const addProductsToGroup = useCallback(async () => {
@@ -740,7 +734,7 @@ export default function DesignGroupsPage() {
 
         {loading && <LinearProgress sx={{ mb: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />}
 
-        {/* Group Creation Form */}
+        {/* Group Creation Action */}
         {groupingMode && selectedProducts.length >= 2 && (
           <Fade in timeout={800}>
             <Paper
@@ -751,126 +745,41 @@ export default function DesignGroupsPage() {
                 borderRadius: 2,
                 p: 3,
                 mb: 4,
+                textAlign: 'center'
               }}
             >
               <Typography variant="h6" sx={{ color: '#22c55e', mb: 2, fontWeight: 600 }}>
-                Group Details
+                Ready to Create Group
+              </Typography>
+              
+              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 1 }}>
+                Group name will be: <strong>{selectedProducts[0]?.name || 'First Product Name'}</strong>
+              </Typography>
+              
+              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)', mb: 3 }}>
+                {selectedProducts.length} products selected • Group will use the first product&apos;s name
               </Typography>
 
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Group Name"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    variant="outlined"
-                    fullWidth
-                    placeholder="Enter a name for this design group"
-                    error={newGroupName.length > 200}
-                    helperText={`${newGroupName.length}/200 characters`}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        color: '#ffffff',
-                        '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
-                        '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
-                        '&.Mui-focused fieldset': { borderColor: '#22c55e' }
-                      },
-                      '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
-                      '& .MuiFormHelperText-root': { color: 'rgba(255, 255, 255, 0.5)' }
-                    }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <Box>
-                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
-                      Tags (max 10):
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                      {newGroupTags.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag}
-                          onDelete={() => {
-                            setNewGroupTags(prev => prev.filter((_, i) => i !== index));
-                          }}
-                          size="small"
-                          sx={{
-                            bgcolor: 'rgba(34, 197, 94, 0.2)',
-                            color: '#22c55e',
-                            '& .MuiChip-deleteIcon': { color: '#22c55e' }
-                          }}
-                        />
-                      ))}
-                    </Box>
-
-                    {newGroupTags.length < 10 && (
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <TextField
-                          label="Add tag"
-                          value={newGroupTag}
-                          onChange={(e) => setNewGroupTag(e.target.value)}
-                          variant="outlined"
-                          size="small"
-                          fullWidth
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter' && newGroupTag.trim() && !newGroupTags.includes(newGroupTag.trim())) {
-                              setNewGroupTags(prev => [...prev, newGroupTag.trim()]);
-                              setNewGroupTag('');
-                            }
-                          }}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              color: '#ffffff',
-                              '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
-                              '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
-                              '&.Mui-focused fieldset': { borderColor: '#22c55e' }
-                            },
-                            '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' }
-                          }}
-                        />
-                        <Button
-                          onClick={() => {
-                            if (newGroupTag.trim() && !newGroupTags.includes(newGroupTag.trim())) {
-                              setNewGroupTags(prev => [...prev, newGroupTag.trim()]);
-                              setNewGroupTag('');
-                            }
-                          }}
-                          disabled={!newGroupTag.trim() || newGroupTags.includes(newGroupTag.trim())}
-                          sx={{ color: '#22c55e', minWidth: '80px' }}
-                        >
-                          Add
-                        </Button>
-                      </Box>
-                    )}
-                  </Box>
-                </Grid>
-              </Grid>
-
-              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-                <Button
-                  variant="contained"
-                  onClick={saveDesignGroup}
-                  disabled={loading || selectedProducts.length < 2 || newGroupName.length > 200}
-                  sx={{
-                    bgcolor: '#22c55e',
-                    color: '#ffffff',
-                    px: 4,
-                    py: 1.5,
-                    fontSize: '1.1rem',
-                    fontWeight: 600,
-                    '&:hover': { bgcolor: '#16a34a' },
-                    '&:disabled': { bgcolor: 'rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.3)' }
-                  }}
-                >
-                  {loading ? <CircularProgress size={24} sx={{ color: 'rgba(255, 255, 255, 0.5)' }} /> : 'Create Design Group'}
-                </Button>
-              </Box>
+              <Button
+                variant="contained"
+                onClick={saveDesignGroup}
+                disabled={loading || selectedProducts.length < 2}
+                sx={{
+                  bgcolor: '#22c55e',
+                  color: '#ffffff',
+                  px: 4,
+                  py: 1.5,
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                  '&:hover': { bgcolor: '#16a34a' },
+                  '&:disabled': { bgcolor: 'rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.3)' }
+                }}
+              >
+                {loading ? <CircularProgress size={24} sx={{ color: 'rgba(255, 255, 255, 0.5)' }} /> : 'Create Design Group'}
+              </Button>
             </Paper>
           </Fade>
-        )}
-
-        {/* Category Selection Rows */}
+        )}        {/* Category Selection Rows */}
         {groupingMode && (
           <Fade in timeout={1000}>
             <Box sx={{ mb: 4 }}>
@@ -1282,10 +1191,12 @@ export default function DesignGroupsPage() {
                 </Typography>
                 <Button
                   onClick={() => setIsEditingGroupInfo(!isEditingGroupInfo)}
+                  disabled={isUpdatingGroupInfo}
                   sx={{
                     color: isEditingGroupInfo ? '#ef4444' : '#3b82f6',
                     minWidth: 'auto',
-                    p: 1
+                    p: 1,
+                    '&:disabled': { color: 'rgba(59, 130, 246, 0.3)' }
                   }}
                 >
                   {isEditingGroupInfo ? 'Cancel' : 'Edit'}
@@ -1293,13 +1204,43 @@ export default function DesignGroupsPage() {
               </Box>
 
               {isEditingGroupInfo ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: 2,
+                  position: 'relative',
+                  opacity: isUpdatingGroupInfo ? 0.7 : 1,
+                  transition: 'opacity 0.3s ease'
+                }}>
+                  {/* Loading overlay */}
+                  {isUpdatingGroupInfo && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: 'rgba(0, 0, 0, 0.1)',
+                        zIndex: 1,
+                        borderRadius: 1,
+                        backdropFilter: 'blur(1px)'
+                      }}
+                    >
+                      <CircularProgress size={24} sx={{ color: '#3b82f6' }} />
+                    </Box>
+                  )}
+                  
                   <TextField
                     label="Group Name"
                     value={editingGroupName}
                     onChange={(e) => setEditingGroupName(e.target.value)}
                     variant="outlined"
                     size="small"
+                    disabled={isUpdatingGroupInfo}
                     error={editingGroupName.length > 100}
                     helperText={`${editingGroupName.length}/100 characters`}
                     sx={{
@@ -1307,7 +1248,11 @@ export default function DesignGroupsPage() {
                         color: '#ffffff',
                         '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
                         '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
-                        '&.Mui-focused fieldset': { borderColor: '#3b82f6' }
+                        '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
+                        '&.Mui-disabled': {
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.2)' }
+                        }
                       },
                       '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
                       '& .MuiFormHelperText-root': { color: 'rgba(255, 255, 255, 0.5)' }
@@ -1323,14 +1268,18 @@ export default function DesignGroupsPage() {
                         <Chip
                           key={index}
                           label={tag}
-                          onDelete={() => {
+                          onDelete={isUpdatingGroupInfo ? undefined : () => {
                             setEditingGroupTags(prev => prev.filter((_, i) => i !== index));
                           }}
                           size="small"
                           sx={{
                             bgcolor: 'rgba(59, 130, 246, 0.2)',
                             color: '#3b82f6',
-                            '& .MuiChip-deleteIcon': { color: '#3b82f6' }
+                            '& .MuiChip-deleteIcon': { 
+                              color: '#3b82f6',
+                              opacity: isUpdatingGroupInfo ? 0.3 : 1
+                            },
+                            opacity: isUpdatingGroupInfo ? 0.7 : 1
                           }}
                         />
                       ))}
@@ -1344,8 +1293,9 @@ export default function DesignGroupsPage() {
                           onChange={(e) => setNewTag(e.target.value)}
                           variant="outlined"
                           size="small"
+                          disabled={isUpdatingGroupInfo}
                           onKeyPress={(e) => {
-                            if (e.key === 'Enter' && newTag.trim() && !editingGroupTags.includes(newTag.trim())) {
+                            if (e.key === 'Enter' && newTag.trim() && !editingGroupTags.includes(newTag.trim()) && !isUpdatingGroupInfo) {
                               setEditingGroupTags(prev => [...prev, newTag.trim()]);
                               setNewTag('');
                             }
@@ -1356,20 +1306,27 @@ export default function DesignGroupsPage() {
                               color: '#ffffff',
                               '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
                               '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
-                              '&.Mui-focused fieldset': { borderColor: '#3b82f6' }
+                              '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
+                              '&.Mui-disabled': {
+                                color: 'rgba(255, 255, 255, 0.5)',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.2)' }
+                              }
                             },
                             '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' }
                           }}
                         />
                         <Button
                           onClick={() => {
-                            if (newTag.trim() && !editingGroupTags.includes(newTag.trim())) {
+                            if (newTag.trim() && !editingGroupTags.includes(newTag.trim()) && !isUpdatingGroupInfo) {
                               setEditingGroupTags(prev => [...prev, newTag.trim()]);
                               setNewTag('');
                             }
                           }}
-                          disabled={!newTag.trim() || editingGroupTags.includes(newTag.trim())}
-                          sx={{ color: '#3b82f6' }}
+                          disabled={!newTag.trim() || editingGroupTags.includes(newTag.trim()) || isUpdatingGroupInfo}
+                          sx={{ 
+                            color: '#3b82f6',
+                            '&:disabled': { color: 'rgba(59, 130, 246, 0.3)' }
+                          }}
                         >
                           Add
                         </Button>
@@ -1381,12 +1338,32 @@ export default function DesignGroupsPage() {
                     <Button
                       variant="contained"
                       onClick={async () => {
+                        if (isUpdatingGroupInfo) return; // Prevent double clicks
+                        
+                        setIsUpdatingGroupInfo(true);
+                        
+                        // Optimistic update - update selectedGroup immediately for instant UI feedback
+                        const originalGroup = selectedGroup;
+                        const optimisticGroup = {
+                          ...selectedGroup,
+                          name: editingGroupName,
+                          tags: editingGroupTags
+                        };
+                        setSelectedGroup(optimisticGroup);
+                        
+                        // Also optimistically update in the existingGroups list
+                        setExistingGroups(prev => prev.map(group => 
+                          group._id === selectedGroup._id 
+                            ? { ...group, name: editingGroupName, tags: editingGroupTags }
+                            : group
+                        ));
+                        
                         try {
                           const response = await fetch('/api/admin/design-groups/update-info', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                              groupId: selectedGroup._id,
+                              designGroupId: selectedGroup._id,
                               name: editingGroupName,
                               tags: editingGroupTags
                             })
@@ -1396,32 +1373,61 @@ export default function DesignGroupsPage() {
                             const data = await response.json();
                             toast.success('Group information updated successfully');
                             setIsEditingGroupInfo(false);
-                            await fetchExistingGroups(true); // Update selectedGroup after editing
+                            // Fetch fresh data to ensure consistency
+                            await fetchExistingGroups(true);
                           } else {
+                            // Revert optimistic update on error
+                            setSelectedGroup(originalGroup);
+                            setExistingGroups(prev => prev.map(group => 
+                              group._id === selectedGroup._id ? originalGroup : group
+                            ));
+                            
                             const errorData = await response.json();
                             toast.error(errorData.error || 'Failed to update group information');
                           }
                         } catch (error) {
+                          // Revert optimistic update on error
+                          setSelectedGroup(originalGroup);
+                          setExistingGroups(prev => prev.map(group => 
+                            group._id === selectedGroup._id ? originalGroup : group
+                          ));
+                          
                           console.error('Error updating group info:', error);
                           toast.error('Error updating group information');
+                        } finally {
+                          setIsUpdatingGroupInfo(false);
                         }
                       }}
-                      disabled={editingGroupName.length === 0 || editingGroupName.length > 100}
+                      disabled={editingGroupName.length === 0 || editingGroupName.length > 100 || isUpdatingGroupInfo}
                       sx={{
                         bgcolor: '#22c55e',
-                        '&:hover': { bgcolor: '#16a34a' }
+                        '&:hover': { bgcolor: '#16a34a' },
+                        '&:disabled': { bgcolor: 'rgba(34, 197, 94, 0.3)' },
+                        minWidth: '140px'
                       }}
                     >
-                      Save Changes
+                      {isUpdatingGroupInfo ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CircularProgress size={16} sx={{ color: 'white' }} />
+                          <span>Saving...</span>
+                        </Box>
+                      ) : (
+                        'Save Changes'
+                      )}
                     </Button>
                     <Button
                       onClick={() => {
+                        if (isUpdatingGroupInfo) return; // Prevent cancel during update
                         setEditingGroupName(selectedGroup.name || '');
                         setEditingGroupTags(selectedGroup.tags || []);
                         setNewTag('');
                         setIsEditingGroupInfo(false);
                       }}
-                      sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                      disabled={isUpdatingGroupInfo}
+                      sx={{ 
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        '&:disabled': { color: 'rgba(255, 255, 255, 0.3)' }
+                      }}
                     >
                       Cancel
                     </Button>

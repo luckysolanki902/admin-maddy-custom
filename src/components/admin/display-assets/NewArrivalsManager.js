@@ -459,7 +459,7 @@ export default function NewArrivalsManager({ page = 'homepage' }) {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Product Name"
+                label="Stylish, Anime, etc"
                 value={formData.content}
                 onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                 required
@@ -481,7 +481,7 @@ export default function NewArrivalsManager({ page = 'homepage' }) {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Price / Additional Info"
+                label="Product (e.g. Pillar Wraps)"
                 value={formData.content2}
                 onChange={(e) => setFormData(prev => ({ ...prev, content2: e.target.value }))}
                 placeholder="e.g., $29.99 or Available in 5 colors"

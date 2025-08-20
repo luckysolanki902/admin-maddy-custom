@@ -13,6 +13,9 @@ import {
   MenuItem,
   CircularProgress,
   Tooltip,
+  Typography,
+  Divider,
+  Paper,
 } from '@mui/material';
 
 const ProductEditForm = ({
@@ -39,6 +42,12 @@ const ProductEditForm = ({
   const [titleError, setTitleError] = useState('');
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
+  // Inventory states
+  const [availableQuantity, setAvailableQuantity] = useState(0);
+  const [reorderLevel, setReorderLevel] = useState(0);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventorySaving, setInventorySaving] = useState(false);
+
   useEffect(() => {
     setName(selectedProduct.name);
     setTitle(selectedProduct.title);
@@ -64,8 +73,63 @@ const ProductEditForm = ({
       nameChanged: false,
       titleChanged: false,
     });
+    // Fetch inventory data
+    fetchInventoryData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct]);
+
+  // Fetch inventory data
+  const fetchInventoryData = async () => {
+    if (!selectedProduct._id) return;
+    
+    try {
+      setInventoryLoading(true);
+      const response = await fetch(`/api/admin/manage/product-inventory?productId=${selectedProduct._id}`);
+      const data = await response.json();
+      
+      if (response.ok && data.inventory) {
+        setAvailableQuantity(data.inventory.availableQuantity || 0);
+        setReorderLevel(data.inventory.reorderLevel || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  // Update inventory data
+  const handleInventoryUpdate = async () => {
+    if (!selectedProduct._id) return;
+    
+    try {
+      setInventorySaving(true);
+      const response = await fetch('/api/admin/manage/product-inventory', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: selectedProduct._id,
+          availableQuantity: parseInt(availableQuantity),
+          reorderLevel: parseInt(reorderLevel),
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Show success message (you might want to add a snackbar or toast here)
+        console.log('Inventory updated successfully');
+      } else {
+        console.error('Error updating inventory:', data.message);
+      }
+    } catch (error) {
+      console.error('Error updating inventory:', error);
+    } finally {
+      setInventorySaving(false);
+    }
+  };
 
   // Validation for name and title
   const validateName = (value) => {
@@ -252,6 +316,17 @@ const ProductEditForm = ({
     });
   };
 
+  // Inventory handlers
+  const handleAvailableQuantityChange = (e) => {
+    const value = e.target.value;
+    setAvailableQuantity(value);
+  };
+
+  const handleReorderLevelChange = (e) => {
+    const value = e.target.value;
+    setReorderLevel(value);
+  };
+
   const handleSubmit = () => {
     onSubmit({
       name,
@@ -388,6 +463,56 @@ const ProductEditForm = ({
           <MenuItem value="marketplace">Marketplace</MenuItem>
         </Select>
       </FormControl>
+
+      {/* Inventory Management Section */}
+      <Paper elevation={1} sx={{ p: 3, mt: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Inventory Management
+        </Typography>
+        <Divider sx={{ mb: 2 }} />
+        
+        {inventoryLoading ? (
+          <Box display="flex" justifyContent="center" py={2}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : (
+          <Box>
+            <TextField
+              label="Available Quantity"
+              type="number"
+              value={availableQuantity}
+              onChange={handleAvailableQuantityChange}
+              fullWidth
+              margin="normal"
+              inputProps={{ min: 0 }}
+              helperText="Current stock available for sale"
+            />
+            
+            <TextField
+              label="Reorder Level"
+              type="number"
+              value={reorderLevel}
+              onChange={handleReorderLevelChange}
+              fullWidth
+              margin="normal"
+              inputProps={{ min: 0 }}
+              helperText="Stock level at which reordering is needed"
+            />
+            
+            <Box textAlign="center" mt={3}>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={handleInventoryUpdate}
+                disabled={inventorySaving}
+                startIcon={inventorySaving && <CircularProgress size={20} />}
+              >
+                {inventorySaving ? 'Saving...' : 'Save Inventory'}
+              </Button>
+            </Box>
+          </Box>
+        )}
+      </Paper>
 
       {/* Submit Button */}
       <Box textAlign="center" mt={4}>

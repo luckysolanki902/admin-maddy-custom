@@ -258,8 +258,8 @@ const AddProductPage = () => {
         
         if (details.requiresInventory && details.inventoryDefaults) {
           setInventoryData({
-            availableQuantity: details.inventoryDefaults.availableQuantity || 0,
-            reorderLevel: details.inventoryDefaults.reorderLevel || 50,
+            availableQuantity: details.inventoryDefaults.availableQuantity ?? 0,
+            reorderLevel: details.inventoryDefaults.reorderLevel ?? 50,
           });
         }
       } else {
@@ -512,8 +512,8 @@ const AddProductPage = () => {
       if (enableInventory) {
         const defaults = firstProductDetails.inventoryDefaults;
         setInventoryData({
-          availableQuantity: defaults?.availableQuantity || 0,
-          reorderLevel: defaults?.reorderLevel || 50,
+          availableQuantity: defaults?.availableQuantity ?? 0,
+          reorderLevel: defaults?.reorderLevel ?? 0,
         });
       }
       

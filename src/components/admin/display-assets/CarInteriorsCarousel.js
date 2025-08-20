@@ -62,9 +62,9 @@ export default function CarInteriorsCarousel({ page = 'homepage' }) {
       setLoading(true);
       const response = await axios.get(`/api/admin/display-assets?page=${page}&componentType=carousel`);
       if (response.data.success) {
-        // Filter for car interiors slides
+        // Filter for car interiors slides (support both old and new naming)
         const carInteriorsSlides = response.data.data.filter(item => 
-          item.componentName === 'car-interiors-carousel'
+          item.componentName === 'car-interiors-carousel' || item.componentName === 'car-interiors'
         );
         setSlides(carInteriorsSlides);
       }

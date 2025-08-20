@@ -14,7 +14,7 @@ const InventorySchema = new mongoose.Schema({
   reorderLevel: {
     type: Number,
     required: true,
-    default: 50,
+    default: 0,
   },
 }, { timestamps: true });
 

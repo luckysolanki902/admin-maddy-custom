@@ -125,9 +125,9 @@ export async function POST(req) {
     if (inventoryData) {
       const { availableQuantity, reservedQuantity, reorderLevel } = inventoryData;
       const newInventory = new (require('@/models/Inventory'))({
-        availableQuantity: availableQuantity || 0,
-        reservedQuantity: reservedQuantity || 0,
-        reorderLevel: reorderLevel || 50,
+        availableQuantity: availableQuantity ?? 0,
+        reservedQuantity: reservedQuantity ?? 0,
+        reorderLevel: reorderLevel ?? 50,
       });
       const savedInventory = await newInventory.save();
       inventoryId = savedInventory._id;

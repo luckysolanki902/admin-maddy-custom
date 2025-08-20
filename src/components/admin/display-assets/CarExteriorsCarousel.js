@@ -62,9 +62,9 @@ export default function CarExteriorsCarousel({ page = 'homepage' }) {
       setLoading(true);
       const response = await axios.get(`/api/admin/display-assets?page=${page}&componentType=carousel`);
       if (response.data.success) {
-        // Filter for car exteriors slides
+        // Filter for car exteriors slides (support both old and new naming)
         const carExteriorsSlides = response.data.data.filter(item => 
-          item.componentName === 'car-exteriors-carousel'
+          item.componentName === 'car-exteriors-carousel' || item.componentName === 'car-exteriors'
         );
         setSlides(carExteriorsSlides);
       }

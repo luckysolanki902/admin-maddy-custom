@@ -343,28 +343,55 @@ const ProductEditForm = ({
   };
 
   return (
-    <Box component="form" noValidate autoComplete="off" mb={30}>
-      {/* Availability Switch */}
-      <Box>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={available}
-              onChange={handleAvailabilityToggle}
-              name="available"
-              color="primary"
-              disabled={availabilityLoading}
-            />
-          }
-          label="Available"
-        />
-        {availabilityLoading && <CircularProgress size={24} />}
-        <p style={{ display: 'inline-block', marginLeft: '5px', textTransform: 'uppercase' }}>
-          {selectedProduct?.sku}
-        </p>
-        <p>{selectedProduct?.designTemplate?.imageUrl}</p>
+    <Paper 
+      elevation={0} 
+      sx={{ 
+        borderRadius: 3, 
+        border: '1px solid #333',
+        backgroundColor: '#1a1a1a',
+        color: 'white'
+      }}
+    >
+      <Box sx={{ p: 4, pb: 0 }}>
+        <Typography variant="h5" gutterBottom sx={{ mb: 3, color: '#333', fontWeight: 500 }}>
+          Product Details
+        </Typography>
+        
+        <Divider sx={{ mb: 4 }} />
       </Box>
-      {/* Name */}
+
+      <Box component="form" noValidate autoComplete="off" sx={{ px: 4, py:3 }}>
+        {/* Availability Switch */}
+        <Box display="flex" alignItems="center" gap={2} mb={3}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={available}
+                onChange={handleAvailabilityToggle}
+                name="available"
+                color="primary"
+                disabled={availabilityLoading}
+              />
+            }
+            label="Available"
+          />
+          {availabilityLoading && <CircularProgress size={20} />}
+          <Box sx={{ ml: 'auto' }}>
+            <Typography variant="body2" sx={{ 
+              background: '#f0f0f0', 
+              px: 2, 
+              py: 0.5, 
+              borderRadius: 2,
+              fontFamily: 'monospace',
+              fontSize: '0.8rem',
+              color: '#666'
+            }}>
+              SKU: {selectedProduct?.sku?.toUpperCase()}
+            </Typography>
+          </Box>
+        </Box>
+        
+        {/* Form Fields */}
       <TextField
         label="Product Name"
         value={name}
@@ -465,15 +492,23 @@ const ProductEditForm = ({
       </FormControl>
 
       {/* Inventory Management Section */}
-      <Paper elevation={1} sx={{ p: 3, mt: 3 }}>
-        <Typography variant="h6" gutterBottom>
+      <Paper 
+        elevation={1} 
+        sx={{ 
+          p: 3, 
+          mt: 3,
+          backgroundColor: '#2a2a2a',
+          border: '1px solid #444'
+        }}
+      >
+        <Typography variant="h6" gutterBottom color="white">
           Inventory Management
         </Typography>
-        <Divider sx={{ mb: 2 }} />
+        <Divider sx={{ mb: 2, backgroundColor: '#444' }} />
         
         {inventoryLoading ? (
           <Box display="flex" justifyContent="center" py={2}>
-            <CircularProgress size={24} />
+            <CircularProgress size={24} sx={{ color: '#1976d2' }} />
           </Box>
         ) : (
           <Box>
@@ -550,6 +585,7 @@ const ProductEditForm = ({
         </Tooltip>
       </Box>
     </Box>
+    </Paper>
   );
 };
 

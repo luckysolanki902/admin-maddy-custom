@@ -142,6 +142,15 @@ const SpecificCategorySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+        commonProductCardImagesSource: {
+      type: String,
+      enum: ['variant', 'specCat'],
+    },
+    commonProductCardImages: {
+      type: [String],
+      default: [],
+    },
+    
     letterMappingGroups: {
       type: [LetterMappingGroupSchema],
       default: [],

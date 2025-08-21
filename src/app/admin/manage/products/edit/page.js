@@ -11,6 +11,7 @@ import ProductThumbnailSlider from "@/components/page-sections/product-edit-page
 import ProductImageCarousel from "@/components/page-sections/product-edit-page/ProductImageCarousel";
 import DesignTemplateImage from "@/components/page-sections/product-edit-page/DesignTemplateImage";
 import ProductEditForm from "@/components/page-sections/product-edit-page/ProductEditForm";
+import CommonCardImages from "@/components/page-sections/product-edit-page/CommonCardImages";
 import SortFilterDrawer from "@/components/page-sections/product-edit-page/SortFilterDrawer";
 import TagDialog from "@/components/page-sections/product-edit-page/TagDialog";
 import VariantNameConflictDialog from "@/components/page-sections/common/VariantNameConflictDialog";
@@ -465,68 +466,104 @@ const EditProductPage = () => {
     handleCloseDialog();
   };
   return (
-    <Box p={4} maxWidth="1200px" margin="0 auto" display="flex" flexDirection="column" position="relative">
-      {/* Heading */}
-      <Box display="flex" flexDirection="column">
-        <Typography variant="h4" gutterBottom>
+    <Box 
+      sx={{ 
+        p: { xs: 2, sm: 3, md: 4 }, 
+        maxWidth: "1400px", 
+        margin: "0 auto", 
+        display: "flex", 
+        flexDirection: "column",
+        minHeight: "100vh",
+        bgcolor: "#0a0a0a",
+        color: "#f0f0f0",
+        pb: { xs: 25, sm: 20 } // Add extra bottom padding so content doesn't get hidden by thumbnail slider
+      }}
+    >
+      {/* Header */}
+      <Box display="flex" flexDirection="column" mb={{ xs: 3, sm: 4 }}>
+        <Typography variant="h3" gutterBottom sx={{ 
+          fontWeight: 300, 
+          color: '#f0f0f0',
+          fontSize: { xs: '1.8rem', sm: '2.5rem', md: '3rem' }
+        }}>
           Edit Product
         </Typography>
         
-        {/* Category Selector as permanent breadcrumb navigation */}
-        <CategorySelectorWrapper
-          selection={selection}
-          onSelectionChange={handleSelectionChange}
-          loadingProducts={loadingProducts}
-        />
+        <Box mt={2}>
+          <CategorySelectorWrapper
+            selection={selection}
+            onSelectionChange={handleSelectionChange}
+            loadingProducts={loadingProducts}
+          />
+        </Box>
       </Box>
 
       {/* Sort & Filter Button */}
-      <Box display="flex" justifyContent="flex-end">
-        <Button variant="outlined" startIcon={<FilterListIcon />} onClick={() => setIsDrawerOpen(true)}>
+      <Box display="flex" justifyContent="flex-end" mb={3}>
+        <Button 
+          variant="outlined" 
+          startIcon={<FilterListIcon />} 
+          onClick={() => setIsDrawerOpen(true)}
+          sx={{
+            borderRadius: 3,
+            px: 3,
+            py: 1,
+            borderColor: '#e0e0e0',
+            color: '#666',
+            '&:hover': {
+              borderColor: '#1976d2',
+              backgroundColor: 'rgba(25, 118, 210, 0.04)'
+            }
+          }}
+        >
           Sort & Filter
         </Button>
       </Box>
 
       {/* Main Editing Area */}
-      <Box flex={1} mt={4} display="flex" gap={4}>
+      <Box flex={1} mt={3} mb={20}>
         {selectedProduct ? (
-          <>
+          <Box display="flex" gap={{ xs: 2, sm: 3 }} flexDirection={{ xs: 'column', lg: 'row' }}>
             {/* Images Section */}
-            <Box display="flex" flexDirection="column" gap={2} width="30%">
-              {/* Main Image Carousel */}
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  {carouselImages.length > 1 ? "Product Images" : "Product Image"}
-                </Typography>
-                <ProductImageCarousel
-                  carouselImages={carouselImages}
-                  setCarouselImages={setCarouselImages}
-                  currentImageIndex={currentImageIndex}
-                  onPrevImage={handlePrevImage}
-                  onNextImage={handleNextImage}
-                  onEditImage={handleImageEdit}
-                  cloudfrontBaseUrl={cloudfrontBaseUrl}
-                  available={selectedProduct.available}
-                />
-              </Box>
+            <Box 
+              display="flex" 
+              flexDirection="column" 
+              gap={{ xs: 2, sm: 3 }} 
+              width={{ xs: '100%', lg: '35%' }}
+              order={{ xs: 2, lg: 1 }}
+            >
+              {/* Main Product Images */}
+              <ProductImageCarousel
+                carouselImages={carouselImages}
+                setCarouselImages={setCarouselImages}
+                currentImageIndex={currentImageIndex}
+                onPrevImage={handlePrevImage}
+                onNextImage={handleNextImage}
+                onEditImage={handleImageEdit}
+                cloudfrontBaseUrl={cloudfrontBaseUrl}
+                available={selectedProduct.available}
+              />
 
-              {/* Design Template Image */}
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Template
-                </Typography>
-                <DesignTemplateImage
-                  imageUrl={designTemplateImage}
-                  onEditImage={() => handleImageEdit("design", "replace", setDesignImageLoading)}
-                  cloudfrontBaseUrl={cloudfrontBaseUrl}
-                  available={selectedProduct.available}
-                  loading={designImageLoading}
-                />
-              </Box>
+              {/* Design Template */}
+              <DesignTemplateImage
+                imageUrl={designTemplateImage}
+                onEditImage={() => handleImageEdit("design", "replace", setDesignImageLoading)}
+                cloudfrontBaseUrl={cloudfrontBaseUrl}
+                available={selectedProduct.available}
+                loading={designImageLoading}
+              />
+
+              {/* Common Card Images */}
+              <CommonCardImages
+                selectedProduct={selectedProduct}
+                onUpdate={() => {
+                  // Refresh logic if needed
+                }}
+              />
             </Box>
 
-            {/* Editable Fields */}
-            <Box flex={1}>
+            {/* Product Details */}
+            <Box flex={1} order={{ xs: 1, lg: 2 }}>
               <ProductEditForm
                 selectedProduct={selectedProduct}
                 uniqueMainTags={uniqueMainTags}
@@ -536,23 +573,41 @@ const EditProductPage = () => {
                 onSubmit={handleFormSubmit}
               />
             </Box>
-          </>
+          </Box>
         ) : (
-          <Box display="flex" justifyContent="center" alignItems="center" height="100%" flexDirection="column">
+          <Box 
+            display="flex" 
+            justifyContent="center" 
+            alignItems="center" 
+            height="400px" 
+            flexDirection="column"
+            sx={{
+              background: 'white',
+              borderRadius: 3,
+              border: '1px solid #333',
+              backgroundColor: '#1a1a1a',
+              mx: 1
+            }}
+          >
             {initialLoading ? (
               <>
-                <CircularProgress />
-                <Typography variant="h6" mt={2}>
+                <CircularProgress sx={{ mb: 2, color: '#1976d2' }} />
+                <Typography variant="h6" color="#ddd">
                   Loading products...
                 </Typography>
               </>
             ) : (
               <>
-                <Typography variant="h6" gutterBottom>
-                  Please select a product from the thumbnail slider below to edit.
+                <Typography variant="h5" gutterBottom color="#f0f0f0" sx={{ fontWeight: 300 }}>
+                  Select a Product to Edit
+                </Typography>
+                <Typography variant="body1" color="#ccc" textAlign="center" sx={{ maxWidth: 400 }}>
+                  Choose a product from the thumbnail slider below to begin editing its details and images.
                 </Typography>
                 {!loadingProducts && products.length === 0 && (
-                  <Typography variant="body1">No products found for the selected category and variant.</Typography>
+                  <Typography variant="body2" color="#ff6b6b" mt={2}>
+                    No products found for the selected category and variant.
+                  </Typography>
                 )}
               </>
             )}
@@ -560,14 +615,29 @@ const EditProductPage = () => {
         )}
       </Box>
 
-      {/* Fixed Thumbnail Slider */}
-      <ProductThumbnailSlider
-        products={getProcessedProducts()}
-        loadingProducts={loadingProducts}
-        selectedProduct={selectedProduct}
-        onSelectProduct={handleThumbnailClick}
-        cloudfrontBaseUrl={cloudfrontBaseUrl}
-      />
+      {/* Product Thumbnail Slider */}
+      <Box 
+        sx={{ 
+          position: 'sticky',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          bgcolor: 'white',
+          borderTop: '1px solid #e0e0e0',
+          py: 2,
+          px: 1,
+          borderRadius: '12px 12px 0 0',
+          boxShadow: '0 -2px 8px rgba(0,0,0,0.1)'
+        }}
+      >
+        <ProductThumbnailSlider
+          products={getProcessedProducts()}
+          loadingProducts={loadingProducts}
+          selectedProduct={selectedProduct}
+          onSelectProduct={handleThumbnailClick}
+          cloudfrontBaseUrl={cloudfrontBaseUrl}
+        />
+      </Box>
 
       {/* Sorting and Filtering Drawer */}
       <Drawer anchor="right" open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>

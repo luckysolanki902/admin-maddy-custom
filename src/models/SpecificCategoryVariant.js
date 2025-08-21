@@ -129,7 +129,7 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
       }
     },
     // temproary-review-count
-    tempReviewCount:{
+    tempReviewCount: {
       type: Number,
       default: 33,
     },
@@ -173,6 +173,11 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
       ref: 'CustomTemplate',
     },
     defaultCarouselImages: [String],
+
+    commonProductCardImages: {
+      type: [String],
+      default: [],
+    },
     packagingDetails: {
       boxId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -190,5 +195,5 @@ const SpecificCategoryVariantSchema = new mongoose.Schema(
 );
 
 
-if(mongoose.models.SpecificCategoryVariant){delete mongoose.models.SpecificCategoryVariant}
+if (mongoose.models.SpecificCategoryVariant) { delete mongoose.models.SpecificCategoryVariant }
 module.exports = mongoose.models.SpecificCategoryVariant || mongoose.model('SpecificCategoryVariant', SpecificCategoryVariantSchema);

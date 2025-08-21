@@ -103,8 +103,21 @@ export default function NewArrivalsManager({ page = 'homepage' }) {
     setDialogOpen(true);
   };
 
+  // Helper function to check if we have at least one valid image
+  const hasValidMedia = () => {
+    if (formData.useSameMediaForAllDevices) {
+      // In same media mode, we need desktop image from current upload or existing slide
+      return currentMedia?.desktop || editingSlide?.media?.desktop;
+    } else {
+      // In separate media mode, we need at least one image (desktop OR mobile)
+      const hasDesktop = currentMedia?.desktop || editingSlide?.media?.desktop;
+      const hasMobile = currentMedia?.mobile || editingSlide?.media?.mobile;
+      return hasDesktop || hasMobile;
+    }
+  };
+
   const handleSave = async () => {
-    if (!formData.content || !currentMedia?.desktop) {
+    if (!formData.content || !hasValidMedia()) {
       toast.error('Please fill in all required fields and upload media');
       return;
     }
@@ -116,8 +129,8 @@ export default function NewArrivalsManager({ page = 'homepage' }) {
         componentType: 'carousel',
         page,
         media: formData.useSameMediaForAllDevices 
-          ? { desktop: currentMedia.desktop, mobile: currentMedia.desktop }
-          : { desktop: currentMedia.desktop, mobile: currentMedia.mobile }
+          ? { desktop: currentMedia.desktop || null, mobile: currentMedia.desktop || null }
+          : { desktop: currentMedia.desktop || null, mobile: currentMedia.mobile || null }
       };
 
       if (editingItem) {
@@ -509,7 +522,7 @@ export default function NewArrivalsManager({ page = 'homepage' }) {
           <Button
             variant="contained"
             onClick={handleSave}
-            disabled={!formData.content || !currentMedia?.desktop}
+            disabled={!formData.content || !hasValidMedia()}
             sx={{ px: 4, py: 1.5 }}
           >
             {editingItem ? 'Update Product' : 'Create Product'}

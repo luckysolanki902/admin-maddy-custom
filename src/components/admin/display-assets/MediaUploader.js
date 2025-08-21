@@ -174,7 +174,7 @@ export default function MediaUploader({
   };
 
   const canComplete = requireMobile 
-    ? uploadedFiles.desktop && uploadedFiles.mobile
+    ? (uploadedFiles.desktop || uploadedFiles.mobile) // At least one image required
     : uploadedFiles.desktop;
 
   const isAnyUploading = Object.values(uploading).some(Boolean);
@@ -498,6 +498,14 @@ export default function MediaUploader({
           <CloudUpload sx={{ color: '#00b4d8', fontSize: 20 }} />
           Media Upload
         </Typography>
+        {requireMobile && (
+          <Typography variant="body2" sx={{ 
+            color: '#adb5bd',
+            fontStyle: 'italic'
+          }}>
+            Upload at least one image (desktop or mobile). Both are optional when using separate images.
+          </Typography>
+        )}
       </Box>
       
       {error && (
@@ -531,7 +539,10 @@ export default function MediaUploader({
                   fontWeight: 600,
                   mb: 1
                 }}>
-                  Desktop Media
+                  Desktop Media <Chip label="Optional" size="small" sx={{ ml: 1, fontSize: '0.75rem', height: '20px' }} />
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#adb5bd' }}>
+                  Upload image for desktop devices only (optional)
                 </Typography>
               </Box>
               {createDropzone('desktop', 'Desktop Image')}
@@ -543,7 +554,10 @@ export default function MediaUploader({
                   fontWeight: 600,
                   mb: 1
                 }}>
-                  Mobile Media
+                  Mobile Media <Chip label="Optional" size="small" sx={{ ml: 1, fontSize: '0.75rem', height: '20px' }} />
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#adb5bd' }}>
+                  Upload image for mobile devices only (optional)
                 </Typography>
               </Box>
               {createDropzone('mobile', 'Mobile Image')}

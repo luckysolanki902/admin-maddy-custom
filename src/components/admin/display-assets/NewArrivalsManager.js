@@ -327,16 +327,16 @@ export default function NewArrivalsManager({ page = 'homepage' }) {
                             <DragIndicator sx={{ color: 'white', fontSize: 16 }} />
                           </Box>
 
-                          {item.media?.desktop && (
+                          {(item.media?.desktop || item.media?.mobile) && (
                             <Box sx={{ height: 200, overflow: 'hidden', position: 'relative' }}>
                               {item.mediaType === 'video' ? (
                                 <video
-                                  src={getImageUrl(item.media.desktop)}
+                                  src={getImageUrl(item.media.desktop || item.media.mobile)}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 />
                               ) : (
                                 <Image
-                                  src={getImageUrl(item.media.desktop)}
+                                  src={getImageUrl(item.media.desktop || item.media.mobile)}
                                   alt={item.content}
                                   fill
                                   style={{ objectFit: 'cover' }}

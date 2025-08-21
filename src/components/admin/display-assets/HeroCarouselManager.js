@@ -401,16 +401,16 @@ export default function HeroCarouselManager({ page = 'homepage' }) {
                             <DragIndicator sx={{ color: 'white', fontSize: 16 }} />
                           </Box>
 
-                          {slide.media?.desktop && (
+                          {(slide.media?.desktop || slide.media?.mobile) && (
                             <Box sx={{ height: 150, overflow: 'hidden', position: 'relative' }}>
                               {slide.mediaType === 'video' ? (
                                 <video
-                                  src={getImageUrl(slide.media.desktop)}
+                                  src={getImageUrl(slide.media.desktop || slide.media.mobile)}
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 />
                               ) : (
                                 <Image
-                                  src={getImageUrl(slide.media.desktop)}
+                                  src={getImageUrl(slide.media.desktop || slide.media.mobile)}
                                   alt={slide.content}
                                   fill
                                   style={{ objectFit: 'cover' }}

@@ -443,10 +443,10 @@ export default function CategorySliderManager({ page = 'homepage' }) {
                               <DragIndicator sx={{ color: 'white', fontSize: 16 }} />
                             </Box>
 
-                            {category.media?.desktop && (
+                            {(category.media?.desktop || category.media?.mobile) && (
                               <Box sx={{ height: 150, overflow: 'hidden', position: 'relative' }}>
                                 <Image
-                                  src={getImageUrl(category.media.desktop)}
+                                  src={getImageUrl(category.media.desktop || category.media.mobile)}
                                   alt={category.content}
                                   fill
                                   style={{ objectFit: 'cover' }}

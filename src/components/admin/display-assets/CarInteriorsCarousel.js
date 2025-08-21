@@ -110,14 +110,30 @@ export default function CarInteriorsCarousel({ page = 'homepage' }) {
 
   // Helper function to check if we have at least one valid image
   const hasValidMedia = () => {
+    console.log('hasValidMedia check:', {
+      formData: formData,
+      currentMedia: currentMedia,
+      editingSlide: editingSlide,
+      useSameMedia: formData.useSameMediaForAllDevices
+    });
+
+    // Get the effective media (current uploads take precedence over existing slide media)
+    const effectiveDesktop = currentMedia?.desktop !== undefined ? currentMedia.desktop : editingSlide?.media?.desktop;
+    const effectiveMobile = currentMedia?.mobile !== undefined ? currentMedia.mobile : editingSlide?.media?.mobile;
+    
+    console.log('Effective media:', { effectiveDesktop, effectiveMobile });
+
     if (formData.useSameMediaForAllDevices) {
-      // In same media mode, we need desktop image from current upload or existing slide
-      return currentMedia?.desktop || editingSlide?.media?.desktop;
+      // In same media mode, we need desktop image
+      const hasDesktop = effectiveDesktop;
+      console.log('Same media mode - hasDesktop:', hasDesktop);
+      return !!hasDesktop;
     } else {
       // In separate media mode, we need at least one image (desktop OR mobile)
-      const hasDesktop = currentMedia?.desktop || editingSlide?.media?.desktop;
-      const hasMobile = currentMedia?.mobile || editingSlide?.media?.mobile;
-      return hasDesktop || hasMobile;
+      const hasDesktop = effectiveDesktop;
+      const hasMobile = effectiveMobile;
+      console.log('Separate media mode - hasDesktop:', hasDesktop, 'hasMobile:', hasMobile);
+      return !!(hasDesktop || hasMobile);
     }
   };
 
@@ -155,6 +171,7 @@ export default function CarInteriorsCarousel({ page = 'homepage' }) {
   };
 
   const handleMediaChange = useCallback((media) => {
+    console.log('MediaUploader changed media to:', media);
     setCurrentMedia(media);
   }, []);
 

@@ -478,10 +478,14 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                           >
                             {item.thumbnail ? (
                               <Image
-                                src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail.startsWith('http') ?
-                                  item.thumbnail.split('cloudfront.net')[1] : item.thumbnail}`}
+                                src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail.startsWith('http')
+                                    ? item.thumbnail.split('cloudfront.net')[1]
+                                    : item.thumbnail.startsWith('/')
+                                      ? item.thumbnail
+                                      : `/${item.thumbnail}`
+                                  }`}
                                 alt={item.name || 'Product image'}
-  
+
                                 loading='eager'
                                 width={200}
                                 height={200}
@@ -532,7 +536,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                               alignItems: 'center',
                               mt: 0.5
                             }}>
-                   
+
 
                               <Chip
                                 label={`QTY: ${item.quantity || 'N/A'}`}

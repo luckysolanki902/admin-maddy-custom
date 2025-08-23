@@ -5,7 +5,7 @@ import { useMediaQuery } from '@mui/material';
 
 
 const ThemeRegistry = ({ children }) => {
-  const prefersLightMode = useMediaQuery('(prefers-color-scheme: light)');
+  const prefersLightMode = useMediaQuery('(prefers-color-scheme: light)', { noSsr: true });
   const theme = prefersLightMode ? lightTheme : darkTheme;
 
   return (

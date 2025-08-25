@@ -128,71 +128,126 @@ export async function GET() {
       }
     ]);
     
-    // Combine and organize data by category > variant > items
-    const organizedData = {};
+    // Combine and organize data by category > variant with counts
+    const summaryData = {};
+    let totalOutOfStock = 0;
+    let totalLowStock = 0;
+    let totalWellStocked = 0;
     
     // Process products
     products.forEach(item => {
       const categoryName = item.category?.name || 'Uncategorized';
       const variantName = item.variant?.name || 'No Variant';
       
-      if (!organizedData[categoryName]) {
-        organizedData[categoryName] = {};
+      if (!summaryData[categoryName]) {
+        summaryData[categoryName] = {
+          variants: {},
+          totalItems: 0,
+          outOfStock: 0,
+          lowStock: 0,
+          wellStocked: 0
+        };
       }
-      if (!organizedData[categoryName][variantName]) {
-        organizedData[categoryName][variantName] = [];
+      if (!summaryData[categoryName].variants[variantName]) {
+        summaryData[categoryName].variants[variantName] = {
+          items: 0,
+          outOfStock: 0,
+          lowStock: 0,
+          wellStocked: 0,
+          options: {}
+        };
       }
       
-      const imageUrl = item.images?.[0] ? 
-        (item.images[0].startsWith('/') ? 
-          `${CLOUDFRONT_BASE}${item.images[0]}` : 
-          `${CLOUDFRONT_BASE}/${item.images[0]}`) : '';
+      const availableQty = item.inventoryData.availableQuantity || 0;
+      const reorderLevel = item.inventoryData.reorderLevel || 0;
+      const status = getInventoryStatus(availableQty, reorderLevel);
       
-      organizedData[categoryName][variantName].push({
-        type: 'Product',
-        name: item.name,
-        sku: item.sku,
-        image: imageUrl,
-        available: item.inventoryData.availableQuantity || 0,
-        reorderLevel: item.inventoryData.reorderLevel || 0,
-        status: getInventoryStatus(item.inventoryData.availableQuantity || 0, item.inventoryData.reorderLevel || 0)
-      });
+      // Update counts
+      summaryData[categoryName].totalItems++;
+      summaryData[categoryName].variants[variantName].items++;
+      
+      if (status.label === 'OUT OF STOCK') {
+        summaryData[categoryName].outOfStock++;
+        summaryData[categoryName].variants[variantName].outOfStock++;
+        totalOutOfStock++;
+      } else if (status.label === 'LOW STOCK') {
+        summaryData[categoryName].lowStock++;
+        summaryData[categoryName].variants[variantName].lowStock++;
+        totalLowStock++;
+      } else {
+        summaryData[categoryName].wellStocked++;
+        summaryData[categoryName].variants[variantName].wellStocked++;
+        totalWellStocked++;
+      }
     });
     
     // Process options
     options.forEach(item => {
       const categoryName = item.category?.name || 'Uncategorized';
       const variantName = item.variant?.name || 'No Variant';
+      const optionKey = Object.values(item.optionDetails || {}).join(', ') || 'Default Option';
       
-      if (!organizedData[categoryName]) {
-        organizedData[categoryName] = {};
+      if (!summaryData[categoryName]) {
+        summaryData[categoryName] = {
+          variants: {},
+          totalItems: 0,
+          outOfStock: 0,
+          lowStock: 0,
+          wellStocked: 0
+        };
       }
-      if (!organizedData[categoryName][variantName]) {
-        organizedData[categoryName][variantName] = [];
+      if (!summaryData[categoryName].variants[variantName]) {
+        summaryData[categoryName].variants[variantName] = {
+          items: 0,
+          outOfStock: 0,
+          lowStock: 0,
+          wellStocked: 0,
+          options: {}
+        };
+      }
+      if (!summaryData[categoryName].variants[variantName].options[optionKey]) {
+        summaryData[categoryName].variants[variantName].options[optionKey] = {
+          items: 0,
+          outOfStock: 0,
+          lowStock: 0,
+          wellStocked: 0
+        };
       }
       
-      const firstImage = item.images?.[0] || item.product?.images?.[0];
-      const imageUrl = firstImage ? 
-        (firstImage.startsWith('/') ? 
-          `${CLOUDFRONT_BASE}${firstImage}` : 
-          `${CLOUDFRONT_BASE}/${firstImage}`) : '';
+      const availableQty = item.inventoryData.availableQuantity || 0;
+      const reorderLevel = item.inventoryData.reorderLevel || 0;
+      const status = getInventoryStatus(availableQty, reorderLevel);
       
-      const optionDetails = Object.values(item.optionDetails || {}).join(', ');
+      // Update counts
+      summaryData[categoryName].totalItems++;
+      summaryData[categoryName].variants[variantName].items++;
+      summaryData[categoryName].variants[variantName].options[optionKey].items++;
       
-      organizedData[categoryName][variantName].push({
-        type: 'Option',
-        name: item.product.name,
-        sku: item.sku,
-        option: optionDetails,
-        image: imageUrl,
-        available: item.inventoryData.availableQuantity || 0,
-        reorderLevel: item.inventoryData.reorderLevel || 0,
-        status: getInventoryStatus(item.inventoryData.availableQuantity || 0, item.inventoryData.reorderLevel || 0)
-      });
+      if (status.label === 'OUT OF STOCK') {
+        summaryData[categoryName].outOfStock++;
+        summaryData[categoryName].variants[variantName].outOfStock++;
+        summaryData[categoryName].variants[variantName].options[optionKey].outOfStock++;
+        totalOutOfStock++;
+      } else if (status.label === 'LOW STOCK') {
+        summaryData[categoryName].lowStock++;
+        summaryData[categoryName].variants[variantName].lowStock++;
+        summaryData[categoryName].variants[variantName].options[optionKey].lowStock++;
+        totalLowStock++;
+      } else {
+        summaryData[categoryName].wellStocked++;
+        summaryData[categoryName].variants[variantName].wellStocked++;
+        summaryData[categoryName].variants[variantName].options[optionKey].wellStocked++;
+        totalWellStocked++;
+      }
     });
     
     // Generate HTML email
-    const emailHtml = generateInventoryEmailHtml(organizedData);
+    const emailHtml = generateInventorySummaryEmailHtml(summaryData, {
+      totalOutOfStock,
+      totalLowStock, 
+      totalWellStocked,
+      totalItems: totalOutOfStock + totalLowStock + totalWellStocked
+    });
     
     // Send email
     await sendEmail({
@@ -201,16 +256,19 @@ export async function GET() {
       html: emailHtml
     });
     
-    const totalItems = products.length + options.length;
-    const totalCategories = Object.keys(organizedData).length;
+    const totalItems = totalOutOfStock + totalLowStock + totalWellStocked;
+    const totalCategories = Object.keys(summaryData).length;
     
     return NextResponse.json({
       success: true,
-      message: `Daily inventory report sent successfully`,
+      message: `Daily inventory summary sent successfully`,
       summary: {
         totalItems,
         totalCategories,
-        categoriesIncluded: Object.keys(organizedData),
+        totalOutOfStock,
+        totalLowStock,
+        totalWellStocked,
+        categoriesIncluded: Object.keys(summaryData),
         reportDate: new Date().toISOString()
       }
     });
@@ -230,7 +288,7 @@ function getInventoryStatus(availableQuantity, reorderLevel) {
   return { label: 'WELL STOCKED', color: '#4caf50' };
 }
 
-function generateInventoryEmailHtml(organizedData) {
+function generateInventorySummaryEmailHtml(summaryData, totals) {
   const currentDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -238,76 +296,81 @@ function generateInventoryEmailHtml(organizedData) {
     day: 'numeric'
   });
   
+  const adminPageUrl = process.env.NODE_ENV === 'production' 
+    ? 'https://admin-maddycustom.vercel.app/admin/manage/production/inventory'
+    : 'http://localhost:3000/admin/manage/production/inventory';
+  
   let categoriesHtml = '';
   
-  Object.entries(organizedData).forEach(([categoryName, variants]) => {
+  Object.entries(summaryData).forEach(([categoryName, categoryData]) => {
+    const variants = Object.keys(categoryData.variants);
+    const isOnlyOneVariant = variants.length === 1 && variants[0] === 'No Variant';
+    
     categoriesHtml += `
-      <div style="margin-bottom: 40px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+      <div style="margin-bottom: 25px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px;">
-          <h2 style="margin: 0; font-size: 20px; font-weight: 600;">${categoryName}</h2>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; font-size: 18px; font-weight: 600;">${categoryName}</h2>
+            <div style="font-size: 12px; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px;">
+              ${categoryData.totalItems} items
+            </div>
+          </div>
         </div>
-        <div style="padding: 0;">
+        <div style="padding: 15px;">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
+            <div style="text-align: center; padding: 12px; background: #ffebee; border-radius: 6px;">
+              <div style="font-size: 20px; font-weight: 700; color: #c62828;">${categoryData.outOfStock}</div>
+              <div style="font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Out of Stock</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: #fff3e0; border-radius: 6px;">
+              <div style="font-size: 20px; font-weight: 700; color: #ef6c00;">${categoryData.lowStock}</div>
+              <div style="font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Low Stock</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: #e8f5e8; border-radius: 6px;">
+              <div style="font-size: 20px; font-weight: 700; color: #2e7d32;">${categoryData.wellStocked}</div>
+              <div style="font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Well Stocked</div>
+            </div>
+          </div>
     `;
     
-    Object.entries(variants).forEach(([variantName, items]) => {
+    if (!isOnlyOneVariant) {
       categoriesHtml += `
-        <div style="border-bottom: 1px solid #f0f0f0; background: #fafafa;">
-          <div style="padding: 12px 20px; background: #f5f5f5; border-bottom: 1px solid #e0e0e0;">
-            <h3 style="margin: 0; font-size: 16px; color: #333; font-weight: 500;">${variantName}</h3>
-          </div>
-          <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-              <thead>
-                <tr style="background: #f8f9fa;">
-                  <th style="padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6; width: 60px;">Image</th>
-                  <th style="padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6;">Name</th>
-                  <th style="padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6; width: 100px;">SKU</th>
-                  <th style="padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6; width: 120px;">Option</th>
-                  <th style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6; width: 80px;">Available</th>
-                  <th style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6; width: 80px;">Reorder</th>
-                  <th style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6; width: 100px;">Status</th>
-                </tr>
-              </thead>
-              <tbody>
+        <div style="margin-top: 15px;">
+          <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #333; font-weight: 600;">Variants Breakdown:</h3>
+          <div style="background: #f8f9fa; border-radius: 6px; padding: 10px;">
       `;
       
-      items.forEach(item => {
+      Object.entries(categoryData.variants).forEach(([variantName, variantData]) => {
         categoriesHtml += `
-          <tr style="border-bottom: 1px solid #f0f0f0;">
-            <td style="padding: 8px;">
-              ${item.image ? 
-                `<img src="${item.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="Product">` : 
-                `<div style="width: 40px; height: 40px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #999;">No Image</div>`
-              }
-            </td>
-            <td style="padding: 8px; font-weight: 500; color: #333;">${item.name}</td>
-            <td style="padding: 8px; font-family: monospace; color: #666; font-size: 11px;">${item.sku || 'N/A'}</td>
-            <td style="padding: 8px; color: #666; font-size: 11px;">${item.option || '-'}</td>
-            <td style="padding: 8px; text-align: center; font-weight: 600;">${item.available}</td>
-            <td style="padding: 8px; text-align: center;">${item.reorderLevel}</td>
-            <td style="padding: 8px; text-align: center;">
-              <span style="
-                background: ${item.status.color}; 
-                color: white; 
-                padding: 3px 8px; 
-                border-radius: 12px; 
-                font-size: 10px; 
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-              ">${item.status.label}</span>
-            </td>
-          </tr>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e9ecef;">
+            <div>
+              <div style="font-weight: 500; color: #333; font-size: 13px;">${variantName}</div>
+              ${Object.keys(variantData.options).length > 0 ? `
+                <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                  Options: ${Object.keys(variantData.options).join(', ')}
+                </div>
+              ` : ''}
+            </div>
+            <div style="display: flex; gap: 8px; font-size: 11px;">
+              <span style="background: #ffebee; color: #c62828; padding: 2px 6px; border-radius: 10px; font-weight: 600;">
+                ${variantData.outOfStock} out
+              </span>
+              <span style="background: #fff3e0; color: #ef6c00; padding: 2px 6px; border-radius: 10px; font-weight: 600;">
+                ${variantData.lowStock} low
+              </span>
+              <span style="background: #e8f5e8; color: #2e7d32; padding: 2px 6px; border-radius: 10px; font-weight: 600;">
+                ${variantData.wellStocked} good
+              </span>
+            </div>
+          </div>
         `;
       });
       
       categoriesHtml += `
-              </tbody>
-            </table>
           </div>
         </div>
       `;
-    });
+    }
     
     categoriesHtml += `
         </div>
@@ -321,32 +384,57 @@ function generateInventoryEmailHtml(organizedData) {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Daily Inventory Report</title>
+        <title>Daily Inventory Summary</title>
       </head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f8f9fa;">
-        <div style="max-width: 1000px; margin: 0 auto; background: white; min-height: 100vh;">
+        <div style="max-width: 800px; margin: 0 auto; background: white; min-height: 100vh;">
           <!-- Header -->
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
-            <h1 style="margin: 0; font-size: 28px; font-weight: 700; margin-bottom: 8px;">Daily Inventory Report</h1>
-            <p style="margin: 0; font-size: 16px; opacity: 0.9;">${currentDate}</p>
-            <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px; display: inline-block;">
-              <p style="margin: 0; font-size: 14px;">
-                <strong>MaddyCustom Admin Dashboard</strong><br>
-                Automated Inventory Management System
-              </p>
-            </div>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 700; margin-bottom: 8px;">📊 Daily Inventory Summary</h1>
+            <p style="margin: 0; font-size: 14px; opacity: 0.9;">${currentDate}</p>
           </div>
           
-          <!-- Content -->
-          <div style="padding: 30px 20px;">
-            ${categoriesHtml}
+          <!-- Summary Cards -->
+          <div style="padding: 25px 20px 15px;">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px;">
+              <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 2px solid #e9ecef;">
+                <div style="font-size: 28px; font-weight: 800; color: #333; margin-bottom: 5px;">${totals.totalItems}</div>
+                <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Total Items</div>
+              </div>
+              <div style="text-align: center; padding: 20px; background: #ffebee; border-radius: 8px; border: 2px solid #ffcdd2;">
+                <div style="font-size: 28px; font-weight: 800; color: #c62828; margin-bottom: 5px;">${totals.totalOutOfStock}</div>
+                <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Out of Stock</div>
+              </div>
+              <div style="text-align: center; padding: 20px; background: #fff3e0; border-radius: 8px; border: 2px solid #ffcc02;">
+                <div style="font-size: 28px; font-weight: 800; color: #ef6c00; margin-bottom: 5px;">${totals.totalLowStock}</div>
+                <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Low Stock</div>
+              </div>
+              <div style="text-align: center; padding: 20px; background: #e8f5e8; border-radius: 8px; border: 2px solid #c8e6c9;">
+                <div style="font-size: 28px; font-weight: 800; color: #2e7d32; margin-bottom: 5px;">${totals.totalWellStocked}</div>
+                <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Well Stocked</div>
+              </div>
+            </div>
+            
+            <!-- Action Button -->
+            <div style="text-align: center; margin-bottom: 25px;">
+              <a href="${adminPageUrl}" 
+                 style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 12px 25px; border-radius: 25px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
+                🔗 View & Manage Inventory Dashboard
+              </a>
+            </div>
+            
+            <!-- Categories -->
+            <div>
+              <h2 style="margin: 0 0 20px 0; font-size: 18px; color: #333; font-weight: 700;">Categories Breakdown:</h2>
+              ${categoriesHtml}
+            </div>
             
             <!-- Footer -->
-            <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center;">
+            <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center;">
               <p style="margin: 0; color: #666; font-size: 12px;">
-                This is an automated daily inventory report generated by MaddyCustom Admin System.<br>
+                📧 Automated daily inventory summary from MaddyCustom Admin System<br>
                 Report generated on ${new Date().toLocaleString()}<br>
-                <strong>For questions or support, contact the development team.</strong>
+                ${totals.totalOutOfStock > 0 ? `<strong style="color: #c62828;">⚠️ Immediate attention needed for ${totals.totalOutOfStock} out-of-stock items!</strong>` : ''}
               </p>
             </div>
           </div>

@@ -14,6 +14,7 @@ export default function Production() {
     { text: 'Download Inventory Orders Data', link: '/admin/download/download-inventory-orders' },
     { text: 'Manage Customer Queries', link: '/admin/manage/customer-support' },
     { text: 'Manage Packaging Boxes', link: '/admin/manage/production/packaging-boxes' },
+    { text: 'Manage Inventory', link: '/admin/manage/production/inventory' },
 
   ];
 

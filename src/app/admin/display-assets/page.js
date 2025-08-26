@@ -25,13 +25,15 @@ import {
   NewReleases,
   Apps,
   DirectionsCar,
-  CarRepair
+  CarRepair,
+  PhotoLibrary
 } from '@mui/icons-material';
 import HeroCarouselManager from '@/components/admin/display-assets/HeroCarouselManager';
 import NewArrivalsManager from '@/components/admin/display-assets/NewArrivalsManager';
 import CategorySliderManager from '@/components/admin/display-assets/CategorySliderManager';
 import CarInteriorsCarousel from '@/components/admin/display-assets/CarInteriorsCarousel';
 import CarExteriorsCarousel from '@/components/admin/display-assets/CarExteriorsCarousel';
+import CustomerPhotosManager from '@/components/admin/display-assets/CustomerPhotosManager';
 
 const pageOptions = [
   { value: 'homepage', label: 'Homepage', icon: <HomeIcon /> },
@@ -42,7 +44,8 @@ const componentTabs = [
   { value: 'new-arrivals', label: 'New Arrivals', icon: <NewReleases />, description: 'Featured products and latest items' },
   { value: 'categories', label: 'Category Slider', icon: <Apps />, description: 'Category navigation cards' },
   { value: 'car-interiors', label: 'Car Interiors', icon: <DirectionsCar />, description: 'Car interior showcase carousel' },
-  { value: 'car-exteriors', label: 'Car Exteriors', icon: <CarRepair />, description: 'Car exterior showcase carousel' }
+  { value: 'car-exteriors', label: 'Car Exteriors', icon: <CarRepair />, description: 'Car exterior showcase carousel' },
+  { value: 'customer-photos', label: 'Customer Photos', icon: <PhotoLibrary />, description: 'Customer photos showcase section' }
 ];
 
 export default function DisplayAssetsPage() {
@@ -70,6 +73,8 @@ export default function DisplayAssetsPage() {
         return <CarInteriorsCarousel page={selectedPage} />;
       case 'car-exteriors':
         return <CarExteriorsCarousel page={selectedPage} />;
+      case 'customer-photos':
+        return <CustomerPhotosManager page={selectedPage} />;
       default:
         return <HeroCarouselManager page={selectedPage} />;
     }
@@ -128,16 +133,30 @@ export default function DisplayAssetsPage() {
       </Paper>
 
       {/* Component Tabs */}
-      <Paper sx={{ mb: 4 }}>
+      <Paper sx={{ mb: 4, overflow: 'hidden' }}>
         <Tabs
           value={activeTab}
           onChange={handleTabChange}
-          variant="fullWidth"
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          aria-label="Display asset manager sections"
           sx={{
+            '& .MuiTabs-flexContainer': {
+              gap: 0.5,
+            },
             '& .MuiTab-root': {
               minHeight: 72,
               flexDirection: 'column',
-              gap: 1
+              gap: 1,
+              minWidth: { xs: 120, sm: 140 },
+              flexShrink: 0,
+              alignItems: 'center'
+            },
+            '& .MuiTabs-scrollButtons.Mui-disabled': { opacity: 0.3 },
+            // Smooth scroll behavior for mouse / trackpad
+            '& .MuiTabs-scroller': {
+              scrollbarWidth: 'thin'
             }
           }}
         >

@@ -40,7 +40,7 @@ export default function CustomerPhotosManager({ page = 'homepage' }) {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState(null);
-  const [altText, setAltText] = useState('');
+  const [altText, setAltText] = useState('Customer Photo');
   const [currentMedia, setCurrentMedia] = useState(null); // { desktop, mobile }
 
   const fetchPhotos = useCallback(async () => {
@@ -65,14 +65,14 @@ export default function CustomerPhotosManager({ page = 'homepage' }) {
 
   const handleCreateNew = () => {
     setEditingPhoto(null);
-    setAltText('');
+    setAltText('Customer Photo');
     setCurrentMedia(null);
     setDialogOpen(true);
   };
 
   const handleEdit = (photo) => {
     setEditingPhoto(photo);
-    setAltText(photo.content || '');
+    setAltText(photo.content || 'Customer Photo');
     setCurrentMedia(photo.media);
     setDialogOpen(true);
   };

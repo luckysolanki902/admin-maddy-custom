@@ -18,10 +18,15 @@ import Image from 'next/image';
 const ProductCard = ({ product }) => {
   const [open, setOpen] = useState(false);
   const imageBaseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || '';
-  const productImage =
-    product.images && product.images.length > 0
-      ? `${imageBaseUrl}${product.images[0]}`
-      : '/images/dark-circular-logo.png';
+  const normalize = (p) => {
+    if (!p) return '/images/dark-circular-logo.png';
+    if (p.startsWith('http')) return p; // already full
+    const path = p.startsWith('/') ? p : `/${p}`;
+    return `${imageBaseUrl}${path}`;
+  };
+
+  const primary = product.effectiveImage || (product.images && product.images[0]);
+  const productImage = normalize(primary);
 
   // Handle opening the modal and pushing a new state
   const handleOpen = () => {
@@ -85,11 +90,11 @@ const ProductCard = ({ product }) => {
             <Image
               src={productImage}
               alt={product.name}
-              layout="fill"
-              objectFit="cover"
-              placeholder="blur"
-              blurDataURL="/placeholder.png"
+              fill
+              style={{ objectFit: 'cover' }}
+              placeholder="empty"
               priority={false}
+              sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 25vw"
             />
           </Box>
           <CardContent sx={{ flexGrow: 1 }}>
@@ -200,9 +205,10 @@ const ProductCard = ({ product }) => {
           <Image
             src={productImage}
             alt={product.name}
-            layout="fill"
-            objectFit="contain"
-            priority={true}
+            fill
+            style={{ objectFit: 'contain' }}
+            priority
+            sizes="100vw"
           />
         </Box>
       </Dialog>

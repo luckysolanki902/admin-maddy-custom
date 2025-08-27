@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Container, TextField, Grid, Typography, Pagination, Box } from '@mui/material';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Container, TextField, Grid, Typography, Pagination } from '@mui/material';
 import Skeleton from '@mui/material/Skeleton';
 
 import debounce from 'lodash.debounce';
 import axios from 'axios';
 import ProductCard from '@/components/page-sections/sku-search/ProductCard';
+
+const CACHE_MS = 1000 * 60 * 2; // 2 minutes client cache
 
 const SKUSearchPage = () => {
   const [sku, setSku] = useState('');
@@ -18,47 +20,71 @@ const SKUSearchPage = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const fetchProducts = async (skuQuery, pageNumber = 1) => {
+  // Simple in-memory client cache across navigations (lives while page remains mounted)
+  const cacheRef = useRef(new Map()); // key -> { timestamp, data, etag }
+
+  const fetchProducts = useCallback(async (skuQuery, pageNumber = 1) => {
+    if (!skuQuery.trim()) {
+      setProducts([]);
+      setTotalPages(1);
+      setPage(1);
+      return;
+    }
+    const key = JSON.stringify({ skuQuery, pageNumber });
+    const now = Date.now();
+    const cached = cacheRef.current.get(key);
+    if (cached && now - cached.timestamp < CACHE_MS) {
+      setProducts(cached.data.products);
+      setTotalPages(cached.data.totalPages);
+      setPage(cached.data.currentPage);
+      return; // serve from cache without loading state flash
+    }
     setLoading(true);
     setError(null);
     try {
+      const headers = {};
+      if (cached?.etag) headers['If-None-Match'] = cached.etag;
       const response = await axios.get('/api/admin/manage/product/sku-search', {
-        params: {
-          sku: skuQuery,
-          page: pageNumber,
-          limit: 30,
-        },
+        params: { sku: skuQuery, page: pageNumber, limit: 30 },
+        headers,
+        validateStatus: status => (status >= 200 && status < 300) || status === 304,
       });
-      setProducts(response.data.products);
-      setTotalPages(response.data.totalPages);
-      setPage(response.data.currentPage);
+      if (response.status === 304 && cached) {
+        // Not modified, reuse cache
+        setProducts(cached.data.products);
+        setTotalPages(cached.data.totalPages);
+        setPage(cached.data.currentPage);
+        return;
+      }
+      const etag = response.headers['etag'];
+      const data = response.data;
+      setProducts(data.products);
+      setTotalPages(data.totalPages);
+      setPage(data.currentPage);
+      cacheRef.current.set(key, { timestamp: now, data, etag });
     } catch (err) {
       console.error(err);
       setError('Failed to fetch products.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Debounced search function
-  const debouncedSearch = useCallback(
-    debounce((skuTerm) => {
-      if (skuTerm.trim() !== '') {
-        fetchProducts(skuTerm);
+  // Wrap fetch in a stable debounced function; recreate only if fetchProducts changes
+  useEffect(() => {
+    const handler = debounce((term) => {
+      if (term.trim()) {
+        fetchProducts(term, 1);
       } else {
         setProducts([]);
         setTotalPages(1);
         setPage(1);
       }
-    }, 500),
-    []
-  );
-
-  useEffect(() => {
-    debouncedSearch(sku);
-    // Cleanup debounce on unmount
-    return debouncedSearch.cancel;
-  }, [sku, debouncedSearch]);
+    }, 400);
+    handler(sku);
+    return () => handler.cancel();
+  }, [sku, fetchProducts]);
 
   // Handle pagination change
   const handlePageChange = (event, value) => {
@@ -90,6 +116,12 @@ const SKUSearchPage = () => {
         variant="outlined"
         value={sku}
         onChange={(e) => setSku(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            // Force immediate fetch bypassing debounce
+            fetchProducts(sku, 1);
+          }
+        }}
         placeholder="Enter complete or partial SKU"
         sx={{ marginBottom: 4 }}
       />

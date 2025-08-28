@@ -142,7 +142,7 @@ const SpecificCategorySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-        commonProductCardImagesSource: {
+    commonProductCardImagesSource: {
       type: String,
       enum: ['variant', 'specCat'],
     },
@@ -150,12 +150,12 @@ const SpecificCategorySchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    
+
     letterMappingGroups: {
       type: [LetterMappingGroupSchema],
       default: [],
     },
-    
+
     // Inventory mode: whether this category uses inventory tracking or on-demand fulfillment
     inventoryMode: {
       type: String,

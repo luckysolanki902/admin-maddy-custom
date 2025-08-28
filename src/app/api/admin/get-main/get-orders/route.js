@@ -18,6 +18,16 @@ dayjs.extend(timezone);
  * GET /api/admin/get-main/get-orders
  * 
  * Fetches orders based on various filters and calculates summary metrics.
+ *
+ * SCHEMA UPDATE NOTE (Grouping & Multi-Shipments):
+ * Orders can now be split into multiple shipment orders that share an orderGroupId.
+ * A "main" order (isMainOrder=true OR no orderGroupId) carries the commercial totals (totalAmount, totalDiscount, etc.).
+ * Child shipment orders (isMainOrder=false) should NOT inflate financial metrics or order counts.
+ * Metrics are therefore computed ONLY from:
+ *   - Orders where isMainOrder=true, OR
+ *   - Orders with orderGroupId=null (legacy single orders)
+ * UI requires grouped response so that each group renders once with its shipments collapsed under it.
+ * Response now includes: orderGroups[], totalOrderGroups, while retaining backward fields for compatibility.
  * 
  * Query Parameters:
  * - page: Number (default: 1)
@@ -67,7 +77,7 @@ export async function GET(req) {
     const singleVariantOnly = searchParams.get('singleVariantOnly') === 'true';
     const singleItemCountOnly = searchParams.get('singleItemCountOnly') === 'true';
 
-    const skip = (page - 1) * limit;
+  const skip = (page - 1) * limit;
 
     // Base query initialization
     let baseQuery = {};
@@ -238,32 +248,39 @@ export async function GET(req) {
     }
 
     /**
-     * Function to calculate aggregates based on the query
+     * Function to calculate aggregates based on the query (FINANCIALS ONLY MAIN ORDERS)
+     * We avoid double counting by restricting to main orders or legacy standalone orders.
      */
     const calculateAggregates = async (query) => {
+      const financialMatch = {
+        ...query,
+        $or: [
+          { isMainOrder: true },
+          { orderGroupId: null }, // legacy / single orders
+        ],
+      };
+
       const aggregationResult = await Order.aggregate([
-        { $match: query },
+        { $match: financialMatch },
         {
           $addFields: {
-            extraChargesTotal: { $sum: "$extraCharges.chargesAmount" }
-          }
+            extraChargesTotal: { $sum: '$extraCharges.chargesAmount' },
+          },
         },
         {
           $facet: {
-            // Existing aggregate metrics with updated gross sales calculation
             metrics: [
               {
                 $group: {
                   _id: null,
-                  sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue)
-                  sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
-                  sumItemsTotal: { $sum: { $add: ["$itemsTotal", "$extraChargesTotal"] } }, // Sum of itemsTotal + extraCharges (Gross Sales)
-                  oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
-                  count: { $sum: 1 }, // Total number of orders
-                }
-              }
+                  sumTotalAmount: { $sum: '$totalAmount' },
+                  sumTotalDiscount: { $sum: '$totalDiscount' },
+                  sumItemsTotal: { $sum: { $add: ['$itemsTotal', '$extraChargesTotal'] } },
+                  oldestOrderDate: { $min: '$createdAt' },
+                  count: { $sum: 1 }, // count of MAIN orders (order groups)
+                },
+              },
             ],
-            // UTM-based order counts
             utmCounts: [
               {
                 $group: {
@@ -273,65 +290,53 @@ export async function GET(req) {
                       $cond: [
                         {
                           $or: [
-                            { $regexMatch: { input: "$utmDetails.source", regex: /^instagram/i } },
-                            { $regexMatch: { input: "$utmDetails.source", regex: /^facebook/i } },
-                          ]
+                            { $regexMatch: { input: '$utmDetails.source', regex: /^instagram/i } },
+                            { $regexMatch: { input: '$utmDetails.source', regex: /^facebook/i } },
+                          ],
                         },
                         1,
-                        0
-                      ]
-                    }
+                        0,
+                      ],
+                    },
                   },
                   directOrders: {
                     $sum: {
                       $cond: [
-                        { $eq: [{ $toLower: "$utmDetails.source" }, "direct"] },
+                        { $eq: [{ $toLower: '$utmDetails.source' }, 'direct'] },
                         1,
-                        0
-                      ]
-                    }
+                        0,
+                      ],
+                    },
                   },
                   instagramBioOrders: {
                     $sum: {
                       $cond: [
                         {
                           $and: [
-                            { $regexMatch: { input: "$utmDetails.source", regex: /^instagram/i } },
-                            { $eq: [{ $toLower: "$utmDetails.campaign" }, "bio"] }
-                          ]
+                            { $regexMatch: { input: '$utmDetails.source', regex: /^instagram/i } },
+                            { $eq: [{ $toLower: '$utmDetails.campaign' }, 'bio'] },
+                          ],
                         },
                         1,
-                        0
-                      ]
-                    }
-                  }
-                }
-              }
-            ]
-          }
-        }
+                        0,
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
       ]);
 
-      // Extract metrics
       const metrics = aggregationResult[0].metrics[0] || {};
       const utmCounts = aggregationResult[0].utmCounts[0] || {};
 
-      const {
-        sumTotalAmount = 0,
-        sumTotalDiscount = 0,
-        sumItemsTotal = 0,
-        oldestOrderDate = null,
-        count = 0,
-      } = metrics;
+      const { sumTotalAmount = 0, sumTotalDiscount = 0, sumItemsTotal = 0, oldestOrderDate = null, count = 0 } = metrics;
+      const { metaOrders = 0, directOrders = 0, instagramBioOrders = 0 } = utmCounts;
 
-      const {
-        metaOrders = 0,
-        directOrders = 0,
-        instagramBioOrders = 0,
-      } = utmCounts;
-
-      const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal + extraCharges
-      const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
+      const grossSales = sumItemsTotal;
+      const revenue = sumTotalAmount;
       const aov = count > 0 ? revenue / count : 0;
       const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
 
@@ -343,68 +348,91 @@ export async function GET(req) {
         aov,
         discountRate,
         oldestOrderDate,
-        count,
-        utmCounts: {
-          metaOrders,
-          directOrders,
-          instagramBioOrders,
-        },
+        count, // main order / group count
+        utmCounts: { metaOrders, directOrders, instagramBioOrders },
       };
     };
 
     /**
-     * Function to fetch orders based on a query with pagination and population
+     * Group orders (in-memory) by orderGroupId/_id and build orderGroups array.
+     * Pagination is applied at group level.
      */
-    const fetchOrdersFromQuery = async (query, pageNumber = page, limitNumber = limit) => {
-      // Calculate aggregates
-      const aggregates = await calculateAggregates(query);
-      const {
-        grossSales,
-        revenue,
-        sumTotalAmount,
-        sumTotalDiscount,
-        aov,
-        discountRate,
-        oldestOrderDate,
-        count: totalOrders,
-        utmCounts,
-      } = aggregates;
-
-      // Calculate totalPages
-      const totalPages = Math.ceil(totalOrders / limitNumber);
-
-      // Count total items
-      const totalItemsAggregation = await Order.aggregate([
-        { $match: query },
-        { $unwind: "$items" },
-        { $group: { _id: null, total: { $sum: "$items.quantity" } } }
-      ]);
-      const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
-
-      // Fetch orders with pagination and population
-      const orders = await Order.find(query)
+    const buildGroupedResponse = async (query) => {
+      // Fetch all candidate orders for the time window (could optimize with aggregation distinct group ids)
+      const rawOrders = await Order.find(query)
         .sort({ createdAt: -1 })
-        .skip((pageNumber - 1) * limitNumber)
-        .limit(limitNumber)
         .populate('user')
         .populate({
           path: 'items.product',
           model: 'Product',
-          populate: {
-            path: 'specificCategoryVariant',
-            model: 'SpecificCategoryVariant',
-          },
+          populate: { path: 'specificCategoryVariant', model: 'SpecificCategoryVariant' },
         })
-        .populate('paymentDetails.mode');
+        .populate('paymentDetails.mode')
+        .lean();
 
-      // Optionally format the oldestOrderDate
+      const groupsMap = new Map();
+
+      for (const o of rawOrders) {
+        const groupKey = o.orderGroupId || o._id.toString();
+        if (!groupsMap.has(groupKey)) {
+          groupsMap.set(groupKey, { groupId: groupKey, mainOrder: null, shipments: [] });
+        }
+        const grp = groupsMap.get(groupKey);
+        if (o.isMainOrder || !o.orderGroupId) {
+          // Prefer first main order; if multiple flagged, keep earliest createdAt
+            if (!grp.mainOrder) grp.mainOrder = o;
+            else {
+              // choose the main order with earlier createdAt for determinism
+              if (dayjs(o.createdAt).isBefore(dayjs(grp.mainOrder.createdAt))) grp.mainOrder = o;
+            }
+        } else {
+          grp.shipments.push(o);
+        }
+      }
+
+      // Convert map to array & ensure mainOrder present (fallback to first shipment if misflagged)
+      let orderGroups = Array.from(groupsMap.values()).map(g => {
+        if (!g.mainOrder) {
+          // fallback: promote first shipment
+          g.mainOrder = g.shipments[0];
+          g.shipments = g.shipments.slice(1);
+        }
+        // aggregated items (avoid double count if shipments replicate items of mainOrder)
+        const shipmentsItemsCount = g.shipments.reduce((acc, s) => acc + (s.itemsCount || 0), 0);
+        const aggregatedItemsCount = g.mainOrder.itemsCount || 0; // assume main order has full count
+        return {
+          ...g,
+          aggregated: {
+            itemsCount: aggregatedItemsCount,
+            shipmentsCount: g.shipments.length,
+            totalAmount: g.mainOrder.totalAmount,
+            totalDiscount: g.mainOrder.totalDiscount,
+            paymentStatus: g.mainOrder.paymentStatus,
+            deliveryStatus: g.mainOrder.deliveryStatus,
+          },
+        };
+      });
+
+      // Sort groups by mainOrder.createdAt desc
+      orderGroups.sort((a, b) => dayjs(b.mainOrder.createdAt).valueOf() - dayjs(a.mainOrder.createdAt).valueOf());
+
+      const totalOrderGroups = orderGroups.length;
+      const totalPages = Math.ceil(totalOrderGroups / limit);
+      const pagedGroups = orderGroups.slice(skip, skip + limit);
+
+      // Total items (use main order items only to avoid double count)
+      const totalItems = orderGroups.reduce((acc, g) => acc + (g.mainOrder.items.reduce((c, it) => c + (it.quantity || 0), 0)), 0);
+
+      // Financial aggregates via existing function (already main-order filtered)
+      const aggregates = await calculateAggregates(query);
+      const { grossSales, revenue, sumTotalAmount, sumTotalDiscount, aov, discountRate, oldestOrderDate, count, utmCounts } = aggregates;
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
       return {
-        orders,
-        totalOrders,
+        orderGroups: pagedGroups,
+        totalOrderGroups: count, // count returned from aggregates equals main order count
         totalPages,
-        currentPage: pageNumber,
+        currentPage: page,
         totalItems,
         grossSales,
         revenue,
@@ -413,16 +441,8 @@ export async function GET(req) {
         aov,
         discountRate,
         oldestOrderDate: formattedOldestOrderDate,
-        utmCounts, // Include the new UTM counts
+        utmCounts,
       };
-    };
-
-    /**
-     * Function to fetch orders based on a query
-     */
-    const fetchOrdersFinal = async (query) => {
-      const result = await fetchOrdersFromQuery(query);
-      return result;
     };
 
     // Handle problematic filters
@@ -452,135 +472,13 @@ export async function GET(req) {
       // Combine baseQuery with problematicCondition
       const problematicQuery = { ...baseQuery, ...problematicCondition };
 
-      // Fetch aggregates and orders for problematic queries
-      const problematicAggregates = await calculateAggregates(problematicQuery);
-      const {
-        grossSales,
-        revenue,
-        sumTotalAmount,
-        sumTotalDiscount,
-        aov,
-        discountRate,
-        oldestOrderDate,
-        count: totalOrders,
-        utmCounts,
-      } = problematicAggregates;
-
-      // Calculate totalPages
-      const totalPages = Math.ceil(totalOrders / limit);
-
-      // Count total items
-      const totalItemsAggregation = await Order.aggregate([
-        { $match: problematicQuery },
-        { $unwind: "$items" },
-        { $group: { _id: null, total: { $sum: "$items.quantity" } } }
-      ]);
-      const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
-
-      // Fetch problematic orders with pagination and population
-      const orders = await Order.find(problematicQuery)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('user')
-        .populate({
-          path: 'items.product',
-          model: 'Product',
-          populate: {
-            path: 'specificCategoryVariant',
-            model: 'SpecificCategoryVariant',
-          },
-        })
-        .populate('paymentDetails.mode');
-
-      // Optionally format the oldestOrderDate
-      const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
-
-      // Respond with data including utmCounts
-      return new Response(
-        JSON.stringify({
-          orders,
-          totalOrders,
-          totalPages,
-          currentPage: page,
-          totalItems,
-          grossSales,
-          revenue,
-          sumTotalAmount,
-          sumTotalDiscount,
-          aov,
-          discountRate,
-          oldestOrderDate: formattedOldestOrderDate,
-          utmCounts, // Include the new UTM counts
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+  // Grouped response for problematic filter
+  const grouped = await buildGroupedResponse(problematicQuery);
+  return new Response(JSON.stringify(grouped), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } else {
-      // No problematic filter, proceed with base query
-
-      // Fetch aggregates and orders for base query
-      const baseAggregates = await calculateAggregates(baseQuery);
-      const {
-        grossSales,
-        revenue,
-        sumTotalAmount,
-        sumTotalDiscount,
-        aov,
-        discountRate,
-        oldestOrderDate,
-        count: totalOrders,
-        utmCounts,
-      } = baseAggregates;
-
-      // Calculate totalPages
-      const totalPages = Math.ceil(totalOrders / limit);
-
-      // Count total items
-      const totalItemsAggregation = await Order.aggregate([
-        { $match: baseQuery },
-        { $unwind: "$items" },
-        { $group: { _id: null, total: { $sum: "$items.quantity" } } }
-      ]);
-      const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
-
-      // Fetch orders with pagination and population
-      const orders = await Order.find(baseQuery)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('user')
-        .populate({
-          path: 'items.product',
-          model: 'Product',
-          populate: {
-            path: 'specificCategoryVariant',
-            model: 'SpecificCategoryVariant',
-          },
-        })
-        .populate('paymentDetails.mode');
-
-      // Optionally format the oldestOrderDate
-      const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
-
-      // Respond with data including utmCounts
-      return new Response(
-        JSON.stringify({
-          orders,
-          totalOrders,
-          totalPages,
-          currentPage: page,
-          totalItems,
-          grossSales,
-          revenue,
-          sumTotalAmount,
-          sumTotalDiscount,
-          aov,
-          discountRate,
-          oldestOrderDate: formattedOldestOrderDate,
-          utmCounts, // Include the new UTM counts
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+  // Standard grouped response
+  const grouped = await buildGroupedResponse(baseQuery);
+  return new Response(JSON.stringify(grouped), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
   } catch (error) {
     console.error("Error in get-orders API:", error);

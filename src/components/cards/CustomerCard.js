@@ -175,6 +175,9 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
     return status.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase());
   };
 
+  const shipments = order._groupMeta?.shipments || [];
+  const groupId = order._groupMeta?.groupId;
+  const shipmentsCount = shipments.length;
   return (
     <Accordion
       expanded={expanded === order._id}
@@ -205,7 +208,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
         }}
       >
         <Grid container spacing={2} alignItems="center">
-          {/* Order ID and Date */}
+          {/* Order ID / Group ID and Date */}
           <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ display: 'flex', flexDirection: 'column' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
@@ -219,7 +222,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     alignItems: 'center',
                   }}
                 >
-                  {order._id.slice(0, 10)}...
+                  {groupId ? `GRP_${groupId.slice(0,8)}` : order._id.slice(0, 10) + '...'}
                 </Typography>
                 {/* Replace IconButton with Box to avoid button nesting */}
                 <Box
@@ -254,6 +257,11 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               >
                 {formatOrderDate(order.createdAt)}
               </Typography>
+              {shipmentsCount > 0 && (
+                <Typography variant="caption" sx={{ color: '#90CAF9', mt: 0.5 }}>
+                  {shipmentsCount} extra shipment{shipmentsCount>1?'s':''}
+                </Typography>
+              )}
             </Box>
           </Grid>
 
@@ -333,7 +341,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
             </Box>
           </Grid>
 
-          {/* UTM Source and Product Count */}
+          {/* UTM Source and Product Count (Main order aggregated only) */}
           <Grid item xs={12} sm={6} md={3}>
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
@@ -634,6 +642,34 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
       <AccordionDetails sx={{ backgroundColor: '#1A1A1A', p: 3 }}>
         {/* Cards Layout */}
         <Grid container spacing={3}>
+          {shipmentsCount > 0 && (
+            <Grid item xs={12}>
+              <Paper elevation={0} sx={{ p:2, background:'rgba(255,255,255,0.03)', borderRadius:'12px', border:'1px solid rgba(255,255,255,0.05)' }}>
+                <Typography variant="h6" sx={{ mb:1.5, fontSize:'0.95rem', fontWeight:600, color:'white' }}>
+                  Shipments ({shipmentsCount})
+                </Typography>
+                <Box sx={{ display:'flex', flexDirection:'column', gap:1 }}>
+                  {shipments.map(s => {
+                    const sItemsTotal = (s.items||[]).reduce((a,i)=>a + (i.priceAtPurchase * (i.quantity||0)),0);
+                    const sQuantity = (s.items||[]).reduce((a,i)=>a + (i.quantity||0),0);
+                    return (
+                      <Box key={s._id} sx={{ p:1.5, border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', background:'rgba(0,0,0,0.25)' }}>
+                        <Box sx={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:1 }}>
+                          <Typography variant="body2" sx={{ color:'#4f86f7', fontWeight:600 }}>SHIP_{s._id.slice(0,8)}</Typography>
+                          <Chip size="small" label={formatStatus(s.deliveryStatus)} color={statusColors[s.deliveryStatus]||'default'} />
+                        </Box>
+                        <Typography variant="caption" sx={{ color:'text.secondary' }}>Created: {formatOrderDate(s.createdAt)}</Typography>
+                        <Box sx={{ mt:1, display:'flex', flexWrap:'wrap', gap:1 }}>
+                          <Chip size="small" label={`${sQuantity} item${sQuantity!==1?'s':''}`} sx={{ background:'rgba(79,134,247,0.15)', color:'#4f86f7' }} />
+                          <Chip size="small" label={`Items Total ₹${sItemsTotal.toLocaleString('en-IN')}`} sx={{ background:'rgba(255,255,255,0.08)', color:'#E0E0E0' }} />
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Paper>
+            </Grid>
+          )}
           {/* First row: Status and Address */}
           <Grid item xs={12} md={6}>
             <Paper

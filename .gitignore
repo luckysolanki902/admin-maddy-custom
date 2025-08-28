@@ -42,3 +42,4 @@ next-env.d.ts
 
 # custom
 /test/product-info
+private/

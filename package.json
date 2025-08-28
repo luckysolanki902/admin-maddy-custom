@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync-db": "node scripts/sync-prod-to-test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

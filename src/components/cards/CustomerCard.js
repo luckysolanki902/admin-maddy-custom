@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState, memo } from 'react';
+import React, { useState, memo, Fragment } from 'react';
 import {
   Accordion,
   AccordionSummary,
@@ -111,11 +111,45 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
   const [copied, setCopied] = useState(false);
   const [phoneCopied, setPhoneCopied] = useState(false);
 
-  // Calculate item totals
-  const itemsTotal = order.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
+  // Check if this is a grouped order (has shipment breakdown)
+  const isGroupedOrder = order.shipmentBreakdown && order.shipmentBreakdown.length > 1;
+  const mainShipment = order.shipmentBreakdown ? order.shipmentBreakdown.find(s => s.isMainShipment) : null;
+  const linkedShipments = order.shipmentBreakdown ? order.shipmentBreakdown.filter(s => !s.isMainShipment) : [];
+
+  // Calculate totals for grouped orders
+  const calculateGroupedTotals = () => {
+    if (!isGroupedOrder) {
+      return {
+        totalAmount: order.totalAmount,
+        totalDiscount: order.totalDiscount,
+        totalItems: order.items.reduce((acc, item) => acc + (item.quantity || 0), 0),
+        itemsTotal: order.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0),
+      };
+    }
+
+    // Calculate totals across all shipments
+    let totalAmount = 0;
+    let totalDiscount = 0;
+    let totalItems = 0;
+    let itemsTotal = 0;
+
+    order.shipmentBreakdown.forEach(shipment => {
+      totalAmount += shipment.orderData.totalAmount || 0;
+      totalDiscount += shipment.orderData.totalDiscount || 0;
+      totalItems += shipment.orderData.items.reduce((acc, item) => acc + (item.quantity || 0), 0);
+      itemsTotal += shipment.orderData.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
+    });
+
+    return { totalAmount, totalDiscount, totalItems, itemsTotal };
+  };
+
+  const groupedTotals = calculateGroupedTotals();
+
+  // Calculate item totals (for single orders, use existing logic)
+  const itemsTotal = isGroupedOrder ? groupedTotals.itemsTotal : order.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
 
   // Calculate total quantity of all items
-  const totalItemsQuantity = order.items.reduce((acc, item) => acc + (item.quantity || 0), 0);
+  const totalItemsQuantity = isGroupedOrder ? groupedTotals.totalItems : order.items.reduce((acc, item) => acc + (item.quantity || 0), 0);
 
   // Calculate extra charges total
   const extraChargesTotal = order.extraCharges?.reduce((acc, charge) => acc + (charge.chargesAmount || 0), 0) || 0;
@@ -175,9 +209,6 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
     return status.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase());
   };
 
-  const shipments = order._groupMeta?.shipments || [];
-  const groupId = order._groupMeta?.groupId;
-  const shipmentsCount = shipments.length;
   return (
     <Accordion
       expanded={expanded === order._id}
@@ -208,7 +239,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
         }}
       >
         <Grid container spacing={2} alignItems="center">
-          {/* Order ID / Group ID and Date */}
+          {/* Order ID and Date */}
           <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ display: 'flex', flexDirection: 'column' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
@@ -222,7 +253,20 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     alignItems: 'center',
                   }}
                 >
-                  {groupId ? `GRP_${groupId.slice(0,8)}` : order._id.slice(0, 10) + '...'}
+                  {order._id.slice(0, 10)}...
+                  {isGroupedOrder && (
+                    <Chip 
+                      label={`${order.shipmentBreakdown.length} shipments`}
+                      size="small"
+                      sx={{ 
+                        ml: 1, 
+                        height: '20px', 
+                        fontSize: '0.7rem',
+                        backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                        color: '#4CAF50'
+                      }}
+                    />
+                  )}
                 </Typography>
                 {/* Replace IconButton with Box to avoid button nesting */}
                 <Box
@@ -257,11 +301,6 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               >
                 {formatOrderDate(order.createdAt)}
               </Typography>
-              {shipmentsCount > 0 && (
-                <Typography variant="caption" sx={{ color: '#90CAF9', mt: 0.5 }}>
-                  {shipmentsCount} extra shipment{shipmentsCount>1?'s':''}
-                </Typography>
-              )}
             </Box>
           </Grid>
 
@@ -341,7 +380,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
             </Box>
           </Grid>
 
-          {/* UTM Source and Product Count (Main order aggregated only) */}
+          {/* UTM Source and Product Count */}
           <Grid item xs={12} sm={6} md={3}>
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
@@ -446,144 +485,319 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
 
                   {/* Improved product cards */}
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {order.items.map((item, index) => (
-                      <Card
-                        key={index}
-                        elevation={0}
-                        sx={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                          borderRadius: '12px',
-                          overflow: 'visible',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          position: 'relative',
-                          transition: 'all 0.2s ease',
-                          '&:hover': {
-                            backgroundColor: 'rgba(255, 255, 255, 0.07)',
-                            transform: 'translateY(-2px)',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-                          }
-                        }}
-                      >
-                        <Box sx={{
-                          display: 'flex',
-                          p: 2,
-                          gap: 2,
-                          alignItems: 'center'
-                        }}>
-                          {/* Product image with Next Image */}
-                          <Box
+                    {isGroupedOrder ? (
+                      // Show items from all shipments for grouped orders
+                      order.shipmentBreakdown.map((shipment, shipmentIndex) => (
+                        <Box key={shipment.shipmentId}>
+                          <Typography
+                            variant="subtitle2"
                             sx={{
-                              position: 'relative',
-                              width: 70,
-                              height: 70,
-                              borderRadius: '8px',
-                              flexShrink: 0,
-                              overflow: 'hidden',
-                              border: '1px solid rgba(255,255,255,0.1)',
-                              boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
-                              background: 'linear-gradient(45deg, rgba(20,20,20,1), rgba(30,30,30,1))'
+                              color: '#4f86f7',
+                              mb: 1,
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
                             }}
                           >
-                            {item.thumbnail ? (
-                              <Image
-                                src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail.startsWith('http')
-                                    ? item.thumbnail.split('cloudfront.net')[1]
-                                    : item.thumbnail.startsWith('/')
-                                      ? item.thumbnail
-                                      : `/${item.thumbnail}`
-                                  }`}
-                                alt={item.name || 'Product image'}
+                            {shipment.isMainShipment ? 'Main Shipment' : `Shipment ${shipmentIndex + 1}`}
+                            <Chip
+                              label={`${shipment.orderData.items.reduce((acc, item) => acc + item.quantity, 0)} items`}
+                              size="small"
+                              sx={{
+                                ml: 1,
+                                height: '20px',
+                                fontSize: '0.7rem',
+                                backgroundColor: shipment.isMainShipment ? 'rgba(76, 175, 80, 0.15)' : 'rgba(79, 134, 247, 0.15)',
+                                color: shipment.isMainShipment ? '#4CAF50' : '#4f86f7',
+                              }}
+                            />
+                          </Typography>
+                          {shipment.orderData.items.map((item, itemIndex) => (
+                            <Card
+                              key={`${shipment.shipmentId}-${itemIndex}`}
+                              elevation={0}
+                              sx={{
+                                backgroundColor: shipment.isMainShipment 
+                                  ? 'rgba(76, 175, 80, 0.08)' 
+                                  : 'rgba(255, 255, 255, 0.04)',
+                                borderRadius: '12px',
+                                overflow: 'visible',
+                                border: shipment.isMainShipment 
+                                  ? '1px solid rgba(76, 175, 80, 0.2)' 
+                                  : '1px solid rgba(255,255,255,0.08)',
+                                position: 'relative',
+                                transition: 'all 0.2s ease',
+                                mb: 1,
+                                '&:hover': {
+                                  backgroundColor: shipment.isMainShipment 
+                                    ? 'rgba(76, 175, 80, 0.12)' 
+                                    : 'rgba(255, 255, 255, 0.07)',
+                                  transform: 'translateY(-1px)',
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                                }
+                              }}
+                            >
+                              <Box sx={{
+                                display: 'flex',
+                                p: 2,
+                                gap: 2,
+                                alignItems: 'center'
+                              }}>
+                                {/* Product image */}
+                                <Box
+                                  sx={{
+                                    position: 'relative',
+                                    width: 70,
+                                    height: 70,
+                                    borderRadius: '8px',
+                                    flexShrink: 0,
+                                    overflow: 'hidden',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                                    background: 'linear-gradient(45deg, rgba(20,20,20,1), rgba(30,30,30,1))'
+                                  }}
+                                >
+                                  {item.thumbnail ? (
+                                    <Image
+                                      src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail.startsWith('http')
+                                          ? item.thumbnail.split('cloudfront.net')[1]
+                                          : item.thumbnail.startsWith('/')
+                                            ? item.thumbnail
+                                            : `/${item.thumbnail}`
+                                        }`}
+                                      alt={item.name || 'Product image'}
+                                      loading='eager'
+                                      width={200}
+                                      height={200}
+                                      style={{
+                                        objectFit: 'cover',
+                                        width: '50px',
+                                        height: '50px'
+                                      }}
+                                      priority={itemIndex < 2}
+                                    />
+                                  ) : (
+                                    <Box
+                                      sx={{
+                                        width: '100%',
+                                        height: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: 'rgba(0,0,0,0.2)'
+                                      }}
+                                    >
+                                      <InventoryIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '2rem' }} />
+                                    </Box>
+                                  )}
+                                </Box>
 
-                                loading='eager'
-                                width={200}
-                                height={200}
-                                style={{
-                                  objectFit: 'cover',
-                                  width: '50px',
-                                  height: '50px'
-                                }}
-                                priority={index < 2}
-                              />
-                            ) : (
-                              <Box
-                                sx={{
-                                  width: '100%',
-                                  height: '100%',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  backgroundColor: 'rgba(0,0,0,0.2)'
-                                }}
-                              >
-                                <InventoryIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '2rem' }} />
+                                {/* Product details */}
+                                <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                                  <Typography variant="body1" sx={{
+                                    color: 'white',
+                                    fontWeight: 600,
+                                    mb: 0.5,
+                                    fontSize: '0.95rem',
+                                    lineHeight: 1.3,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                  }}>
+                                    {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
+                                  </Typography>
+
+                                  <Box sx={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 1,
+                                    alignItems: 'center',
+                                    mt: 0.5
+                                  }}>
+                                    <Chip
+                                      label={`QTY: ${item.quantity || 'N/A'}`}
+                                      size="small"
+                                      sx={{
+                                        backgroundColor: 'rgba(144, 202, 249, 0.15)',
+                                        color: '#90CAF9',
+                                        height: '22px'
+                                      }}
+                                    />
+
+                                    {item.sku && (
+                                      <Chip
+                                        label={`SKU: ${item.sku}`}
+                                        size="small"
+                                        sx={{
+                                          backgroundColor: 'rgba(206, 147, 216, 0.15)',
+                                          color: '#CE93D8',
+                                          height: '22px'
+                                        }}
+                                      />
+                                    )}
+
+                                    {item.wrapFinish && (
+                                      <Chip
+                                        label={`${item.wrapFinish}`}
+                                        size="small"
+                                        sx={{
+                                          backgroundColor: 'rgba(255, 183, 77, 0.15)',
+                                          color: '#FFB74D',
+                                          height: '22px'
+                                        }}
+                                      />
+                                    )}
+                                  </Box>
+                                </Box>
                               </Box>
-                            )}
-                          </Box>
+                            </Card>
+                          ))}
+                        </Box>
+                      ))
+                    ) : (
+                      // Show items for single orders (existing logic)
+                      order.items.map((item, index) => (
+                        <Card
+                          key={index}
+                          elevation={0}
+                          sx={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                            borderRadius: '12px',
+                            overflow: 'visible',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            position: 'relative',
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              backgroundColor: 'rgba(255, 255, 255, 0.07)',
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                            }
+                          }}
+                        >
+                          <Box sx={{
+                            display: 'flex',
+                            p: 2,
+                            gap: 2,
+                            alignItems: 'center'
+                          }}>
+                            {/* Product image with Next Image */}
+                            <Box
+                              sx={{
+                                position: 'relative',
+                                width: 70,
+                                height: 70,
+                                borderRadius: '8px',
+                                flexShrink: 0,
+                                overflow: 'hidden',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                                background: 'linear-gradient(45deg, rgba(20,20,20,1), rgba(30,30,30,1))'
+                              }}
+                            >
+                              {item.thumbnail ? (
+                                <Image
+                                  src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail.startsWith('http')
+                                      ? item.thumbnail.split('cloudfront.net')[1]
+                                      : item.thumbnail.startsWith('/')
+                                        ? item.thumbnail
+                                        : `/${item.thumbnail}`
+                                    }`}
+                                  alt={item.name || 'Product image'}
 
-                          {/* Product details */}
-                          <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                            <Typography variant="body1" sx={{
-                              color: 'white',
-                              fontWeight: 600,
-                              mb: 0.5,
-                              fontSize: '0.95rem',
-                              lineHeight: 1.3,
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}>
-                              {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
-                            </Typography>
-
-                            <Box sx={{
-                              display: 'flex',
-                              flexWrap: 'wrap',
-                              gap: 1,
-                              alignItems: 'center',
-                              mt: 0.5
-                            }}>
-
-
-                              <Chip
-                                label={`QTY: ${item.quantity || 'N/A'}`}
-                                size="small"
-                                sx={{
-                                  backgroundColor: 'rgba(144, 202, 249, 0.15)',
-                                  color: '#90CAF9',
-                                  height: '22px'
-                                }}
-                              />
-
-                              {item.sku && (
-                                <Chip
-                                  label={`SKU: ${item.sku}`}
-                                  size="small"
-                                  sx={{
-                                    backgroundColor: 'rgba(206, 147, 216, 0.15)',
-                                    color: '#CE93D8',
-                                    height: '22px'
+                                  loading='eager'
+                                  width={200}
+                                  height={200}
+                                  style={{
+                                    objectFit: 'cover',
+                                    width: '50px',
+                                    height: '50px'
                                   }}
+                                  priority={index < 2}
                                 />
-                              )}
-
-                              {item.wrapFinish && (
-                                <Chip
-                                  label={`${item.wrapFinish}`}
-                                  size="small"
+                              ) : (
+                                <Box
                                   sx={{
-                                    backgroundColor: 'rgba(255, 183, 77, 0.15)',
-                                    color: '#FFB74D',
-                                    height: '22px'
+                                    width: '100%',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: 'rgba(0,0,0,0.2)'
                                   }}
-                                />
+                                >
+                                  <InventoryIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '2rem' }} />
+                                </Box>
                               )}
                             </Box>
+
+                            {/* Product details */}
+                            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                              <Typography variant="body1" sx={{
+                                color: 'white',
+                                fontWeight: 600,
+                                mb: 0.5,
+                                fontSize: '0.95rem',
+                                lineHeight: 1.3,
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                                {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
+                              </Typography>
+
+                              <Box sx={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 1,
+                                alignItems: 'center',
+                                mt: 0.5
+                              }}>
+
+
+                                <Chip
+                                  label={`QTY: ${item.quantity || 'N/A'}`}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: 'rgba(144, 202, 249, 0.15)',
+                                    color: '#90CAF9',
+                                    height: '22px'
+                                  }}
+                                />
+
+                                {item.sku && (
+                                  <Chip
+                                    label={`SKU: ${item.sku}`}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: 'rgba(206, 147, 216, 0.15)',
+                                      color: '#CE93D8',
+                                      height: '22px'
+                                    }}
+                                  />
+                                )}
+
+                                {item.wrapFinish && (
+                                  <Chip
+                                    label={`${item.wrapFinish}`}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: 'rgba(255, 183, 77, 0.15)',
+                                      color: '#FFB74D',
+                                      height: '22px'
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                            </Box>
                           </Box>
-                        </Box>
-                      </Card>
-                    ))}
+                        </Card>
+                      ))
+                    )}
                   </Box>
                 </Box>
               </Popover>
@@ -604,7 +818,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   mt: 0.8,
                 }}
               >
-                ₹ {order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                ₹ {(isGroupedOrder ? groupedTotals.totalAmount : order.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </Typography>
 
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: 0.5 }}>
@@ -617,7 +831,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     fontWeight: 500,
                   }}
                 >
-                  ₹ {order.totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹ {(isGroupedOrder ? groupedTotals.totalDiscount : order.totalDiscount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </Typography>
               </Box>
 
@@ -642,34 +856,6 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
       <AccordionDetails sx={{ backgroundColor: '#1A1A1A', p: 3 }}>
         {/* Cards Layout */}
         <Grid container spacing={3}>
-          {shipmentsCount > 0 && (
-            <Grid item xs={12}>
-              <Paper elevation={0} sx={{ p:2, background:'rgba(255,255,255,0.03)', borderRadius:'12px', border:'1px solid rgba(255,255,255,0.05)' }}>
-                <Typography variant="h6" sx={{ mb:1.5, fontSize:'0.95rem', fontWeight:600, color:'white' }}>
-                  Shipments ({shipmentsCount})
-                </Typography>
-                <Box sx={{ display:'flex', flexDirection:'column', gap:1 }}>
-                  {shipments.map(s => {
-                    const sItemsTotal = (s.items||[]).reduce((a,i)=>a + (i.priceAtPurchase * (i.quantity||0)),0);
-                    const sQuantity = (s.items||[]).reduce((a,i)=>a + (i.quantity||0),0);
-                    return (
-                      <Box key={s._id} sx={{ p:1.5, border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', background:'rgba(0,0,0,0.25)' }}>
-                        <Box sx={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:1 }}>
-                          <Typography variant="body2" sx={{ color:'#4f86f7', fontWeight:600 }}>SHIP_{s._id.slice(0,8)}</Typography>
-                          <Chip size="small" label={formatStatus(s.deliveryStatus)} color={statusColors[s.deliveryStatus]||'default'} />
-                        </Box>
-                        <Typography variant="caption" sx={{ color:'text.secondary' }}>Created: {formatOrderDate(s.createdAt)}</Typography>
-                        <Box sx={{ mt:1, display:'flex', flexWrap:'wrap', gap:1 }}>
-                          <Chip size="small" label={`${sQuantity} item${sQuantity!==1?'s':''}`} sx={{ background:'rgba(79,134,247,0.15)', color:'#4f86f7' }} />
-                          <Chip size="small" label={`Items Total ₹${sItemsTotal.toLocaleString('en-IN')}`} sx={{ background:'rgba(255,255,255,0.08)', color:'#E0E0E0' }} />
-                        </Box>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              </Paper>
-            </Grid>
-          )}
           {/* First row: Status and Address */}
           <Grid item xs={12} md={6}>
             <Paper
@@ -991,11 +1177,11 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     </Grid>
                     <Grid item xs={6}>
                       <Typography variant="body2" sx={{ color: 'white', fontSize: '0.85rem', fontWeight: 500 }}>
-                        ₹{itemsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        ₹{(isGroupedOrder ? groupedTotals.itemsTotal : itemsTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </Typography>
                     </Grid>
 
-                    {order.totalDiscount > 0 && (
+                    {(isGroupedOrder ? groupedTotals.totalDiscount : order.totalDiscount) > 0 && (
                       <>
                         <Grid item xs={6}>
                           <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
@@ -1004,7 +1190,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                         </Grid>
                         <Grid item xs={6}>
                           <Typography variant="body2" sx={{ color: '#FFD700', fontSize: '0.85rem', fontWeight: 500 }}>
-                            - ₹{order.totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            - ₹{(isGroupedOrder ? groupedTotals.totalDiscount : order.totalDiscount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </Typography>
                         </Grid>
                       </>
@@ -1034,7 +1220,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     </Grid>
                     <Grid item xs={6}>
                       <Typography variant="body2" sx={{ color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>
-                        ₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        ₹{(isGroupedOrder ? groupedTotals.totalAmount : order.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </Typography>
                     </Grid>
 
@@ -1048,6 +1234,299 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               </Card>
             </Paper>
           </Grid>
+
+          {/* Shipment Breakdown Section for Grouped Orders */}
+          {isGroupedOrder && (
+            <Grid item xs={12}>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2.5,
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  }
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  sx={{
+                    mb: 2,
+                    color: 'white',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <LocalShippingIcon sx={{ mr: 1, color: '#2196F3' }} />
+                  Shipment Breakdown ({order.shipmentBreakdown.length} shipments)
+                </Typography>
+
+                {order.shipmentBreakdown.map((shipment, index) => {
+                  const shipmentData = shipment.orderData;
+                  const shipmentItemsTotal = shipmentData.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
+                  const shipmentTotalItems = shipmentData.items.reduce((acc, item) => acc + (item.quantity || 0), 0);
+                  
+                  return (
+                    <Accordion
+                      key={shipment.shipmentId}
+                      sx={{
+                        mb: 1,
+                        backgroundColor: shipment.isMainShipment ? 'rgba(76, 175, 80, 0.05)' : 'rgba(0, 0, 0, 0.2)',
+                        border: shipment.isMainShipment ? '1px solid rgba(76, 175, 80, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+                        borderRadius: '8px !important',
+                        '&:before': { display: 'none' },
+                        '&.Mui-expanded': {
+                          margin: '0 0 8px 0',
+                        }
+                      }}
+                    >
+                      <AccordionSummary
+                        expandIcon={<ExpandMoreIcon sx={{ color: 'white', fontSize: '1rem' }} />}
+                        sx={{ padding: '12px 16px', minHeight: 'auto !important' }}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', mr: 2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Typography variant="body1" sx={{ color: 'white', fontWeight: 500, mr: 2 }}>
+                              {shipment.isMainShipment ? 'Main Shipment' : `Shipment ${index}`}
+                            </Typography>
+                            <Chip 
+                              label={`Order ID: ${shipment.shipmentId.slice(0, 10)}...`}
+                              size="small"
+                              sx={{ 
+                                height: '20px', 
+                                fontSize: '0.7rem',
+                                backgroundColor: 'rgba(79, 134, 247, 0.2)',
+                                color: '#4f86f7'
+                              }}
+                            />
+                            <Chip 
+                              label={formatStatus(shipmentData.deliveryStatus)}
+                              size="small"
+                              color={statusColors[shipmentData.deliveryStatus] || 'default'}
+                              sx={{ ml: 1, height: '20px', fontSize: '0.7rem' }}
+                            />
+                          </Box>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography variant="body1" sx={{ color: 'white', fontWeight: 600 }}>
+                              ₹{shipmentData.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                              {shipmentTotalItems} item{shipmentTotalItems !== 1 ? 's' : ''}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ backgroundColor: 'rgba(0, 0, 0, 0.1)', p: 2 }}>
+                        <Grid container spacing={2}>
+                          {/* Shipment Items */}
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="subtitle2" sx={{ color: 'white', mb: 1.5, fontWeight: 600 }}>
+                              Items in this Shipment
+                            </Typography>
+                            {shipmentData.items.map((item, itemIndex) => (
+                              <Card
+                                key={itemIndex}
+                                sx={{
+                                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                  borderRadius: '8px',
+                                  mb: 1.5,
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', p: 1.5, gap: 1.5, alignItems: 'center' }}>
+                                  <Box
+                                    sx={{
+                                      width: 50,
+                                      height: 50,
+                                      borderRadius: '6px',
+                                      overflow: 'hidden',
+                                      border: '1px solid rgba(255,255,255,0.1)',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    {item.thumbnail ? (
+                                      <Image
+                                        src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${item.thumbnail.startsWith('http')
+                                            ? item.thumbnail.split('cloudfront.net')[1]
+                                            : item.thumbnail.startsWith('/')
+                                              ? item.thumbnail
+                                              : `/${item.thumbnail}`
+                                          }`}
+                                        alt={item.name || 'Product image'}
+                                        loading='lazy'
+                                        width={50}
+                                        height={50}
+                                        style={{ objectFit: 'cover' }}
+                                      />
+                                    ) : (
+                                      <Box
+                                        sx={{
+                                          width: '100%',
+                                          height: '100%',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          backgroundColor: 'rgba(0,0,0,0.2)'
+                                        }}
+                                      >
+                                        <InventoryIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '1.5rem' }} />
+                                      </Box>
+                                    )}
+                                  </Box>
+                                  <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                                    <Typography variant="body2" sx={{
+                                      color: 'white',
+                                      fontWeight: 500,
+                                      mb: 0.5,
+                                      fontSize: '0.85rem',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                    }}>
+                                      {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                      <Chip
+                                        label={`Qty: ${item.quantity}`}
+                                        size="small"
+                                        sx={{
+                                          backgroundColor: 'rgba(144, 202, 249, 0.15)',
+                                          color: '#90CAF9',
+                                          height: '20px',
+                                          fontSize: '0.7rem'
+                                        }}
+                                      />
+                                      <Chip
+                                        label={`₹${item.priceAtPurchase.toLocaleString('en-IN')}`}
+                                        size="small"
+                                        sx={{
+                                          backgroundColor: 'rgba(76, 175, 80, 0.15)',
+                                          color: '#4CAF50',
+                                          height: '20px',
+                                          fontSize: '0.7rem'
+                                        }}
+                                      />
+                                    </Box>
+                                  </Box>
+                                </Box>
+                              </Card>
+                            ))}
+                          </Grid>
+
+                          {/* Shipment Financial Details */}
+                          <Grid item xs={12} md={6}>
+                            <Typography variant="subtitle2" sx={{ color: 'white', mb: 1.5, fontWeight: 600 }}>
+                              Shipment Financial Breakdown
+                            </Typography>
+                            <Card sx={{
+                              backgroundColor: 'rgba(0,0,0,0.2)',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(255,255,255,0.05)',
+                            }}>
+                              <Box sx={{ p: 1.5 }}>
+                                <Grid container spacing={1}>
+                                  <Grid item xs={7}>
+                                    <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                                      Items Total
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={5}>
+                                    <Typography variant="body2" sx={{ color: 'white', fontSize: '0.8rem', fontWeight: 500, textAlign: 'right' }}>
+                                      ₹{shipmentItemsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </Typography>
+                                  </Grid>
+
+                                  {shipmentData.totalDiscount > 0 && (
+                                    <>
+                                      <Grid item xs={7}>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                                          Discount
+                                        </Typography>
+                                      </Grid>
+                                      <Grid item xs={5}>
+                                        <Typography variant="body2" sx={{ color: '#FFD700', fontSize: '0.8rem', fontWeight: 500, textAlign: 'right' }}>
+                                          - ₹{shipmentData.totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        </Typography>
+                                      </Grid>
+                                    </>
+                                  )}
+
+                                  {shipmentData.extraCharges && shipmentData.extraCharges.map((charge, chargeIndex) => (
+                                    <React.Fragment key={chargeIndex}>
+                                      <Grid item xs={7}>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                                          {charge.chargesName || 'Extra Charge'}
+                                        </Typography>
+                                      </Grid>
+                                      <Grid item xs={5}>
+                                        <Typography variant="body2" sx={{ color: '#FF9800', fontSize: '0.8rem', fontWeight: 500, textAlign: 'right' }}>
+                                          + ₹{charge.chargesAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        </Typography>
+                                      </Grid>
+                                    </React.Fragment>
+                                  ))}
+
+                                  <Grid item xs={12}><Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.1)' }} /></Grid>
+
+                                  <Grid item xs={7}>
+                                    <Typography variant="body2" sx={{ color: 'white', fontSize: '0.85rem', fontWeight: 600 }}>
+                                      Shipment Total
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={5}>
+                                    <Typography variant="body2" sx={{ color: 'white', fontSize: '0.85rem', fontWeight: 600, textAlign: 'right' }}>
+                                      ₹{shipmentData.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </Typography>
+                                  </Grid>
+                                </Grid>
+                              </Box>
+                            </Card>
+
+                            {/* Shipment Status Info */}
+                            <Box sx={{ mt: 1.5 }}>
+                              <Typography variant="subtitle2" sx={{ color: 'white', mb: 1, fontWeight: 600 }}>
+                                Shipment Status
+                              </Typography>
+                              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                <Chip
+                                  icon={<PaymentIcon />}
+                                  label={formatStatus(shipmentData.paymentStatus)}
+                                  color={statusColors[shipmentData.paymentStatus] || 'default'}
+                                  size="small"
+                                />
+                                <Chip
+                                  icon={<LocalShippingIcon />}
+                                  label={formatStatus(shipmentData.deliveryStatus)}
+                                  color={statusColors[shipmentData.deliveryStatus] || 'default'}
+                                  size="small"
+                                />
+                                {shipmentData.shiprocketOrderId && (
+                                  <Chip
+                                    label={`SR: ${shipmentData.shiprocketOrderId}`}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: 'rgba(156, 39, 176, 0.15)',
+                                      color: '#AB47BC'
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                            </Box>
+                          </Grid>
+                        </Grid>
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                })}
+              </Paper>
+            </Grid>
+          )}
 
           {/* UTM Details Section */}
           {order.utmDetails && Object.keys(order.utmDetails).some(key => !!order.utmDetails[key]) && (

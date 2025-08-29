@@ -213,26 +213,14 @@ const OrderListFull = ({ isAdmin }) => {
       const res = await fetch(`/api/admin/get-main/get-orders?${qp.join('&')}`);
       const data = await res.json();
       if (res.ok) {
-        // Support both legacy (orders) and new (orderGroups) response shapes
-        const groups = data.orderGroups || [];
-        const primaryList = groups.length ? groups.map(g => ({
-          // Flatten for existing CustomerCard: use mainOrder fields plus grouping meta
-          ...g.mainOrder,
-          _groupMeta: {
-            groupId: g.groupId,
-            shipments: g.shipments,
-            aggregated: g.aggregated
-          }
-        })) : (data.orders || []);
-
         setOrderData({
-          orders: primaryList,
-          totalOrders: data.totalOrderGroups || data.totalOrders || 0,
+          orders: data.orders || [],
+          totalOrders: data.totalOrders || 0,
           totalPages: data.totalPages || 1,
           totalItems: data.totalItems || 0,
           grossSales: isAdmin ? data.grossSales || 0 : 0,
           sumTotalDiscount: data.sumTotalDiscount || 0,
-            revenue: isAdmin ? data.revenue || 0 : 0,
+          revenue: isAdmin ? data.revenue || 0 : 0,
           aov: data.aov || 0,
           discountRate: isAdmin ? data.discountRate || 0 : 0,
           oldestOrderDate: data.oldestOrderDate || null,
@@ -294,18 +282,9 @@ const OrderListFull = ({ isAdmin }) => {
       const res = await fetch(`/api/admin/get-main/get-orders?${qp.join('&')}`);
       const data = await res.json();
       if (res.ok) {
-        const groups = data.orderGroups || [];
-        const primaryList = groups.length ? groups.map(g => ({
-          ...g.mainOrder,
-          _groupMeta: {
-            groupId: g.groupId,
-            shipments: g.shipments,
-            aggregated: g.aggregated
-          }
-        })) : (data.orders || []);
         setProblematicOrderData({
-          orders: primaryList,
-          totalOrders: data.totalOrderGroups || data.totalOrders || 0,
+          orders: data.orders || [],
+          totalOrders: data.totalOrders || 0,
           totalPages: data.totalPages || 1,
           totalItems: data.totalItems || 0,
         });

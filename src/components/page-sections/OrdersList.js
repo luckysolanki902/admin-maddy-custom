@@ -11,24 +11,27 @@ import {
   AccordionDetails,
   Chip,
   Stack,
+  IconButton,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import CustomerCard from '../cards/CustomerCard';
 
 // Minimal styled components for compact design
 const StatsAccordion = styled(Accordion)({
-  background: '#2a2a2a',
-  border: '1px solid #3a3a3a',
-  borderRadius: '8px !important',
-  boxShadow: 'none',
-  marginBottom: '12px',
+  backgroundColor: '#2A2A2A',
+  borderRadius: '12px',
+  border: '1px solid #404040',
+  marginBottom: '16px',
   '&:before': {
     display: 'none',
   },
   '&.Mui-expanded': {
-    margin: '0 0 12px 0',
+    margin: '0 0 16px 0',
   },
 });
 
@@ -218,6 +221,7 @@ const OrdersList = ({
   comparisonData = null, // New prop for comparison data
 }) => {
   const [statsExpanded, setStatsExpanded] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
   
   const { metaOrders = 0, instagramBioOrders = 0 } = utmCounts;
   const { spend } = cacData;
@@ -560,6 +564,29 @@ const OrdersList = ({
 
   return (
     <Box>
+      {/* Compare Mode Toggle - Outside the accordion to avoid button nesting */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+        <Typography variant="h6" sx={{ color: '#ffffff', fontWeight: 600 }}>
+          Analytics Dashboard
+        </Typography>
+        <Tooltip title={compareMode ? "Hide comparisons" : "Show period comparisons"}>
+          <IconButton
+            onClick={() => setCompareMode(!compareMode)}
+            size="small"
+            sx={{ 
+              color: compareMode ? '#4CAF50' : '#ffffff',
+              backgroundColor: compareMode ? 'rgba(76, 175, 80, 0.1)' : 'transparent',
+              border: `1px solid ${compareMode ? '#4CAF50' : '#4a4a4a'}`,
+              '&:hover': {
+                backgroundColor: compareMode ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+              }
+            }}
+          >
+            <CompareArrowsIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+      
       {/* Compact Stats Accordion */}
       <StatsAccordion 
         expanded={statsExpanded} 
@@ -568,8 +595,9 @@ const OrdersList = ({
         <StatsAccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: '#ffffff' }} />}>
           <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
             <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 600, mr: 2 }}>
-              Analytics
+              Summary
             </Typography>
+            
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flex: 1 }}>
               {!loading && essentialMetrics.map((metric, index) => {
                 // Extract percentage value from the change component if it exists
@@ -577,7 +605,7 @@ const OrdersList = ({
                 let hasPositiveChange = false;
                 let hasNegativeChange = false;
                 
-                if (metric.change && typeof metric.change === 'object' && metric.change.props?.children) {
+                if (compareMode && metric.change && typeof metric.change === 'object' && metric.change.props?.children) {
                   const changeText = metric.change.props.children;
                   if (typeof changeText === 'string') {
                     changeValue = parseFloat(changeText.replace(/[^-\d.]/g, '') || '0');
@@ -589,12 +617,12 @@ const OrdersList = ({
                 return (
                   <SummaryMetricChip
                     key={index}
-                    hasPositiveChange={hasPositiveChange}
-                    hasNegativeChange={hasNegativeChange}
+                    hasPositiveChange={compareMode && hasPositiveChange}
+                    hasNegativeChange={compareMode && hasNegativeChange}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <span>{metric.label}: {metric.value}</span>
-                      {metric.change && (
+                      {compareMode && metric.change && (
                         <Box 
                           sx={{ 
                             fontSize: '0.7rem', 

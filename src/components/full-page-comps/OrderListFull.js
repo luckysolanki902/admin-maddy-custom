@@ -25,6 +25,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import { comparisonCache } from '@/lib/comparisonCache';
 
 import OrdersList from '@/components/page-sections/OrdersList';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
@@ -110,6 +111,10 @@ const OrderListFull = ({ isAdmin }) => {
   });
   const [cacLoading, setCacLoading] = useState(false);
   const [cacError, setCacError] = useState(null);
+
+  // Comparison data state
+  const [comparisonData, setComparisonData] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
 
   // Variant snackbar
   const [variantSnackbar, setVariantSnackbar] = useState({ open: false, message: '', severity: 'warning' });
@@ -345,16 +350,114 @@ const OrderListFull = ({ isAdmin }) => {
   }, [dateRange]);
 
   /*****************************************************
+   * Fetch Comparison Data
+   *****************************************************/
+  const fetchComparisonData = useCallback(async () => {
+    if (!dateRange.start || !dateRange.end) {
+      setComparisonData(null);
+      return;
+    }
+
+    setComparisonLoading(true);
+    
+    try {
+      // Build cache key parameters
+      const cacheParams = {
+        startDate: dateRange.start.toISOString(),
+        endDate: dateRange.end.toISOString(),
+        activeTag,
+        searchInput,
+        searchField,
+        shiprocketFilter,
+        paymentStatusFilter,
+        utmSource: selectedUTMFilters.source,
+        utmMedium: selectedUTMFilters.medium,
+        utmCampaign: selectedUTMFilters.campaign,
+        utmTerm: selectedUTMFilters.term,
+        utmContent: selectedUTMFilters.content,
+        variants: selectedVariants.join(','),
+        specificCategories: selectedSpecificCategories.join(','),
+        onlyIncludeSelectedVariants,
+        singleVariantOnly,
+        singleItemCountOnly,
+      };
+
+      // Try to get from cache first
+      const cachedData = comparisonCache.get(cacheParams);
+      if (cachedData) {
+        setComparisonData(cachedData);
+        setComparisonLoading(false);
+        return;
+      }
+
+      // Build query parameters
+      const qp = [
+        `startDate=${encodeURIComponent(dateRange.start.toISOString())}`,
+        `endDate=${encodeURIComponent(dateRange.end.toISOString())}`,
+        `activeTag=${encodeURIComponent(activeTag)}`,
+        `searchInput=${encodeURIComponent(searchInput)}`,
+        `searchField=${encodeURIComponent(searchField)}`,
+        `shiprocketFilter=${encodeURIComponent(shiprocketFilter)}`,
+        `paymentStatusFilter=${encodeURIComponent(paymentStatusFilter)}`,
+      ];
+
+      // Add UTM filters
+      Object.entries(selectedUTMFilters).forEach(([k, v]) => {
+        if (v) qp.push(`utm${k.charAt(0).toUpperCase() + k.slice(1)}=${encodeURIComponent(v)}`);
+      });
+
+      // Add other filters
+      if (selectedVariants.length) qp.push(`variants=${selectedVariants.join(',')}`);
+      if (selectedSpecificCategories.length) qp.push(`specificCategories=${selectedSpecificCategories.join(',')}`);
+      if (onlyIncludeSelectedVariants) qp.push('onlyIncludeSelectedVariants=true');
+      if (singleVariantOnly) qp.push('singleVariantOnly=true');
+      if (singleItemCountOnly) qp.push('singleItemCountOnly=true');
+
+      const res = await fetch(`/api/admin/get-main/get-orders-comparison?${qp.join('&')}`);
+      const data = await res.json();
+
+      if (res.ok) {
+        setComparisonData(data);
+        // Cache the result
+        comparisonCache.set(cacheParams, data);
+      } else {
+        console.error('Error fetching comparison data:', data.message);
+        setComparisonData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching comparison data:', error);
+      setComparisonData(null);
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, [
+    dateRange,
+    activeTag,
+    searchInput,
+    searchField,
+    shiprocketFilter,
+    paymentStatusFilter,
+    selectedUTMFilters,
+    selectedVariants,
+    selectedSpecificCategories,
+    onlyIncludeSelectedVariants,
+    singleVariantOnly,
+    singleItemCountOnly,
+  ]);
+
+  /*****************************************************
    * Trigger Fetches on Dependency Changes
    *****************************************************/
   useEffect(() => {
     fetchOrders();
     fetchCacData();
     fetchProblematicOrders();
+    fetchComparisonData();
   }, [
     fetchOrders,
     fetchCacData,
     fetchProblematicOrders,
+    fetchComparisonData,
     selectedProblematicFilter,
   ]);
 
@@ -606,6 +709,7 @@ const OrderListFull = ({ isAdmin }) => {
         utmCounts={orderData.utmCounts}
         rat={revenueAfterTax}
         roas={roas}
+        comparisonData={comparisonData}
       />
 
       {/* Orders Pagination */}

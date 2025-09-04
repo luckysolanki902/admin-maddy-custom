@@ -10,8 +10,11 @@ import {
   AccordionSummary,
   AccordionDetails,
   Chip,
+  Stack,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CustomerCard from '../cards/CustomerCard';
 
 // Minimal styled components for compact design
@@ -48,16 +51,68 @@ const StatsAccordionDetails = styled(AccordionDetails)({
 });
 
 const CompactChip = styled(Chip)({
-  height: '24px',
+  height: '28px',
   fontSize: '0.75rem',
-  margin: '2px',
+  fontWeight: 600,
+  borderRadius: '14px',
   backgroundColor: '#3a3a3a',
   color: '#ffffff',
   border: '1px solid #4a4a4a',
+  transition: 'all 0.2s ease-in-out',
+  cursor: 'default',
+  '&:hover': {
+    backgroundColor: '#4a4a4a',
+    borderColor: '#5a5a5a',
+    transform: 'translateY(-1px)',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+  },
   '& .MuiChip-label': {
     padding: '0 8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
   },
 });
+
+// Enhanced chip for summary with integrated percentage change
+const SummaryMetricChip = styled(Box, {
+  shouldForwardProp: (prop) => !['hasPositiveChange', 'hasNegativeChange'].includes(prop),
+})(({ theme, hasPositiveChange, hasNegativeChange }) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  backgroundColor: '#3a3a3a',
+  border: `1px solid ${hasPositiveChange ? '#4CAF50' : hasNegativeChange ? '#f44336' : '#4a4a4a'}`,
+  borderRadius: '16px',
+  padding: '6px 12px',
+  margin: '2px',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  color: '#ffffff',
+  transition: 'all 0.2s ease-in-out',
+  cursor: 'default',
+  position: 'relative',
+  overflow: 'hidden',
+  minWidth: 'fit-content',
+  '&:hover': {
+    backgroundColor: '#4a4a4a',
+    borderColor: hasPositiveChange ? '#66BB6A' : hasNegativeChange ? '#EF5350' : '#5a5a5a',
+    transform: 'translateY(-1px)',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+  },
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '2px',
+    background: hasPositiveChange 
+      ? 'linear-gradient(90deg, #4CAF50, #66BB6A)' 
+      : hasNegativeChange 
+      ? 'linear-gradient(90deg, #f44336, #EF5350)' 
+      : 'transparent',
+  }
+}));
 
 // Enhanced styled chip for expanded state - minimal dark design
 const EnhancedChip = styled(Chip)({
@@ -86,9 +141,13 @@ const EnhancedChip = styled(Chip)({
 
 const StatGrid = styled(Box)({
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-  gap: '8px',
-  marginTop: '8px',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+  gap: '12px',
+  marginTop: '12px',
+  '@media (max-width: 600px)': {
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+    gap: '8px',
+  },
 });
 
 // Beautiful dark themed tooltip with improved styling
@@ -156,6 +215,7 @@ const OrdersList = ({
   utmCounts = {},
   rat = 0,
   roas = 0,
+  comparisonData = null, // New prop for comparison data
 }) => {
   const [statsExpanded, setStatsExpanded] = useState(false);
   
@@ -182,14 +242,92 @@ const OrdersList = ({
   })();
   useEffect(() => {
   }, [cacData, checkoutToPurchaseRatio]);
+
+  // Helper function to format percentage change with icon
+  const formatPercentageChange = (change) => {
+    if (!comparisonData || change === undefined || change === null) return null;
+    
+    const isPositive = change > 0;
+    const isNegative = change < 0;
+    const formattedChange = Math.abs(change).toFixed(1);
+    
+    if (change === 0) return null;
+    
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          ml: 0.5,
+          px: 0.75,
+          py: 0.25,
+          borderRadius: '12px',
+          backgroundColor: isPositive 
+            ? 'rgba(76, 175, 80, 0.1)' 
+            : 'rgba(244, 67, 54, 0.1)',
+          border: `1px solid ${isPositive ? 'rgba(76, 175, 80, 0.3)' : 'rgba(244, 67, 54, 0.3)'}`,
+          minWidth: 'auto',
+          height: '20px',
+        }}
+      >
+        {isPositive ? (
+          <TrendingUpIcon sx={{ fontSize: '12px', color: '#4CAF50', mr: 0.25 }} />
+        ) : (
+          <TrendingDownIcon sx={{ fontSize: '12px', color: '#f44336', mr: 0.25 }} />
+        )}
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            color: isPositive ? '#4CAF50' : '#f44336',
+            fontSize: '0.65rem',
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          {formattedChange}%
+        </Typography>
+      </Box>
+    );
+  };
+
+  // Helper function to get comparison change for a metric
+  const getMetricChange = (metricKey) => {
+    return comparisonData?.comparison?.[metricKey]?.change;
+  };
+
   // Essential metrics for closed state - updated per requirements
   const essentialMetrics = [
-    { label: 'Orders', value: totalOrders?.toLocaleString('en-IN') || '0' },
-    ...(isAdmin ? [{ label: 'Sales', value: `₹${revenue?.toLocaleString('en-IN') || '0'}` }] : []),
-    { label: 'AOV', value: `₹${aov?.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}` },
-    { label: 'CAC', value: `₹${calculatedOverallCAC}` },
-    { label: 'ROAS', value: `${roas?.toFixed(2) || '0'}` },
-    { label: 'C2P', value: `${checkoutToPurchaseRatio}%` },
+    { 
+      label: 'Orders', 
+      value: totalOrders?.toLocaleString('en-IN') || '0',
+      change: formatPercentageChange(getMetricChange('totalOrders'))
+    },
+    ...(isAdmin ? [{ 
+      label: 'Sales', 
+      value: `₹${revenue?.toLocaleString('en-IN') || '0'}`,
+      change: formatPercentageChange(getMetricChange('revenue'))
+    }] : []),
+    { 
+      label: 'AOV', 
+      value: `₹${aov?.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}`,
+      change: formatPercentageChange(getMetricChange('aov'))
+    },
+    { 
+      label: 'CAC', 
+      value: `₹${calculatedOverallCAC}`,
+      change: formatPercentageChange(getMetricChange('cac'))
+    },
+    { 
+      label: 'ROAS', 
+      value: `${roas?.toFixed(2) || '0'}`,
+      change: formatPercentageChange(getMetricChange('roas'))
+    },
+    { 
+      label: 'C2P', 
+      value: `${checkoutToPurchaseRatio}%`,
+      change: formatPercentageChange(getMetricChange('c2p'))
+    },
   ];
   // All metrics for expanded state with tooltips
   const allMetrics = [
@@ -197,7 +335,9 @@ const OrdersList = ({
     { 
       label: 'Orders', 
       value: totalOrders?.toLocaleString('en-IN') || '0', 
-      category: 'basic',      tooltip: (
+      category: 'basic',
+      change: formatPercentageChange(getMetricChange('totalOrders')),
+      tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
             Total Orders
@@ -211,7 +351,9 @@ const OrdersList = ({
     { 
       label: 'Items', 
       value: totalItems?.toLocaleString('en-IN') || '0', 
-      category: 'basic',      tooltip: (
+      category: 'basic',
+      change: formatPercentageChange(getMetricChange('totalItems')),
+      tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
             Total Items Sold
@@ -225,7 +367,9 @@ const OrdersList = ({
     { 
       label: 'AOV', 
       value: `₹${aov?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0'}`, 
-      category: 'basic',      tooltip: (
+      category: 'basic',
+      change: formatPercentageChange(getMetricChange('aov')),
+      tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
             Average Order Value (AOV)
@@ -242,7 +386,9 @@ const OrdersList = ({
     { 
       label: 'Discounts', 
       value: `₹${sumTotalDiscount?.toLocaleString('en-IN') || '0'}`, 
-      category: 'basic',      tooltip: (
+      category: 'basic',
+      change: formatPercentageChange(getMetricChange('totalDiscount')),
+      tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
             Total Discounts Applied
@@ -262,7 +408,9 @@ const OrdersList = ({
       { 
         label: 'Gross Sales', 
         value: `₹${grossSales?.toLocaleString('en-IN') || '0'}`, 
-        category: 'admin',        tooltip: (
+        category: 'admin',
+        change: formatPercentageChange(getMetricChange('grossSales')),
+        tooltip: (
           <>
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
               Gross Sales
@@ -280,6 +428,7 @@ const OrdersList = ({
         label: 'Revenue', 
         value: `₹${revenue?.toLocaleString('en-IN') || '0'}`, 
         category: 'admin',
+        change: formatPercentageChange(getMetricChange('revenue')),
         tooltip: (          <>
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
               Net Revenue
@@ -314,6 +463,7 @@ const OrdersList = ({
         label: 'RAT', 
         value: `₹${rat?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0'}`, 
         category: 'admin',
+        change: formatPercentageChange(getMetricChange('rat')),
         tooltip: (          <>
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
               Revenue After Tax (RAT)
@@ -333,7 +483,9 @@ const OrdersList = ({
     { 
       label: 'Meta CAC', 
       value: `₹${calculatedMetaCAC}`, 
-      category: 'performance',      tooltip: (
+      category: 'performance',
+      change: formatPercentageChange(getMetricChange('cac')),
+      tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
             Meta Customer Acquisition Cost
@@ -350,7 +502,9 @@ const OrdersList = ({
     { 
       label: 'Overall CAC', 
       value: `₹${calculatedOverallCAC}`, 
-      category: 'performance',      tooltip: (
+      category: 'performance',
+      change: formatPercentageChange(getMetricChange('cac')),
+      tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
             Overall Customer Acquisition Cost
@@ -368,6 +522,7 @@ const OrdersList = ({
       label: 'ROAS', 
       value: `${roas?.toFixed(2) || '0'}`, 
       category: 'performance',
+      change: formatPercentageChange(getMetricChange('roas')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -386,6 +541,7 @@ const OrdersList = ({
       label: 'C2P Ratio', 
       value: `${checkoutToPurchaseRatio}%`, 
       category: 'performance',
+      change: formatPercentageChange(getMetricChange('c2p')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -415,13 +571,44 @@ const OrdersList = ({
               Analytics
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flex: 1 }}>
-              {!loading && essentialMetrics.map((metric, index) => (
-                <CompactChip
-                  key={index}
-                  label={`${metric.label}: ${metric.value}`}
-                  size="small"
-                />
-              ))}
+              {!loading && essentialMetrics.map((metric, index) => {
+                // Extract percentage value from the change component if it exists
+                let changeValue = 0;
+                let hasPositiveChange = false;
+                let hasNegativeChange = false;
+                
+                if (metric.change && typeof metric.change === 'object' && metric.change.props?.children) {
+                  const changeText = metric.change.props.children;
+                  if (typeof changeText === 'string') {
+                    changeValue = parseFloat(changeText.replace(/[^-\d.]/g, '') || '0');
+                    hasPositiveChange = changeValue > 0;
+                    hasNegativeChange = changeValue < 0;
+                  }
+                }
+                
+                return (
+                  <SummaryMetricChip
+                    key={index}
+                    hasPositiveChange={hasPositiveChange}
+                    hasNegativeChange={hasNegativeChange}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <span>{metric.label}: {metric.value}</span>
+                      {metric.change && (
+                        <Box 
+                          sx={{ 
+                            fontSize: '0.7rem', 
+                            opacity: 0.9,
+                            color: hasPositiveChange ? '#81C784' : hasNegativeChange ? '#EF5350' : '#ffffff'
+                          }}
+                        >
+                          {metric.change}
+                        </Box>
+                      )}
+                    </Box>
+                  </SummaryMetricChip>
+                );
+              })}
               {loading && (
                 <Skeleton variant="rectangular" width={200} height={24} sx={{ borderRadius: '12px' }} />
               )}
@@ -440,12 +627,45 @@ const OrdersList = ({
               </Typography>
               <StatGrid>
                 {allMetrics.filter(m => m.category === 'basic').map((metric, index) => (
-                  <DarkTooltip key={index} title={metric.tooltip} arrow placement="top">
-                    <EnhancedChip
-                      label={`${metric.label}: ${metric.value}`}
-                      size="small"
-                    />
-                  </DarkTooltip>
+                  <Box 
+                    key={index} 
+                    sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 0.75,
+                      p: 1,
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                      }
+                    }}
+                  >
+                    <DarkTooltip title={metric.tooltip} arrow placement="top">
+                      <EnhancedChip
+                        label={`${metric.label}: ${metric.value}`}
+                        size="small"
+                        sx={{ 
+                          width: '100%',
+                          justifyContent: 'flex-start',
+                          '& .MuiChip-label': {
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }
+                        }}
+                      />
+                    </DarkTooltip>
+                    {metric.change && (
+                      <Box sx={{ alignSelf: 'center' }}>
+                        {metric.change}
+                      </Box>
+                    )}
+                  </Box>
                 ))}
               </StatGrid>
 
@@ -457,12 +677,45 @@ const OrdersList = ({
                   </Typography>
                   <StatGrid>
                     {allMetrics.filter(m => m.category === 'admin').map((metric, index) => (
-                      <DarkTooltip key={index} title={metric.tooltip} arrow placement="top">
-                        <EnhancedChip
-                          label={`${metric.label}: ${metric.value}`}
-                          size="small"
-                        />
-                      </DarkTooltip>
+                      <Box 
+                        key={index} 
+                        sx={{ 
+                          display: 'flex', 
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 0.75,
+                          p: 1,
+                          borderRadius: '8px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                          }
+                        }}
+                      >
+                        <DarkTooltip title={metric.tooltip} arrow placement="top">
+                          <EnhancedChip
+                            label={`${metric.label}: ${metric.value}`}
+                            size="small"
+                            sx={{ 
+                              width: '100%',
+                              justifyContent: 'flex-start',
+                              '& .MuiChip-label': {
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }
+                            }}
+                          />
+                        </DarkTooltip>
+                        {metric.change && (
+                          <Box sx={{ alignSelf: 'center' }}>
+                            {metric.change}
+                          </Box>
+                        )}
+                      </Box>
                     ))}
                   </StatGrid>
                 </>
@@ -474,12 +727,45 @@ const OrdersList = ({
               </Typography>
               <StatGrid>
                 {allMetrics.filter(m => m.category === 'performance').map((metric, index) => (
-                  <DarkTooltip key={index} title={metric.tooltip} arrow placement="top">
-                    <EnhancedChip
-                      label={`${metric.label}: ${metric.value}`}
-                      size="small"
-                    />
-                  </DarkTooltip>
+                  <Box 
+                    key={index} 
+                    sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 0.75,
+                      p: 1,
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                      }
+                    }}
+                  >
+                    <DarkTooltip title={metric.tooltip} arrow placement="top">
+                      <EnhancedChip
+                        label={`${metric.label}: ${metric.value}`}
+                        size="small"
+                        sx={{ 
+                          width: '100%',
+                          justifyContent: 'flex-start',
+                          '& .MuiChip-label': {
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }
+                        }}
+                      />
+                    </DarkTooltip>
+                    {metric.change && (
+                      <Box sx={{ alignSelf: 'center' }}>
+                        {metric.change}
+                      </Box>
+                    )}
+                  </Box>
                 ))}
               </StatGrid>
             </Box>

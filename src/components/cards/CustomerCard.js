@@ -245,6 +245,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                 <Typography
                   variant="body1"
+                  component="span"
                   sx={{
                     color: '#4f86f7',
                     fontWeight: 600,
@@ -254,20 +255,20 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                   }}
                 >
                   {order._id.slice(0, 10)}...
-                  {isGroupedOrder && (
-                    <Chip 
-                      label={`${order.shipmentBreakdown.length} shipments`}
-                      size="small"
-                      sx={{ 
-                        ml: 1, 
-                        height: '20px', 
-                        fontSize: '0.7rem',
-                        backgroundColor: 'rgba(76, 175, 80, 0.2)',
-                        color: '#4CAF50'
-                      }}
-                    />
-                  )}
                 </Typography>
+                {isGroupedOrder && (
+                  <Chip 
+                    label={`${order.shipmentBreakdown.length} shipments`}
+                    size="small"
+                    sx={{ 
+                      ml: 1, 
+                      height: '20px', 
+                      fontSize: '0.7rem',
+                      backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                      color: '#4CAF50'
+                    }}
+                  />
+                )}
                 {/* Replace IconButton with Box to avoid button nesting */}
                 <Box
                   onClick={handleCopy}
@@ -650,6 +651,30 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                         }}
                                       />
                                     )}
+
+                                    {item.insertionDetails?.component && (
+                                      <Chip
+                                        label={`${item.insertionDetails.component}`}
+                                        size="small"
+                                        sx={{
+                                          backgroundColor: 'rgba(103, 58, 183, 0.15)',
+                                          color: '#673AB7',
+                                          height: '22px'
+                                        }}
+                                      />
+                                    )}
+
+                                    {item.insertionDetails?.pageType && (
+                                      <Chip
+                                        label={`${item.insertionDetails.pageType}`}
+                                        size="small"
+                                        sx={{
+                                          backgroundColor: 'rgba(233, 30, 99, 0.15)',
+                                          color: '#E91E63',
+                                          height: '22px'
+                                        }}
+                                      />
+                                    )}
                                   </Box>
                                 </Box>
                               </Box>
@@ -788,6 +813,30 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                     sx={{
                                       backgroundColor: 'rgba(255, 183, 77, 0.15)',
                                       color: '#FFB74D',
+                                      height: '22px'
+                                    }}
+                                  />
+                                )}
+
+                                {item.insertionDetails?.component && (
+                                  <Chip
+                                    label={`${item.insertionDetails.component}`}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: 'rgba(103, 58, 183, 0.15)',
+                                      color: '#673AB7',
+                                      height: '22px'
+                                    }}
+                                  />
+                                )}
+
+                                {item.insertionDetails?.pageType && (
+                                  <Chip
+                                    label={`${item.insertionDetails.pageType}`}
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: 'rgba(233, 30, 99, 0.15)',
+                                      color: '#E91E63',
                                       height: '22px'
                                     }}
                                   />
@@ -1235,56 +1284,59 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
             </Paper>
           </Grid>
 
-          {/* Shipment Breakdown Section for Grouped Orders */}
-          {isGroupedOrder && (
-            <Grid item xs={12}>
-              <Paper
-                elevation={0}
+          {/* Shipment Breakdown Section for All Orders */}
+          <Grid item xs={12}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.5,
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                }
+              }}
+            >
+              <Typography
+                variant="h6"
                 sx={{
-                  p: 2.5,
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                  borderRadius: '12px',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                  transition: 'all 0.2s',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  }
+                  mb: 2,
+                  color: 'white',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
                 }}
               >
-                <Typography
-                  variant="h6"
-                  sx={{
-                    mb: 2,
-                    color: 'white',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  <LocalShippingIcon sx={{ mr: 1, color: '#2196F3' }} />
-                  Shipment Breakdown ({order.shipmentBreakdown.length} shipments)
-                </Typography>
+                <LocalShippingIcon sx={{ mr: 1, color: '#2196F3' }} />
+                Shipment Breakdown ({order.shipmentBreakdown ? order.shipmentBreakdown.length : 1} shipment{order.shipmentBreakdown && order.shipmentBreakdown.length > 1 ? 's' : ''})
+              </Typography>
 
-                {order.shipmentBreakdown.map((shipment, index) => {
-                  const shipmentData = shipment.orderData;
-                  const shipmentItemsTotal = shipmentData.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
-                  const shipmentTotalItems = shipmentData.items.reduce((acc, item) => acc + (item.quantity || 0), 0);
-                  
-                  return (
-                    <Accordion
-                      key={shipment.shipmentId}
-                      sx={{
-                        mb: 1,
-                        backgroundColor: shipment.isMainShipment ? 'rgba(76, 175, 80, 0.05)' : 'rgba(0, 0, 0, 0.2)',
-                        border: shipment.isMainShipment ? '1px solid rgba(76, 175, 80, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
-                        borderRadius: '8px !important',
-                        '&:before': { display: 'none' },
-                        '&.Mui-expanded': {
-                          margin: '0 0 8px 0',
-                        }
-                      }}
-                    >
+              {(order.shipmentBreakdown || [{ 
+                shipmentId: order._id, 
+                orderData: order, 
+                isMainShipment: true 
+              }]).map((shipment, index) => {
+                const shipmentData = shipment.orderData;
+                const shipmentItemsTotal = shipmentData.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
+                const shipmentTotalItems = shipmentData.items.reduce((acc, item) => acc + (item.quantity || 0), 0);
+                
+                return (
+                  <Accordion
+                    key={shipment.shipmentId}
+                    sx={{
+                      mb: 1,
+                      backgroundColor: shipment.isMainShipment ? 'rgba(76, 175, 80, 0.05)' : 'rgba(0, 0, 0, 0.2)',
+                      border: shipment.isMainShipment ? '1px solid rgba(76, 175, 80, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '8px !important',
+                      '&:before': { display: 'none' },
+                      '&.Mui-expanded': {
+                        margin: '0 0 8px 0',
+                      }
+                    }}
+                  >
                       <AccordionSummary
                         expandIcon={<ExpandMoreIcon sx={{ color: 'white', fontSize: '1rem' }} />}
                         sx={{ padding: '12px 16px', minHeight: 'auto !important' }}
@@ -1412,6 +1464,30 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                           fontSize: '0.7rem'
                                         }}
                                       />
+                                      {item.insertionDetails?.component && (
+                                        <Chip
+                                          label={`${item.insertionDetails.component}`}
+                                          size="small"
+                                          sx={{
+                                            backgroundColor: 'rgba(103, 58, 183, 0.15)',
+                                            color: '#673AB7',
+                                            height: '20px',
+                                            fontSize: '0.7rem'
+                                          }}
+                                        />
+                                      )}
+                                      {item.insertionDetails?.pageType && (
+                                        <Chip
+                                          label={`${item.insertionDetails.pageType}`}
+                                          size="small"
+                                          sx={{
+                                            backgroundColor: 'rgba(233, 30, 99, 0.15)',
+                                            color: '#E91E63',
+                                            height: '20px',
+                                            fontSize: '0.7rem'
+                                          }}
+                                        />
+                                      )}
                                     </Box>
                                   </Box>
                                 </Box>
@@ -1516,17 +1592,16 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                     }}
                                   />
                                 )}
-                              </Box>
-                            </Box>
-                          </Grid>
-                        </Grid>
-                      </AccordionDetails>
-                    </Accordion>
-                  );
-                })}
-              </Paper>
-            </Grid>
-          )}
+                                  </Box>
+                                </Box>
+                              </Grid>
+                            </Grid>
+                          </AccordionDetails>
+                        </Accordion>
+                      );
+                    })}
+                  </Paper>
+                </Grid>
 
           {/* UTM Details Section */}
           {order.utmDetails && Object.keys(order.utmDetails).some(key => !!order.utmDetails[key]) && (

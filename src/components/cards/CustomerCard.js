@@ -440,14 +440,15 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     borderRadius: '10px',
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                     maxHeight: '80vh',
-                    maxWidth: '450px',
-                    width: '100%'
+                    maxWidth: { xs: '95vw', sm: '450px' },
+                    width: '100%',
+                    margin: { xs: '0 8px', sm: '0' }
                   }
                 }}
               >
                 <Box sx={{
-                  p: 2.5,
-                  maxWidth: '450px',
+                  p: { xs: 1.5, sm: 2.5 },
+                  maxWidth: { xs: '95vw', sm: '450px' },
                   backgroundColor: '#1E1E1E',
                   backgroundImage: 'linear-gradient(to bottom, rgba(30,30,30,0.95), rgba(20,20,20,0.98))',
                   maxHeight: '80vh',
@@ -541,16 +542,17 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                             >
                               <Box sx={{
                                 display: 'flex',
+                                flexDirection: { xs: 'column', sm: 'row' },
                                 p: 2,
                                 gap: 2,
-                                alignItems: 'center'
+                                alignItems: { xs: 'stretch', sm: 'flex-start' }
                               }}>
                                 {/* Product image */}
                                 <Box
                                   sx={{
                                     position: 'relative',
-                                    width: 70,
-                                    height: 70,
+                                    width: { xs: '100%', sm: 70 },
+                                    height: { xs: 200, sm: 70 },
                                     borderRadius: '8px',
                                     flexShrink: 0,
                                     overflow: 'hidden',
@@ -573,8 +575,8 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                       height={200}
                                       style={{
                                         objectFit: 'cover',
-                                        width: '50px',
-                                        height: '50px'
+                                        width: '100%',
+                                        height: '100%'
                                       }}
                                       priority={itemIndex < 2}
                                     />
@@ -595,87 +597,125 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                 </Box>
 
                                 {/* Product details */}
-                                <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                                  <Typography variant="body1" sx={{
-                                    color: 'white',
-                                    fontWeight: 600,
-                                    mb: 0.5,
-                                    fontSize: '0.95rem',
-                                    lineHeight: 1.3,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis'
-                                  }}>
-                                    {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
-                                  </Typography>
+                                <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                  {/* Product Name and Basic Details */}
+                                  <Box>
+                                    <Typography variant="body1" sx={{
+                                      color: 'white',
+                                      fontWeight: 600,
+                                      mb: 1,
+                                      fontSize: '0.95rem',
+                                      lineHeight: 1.3,
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis'
+                                    }}>
+                                      {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
+                                    </Typography>
 
-                                  <Box sx={{
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: 1,
-                                    alignItems: 'center',
-                                    mt: 0.5
-                                  }}>
-                                    <Chip
-                                      label={`QTY: ${item.quantity || 'N/A'}`}
-                                      size="small"
-                                      sx={{
-                                        backgroundColor: 'rgba(144, 202, 249, 0.15)',
-                                        color: '#90CAF9',
-                                        height: '22px'
-                                      }}
-                                    />
+                                    {/* Basic Product Info */}
+                                    <Box sx={{
+                                      display: 'flex',
+                                      flexWrap: 'wrap',
+                                      gap: 1,
+                                      alignItems: 'center'
+                                    }}>
+                                      <Box sx={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: '6px',
+                                        px: 1,
+                                        py: 0.5,
+                                        border: '1px solid rgba(255, 255, 255, 0.1)'
+                                      }}>
+                                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.75rem' }}>
+                                          Qty: {item.quantity || 'N/A'}
+                                        </Typography>
+                                      </Box>
 
-                                    {item.sku && (
-                                      <Chip
-                                        label={`SKU: ${item.sku}`}
-                                        size="small"
-                                        sx={{
-                                          backgroundColor: 'rgba(206, 147, 216, 0.15)',
-                                          color: '#CE93D8',
-                                          height: '22px'
-                                        }}
-                                      />
-                                    )}
+                                      {item.sku && (
+                                        <Box sx={{
+                                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                          borderRadius: '6px',
+                                          px: 1,
+                                          py: 0.5,
+                                          border: '1px solid rgba(255, 255, 255, 0.1)'
+                                        }}>
+                                          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.75rem' }}>
+                                            SKU: {item.sku}
+                                          </Typography>
+                                        </Box>
+                                      )}
 
-                                    {item.wrapFinish && (
-                                      <Chip
-                                        label={`${item.wrapFinish}`}
-                                        size="small"
-                                        sx={{
-                                          backgroundColor: 'rgba(255, 183, 77, 0.15)',
-                                          color: '#FFB74D',
-                                          height: '22px'
-                                        }}
-                                      />
-                                    )}
-
-                                    {item.insertionDetails?.component && (
-                                      <Chip
-                                        label={`${item.insertionDetails.component}`}
-                                        size="small"
-                                        sx={{
-                                          backgroundColor: 'rgba(103, 58, 183, 0.15)',
-                                          color: '#673AB7',
-                                          height: '22px'
-                                        }}
-                                      />
-                                    )}
-
-                                    {item.insertionDetails?.pageType && (
-                                      <Chip
-                                        label={`${item.insertionDetails.pageType}`}
-                                        size="small"
-                                        sx={{
-                                          backgroundColor: 'rgba(233, 30, 99, 0.15)',
-                                          color: '#E91E63',
-                                          height: '22px'
-                                        }}
-                                      />
-                                    )}
+                                      {item.wrapFinish && (
+                                        <Box sx={{
+                                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                          borderRadius: '6px',
+                                          px: 1,
+                                          py: 0.5,
+                                          border: '1px solid rgba(255, 255, 255, 0.1)'
+                                        }}>
+                                          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.75rem' }}>
+                                            {item.wrapFinish}
+                                          </Typography>
+                                        </Box>
+                                      )}
+                                    </Box>
                                   </Box>
+
+                                  {/* Insertion Details - Separate Row */}
+                                  {(item.insertionDetails?.component || item.insertionDetails?.pageType) && (
+                                    <Box sx={{ 
+                                      borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
+                                      pt: 1.5,
+                                      mt: 'auto'
+                                    }}>
+                                      <Typography variant="caption" sx={{ 
+                                        color: 'rgba(255, 255, 255, 0.5)', 
+                                        fontSize: '0.7rem',
+                                        mb: 0.5,
+                                        display: 'block',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.5px'
+                                      }}>
+                                        Insertion Details
+                                      </Typography>
+                                      <Box sx={{
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        gap: 0.5
+                                      }}>
+                                        {item.insertionDetails?.component && (
+                                          <Typography variant="caption" sx={{
+                                            color: 'rgba(255, 255, 255, 0.8)',
+                                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                            borderRadius: '4px',
+                                            px: 0.75,
+                                            py: 0.25,
+                                            fontSize: '0.7rem',
+                                            border: '1px solid rgba(255, 255, 255, 0.08)'
+                                          }}>
+                                            component: {item.insertionDetails.component}
+                                          </Typography>
+                                        )}
+
+                                        {item.insertionDetails?.pageType && (
+                                          <Typography variant="caption" sx={{
+                                            color: 'rgba(255, 255, 255, 0.8)',
+                                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                            borderRadius: '4px',
+                                            px: 0.75,
+                                            py: 0.25,
+                                            fontSize: '0.7rem',
+                                            border: '1px solid rgba(255, 255, 255, 0.08)'
+                                          }}>
+                                            pageType: {item.insertionDetails.pageType}
+                                          </Typography>
+                                        )}
+                                      </Box>
+                                    </Box>
+                                  )}
                                 </Box>
                               </Box>
                             </Card>
@@ -704,16 +744,17 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                         >
                           <Box sx={{
                             display: 'flex',
+                            flexDirection: { xs: 'column', sm: 'row' },
                             p: 2,
                             gap: 2,
-                            alignItems: 'center'
+                            alignItems: { xs: 'stretch', sm: 'flex-start' }
                           }}>
                             {/* Product image with Next Image */}
                             <Box
                               sx={{
                                 position: 'relative',
-                                width: 70,
-                                height: 70,
+                                width: { xs: '100%', sm: 70 },
+                                height: { xs: 200, sm: 70 },
                                 borderRadius: '8px',
                                 flexShrink: 0,
                                 overflow: 'hidden',
@@ -737,8 +778,8 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                   height={200}
                                   style={{
                                     objectFit: 'cover',
-                                    width: '50px',
-                                    height: '50px'
+                                    width: '100%',
+                                    height: '100%'
                                   }}
                                   priority={index < 2}
                                 />
@@ -759,89 +800,125 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                             </Box>
 
                             {/* Product details */}
-                            <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                              <Typography variant="body1" sx={{
-                                color: 'white',
-                                fontWeight: 600,
-                                mb: 0.5,
-                                fontSize: '0.95rem',
-                                lineHeight: 1.3,
-                                display: '-webkit-box',
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}>
-                                {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
-                              </Typography>
+                            <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                              {/* Product Name and Basic Details */}
+                              <Box>
+                                <Typography variant="body1" sx={{
+                                  color: 'white',
+                                  fontWeight: 600,
+                                  mb: 1,
+                                  fontSize: '0.95rem',
+                                  lineHeight: 1.3,
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}>
+                                  {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
+                                </Typography>
 
-                              <Box sx={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: 1,
-                                alignItems: 'center',
-                                mt: 0.5
-                              }}>
+                                {/* Basic Product Info */}
+                                <Box sx={{
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  gap: 1,
+                                  alignItems: 'center'
+                                }}>
+                                  <Box sx={{
+                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                    borderRadius: '6px',
+                                    px: 1,
+                                    py: 0.5,
+                                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                                  }}>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.75rem' }}>
+                                      Qty: {item.quantity || 'N/A'}
+                                    </Typography>
+                                  </Box>
 
+                                  {item.sku && (
+                                    <Box sx={{
+                                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                      borderRadius: '6px',
+                                      px: 1,
+                                      py: 0.5,
+                                      border: '1px solid rgba(255, 255, 255, 0.1)'
+                                    }}>
+                                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.75rem' }}>
+                                        SKU: {item.sku}
+                                      </Typography>
+                                    </Box>
+                                  )}
 
-                                <Chip
-                                  label={`QTY: ${item.quantity || 'N/A'}`}
-                                  size="small"
-                                  sx={{
-                                    backgroundColor: 'rgba(144, 202, 249, 0.15)',
-                                    color: '#90CAF9',
-                                    height: '22px'
-                                  }}
-                                />
-
-                                {item.sku && (
-                                  <Chip
-                                    label={`SKU: ${item.sku}`}
-                                    size="small"
-                                    sx={{
-                                      backgroundColor: 'rgba(206, 147, 216, 0.15)',
-                                      color: '#CE93D8',
-                                      height: '22px'
-                                    }}
-                                  />
-                                )}
-
-                                {item.wrapFinish && (
-                                  <Chip
-                                    label={`${item.wrapFinish}`}
-                                    size="small"
-                                    sx={{
-                                      backgroundColor: 'rgba(255, 183, 77, 0.15)',
-                                      color: '#FFB74D',
-                                      height: '22px'
-                                    }}
-                                  />
-                                )}
-
-                                {item.insertionDetails?.component && (
-                                  <Chip
-                                    label={`${item.insertionDetails.component}`}
-                                    size="small"
-                                    sx={{
-                                      backgroundColor: 'rgba(103, 58, 183, 0.15)',
-                                      color: '#673AB7',
-                                      height: '22px'
-                                    }}
-                                  />
-                                )}
-
-                                {item.insertionDetails?.pageType && (
-                                  <Chip
-                                    label={`${item.insertionDetails.pageType}`}
-                                    size="small"
-                                    sx={{
-                                      backgroundColor: 'rgba(233, 30, 99, 0.15)',
-                                      color: '#E91E63',
-                                      height: '22px'
-                                    }}
-                                  />
-                                )}
+                                  {item.wrapFinish && (
+                                    <Box sx={{
+                                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                      borderRadius: '6px',
+                                      px: 1,
+                                      py: 0.5,
+                                      border: '1px solid rgba(255, 255, 255, 0.1)'
+                                    }}>
+                                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.75rem' }}>
+                                        {item.wrapFinish}
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                </Box>
                               </Box>
+
+                              {/* Insertion Details - Separate Row */}
+                              {(item.insertionDetails?.component || item.insertionDetails?.pageType) && (
+                                <Box sx={{ 
+                                  borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
+                                  pt: 1.5,
+                                  mt: 'auto'
+                                }}>
+                                  <Typography variant="caption" sx={{ 
+                                    color: 'rgba(255, 255, 255, 0.5)', 
+                                    fontSize: '0.7rem',
+                                    mb: 0.5,
+                                    display: 'block',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
+                                  }}>
+                                    Insertion Details
+                                  </Typography>
+                                  <Box sx={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 0.5
+                                  }}>
+                                    {item.insertionDetails?.component && (
+                                      <Typography variant="caption" sx={{
+                                        color: 'rgba(255, 255, 255, 0.8)',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                        borderRadius: '4px',
+                                        px: 0.75,
+                                        py: 0.25,
+                                        fontSize: '0.7rem',
+                                        border: '1px solid rgba(255, 255, 255, 0.08)'
+                                      }}>
+                                        Component: {item.insertionDetails.component}
+                                      </Typography>
+                                    )}
+
+                                    {item.insertionDetails?.pageType && (
+                                      <Typography variant="caption" sx={{
+                                        color: 'rgba(255, 255, 255, 0.8)',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                        borderRadius: '4px',
+                                        px: 0.75,
+                                        py: 0.25,
+                                        fontSize: '0.7rem',
+                                        border: '1px solid rgba(255, 255, 255, 0.08)'
+                                      }}>
+                                        PageType: {item.insertionDetails.pageType}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                              )}
                             </Box>
                           </Box>
                         </Card>
@@ -1328,55 +1405,122 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     key={shipment.shipmentId}
                     sx={{
                       mb: 1,
-                      backgroundColor: shipment.isMainShipment ? 'rgba(76, 175, 80, 0.05)' : 'rgba(0, 0, 0, 0.2)',
-                      border: shipment.isMainShipment ? '1px solid rgba(76, 175, 80, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
                       borderRadius: '8px !important',
                       '&:before': { display: 'none' },
                       '&.Mui-expanded': {
                         margin: '0 0 8px 0',
+                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                      },
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                        borderColor: 'rgba(255, 255, 255, 0.12)',
                       }
                     }}
                   >
                       <AccordionSummary
-                        expandIcon={<ExpandMoreIcon sx={{ color: 'white', fontSize: '1rem' }} />}
-                        sx={{ padding: '12px 16px', minHeight: 'auto !important' }}
+                        expandIcon={<ExpandMoreIcon sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '1rem' }} />}
+                        sx={{ 
+                          padding: { xs: '8px 12px', sm: '12px 16px' }, 
+                          minHeight: 'auto !important',
+                          '&.Mui-expanded': {
+                            minHeight: 'auto !important'
+                          }
+                        }}
                       >
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', mr: 2 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Typography variant="body1" sx={{ color: 'white', fontWeight: 500, mr: 2 }}>
+                        <Box sx={{ 
+                          display: 'flex', 
+                          flexDirection: { xs: 'column', sm: 'row' },
+                          justifyContent: 'space-between', 
+                          alignItems: { xs: 'flex-start', sm: 'center' }, 
+                          width: '100%', 
+                          mr: 2,
+                          gap: { xs: 1, sm: 0 }
+                        }}>
+                          {/* Left Section */}
+                          <Box sx={{ 
+                            display: 'flex', 
+                            flexDirection: { xs: 'column', sm: 'row' },
+                            alignItems: { xs: 'flex-start', sm: 'center' },
+                            gap: { xs: 0.5, sm: 1.5 },
+                            flex: 1
+                          }}>
+                            <Typography variant="body1" sx={{ 
+                              color: 'white', 
+                              fontWeight: 500, 
+                              fontSize: { xs: '0.9rem', sm: '1rem' },
+                              mb: { xs: 0.25, sm: 0 }
+                            }}>
                               {shipment.isMainShipment ? 'Main Shipment' : `Shipment ${index}`}
                             </Typography>
-                            <Chip 
-                              label={`Order ID: ${shipment.shipmentId.slice(0, 10)}...`}
-                              size="small"
-                              sx={{ 
-                                height: '20px', 
-                                fontSize: '0.7rem',
-                                backgroundColor: 'rgba(79, 134, 247, 0.2)',
-                                color: '#4f86f7'
-                              }}
-                            />
-                            <Chip 
-                              label={formatStatus(shipmentData.deliveryStatus)}
-                              size="small"
-                              color={statusColors[shipmentData.deliveryStatus] || 'default'}
-                              sx={{ ml: 1, height: '20px', fontSize: '0.7rem' }}
-                            />
+                            
+                            {/* Order ID and Status - Minimal Design */}
+                            <Box sx={{ 
+                              display: 'flex', 
+                              flexDirection: { xs: 'row', sm: 'row' },
+                              gap: { xs: 1, sm: 1.5 },
+                              alignItems: 'center',
+                              flexWrap: 'wrap'
+                            }}>
+                              <Typography variant="caption" sx={{
+                                color: 'rgba(255, 255, 255, 0.6)',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '4px',
+                                px: { xs: 0.75, sm: 1 },
+                                py: 0.25,
+                                fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                fontFamily: 'monospace'
+                              }}>
+                                ID: {shipment.shipmentId.slice(0, 8)}...
+                              </Typography>
+                              
+                              <Typography variant="caption" sx={{
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '4px',
+                                px: { xs: 0.75, sm: 1 },
+                                py: 0.25,
+                                fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                textTransform: 'capitalize'
+                              }}>
+                                {formatStatus(shipmentData.deliveryStatus)}
+                              </Typography>
+                            </Box>
                           </Box>
-                          <Box sx={{ textAlign: 'right' }}>
-                            <Typography variant="body1" sx={{ color: 'white', fontWeight: 600 }}>
+                          
+                          {/* Right Section */}
+                          <Box sx={{ 
+                            textAlign: { xs: 'left', sm: 'right' },
+                            display: 'flex',
+                            flexDirection: { xs: 'row', sm: 'column' },
+                            alignItems: { xs: 'center', sm: 'flex-end' },
+                            gap: { xs: 2, sm: 0.25 },
+                            justifyContent: { xs: 'space-between', sm: 'flex-end' },
+                            width: { xs: '100%', sm: 'auto' }
+                          }}>
+                            <Typography variant="body1" sx={{ 
+                              color: 'white', 
+                              fontWeight: 600,
+                              fontSize: { xs: '0.9rem', sm: '1rem' }
+                            }}>
                               ₹{shipmentData.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            <Typography variant="caption" sx={{ 
+                              color: 'rgba(255, 255, 255, 0.6)',
+                              fontSize: { xs: '0.7rem', sm: '0.75rem' }
+                            }}>
                               {shipmentTotalItems} item{shipmentTotalItems !== 1 ? 's' : ''}
                             </Typography>
                           </Box>
                         </Box>
                       </AccordionSummary>
-                      <AccordionDetails sx={{ backgroundColor: 'rgba(0, 0, 0, 0.1)', p: 2 }}>
-                        <Grid container spacing={2}>
+                      <AccordionDetails sx={{ backgroundColor: 'rgba(0, 0, 0, 0.1)', p: { xs: 1, sm: 2 } }}>
+                        <Grid container spacing={{ xs: 1, sm: 2 }}>
                           {/* Shipment Items */}
-                          <Grid item xs={12} md={6}>
+                          <Grid item xs={12} lg={6}>
                             <Typography variant="subtitle2" sx={{ color: 'white', mb: 1.5, fontWeight: 600 }}>
                               Items in this Shipment
                             </Typography>
@@ -1390,11 +1534,17 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                   border: '1px solid rgba(255, 255, 255, 0.08)',
                                 }}
                               >
-                                <Box sx={{ display: 'flex', p: 1.5, gap: 1.5, alignItems: 'center' }}>
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  flexDirection: { xs: 'column', sm: 'row' },
+                                  p: 1.5, 
+                                  gap: 1.5, 
+                                  alignItems: { xs: 'stretch', sm: 'center' }
+                                }}>
                                   <Box
                                     sx={{
-                                      width: 50,
-                                      height: 50,
+                                      width: { xs: '100%', sm: 50 },
+                                      height: { xs: 120, sm: 50 },
                                       borderRadius: '6px',
                                       overflow: 'hidden',
                                       border: '1px solid rgba(255,255,255,0.1)',
@@ -1413,7 +1563,11 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                         loading='lazy'
                                         width={50}
                                         height={50}
-                                        style={{ objectFit: 'cover' }}
+                                        style={{ 
+                                          objectFit: 'cover', 
+                                          width: '100%', 
+                                          height: '100%' 
+                                        }}
                                       />
                                     ) : (
                                       <Box
@@ -1430,7 +1584,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                       </Box>
                                     )}
                                   </Box>
-                                  <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                                  <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 1 }}>
                                     <Typography variant="body2" sx={{
                                       color: 'white',
                                       fontWeight: 500,
@@ -1443,52 +1597,91 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                     }}>
                                       {item.product?.specificCategoryVariant?.name || item.name || 'N/A'}
                                     </Typography>
-                                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                      <Chip
-                                        label={`Qty: ${item.quantity}`}
-                                        size="small"
-                                        sx={{
-                                          backgroundColor: 'rgba(144, 202, 249, 0.15)',
-                                          color: '#90CAF9',
-                                          height: '20px',
-                                          fontSize: '0.7rem'
-                                        }}
-                                      />
-                                      <Chip
-                                        label={`₹${item.priceAtPurchase.toLocaleString('en-IN')}`}
-                                        size="small"
-                                        sx={{
-                                          backgroundColor: 'rgba(76, 175, 80, 0.15)',
-                                          color: '#4CAF50',
-                                          height: '20px',
-                                          fontSize: '0.7rem'
-                                        }}
-                                      />
-                                      {item.insertionDetails?.component && (
-                                        <Chip
-                                          label={`${item.insertionDetails.component}`}
-                                          size="small"
-                                          sx={{
-                                            backgroundColor: 'rgba(103, 58, 183, 0.15)',
-                                            color: '#673AB7',
-                                            height: '20px',
-                                            fontSize: '0.7rem'
-                                          }}
-                                        />
-                                      )}
-                                      {item.insertionDetails?.pageType && (
-                                        <Chip
-                                          label={`${item.insertionDetails.pageType}`}
-                                          size="small"
-                                          sx={{
-                                            backgroundColor: 'rgba(233, 30, 99, 0.15)',
-                                            color: '#E91E63',
-                                            height: '20px',
-                                            fontSize: '0.7rem'
-                                          }}
-                                        />
-                                      )}
+                                    
+                                    {/* Basic Product Info */}
+                                    <Box sx={{
+                                      display: 'flex',
+                                      flexWrap: 'wrap',
+                                      gap: 0.5,
+                                      alignItems: 'center'
+                                    }}>
+                                      <Box sx={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: '4px',
+                                        px: 0.75,
+                                        py: 0.25,
+                                        border: '1px solid rgba(255, 255, 255, 0.1)'
+                                      }}>
+                                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.7rem' }}>
+                                          Qty: {item.quantity || 'N/A'}
+                                        </Typography>
+                                      </Box>
+
+                                      <Box sx={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: '4px',
+                                        px: 0.75,
+                                        py: 0.25,
+                                        border: '1px solid rgba(255, 255, 255, 0.1)'
+                                      }}>
+                                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.7rem' }}>
+                                          ₹{item.priceAtPurchase.toLocaleString('en-IN')}
+                                        </Typography>
+                                      </Box>
                                     </Box>
+                                    
+                                    {/* Insertion Details - Separate Row */}
+                                    {(item.insertionDetails?.component || item.insertionDetails?.pageType) && (
+                                      <Box sx={{ 
+                                        borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
+                                        pt: 0.75,
+                                        mt: 'auto'
+                                      }}>
+                                        <Typography variant="caption" sx={{ 
+                                          color: 'rgba(255, 255, 255, 0.5)', 
+                                          fontSize: '0.65rem',
+                                          mb: 0.25,
+                                          display: 'block',
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.5px'
+                                        }}>
+                                          Insertion Details
+                                        </Typography>
+                                        <Box sx={{
+                                          display: 'flex',
+                                          flexWrap: 'wrap',
+                                          gap: 0.25
+                                        }}>
+                                          {item.insertionDetails?.component && (
+                                            <Typography variant="caption" sx={{
+                                              color: 'rgba(255, 255, 255, 0.8)',
+                                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                              borderRadius: '3px',
+                                              px: 0.5,
+                                              py: 0.125,
+                                              fontSize: '0.65rem',
+                                              border: '1px solid rgba(255, 255, 255, 0.08)'
+                                            }}>
+                                              Component: {item.insertionDetails.component}
+                                            </Typography>
+                                          )}
+
+                                          {item.insertionDetails?.pageType && (
+                                            <Typography variant="caption" sx={{
+                                              color: 'rgba(255, 255, 255, 0.8)',
+                                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                              borderRadius: '3px',
+                                              px: 0.5,
+                                              py: 0.125,
+                                              fontSize: '0.65rem',
+                                              border: '1px solid rgba(255, 255, 255, 0.08)'
+                                            }}>
+                                              PageType: {item.insertionDetails.pageType}
+                                            </Typography>
+                                          )}
+                                        </Box>
+                                      </Box>
+                                    )}
                                   </Box>
                                 </Box>
                               </Card>
@@ -1496,7 +1689,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                           </Grid>
 
                           {/* Shipment Financial Details */}
-                          <Grid item xs={12} md={6}>
+                          <Grid item xs={12} lg={6}>
                             <Typography variant="subtitle2" sx={{ color: 'white', mb: 1.5, fontWeight: 600 }}>
                               Shipment Financial Breakdown
                             </Typography>

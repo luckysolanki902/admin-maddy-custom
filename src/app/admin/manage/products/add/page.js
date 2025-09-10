@@ -35,6 +35,7 @@ import ProductImagePreview from '@/components/page-sections/product-add-page/Pro
 import CategorySelector from '@/components/layout/CategorySelector';
 import VariantNameConflictDialog from '@/components/page-sections/common/VariantNameConflictDialog';
 import OptionForm from '@/components/page-sections/options/OptionForm';
+import SearchKeywords from '@/components/common/SearchKeywords';
 import { toTitleCase } from '@/lib/utils/generalFunctions';
 
 /*  ╭────────────────────────────────────────────────────────────╮
@@ -57,6 +58,7 @@ const AddProductPage = () => {
   const [pageSlug, setPageSlug] = useState('');
   const [title, setTitle] = useState('');
   const [mainTag, setMainTag] = useState('');
+  const [searchKeywords, setSearchKeywords] = useState([]);
   const [price, setPrice] = useState(0);
   const [MRP, setMRP] = useState(1000);
   const [displayOrder, setDisplayOrder] = useState(0);
@@ -141,6 +143,7 @@ const AddProductPage = () => {
     setPageSlug('');
     setTitle('');
     setMainTag('');
+    setSearchKeywords([]);
     setPrice(0);
     setDisplayOrder(0);
     setProductImages([]);
@@ -458,6 +461,7 @@ const AddProductPage = () => {
         pageSlug,
         title: titleCaseTitle,
         mainTags: [mainTag],
+        searchKeywords,
         price,
         MRP,
         displayOrder,
@@ -498,6 +502,7 @@ const AddProductPage = () => {
       setPageSlug('');
       setTitle('');
       setMainTag(firstProductDetails.firstProduct?.mainTags?.[0] || '');
+      setSearchKeywords([]);
       setPrice(firstProductDetails.defaults?.price || 0);
       setMRP(firstProductDetails.defaults?.MRP || 1000);
       setDisplayOrder(firstProductDetails.defaults?.displayOrder || 0);
@@ -654,6 +659,18 @@ const AddProductPage = () => {
               </MenuItem>
             </Select>
           </FormControl>
+        </Grid>
+
+        <Grid item xs={12}>
+          <SearchKeywords
+            keywords={searchKeywords}
+            onKeywordsChange={setSearchKeywords}
+            productData={{
+              title: title,
+              mainTags: mainTag ? [mainTag] : [],
+              images: [] // For new products, we won't use image analysis since they're not uploaded yet
+            }}
+          />
         </Grid>
 
         <Grid item xs={12} sm={6}>

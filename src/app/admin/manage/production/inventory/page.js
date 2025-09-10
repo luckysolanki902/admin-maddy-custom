@@ -61,16 +61,13 @@ const InventoryManagementPage = () => {
   const [filterMode, setFilterMode] = useState('all'); // 'all', 'outOfStock', 'needsReorder', 'custom'
   const [customFilterValue, setCustomFilterValue] = useState(10);
   const [viewMode, setViewMode] = useState(true); // true = view, false = edit
-  const [updateMode, setUpdateMode] = useState('overwrite'); // 'overwrite', 'add'
   const [loading, setLoading] = useState(true);
   const [tableData, setTableData] = useState([]);
   const [originalData, setOriginalData] = useState({});
   const [changedRows, setChangedRows] = useState(new Set());
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [saveAllLoading, setSaveAllLoading] = useState(false);
-  const [savingRows, setSavingRows] = useState(new Set());
   const [snackbar, setSnackbar] = useState(null);
-  const [retryAttempts, setRetryAttempts] = useState({});
   
   // Pagination
   const [page, setPage] = useState(0);
@@ -180,125 +177,46 @@ const InventoryManagementPage = () => {
   };
 
   // Save single row
-  const saveRow = async (id, maxRetries = 3) => {
+  const saveRow = async (id) => {
     const item = tableData.find(row => row._id === id);
-    if (!item) {
-      setSnackbar({ severity: 'error', message: 'Item not found' });
-      return false;
-    }
-
-    setSavingRows(prev => new Set([...prev, id]));
+    if (!item) return;
 
     try {
-      const requestBody = {
-        availableQuantity: item.inventoryData?.availableQuantity || 0,
-        reorderLevel: item.inventoryData?.reorderLevel || 0,
-        updateMode
-      };
-
       const res = await fetch(`/api/inventory-management/products/${id}`, {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
-        },
-        body: JSON.stringify(requestBody)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          availableQuantity: item.inventoryData?.availableQuantity || 0,
+          reorderLevel: item.inventoryData?.reorderLevel || 0
+        })
       });
 
-      const responseData = await res.json();
-
-      if (res.ok && responseData.success) {
-        // Update original data with the new values
-        const newOriginalData = {
-          availableQuantity: responseData.data.availableQuantity,
-          reorderLevel: responseData.data.reorderLevel
-        };
-
+      if (res.ok) {
+        // Update original data
         setOriginalData(prev => ({
           ...prev,
-          [id]: newOriginalData
+          [id]: {
+            availableQuantity: item.inventoryData?.availableQuantity || 0,
+            reorderLevel: item.inventoryData?.reorderLevel || 0
+          }
         }));
-
-        // Update the table data to reflect the actual saved values
-        setTableData(prev => prev.map(row => 
-          row._id === id 
-            ? {
-                ...row,
-                inventoryData: {
-                  ...row.inventoryData,
-                  availableQuantity: responseData.data.availableQuantity,
-                  reorderLevel: responseData.data.reorderLevel
-                }
-              }
-            : row
-        ));
-
         setChangedRows(prev => {
           const newSet = new Set(prev);
           newSet.delete(id);
           return newSet;
         });
-
-        // Clear retry attempts for this item
-        setRetryAttempts(prev => {
-          const newAttempts = { ...prev };
-          delete newAttempts[id];
-          return newAttempts;
-        });
-
-        setSnackbar({ 
-          severity: 'success', 
-          message: responseData.message || 'Inventory updated successfully' 
-        });
-        return true;
+        setSnackbar({ severity: 'success', message: 'Inventory updated successfully' });
       } else {
-        throw new Error(responseData.error || 'Failed to update inventory');
+        setSnackbar({ severity: 'error', message: 'Failed to update inventory' });
       }
     } catch (error) {
-      console.error('Save error:', error);
-      
-      const currentRetries = retryAttempts[id] || 0;
-      if (currentRetries < maxRetries - 1) {
-        // Retry with exponential backoff
-        const delay = Math.pow(2, currentRetries) * 1000;
-        setRetryAttempts(prev => ({ ...prev, [id]: currentRetries + 1 }));
-        
-        setTimeout(() => {
-          saveRow(id, maxRetries);
-        }, delay);
-        
-        setSnackbar({ 
-          severity: 'warning', 
-          message: `Retrying save... (${currentRetries + 1}/${maxRetries})` 
-        });
-      } else {
-        // Max retries reached
-        setRetryAttempts(prev => {
-          const newAttempts = { ...prev };
-          delete newAttempts[id];
-          return newAttempts;
-        });
-        
-        setSnackbar({ 
-          severity: 'error', 
-          message: `Failed to save after ${maxRetries} attempts: ${error.message}` 
-        });
-      }
-      return false;
-    } finally {
-      setSavingRows(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
-      });
+      setSnackbar({ severity: 'error', message: 'Network error' });
     }
   };
 
   // Save all changes
   const saveAllChanges = async () => {
     setSaveAllLoading(true);
-    setConfirmDialog(false);
-    
     try {
       const changes = Array.from(changedRows).map(id => {
         const item = tableData.find(row => row._id === id);
@@ -317,72 +235,27 @@ const InventoryManagementPage = () => {
         };
       });
 
-      const requestBody = { 
-        changes, 
-        updateMode 
-      };
-
       const res = await fetch('/api/inventory-management/bulk-update', {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
-        },
-        body: JSON.stringify(requestBody)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changes })
       });
 
-      const responseData = await res.json();
-
-      if (res.ok && responseData.success) {
-        // Update original data for successfully saved items
+      if (res.ok) {
+        // Update original data for all changed items
         const newOriginalData = { ...originalData };
-        
-        if (responseData.results) {
-          responseData.results.forEach(result => {
-            if (result.success) {
-              newOriginalData[result.id] = {
-                availableQuantity: result.data.availableQuantity,
-                reorderLevel: result.data.reorderLevel
-              };
-            }
-          });
-        } else {
-          // Fallback: assume all changes were successful
-          changes.forEach(change => {
-            newOriginalData[change.id] = change.after;
-          });
-        }
-        
+        changes.forEach(change => {
+          newOriginalData[change.id] = change.after;
+        });
         setOriginalData(newOriginalData);
         setChangedRows(new Set());
-        
-        // Show detailed results
-        if (responseData.errorCount > 0) {
-          setSnackbar({ 
-            severity: 'warning', 
-            message: responseData.message || `Saved ${responseData.successCount} items, ${responseData.errorCount} errors`
-          });
-        } else {
-          setSnackbar({ 
-            severity: 'success', 
-            message: responseData.message || `Successfully saved ${responseData.successCount || changes.length} items`
-          });
-        }
-        
-        // Refresh data to ensure consistency
-        setTimeout(() => {
-          fetchTableData();
-        }, 1000);
-        
+        setSnackbar({ severity: 'success', message: `Updated ${changes.length} items successfully` });
+        setConfirmDialog(false);
       } else {
-        throw new Error(responseData.error || 'Failed to save changes');
+        setSnackbar({ severity: 'error', message: 'Failed to update inventory' });
       }
     } catch (error) {
-      console.error('Bulk save error:', error);
-      setSnackbar({ 
-        severity: 'error', 
-        message: `Failed to save changes: ${error.message}` 
-      });
+      setSnackbar({ severity: 'error', message: 'Network error' });
     } finally {
       setSaveAllLoading(false);
     }
@@ -628,105 +501,37 @@ const InventoryManagementPage = () => {
 
       {/* Enhanced Mode Toggle and Save All */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Stack direction="row" spacing={3} alignItems="center">
-          {/* View/Edit Mode Toggle */}
-          <FormControlLabel
-            control={
-              <Switch
-                checked={!viewMode}
-                onChange={(e) => setViewMode(!e.target.checked)}
-                size="medium"
-                sx={{
-                  '& .MuiSwitch-thumb': {
-                    boxShadow: 2
-                  }
-                }}
-              />
-            }
-            label={
-              <Stack direction="row" spacing={1} alignItems="center">
-                {viewMode ? <ViewIcon fontSize="small" /> : <EditIcon fontSize="small" />}
-                <Typography variant="body2" fontWeight={500}>
-                  {viewMode ? "View Mode" : "Edit Mode"}
-                </Typography>
-              </Stack>
-            }
-          />
-
-          {/* Update Mode Selector - Only show in edit mode */}
-          {!viewMode && (
-            <Card
-              elevation={0}
-              sx={{ 
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 2,
-                px: 2,
-                py: 1,
-                background: 'rgba(255,255,255,0.05)'
+        <FormControlLabel
+          control={
+            <Switch
+              checked={!viewMode}
+              onChange={(e) => setViewMode(!e.target.checked)}
+              size="medium"
+              sx={{
+                '& .MuiSwitch-thumb': {
+                  boxShadow: 2
+                }
               }}
-            >
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Typography variant="subtitle2" fontWeight={600} sx={{ minWidth: 'fit-content' }}>
-                  Update Mode:
-                </Typography>
-                <Stack direction="row" spacing={1}>
-                  <Chip
-                    label="Replace Values"
-                    onClick={() => setUpdateMode('overwrite')}
-                    color={updateMode === 'overwrite' ? 'primary' : 'default'}
-                    variant={updateMode === 'overwrite' ? 'filled' : 'outlined'}
-                    size="small"
-                    sx={{ 
-                      borderRadius: 1.5,
-                      fontWeight: 500,
-                      '&:hover': { transform: 'scale(1.02)' },
-                      transition: 'all 0.2s'
-                    }}
-                  />
-                  <Chip
-                    label="Add to Current"
-                    onClick={() => setUpdateMode('add')}
-                    color={updateMode === 'add' ? 'secondary' : 'default'}
-                    variant={updateMode === 'add' ? 'filled' : 'outlined'}
-                    size="small"
-                    sx={{ 
-                      borderRadius: 1.5,
-                      fontWeight: 500,
-                      '&:hover': { transform: 'scale(1.02)' },
-                      transition: 'all 0.2s'
-                    }}
-                  />
-                </Stack>
-                <Tooltip 
-                  title={
-                    updateMode === 'overwrite' 
-                      ? "Replace existing quantities with new values" 
-                      : "Add new quantities to existing inventory (for restock)"
-                  }
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', cursor: 'help' }}>
-                    <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.7 }}>
-                      {updateMode === 'overwrite' 
-                        ? "Overwrites current values" 
-                        : "Adds to current inventory"
-                      }
-                    </Typography>
-                  </Box>
-                </Tooltip>
-              </Stack>
-            </Card>
-          )}
-        </Stack>
+            />
+          }
+          label={
+            <Stack direction="row" spacing={1} alignItems="center">
+              {viewMode ? <ViewIcon fontSize="small" /> : <EditIcon fontSize="small" />}
+              <Typography variant="body2" fontWeight={500}>
+                {viewMode ? "View Mode" : "Edit Mode"}
+              </Typography>
+            </Stack>
+          }
+        />
 
         <Fade in={changedRows.size > 0}>
           <Badge badgeContent={changedRows.size} color="warning">
             <Button
               variant="contained"
               size="large"
-              startIcon={saveAllLoading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <SaveAllIcon />}
+              startIcon={<SaveAllIcon />}
               onClick={() => setConfirmDialog(true)}
-              disabled={viewMode || saveAllLoading || changedRows.size === 0}
+              disabled={viewMode || saveAllLoading}
               sx={{ 
                 borderRadius: 3,
                 px: 3,
@@ -739,10 +544,7 @@ const InventoryManagementPage = () => {
                 transition: 'all 0.2s'
               }}
             >
-              {saveAllLoading 
-                ? `Saving ${updateMode === 'add' ? 'Additions' : 'Changes'}...` 
-                : `Save All ${updateMode === 'add' ? 'Additions' : 'Changes'}`
-              }
+              Save All Changes
             </Button>
           </Badge>
         </Fade>
@@ -1071,34 +873,26 @@ const InventoryManagementPage = () => {
                       
                       {!viewMode && (
                         <TableCell align="center">
-                          {savingRows.has(item._id) ? (
-                            <CircularProgress size={20} />
-                          ) : (
-                            <Tooltip title={
-                              isChanged 
-                                ? `${updateMode === 'add' ? 'Add to' : 'Update'} inventory` 
-                                : "No changes to save"
-                            }>
-                              <IconButton
-                                size="small"
-                                onClick={() => saveRow(item._id)}
-                                disabled={!isChanged || savingRows.has(item._id)}
-                                color={isChanged ? (updateMode === 'add' ? 'secondary' : 'warning') : 'default'}
-                                sx={{
-                                  transition: 'all 0.2s',
-                                  ...(isChanged && {
-                                    backgroundColor: alpha(updateMode === 'add' ? '#9c27b0' : '#ed6c02', 0.1),
-                                    '&:hover': {
-                                      backgroundColor: alpha(updateMode === 'add' ? '#9c27b0' : '#ed6c02', 0.2),
-                                      transform: 'scale(1.1)'
-                                    }
-                                  })
-                                }}
-                              >
-                                <SaveIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
+                          <Tooltip title={isChanged ? "Save changes" : "No changes to save"}>
+                            <IconButton
+                              size="small"
+                              onClick={() => saveRow(item._id)}
+                              disabled={!isChanged}
+                              color={isChanged ? 'warning' : 'default'}
+                              sx={{
+                                transition: 'all 0.2s',
+                                ...(isChanged && {
+                                  backgroundColor: alpha('#ed6c02', 0.1),
+                                  '&:hover': {
+                                    backgroundColor: alpha('#ed6c02', 0.2),
+                                    transform: 'scale(1.1)'
+                                  }
+                                })
+                              }}
+                            >
+                              <SaveIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       )}
                     </TableRow>
@@ -1137,36 +931,11 @@ const InventoryManagementPage = () => {
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialog} onClose={() => setConfirmDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ pb: 1 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6" fontWeight={600}>
-              Confirm Inventory {updateMode === 'add' ? 'Additions' : 'Changes'}
-            </Typography>
-            <Chip
-              label={updateMode === 'add' ? 'ADD TO CURRENT' : 'REPLACE VALUES'}
-              color={updateMode === 'add' ? 'secondary' : 'primary'}
-              size="small"
-              sx={{ fontWeight: 600 }}
-            />
-          </Stack>
-        </DialogTitle>
+        <DialogTitle>Confirm Inventory Changes</DialogTitle>
         <DialogContent dividers>
-          <Alert 
-            severity={updateMode === 'add' ? 'info' : 'warning'} 
-            sx={{ mb: 3 }}
-          >
-            <Typography variant="body2">
-              {updateMode === 'add' 
-                ? "You are about to ADD the specified quantities to your current inventory. The new values will be added to existing stock levels." 
-                : "You are about to REPLACE current inventory values with the new ones specified below. This will overwrite existing quantities."
-              }
-            </Typography>
-          </Alert>
-          
-          <Typography variant="body2" mb={2} fontWeight={500}>
-            Review the {changedRows.size} item{changedRows.size !== 1 ? 's' : ''} below before saving:
+          <Typography variant="body2" mb={2}>
+            Review the changes below before saving:
           </Typography>
-          
           <TableContainer>
             <Table size="small">
               <TableHead>
@@ -1174,7 +943,7 @@ const InventoryManagementPage = () => {
                   <TableCell>Image</TableCell>
                   <TableCell>Name</TableCell>
                   <TableCell>SKU</TableCell>
-                  <TableCell>Available Qty</TableCell>
+                  <TableCell>Available</TableCell>
                   <TableCell>Reorder Level</TableCell>
                 </TableRow>
               </TableHead>
@@ -1182,22 +951,12 @@ const InventoryManagementPage = () => {
                 {Array.from(changedRows).map(id => {
                   const item = tableData.find(row => row._id === id);
                   const original = originalData[id];
-                  const newAvailable = item.inventoryData?.availableQuantity || 0;
-                  const newReorderLevel = item.inventoryData?.reorderLevel || 0;
-                  
                   return (
                     <TableRow key={id}>
                       <TableCell>
                         <Avatar src={getImageUrl(item)} variant="rounded" sx={{ width: 32, height: 32 }} />
                       </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight={500}>{item.name}</Typography>
-                        {item.option && (
-                          <Typography variant="caption" color="text.secondary">
-                            {Object.values(item.option.optionDetails || {}).join(', ')}
-                          </Typography>
-                        )}
-                      </TableCell>
+                      <TableCell>{item.name}</TableCell>
                       <TableCell>
                         <Typography variant="caption" fontFamily="monospace">
                           {item.sku || item.option?.sku}
@@ -1205,59 +964,16 @@ const InventoryManagementPage = () => {
                       </TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={1} alignItems="center">
-                          <Chip 
-                            label={original.availableQuantity} 
-                            size="small" 
-                            variant="outlined"
-                            sx={{ minWidth: 50 }}
-                          />
+                          <Chip label={original.availableQuantity} size="small" variant="outlined" />
                           <Typography>→</Typography>
-                          {updateMode === 'add' ? (
-                            <Stack direction="row" spacing={0.5} alignItems="center">
-                              <Chip 
-                                label={`+${newAvailable}`} 
-                                size="small" 
-                                color="secondary" 
-                                sx={{ minWidth: 50 }}
-                              />
-                              <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                                (={original.availableQuantity + newAvailable})
-                              </Typography>
-                            </Stack>
-                          ) : (
-                            <Chip 
-                              label={newAvailable} 
-                              size="small" 
-                              color="primary" 
-                              sx={{ minWidth: 50 }}
-                            />
-                          )}
+                          <Chip label={item.inventoryData?.availableQuantity || 0} size="small" color="primary" />
                         </Stack>
                       </TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={1} alignItems="center">
-                          <Chip 
-                            label={original.reorderLevel} 
-                            size="small" 
-                            variant="outlined"
-                            sx={{ minWidth: 50 }}
-                          />
+                          <Chip label={original.reorderLevel} size="small" variant="outlined" />
                           <Typography>→</Typography>
-                          {updateMode === 'add' ? (
-                            <Chip 
-                              label={Math.max(original.reorderLevel, newReorderLevel)} 
-                              size="small" 
-                              color="secondary"
-                              sx={{ minWidth: 50 }}
-                            />
-                          ) : (
-                            <Chip 
-                              label={newReorderLevel} 
-                              size="small" 
-                              color="primary"
-                              sx={{ minWidth: 50 }}
-                            />
-                          )}
+                          <Chip label={item.inventoryData?.reorderLevel || 0} size="small" color="primary" />
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -1267,25 +983,15 @@ const InventoryManagementPage = () => {
             </Table>
           </TableContainer>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button 
-            onClick={() => setConfirmDialog(false)}
-            disabled={saveAllLoading}
-          >
-            Cancel
-          </Button>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialog(false)}>Cancel</Button>
           <Button
             variant="contained"
             onClick={saveAllChanges}
             disabled={saveAllLoading}
-            startIcon={saveAllLoading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <SaveIcon />}
-            color={updateMode === 'add' ? 'secondary' : 'primary'}
-            sx={{ minWidth: 140 }}
+            startIcon={saveAllLoading ? <CircularProgress size={16} /> : <SaveIcon />}
           >
-            {saveAllLoading 
-              ? 'Saving...' 
-              : `Confirm ${updateMode === 'add' ? 'Additions' : 'Changes'}`
-            }
+            Confirm Changes
           </Button>
         </DialogActions>
       </Dialog>

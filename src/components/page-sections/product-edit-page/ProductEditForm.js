@@ -17,6 +17,7 @@ import {
   Divider,
   Paper,
 } from '@mui/material';
+import SearchKeywords from '@/components/common/SearchKeywords';
 
 const ProductEditForm = ({
   selectedProduct,
@@ -29,6 +30,7 @@ const ProductEditForm = ({
   const [name, setName] = useState(selectedProduct.name);
   const [title, setTitle] = useState(selectedProduct.title);
   const [mainTag, setMainTag] = useState(selectedProduct.mainTags[0] || '');
+  const [searchKeywords, setSearchKeywords] = useState(selectedProduct.searchKeywords || []);
   const [price, setPrice] = useState(selectedProduct.price);
   const [MRP, setMRP] = useState(selectedProduct.MRP);
   const [displayOrder, setDisplayOrder] = useState(selectedProduct.displayOrder);
@@ -65,6 +67,7 @@ const ProductEditForm = ({
       name: selectedProduct.name,
       title: selectedProduct.title,
       mainTag: selectedProduct.mainTags[0] || '',
+      searchKeywords: selectedProduct.searchKeywords || [],
       price: selectedProduct.price,
       mrp: selectedProduct.MRP,
       displayOrder: selectedProduct.displayOrder,
@@ -162,6 +165,7 @@ const ProductEditForm = ({
       name: value,
       title,
       mainTag,
+      searchKeywords,
       price,
       MRP,
       displayOrder,
@@ -181,6 +185,7 @@ const ProductEditForm = ({
       name,
       title: value,
       mainTag,
+      searchKeywords,
       price,
       MRP,
       displayOrder,
@@ -197,6 +202,24 @@ const ProductEditForm = ({
       name,
       title,
       mainTag: e.target.value,
+      searchKeywords,
+      price,
+      MRP,
+      displayOrder,
+      available,
+      productSource,
+      nameChanged,
+      titleChanged,
+    });
+  };
+
+  const handleSearchKeywordsChange = (newKeywords) => {
+    setSearchKeywords(newKeywords);
+    onFormChange({
+      name,
+      title,
+      mainTag,
+      searchKeywords: newKeywords,
       price,
       MRP,
       displayOrder,
@@ -214,6 +237,7 @@ const ProductEditForm = ({
       name,
       title,
       mainTag,
+      searchKeywords,
       price: value,
       MRP,
       displayOrder,
@@ -231,6 +255,7 @@ const ProductEditForm = ({
       name,
       title,
       mainTag,
+      searchKeywords,
       price,
       MRP: value,
       displayOrder,
@@ -439,6 +464,19 @@ const ProductEditForm = ({
           New Tag
         </Button>
       </Box>
+
+      {/* Search Keywords */}
+      <SearchKeywords
+        keywords={searchKeywords}
+        onKeywordsChange={handleSearchKeywordsChange}
+        productData={{
+          title: title,
+          mainTags: mainTag ? [mainTag] : [],
+          images: selectedProduct.images ? selectedProduct.images.map(img => 
+            img.startsWith('/') ? `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}${img}` : img
+          ) : []
+        }}
+      />
 
       {/* Price */}
       <TextField

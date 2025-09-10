@@ -353,84 +353,11 @@ export async function GET(req) {
     };
 
     /**
-     * Function to group orders by orderGroupId and merge linked orders
-     */
-    const groupAndMergeOrders = (orders) => {
-      const groupedOrders = new Map();
-      const processedIds = new Set();
-
-      orders.forEach(order => {
-        // Skip if already processed as part of a group
-        if (processedIds.has(order._id.toString())) return;
-
-        if (order.orderGroupId && order.isMainOrder) {
-          // This is a main order with linked orders
-          const linkedOrders = orders.filter(o => 
-            o.orderGroupId === order.orderGroupId && 
-            o._id.toString() !== order._id.toString()
-          );
-
-          // Mark all orders in this group as processed
-          processedIds.add(order._id.toString());
-          linkedOrders.forEach(linkedOrder => {
-            processedIds.add(linkedOrder._id.toString());
-          });
-
-          // Create grouped order data
-          const groupedOrder = {
-            ...order.toObject(),
-            linkedOrders: linkedOrders.map(o => o.toObject()),
-            shipmentBreakdown: [
-              {
-                shipmentId: order._id.toString(),
-                orderData: order.toObject(),
-                isMainShipment: true
-              },
-              ...linkedOrders.map(linkedOrder => ({
-                shipmentId: linkedOrder._id.toString(),
-                orderData: linkedOrder.toObject(),
-                isMainShipment: false
-              }))
-            ]
-          };
-
-          groupedOrders.set(order._id.toString(), groupedOrder);
-        } else if (!order.orderGroupId || (order.orderGroupId && order.isMainOrder)) {
-          // Standalone order or main order without linked orders found in current page
-          processedIds.add(order._id.toString());
-          
-          const groupedOrder = {
-            ...order.toObject(),
-            linkedOrders: [],
-            shipmentBreakdown: [{
-              shipmentId: order._id.toString(),
-              orderData: order.toObject(),
-              isMainShipment: true
-            }]
-          };
-
-          groupedOrders.set(order._id.toString(), groupedOrder);
-        }
-      });
-
-      return Array.from(groupedOrders.values());
-    };
-
-    /**
      * Function to fetch orders based on a query with pagination and population
      */
     const fetchOrdersFromQuery = async (query, pageNumber = page, limitNumber = limit) => {
-      // Calculate aggregates - ensure we only count main orders or standalone orders to avoid double counting
-      const aggregatesQuery = {
-        ...query,
-        $or: [
-          { orderGroupId: { $exists: false } }, // Standalone orders
-          { orderGroupId: null }, // Standalone orders
-          { isMainOrder: true } // Main orders only
-        ]
-      };
-
-      const aggregates = await calculateAggregates(aggregatesQuery);
+      // Calculate aggregates
+      const aggregates = await calculateAggregates(query);
       const {
         grossSales,
         revenue,
@@ -443,28 +370,19 @@ export async function GET(req) {
         utmCounts,
       } = aggregates;
 
-      // Calculate totalPages based on main/standalone orders only
+      // Calculate totalPages
       const totalPages = Math.ceil(totalOrders / limitNumber);
 
-      // Count total items from main/standalone orders only
+      // Count total items
       const totalItemsAggregation = await Order.aggregate([
-        { $match: aggregatesQuery },
+        { $match: query },
         { $unwind: "$items" },
         { $group: { _id: null, total: { $sum: "$items.quantity" } } }
       ]);
       const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
 
-      // Fetch all orders (including linked ones) but prioritize main orders for pagination
-      const mainOrdersQuery = {
-        ...query,
-        $or: [
-          { orderGroupId: { $exists: false } }, // Standalone orders
-          { orderGroupId: null }, // Standalone orders
-          { isMainOrder: true } // Main orders only
-        ]
-      };
-
-      const mainOrders = await Order.find(mainOrdersQuery)
+      // Fetch orders with pagination and population
+      const orders = await Order.find(query)
         .sort({ createdAt: -1 })
         .skip((pageNumber - 1) * limitNumber)
         .limit(limitNumber)
@@ -479,42 +397,11 @@ export async function GET(req) {
         })
         .populate('paymentDetails.mode');
 
-      // Get all linked orders for the main orders we fetched
-      const mainOrderIds = mainOrders.map(order => order._id);
-      const orderGroupIds = mainOrders
-        .filter(order => order.orderGroupId)
-        .map(order => order.orderGroupId);
-
-      let linkedOrders = [];
-      if (orderGroupIds.length > 0) {
-        linkedOrders = await Order.find({
-          orderGroupId: { $in: orderGroupIds },
-          isMainOrder: { $ne: true },
-          ...query // Apply the same filters to linked orders
-        })
-        .populate('user')
-        .populate({
-          path: 'items.product',
-          model: 'Product',
-          populate: {
-            path: 'specificCategoryVariant',
-            model: 'SpecificCategoryVariant',
-          },
-        })
-        .populate('paymentDetails.mode');
-      }
-
-      // Combine main orders with their linked orders
-      const allOrdersForGrouping = [...mainOrders, ...linkedOrders];
-
-      // Group and merge orders
-      const groupedOrders = groupAndMergeOrders(allOrdersForGrouping);
-
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
       return {
-        orders: groupedOrders,
+        orders,
         totalOrders,
         totalPages,
         currentPage: pageNumber,
@@ -565,22 +452,49 @@ export async function GET(req) {
       // Combine baseQuery with problematicCondition
       const problematicQuery = { ...baseQuery, ...problematicCondition };
 
-      // Use the updated fetchOrdersFromQuery function for consistency
-      const problematicResult = await fetchOrdersFromQuery(problematicQuery, page, limit);
+      // Fetch aggregates and orders for problematic queries
+      const problematicAggregates = await calculateAggregates(problematicQuery);
       const {
-        orders,
-        totalOrders,
-        totalPages,
-        totalItems,
         grossSales,
         revenue,
         sumTotalAmount,
         sumTotalDiscount,
         aov,
         discountRate,
-        oldestOrderDate: formattedOldestOrderDate,
+        oldestOrderDate,
+        count: totalOrders,
         utmCounts,
-      } = problematicResult;
+      } = problematicAggregates;
+
+      // Calculate totalPages
+      const totalPages = Math.ceil(totalOrders / limit);
+
+      // Count total items
+      const totalItemsAggregation = await Order.aggregate([
+        { $match: problematicQuery },
+        { $unwind: "$items" },
+        { $group: { _id: null, total: { $sum: "$items.quantity" } } }
+      ]);
+      const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
+
+      // Fetch problematic orders with pagination and population
+      const orders = await Order.find(problematicQuery)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('user')
+        .populate({
+          path: 'items.product',
+          model: 'Product',
+          populate: {
+            path: 'specificCategoryVariant',
+            model: 'SpecificCategoryVariant',
+          },
+        })
+        .populate('paymentDetails.mode');
+
+      // Optionally format the oldestOrderDate
+      const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
       // Respond with data including utmCounts
       return new Response(
@@ -604,22 +518,49 @@ export async function GET(req) {
     } else {
       // No problematic filter, proceed with base query
 
-      // Use the updated fetchOrdersFromQuery function for consistency
-      const baseResult = await fetchOrdersFromQuery(baseQuery, page, limit);
+      // Fetch aggregates and orders for base query
+      const baseAggregates = await calculateAggregates(baseQuery);
       const {
-        orders,
-        totalOrders,
-        totalPages,
-        totalItems,
         grossSales,
         revenue,
         sumTotalAmount,
         sumTotalDiscount,
         aov,
         discountRate,
-        oldestOrderDate: formattedOldestOrderDate,
+        oldestOrderDate,
+        count: totalOrders,
         utmCounts,
-      } = baseResult;
+      } = baseAggregates;
+
+      // Calculate totalPages
+      const totalPages = Math.ceil(totalOrders / limit);
+
+      // Count total items
+      const totalItemsAggregation = await Order.aggregate([
+        { $match: baseQuery },
+        { $unwind: "$items" },
+        { $group: { _id: null, total: { $sum: "$items.quantity" } } }
+      ]);
+      const totalItems = totalItemsAggregation[0] ? totalItemsAggregation[0].total : 0;
+
+      // Fetch orders with pagination and population
+      const orders = await Order.find(baseQuery)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('user')
+        .populate({
+          path: 'items.product',
+          model: 'Product',
+          populate: {
+            path: 'specificCategoryVariant',
+            model: 'SpecificCategoryVariant',
+          },
+        })
+        .populate('paymentDetails.mode');
+
+      // Optionally format the oldestOrderDate
+      const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;
 
       // Respond with data including utmCounts
       return new Response(

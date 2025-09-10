@@ -357,6 +357,7 @@ const ProductEditForm = ({
       name,
       title,
       mainTag,
+      searchKeywords,
       price,
       MRP,
       displayOrder,

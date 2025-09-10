@@ -357,7 +357,7 @@ const EditProductPage = () => {
   };
   // Handle form submission
   const handleFormSubmit = async formData => {
-    const { name, title, mainTag, price, displayOrder, available, productSource, nameChanged, titleChanged, MRP} = formData;
+    const { name, title, mainTag, searchKeywords, price, displayOrder, available, productSource, nameChanged, titleChanged, MRP} = formData;
 
     // Prevent submission if name is changed but title is not
     if (nameChanged && !titleChanged) {
@@ -402,6 +402,7 @@ const EditProductPage = () => {
           name,
           title,
           mainTag,
+          searchKeywords,
           price,
           MRP,
           displayOrder,

@@ -249,7 +249,7 @@ const AddProductPage = () => {
         ...prev, // Preserve existing category and subCategory from specificCategory
         deliveryCost: defaults.deliveryCost ?? 100,
         stock: 1000,
-        available: defaults.available ?? true,
+        available:true,
         showInSearch: defaults.showInSearch ?? true,
         freebies: defaults.freebies || { available: false, description: '', image: '' },
       }));

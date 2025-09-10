@@ -24,43 +24,28 @@ export async function POST(request) {
 
 
         const prompt = `
-You are an expert SEO specialist and visual design analyst. Your task is to generate search keywords that real customers would type when looking for products with this specific design.
-
-PRODUCT CONTEXT:
+Analyze this product and generate 5 unique search keywords based on the DESIGN, THEME, STYLE, and VISUAL ELEMENTS you can see.
+The keywords should be those which people are likely to search for when looking for products, it may be as simple as just the color name, but should reflect this design and not very common that can be used with any other similar product.
+Product Details:
 - Title: ${title || 'Not provided'}
 - Main Tags: ${mainTags ? mainTags.join(', ') : 'Not provided'}
 
-KEYWORD GENERATION RULES:
-1. ONLY single words (no phrases like "geometric pattern" - just "geometric")
-2. Focus on what customers SEARCH FOR, not product descriptions
-3. Think like a customer browsing for designs they like
+IMPORTANT REQUIREMENTS:
+1. Focus ONLY on design elements, themes, patterns, colors, styles, and visual appeal, or even synonym of the product's design name, like rabbit for bunny, but keep each tag single word and not two-three word, or words that are used together, like if the design name is title or tag contains Radha but not Krishna, you can suggest krishna
+2. DO NOT include generic category words like "wraps", "cushion", "pillow"
+3. DO NOT include brand names or basic product types
+4. Look for: artistic themes, patterns, colors, design styles, visuals
+5. Generate keywords that describe the aesthetic and design appeal
+6. Examples of good keywords: ${fallbackKeywords.join(', ')}
 
-KEYWORD CATEGORIES TO CONSIDER:
-• Colors: red, blue, green, purple, black, white, golden, silver
-• Design Styles: minimal, vintage, modern, retro, elegant, bold, cute, cool
-• Themes: nature, floral, geometric, abstract, tribal, mandala, galaxy, ocean
-• Character/Cultural: anime, cartoon, skull, butterfly, dragon, lotus, om
-• Artistic Styles: watercolor, sketch, grunge, neon, glitter, marble, gradient
-• Emotions/Vibes: peaceful, energetic, mysterious, romantic, fierce, playful
-
-STRICT REQUIREMENTS:
-❌ NO product categories (wrap, cover, case, pillow, shirt)
-❌ NO brand names or generic terms
-❌ NO multi-word phrases
-✅ ONLY single descriptive words
-✅ Words people actually type in search bars
-✅ Focus on visual appeal and design characteristics
-
-Generate 10 diverse keywords that capture different aspects of this product's visual design and aesthetic appeal.
-
-EXAMPLES OF GOOD KEYWORDS:
-floral, geometric, vintage, neon, galaxy, tribal, butterfly, skull, mandala, watercolor, grunge, elegant, bold, peaceful, fierce, golden, marble, abstract, nature, cosmic
+You are a design and visual aesthetics expert. Analyze product images and generate keywords based purely on design elements, themes, patterns, and visual style. Never use generic product category terms. One-two of the keyword must contain simply color/design names if applicable. In short the keywords simply describe that design/theme/style, not the product type or category. Each keyword must be simple and something that people will actually search for when looking for products with that design or visual style.
+Generate 10 unique design-focused keywords that capture the visual appeal and aesthetic elements.
     `.trim();
 
         const messages = [
             {
                 role: "system",
-                content: "You are an SEO expert specializing in e-commerce search behavior. You understand exactly what single words customers type when searching for products with specific visual designs. Generate ONLY single-word keywords that describe visual aesthetics, colors, themes, and design styles - never product categories or multi-word phrases. Focus on searchable terms that capture the emotional and visual appeal of designs."
+                content:  "You are a design and visual aesthetics expert and have knowledge of seo and psycholgical knowledge of what people can search for. Analyze product images and generate keywords based purely on design elements, themes, patterns, and visual style. Never use generic product category terms. One-two of the keyword must contain simply color/design names if applicable. In short the keywords simply describe that design/theme/style, not the product type or category. Each keyword must be simple and something that people will actually search for when looking for products with that design or visual style."
             }
         ];
 

@@ -3,8 +3,12 @@ import { connectToDatabase } from '@/lib/db';
 import mongoose from 'mongoose';
 
 const getModels = async () => {
-  const Inventory = await import('@/models/Inventory').then(m => m.default);
-  return { Inventory };
+  const [Product, Option, Inventory] = await Promise.all([
+    import('@/models/Product').then(m => m.default),
+    import('@/models/Option').then(m => m.default),
+    import('@/models/Inventory').then(m => m.default)
+  ]);
+  return { Product, Option, Inventory };
 };
 
 // PATCH /api/inventory-management/bulk-update -> Update multiple inventory items
@@ -16,7 +20,7 @@ export async function PATCH(request) {
   
   try {
     await connectToDatabase();
-    const { Inventory } = await getModels();
+    const { Product, Option, Inventory } = await getModels();
     
     const { changes } = await request.json();
     
@@ -29,29 +33,17 @@ export async function PATCH(request) {
         error: 'Changes array is required and must not be empty'
       }, { status: 400 });
     }
-
+    
     const updatePromises = changes.map(async (change, index) => {
-      const { id, after, productId } = change; // id is now inventory ID, productId is for reference
-      
-      console.log(`[${requestId}] Processing change ${index + 1}/${changes.length} for inventory ID: ${id}`);
-      
+      const { id, after } = change;
       try {
         if (!id) {
-          console.error(`[${requestId}] ERROR: Missing inventory ID in change ${index + 1}`);
           return { error: 'Missing inventory ID', changeIndex: index + 1 };
         }
-        
         if (!after || typeof after.availableQuantity !== 'number' || typeof after.reorderLevel !== 'number') {
-          console.error(`[${requestId}] ERROR: Invalid after data in change ${index + 1}:`, after);
-          return { error: 'Invalid after data', changeIndex: index + 1, inventoryId: id };
+          return { error: 'Invalid after data', changeIndex: index + 1, id };
         }
-        
-        console.log(`[${requestId}] Updating inventory ${id} with:`, {
-          availableQuantity: after.availableQuantity,
-          reorderLevel: after.reorderLevel
-        });
-        
-        // Update the inventory record directly using the inventory ID
+        // Directly update the inventory record by its _id
         const result = await Inventory.findByIdAndUpdate(
           id,
           {
@@ -63,24 +55,16 @@ export async function PATCH(request) {
           },
           { new: true }
         );
-        
         if (!result) {
-          console.error(`[${requestId}] ERROR: Inventory record not found for ID: ${id}`);
-          return { error: 'Inventory record not found', changeIndex: index + 1, inventoryId: id };
+          return { error: 'Inventory record not found', changeIndex: index + 1, id };
         }
-        
-        console.log(`[${requestId}] Successfully updated inventory ${id}`);
-        return { success: true, changeIndex: index + 1, inventoryId: id, productId };
-        
+        return { success: true, changeIndex: index + 1, id };
       } catch (error) {
-        console.error(`[${requestId}] ERROR: Exception updating inventory for ID ${id}:`, {
-          message: error.message,
-          stack: error.stack,
-          changeIndex: index + 1
-        });
-        return { error: error.message, changeIndex: index + 1, inventoryId: id };
+        return { error: error.message, changeIndex: index + 1, id };
       }
-    });    const results = await Promise.all(updatePromises);
+    });
+    
+    const results = await Promise.all(updatePromises);
     const successResults = results.filter(r => r && r.success);
     const errorResults = results.filter(r => r && r.error);
     

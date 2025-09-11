@@ -219,27 +219,52 @@ export async function GET(request) {
     }
     
     // Execute aggregations
-    const [products, options] = await Promise.all([
+    const [products, options, allOptions] = await Promise.all([
       Product.aggregate(productsPipeline),
-      Option.aggregate(optionsPipeline)
+      Option.aggregate(optionsPipeline),
+      Option.find({}) // For product-level aggregation
+        .populate('inventoryData')
+        .lean()
     ]);
-    
-    // Combine and format results, always include inventoryData._id if present, else null
+
+    // Helper: aggregate inventory for a product from its options
+    const aggregateOptionInventory = (productId, allOptions) => {
+      const opts = allOptions.filter(opt => String(opt.product) === String(productId) && opt.inventoryData && typeof opt.inventoryData.availableQuantity === 'number');
+      if (!opts.length) return null;
+      return {
+        _id: null, // No direct inventory _id
+        availableQuantity: opts.reduce((sum, o) => sum + (o.inventoryData.availableQuantity || 0), 0),
+        reorderLevel: Math.min(...opts.map(o => o.inventoryData.reorderLevel || 0)),
+        managedByOptions: true
+      };
+    };
+
+    // Combine and format results, always include inventoryData._id if present, else aggregate from options if needed
     const combinedResults = [
-      ...products.map(p => ({
-        _id: p._id,
-        name: p.name,
-        sku: p.sku,
-        images: p.images,
-        inventoryData: p.inventoryData && p.inventoryData._id ? {
-          _id: p.inventoryData._id,
-          availableQuantity: p.inventoryData.availableQuantity,
-          reorderLevel: p.inventoryData.reorderLevel
-        } : null,
-        variant: p.variant,
-        option: null,
-        type: 'product'
-      })),
+      ...products.map(p => {
+        let inventoryData = null;
+        if (p.inventoryData && p.inventoryData._id) {
+          inventoryData = {
+            _id: p.inventoryData._id,
+            availableQuantity: p.inventoryData.availableQuantity,
+            reorderLevel: p.inventoryData.reorderLevel
+          };
+        } else if (p.optionsAvailable) {
+          // Aggregate from options if no direct inventory
+          const agg = aggregateOptionInventory(p._id, allOptions);
+          if (agg) inventoryData = agg;
+        }
+        return {
+          _id: p._id,
+          name: p.name,
+          sku: p.sku,
+          images: p.images,
+          inventoryData,
+          variant: p.variant,
+          option: null,
+          type: 'product'
+        };
+      }),
       ...options.map(o => ({
         _id: o._id,
         name: o.product.name,
@@ -261,7 +286,7 @@ export async function GET(request) {
     ];
     // Log inventoryData structure for debugging
     combinedResults.forEach(item => {
-      if (!item.inventoryData || !item.inventoryData._id) {
+      if (!item.inventoryData || (!item.inventoryData._id && !item.inventoryData.managedByOptions)) {
         console.warn('Missing inventoryData or _id for item', item._id, item.name, item.sku);
       }
     });

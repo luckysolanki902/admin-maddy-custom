@@ -799,7 +799,7 @@ const InventoryManagementPage = () => {
                       <TableCell align="center">
                         {viewMode ? (
                           <Chip
-                            label={availableQuantity}
+                            label={item.inventoryData && typeof availableQuantity === 'number' ? availableQuantity : '—'}
                             color={statusInfo.color}
                             size="medium"
                             variant="filled"
@@ -809,7 +809,7 @@ const InventoryManagementPage = () => {
                               minWidth: 60
                             }}
                           />
-                        ) : (
+                        ) : item.inventoryData && typeof availableQuantity === 'number' ? (
                           <TextField
                             type="number"
                             size="small"
@@ -830,15 +830,23 @@ const InventoryManagementPage = () => {
                               }
                             }}
                           />
+                        ) : (
+                          <TextField
+                            type="number"
+                            size="small"
+                            value={''}
+                            disabled
+                            placeholder="No inventory"
+                            sx={{ width: 90 }}
+                          />
                         )}
                       </TableCell>
-                      
                       <TableCell align="center">
                         {viewMode ? (
                           <Typography variant="body2" fontWeight={500}>
-                            {reorderLevel}
+                            {item.inventoryData && typeof reorderLevel === 'number' ? reorderLevel : '—'}
                           </Typography>
-                        ) : (
+                        ) : item.inventoryData && typeof reorderLevel === 'number' ? (
                           <TextField
                             type="number"
                             size="small"
@@ -858,6 +866,15 @@ const InventoryManagementPage = () => {
                                 }
                               }
                             }}
+                          />
+                        ) : (
+                          <TextField
+                            type="number"
+                            size="small"
+                            value={''}
+                            disabled
+                            placeholder="No inventory"
+                            sx={{ width: 90 }}
                           />
                         )}
                       </TableCell>

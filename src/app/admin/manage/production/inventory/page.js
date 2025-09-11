@@ -179,8 +179,10 @@ const InventoryManagementPage = () => {
   // Save single row
   const saveRow = async (id) => {
     const item = tableData.find(row => row._id === id);
-    if (!item || !item.inventoryData?._id) return;
-
+    if (!item || !item.inventoryData || !item.inventoryData._id) {
+      setSnackbar({ severity: 'error', message: 'No inventory record exists for this item. Cannot save.' });
+      return;
+    }
     const inventoryId = item.inventoryData._id;
 
     try {
@@ -222,9 +224,9 @@ const InventoryManagementPage = () => {
     try {
       const changes = Array.from(changedRows).map(id => {
         const item = tableData.find(row => row._id === id);
-        if (!item || !item.inventoryData?._id) return null;
+        if (!item || !item.inventoryData || !item.inventoryData._id) return null;
         return {
-          id: item.inventoryData._id, // Use inventory _id
+          id: item.inventoryData._id, // Use inventory _id only
           name: item.name,
           sku: item.sku || item.option?.sku,
           image: getImageUrl(item),
@@ -879,26 +881,36 @@ const InventoryManagementPage = () => {
                       
                       {!viewMode && (
                         <TableCell align="center">
-                          <Tooltip title={isChanged ? "Save changes" : "No changes to save"}>
-                            <IconButton
-                              size="small"
-                              onClick={() => saveRow(item._id)}
-                              disabled={!isChanged}
-                              color={isChanged ? 'warning' : 'default'}
-                              sx={{
-                                transition: 'all 0.2s',
-                                ...(isChanged && {
-                                  backgroundColor: alpha('#ed6c02', 0.1),
-                                  '&:hover': {
-                                    backgroundColor: alpha('#ed6c02', 0.2),
-                                    transform: 'scale(1.1)'
-                                  }
-                                })
-                              }}
-                            >
-                              <SaveIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                          {item.inventoryData && item.inventoryData._id ? (
+                            <Tooltip title={isChanged ? "Save changes" : "No changes to save"}>
+                              <IconButton
+                                size="small"
+                                onClick={() => saveRow(item._id)}
+                                disabled={!isChanged}
+                                color={isChanged ? 'warning' : 'default'}
+                                sx={{
+                                  transition: 'all 0.2s',
+                                  ...(isChanged && {
+                                    backgroundColor: alpha('#ed6c02', 0.1),
+                                    '&:hover': {
+                                      backgroundColor: alpha('#ed6c02', 0.2),
+                                      transform: 'scale(1.1)'
+                                    }
+                                  })
+                                }}
+                              >
+                                <SaveIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip title="No inventory record. Cannot save.">
+                              <span>
+                                <IconButton size="small" disabled color="default">
+                                  <SaveIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          )}
                         </TableCell>
                       )}
                     </TableRow>

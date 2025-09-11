@@ -251,6 +251,9 @@ const InventoryManagementPage = () => {
         setChangedRows(new Set());
         setSnackbar({ severity: 'success', message: `Updated ${changes.length} items successfully` });
         setConfirmDialog(false);
+        
+        // Refresh data from server to ensure synchronization
+        fetchTableData();
       } else {
         setSnackbar({ severity: 'error', message: 'Failed to update inventory' });
       }

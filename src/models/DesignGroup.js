@@ -19,6 +19,16 @@ const DesignGroupSchema = new mongoose.Schema(
         message: 'Maximum 10 tags allowed'
       }
     },
+    searchKeywords: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: function(keywords) {
+          return keywords.length <= 20; // Limit to 20 keywords
+        },
+        message: 'Maximum 20 search keywords allowed'
+      }
+    },
     thumbnail: {
       type: String,
       default: null,

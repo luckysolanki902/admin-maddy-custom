@@ -8,7 +8,7 @@ export async function POST(request) {
   try {
     await connectToDatabase();
     
-    const { groupId, products, name, tags } = await request.json();
+    const { groupId, products, name, tags, searchKeywords } = await request.json();
     
     // Validate products array
     if (!products || !Array.isArray(products) || products.length < 2) {
@@ -18,8 +18,17 @@ export async function POST(request) {
       );
     }
     
-    // Validate name
-    const groupName = name?.trim() || groupId || `Group ${Date.now()}`;
+    // Get the first product to use its name as the group name
+    const firstProduct = await Product.findById(products[0]).select('name images optionsAvailable');
+    if (!firstProduct) {
+      return NextResponse.json(
+        { error: 'Invalid product ID' },
+        { status: 400 }
+      );
+    }
+    
+    // Use the first product's name as the group name (unless a custom name is provided)
+    const groupName = name?.trim() || firstProduct.name || `Group ${Date.now()}`;
     if (groupName.length > 200) {
       return NextResponse.json(
         { error: 'Group name must be 200 characters or less' },
@@ -33,14 +42,11 @@ export async function POST(request) {
       .map(tag => tag.trim())
       .slice(0, 10); // Ensure max 10 tags
     
-    // Get the first product to determine thumbnail
-    const firstProduct = await Product.findById(products[0]).select('name images optionsAvailable');
-    if (!firstProduct) {
-      return NextResponse.json(
-        { error: 'Invalid product ID' },
-        { status: 400 }
-      );
-    }
+    // Validate and clean search keywords
+    const cleanSearchKeywords = (searchKeywords || [])
+      .filter(keyword => keyword && keyword.trim())
+      .map(keyword => keyword.trim().toLowerCase())
+      .slice(0, 20); // Ensure max 20 keywords
     
     // Determine thumbnail from product images or option images/thumbnails
     let thumbnail = null;
@@ -75,10 +81,11 @@ export async function POST(request) {
       }
     }
     
-    // Create new design group with provided name and tags
+    // Create new design group with provided name, tags, and search keywords
     const designGroup = new DesignGroup({
       name: groupName,
       tags: cleanTags,
+      searchKeywords: cleanSearchKeywords,
       thumbnail: thumbnail,
       isActive: true
     });
@@ -105,6 +112,7 @@ export async function POST(request) {
       groupId: savedGroup._id.toString(),
       groupName: savedGroup.name,
       groupTags: savedGroup.tags,
+      groupSearchKeywords: savedGroup.searchKeywords,
       productsUpdated: result.modifiedCount
     });
     

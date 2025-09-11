@@ -3,12 +3,8 @@ import { connectToDatabase } from '@/lib/db';
 import mongoose from 'mongoose';
 
 const getModels = async () => {
-  const [Product, Option, Inventory] = await Promise.all([
-    import('@/models/Product').then(m => m.default),
-    import('@/models/Option').then(m => m.default),
-    import('@/models/Inventory').then(m => m.default)
-  ]);
-  return { Product, Option, Inventory };
+  const Inventory = await import('@/models/Inventory').then(m => m.default);
+  return { Inventory };
 };
 
 // PATCH /api/inventory-management/bulk-update -> Update multiple inventory items
@@ -20,7 +16,7 @@ export async function PATCH(request) {
   
   try {
     await connectToDatabase();
-    const { Product, Option, Inventory } = await getModels();
+    const { Inventory } = await getModels();
     
     const { changes } = await request.json();
     
@@ -33,58 +29,31 @@ export async function PATCH(request) {
         error: 'Changes array is required and must not be empty'
       }, { status: 400 });
     }
-    
+
     const updatePromises = changes.map(async (change, index) => {
-      const { id, after } = change;
+      const { id, after, productId } = change; // id is now inventory ID, productId is for reference
       
-      console.log(`[${requestId}] Processing change ${index + 1}/${changes.length} for ID: ${id}`);
+      console.log(`[${requestId}] Processing change ${index + 1}/${changes.length} for inventory ID: ${id}`);
       
       try {
         if (!id) {
-          console.error(`[${requestId}] ERROR: Missing ID in change ${index + 1}`);
-          return { error: 'Missing ID', changeIndex: index + 1 };
+          console.error(`[${requestId}] ERROR: Missing inventory ID in change ${index + 1}`);
+          return { error: 'Missing inventory ID', changeIndex: index + 1 };
         }
         
         if (!after || typeof after.availableQuantity !== 'number' || typeof after.reorderLevel !== 'number') {
           console.error(`[${requestId}] ERROR: Invalid after data in change ${index + 1}:`, after);
-          return { error: 'Invalid after data', changeIndex: index + 1, id };
+          return { error: 'Invalid after data', changeIndex: index + 1, inventoryId: id };
         }
         
-        // First, try to find the product or option to get the inventoryData ObjectId
-        let inventoryId = null;
-        let entityType = null;
-        
-        console.log(`[${requestId}] Looking up entity for ID: ${id}`);
-        
-        // Check if it's a product
-        const product = await Product.findById(id).select('inventoryData name');
-        if (product && product.inventoryData) {
-          inventoryId = product.inventoryData;
-          entityType = 'product';
-          console.log(`[${requestId}] Found product "${product.name}" with inventory ID: ${inventoryId}`);
-        } else {
-          // Check if it's an option
-          const option = await Option.findById(id).select('inventoryData optionDetails');
-          if (option && option.inventoryData) {
-            inventoryId = option.inventoryData;
-            entityType = 'option';
-            console.log(`[${requestId}] Found option with inventory ID: ${inventoryId}`);
-          }
-        }
-        
-        if (!inventoryId) {
-          console.warn(`[${requestId}] WARNING: No inventory data found for ID: ${id} (checked both products and options)`);
-          return { error: 'No inventory data found', changeIndex: index + 1, id, entityType: 'unknown' };
-        }
-        
-        // Update the inventory record directly
-        console.log(`[${requestId}] Updating inventory ${inventoryId} with:`, {
+        console.log(`[${requestId}] Updating inventory ${id} with:`, {
           availableQuantity: after.availableQuantity,
           reorderLevel: after.reorderLevel
         });
         
+        // Update the inventory record directly using the inventory ID
         const result = await Inventory.findByIdAndUpdate(
-          inventoryId,
+          id,
           {
             $set: {
               availableQuantity: after.availableQuantity,
@@ -96,12 +65,12 @@ export async function PATCH(request) {
         );
         
         if (!result) {
-          console.error(`[${requestId}] ERROR: Inventory record not found for ID: ${inventoryId}`);
-          return { error: 'Inventory record not found', changeIndex: index + 1, id, inventoryId };
+          console.error(`[${requestId}] ERROR: Inventory record not found for ID: ${id}`);
+          return { error: 'Inventory record not found', changeIndex: index + 1, inventoryId: id };
         }
         
-        console.log(`[${requestId}] Successfully updated inventory ${inventoryId} for ${entityType} ${id}`);
-        return { success: true, changeIndex: index + 1, id, inventoryId, entityType };
+        console.log(`[${requestId}] Successfully updated inventory ${id}`);
+        return { success: true, changeIndex: index + 1, inventoryId: id, productId };
         
       } catch (error) {
         console.error(`[${requestId}] ERROR: Exception updating inventory for ID ${id}:`, {
@@ -109,11 +78,9 @@ export async function PATCH(request) {
           stack: error.stack,
           changeIndex: index + 1
         });
-        return { error: error.message, changeIndex: index + 1, id };
+        return { error: error.message, changeIndex: index + 1, inventoryId: id };
       }
-    });
-    
-    const results = await Promise.all(updatePromises);
+    });    const results = await Promise.all(updatePromises);
     const successResults = results.filter(r => r && r.success);
     const errorResults = results.filter(r => r && r.error);
     

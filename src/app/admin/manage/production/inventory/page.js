@@ -181,8 +181,14 @@ const InventoryManagementPage = () => {
     const item = tableData.find(row => row._id === id);
     if (!item) return;
 
+    // Check if item has inventory data
+    if (!item.inventoryData?._id) {
+      setSnackbar({ severity: 'error', message: 'No inventory data found for this item' });
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/inventory-management/products/${id}`, {
+      const res = await fetch(`/api/inventory-management/products/${item.inventoryData._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -218,22 +224,48 @@ const InventoryManagementPage = () => {
   const saveAllChanges = async () => {
     setSaveAllLoading(true);
     try {
-      const changes = Array.from(changedRows).map(id => {
-        const item = tableData.find(row => row._id === id);
-        return {
-          id,
-          name: item.name,
-          sku: item.sku || item.option?.sku,
-          image: getImageUrl(item),
-          variantName: item.variant?.name,
-          optionName: item.option ? Object.values(item.option.optionDetails || {}).join(', ') : null,
-          before: originalData[id],
-          after: {
-            availableQuantity: item.inventoryData?.availableQuantity || 0,
-            reorderLevel: item.inventoryData?.reorderLevel || 0
+      const allChangedItems = Array.from(changedRows);
+      const changes = allChangedItems
+        .map(id => {
+          const item = tableData.find(row => row._id === id);
+          
+          // Skip items without inventory data
+          if (!item?.inventoryData?._id) {
+            console.warn(`Skipping item ${id} - no inventory data found`);
+            return null;
           }
-        };
-      });
+          
+          return {
+            id: item.inventoryData._id, // Use inventory ID instead of product/option ID
+            productId: id, // Keep original product/option ID for reference
+            name: item.name,
+            sku: item.sku || item.option?.sku,
+            image: getImageUrl(item),
+            variantName: item.variant?.name,
+            optionName: item.option ? Object.values(item.option.optionDetails || {}).join(', ') : null,
+            before: originalData[id],
+            after: {
+              availableQuantity: item.inventoryData?.availableQuantity || 0,
+              reorderLevel: item.inventoryData?.reorderLevel || 0
+            }
+          };
+        })
+        .filter(Boolean); // Remove null entries
+
+      const skippedCount = allChangedItems.length - changes.length;
+      
+      if (changes.length === 0) {
+        setSnackbar({ severity: 'error', message: 'No valid items to update (missing inventory data)' });
+        setSaveAllLoading(false);
+        return;
+      }
+
+      if (skippedCount > 0) {
+        setSnackbar({ 
+          severity: 'warning', 
+          message: `${skippedCount} item(s) skipped due to missing inventory data. Updating ${changes.length} items.` 
+        });
+      }
 
       const res = await fetch('/api/inventory-management/bulk-update', {
         method: 'PATCH',
@@ -242,10 +274,10 @@ const InventoryManagementPage = () => {
       });
 
       if (res.ok) {
-        // Update original data for all changed items
+        // Update original data for all changed items using productId
         const newOriginalData = { ...originalData };
         changes.forEach(change => {
-          newOriginalData[change.id] = change.after;
+          newOriginalData[change.productId] = change.after; // Use productId instead of id
         });
         setOriginalData(newOriginalData);
         setChangedRows(new Set());

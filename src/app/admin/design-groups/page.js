@@ -1716,31 +1716,63 @@ export default function DesignGroupsPage() {
                   </Box>
                 </Box>
               ) : (
-                <Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Typography variant="body1" sx={{ color: '#ffffff', mb: 1 }}>
                     <strong>Name:</strong> {selectedGroup.name || 'Unnamed Group'}
                   </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mr: 1 }}>
-                      <strong>Tags:</strong>
-                    </Typography>
-                    {selectedGroup.tags && selectedGroup.tags.length > 0 ? (
-                      selectedGroup.tags.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag}
-                          size="small"
-                          sx={{
-                            bgcolor: 'rgba(59, 130, 246, 0.2)',
-                            color: '#3b82f6'
-                          }}
-                        />
-                      ))
-                    ) : (
-                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                        No tags
+                  
+                  {/* Tags Display */}
+                  <Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mr: 1 }}>
+                        <strong>Tags:</strong>
                       </Typography>
-                    )}
+                      {selectedGroup.tags && selectedGroup.tags.length > 0 ? (
+                        selectedGroup.tags.map((tag, index) => (
+                          <Chip
+                            key={index}
+                            label={tag}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(59, 130, 246, 0.2)',
+                              color: '#3b82f6',
+                              border: '1px solid rgba(59, 130, 246, 0.3)'
+                            }}
+                          />
+                        ))
+                      ) : (
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                          No tags
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {/* Search Keywords Display */}
+                  <Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mr: 1 }}>
+                        <strong>Search Keywords:</strong>
+                      </Typography>
+                      {selectedGroup.searchKeywords && selectedGroup.searchKeywords.length > 0 ? (
+                        selectedGroup.searchKeywords.map((keyword, index) => (
+                          <Chip
+                            key={index}
+                            label={keyword}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(34, 197, 94, 0.2)',
+                              color: '#22c55e',
+                              border: '1px solid rgba(34, 197, 94, 0.3)'
+                            }}
+                          />
+                        ))
+                      ) : (
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                          No search keywords
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
                 </Box>
               )}

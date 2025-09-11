@@ -3,30 +3,26 @@ import { connectToDatabase } from '@/lib/db';
 import mongoose from 'mongoose';
 
 const getModels = async () => {
-  const [Product, Option, Inventory] = await Promise.all([
-    import('@/models/Product').then(m => m.default),
-    import('@/models/Option').then(m => m.default),
-    import('@/models/Inventory').then(m => m.default)
-  ]);
-  return { Product, Option, Inventory };
+  const Inventory = await import('@/models/Inventory').then(m => m.default);
+  return { Inventory };
 };
 
 // PATCH /api/inventory-management/products/[id] -> Update single inventory item
 export async function PATCH(request, { params }) {
   const startTime = Date.now();
   const requestId = Math.random().toString(36).substring(7);
-  const { id } = params;
+  const { id } = params; // This is now the inventory ID directly
   
-  console.log(`[${requestId}] SINGLE UPDATE START - ${new Date().toISOString()} for ID: ${id}`);
+  console.log(`[${requestId}] SINGLE UPDATE START - ${new Date().toISOString()} for inventory ID: ${id}`);
   
   try {
     await connectToDatabase();
-    const { Product, Option, Inventory } = await getModels();
+    const { Inventory } = await getModels();
     
     const requestBody = await request.json();
     const { availableQuantity, reorderLevel } = requestBody;
     
-    console.log(`[${requestId}] Request data:`, { id, availableQuantity, reorderLevel });
+    console.log(`[${requestId}] Request data:`, { inventoryId: id, availableQuantity, reorderLevel });
     
     if (typeof availableQuantity !== 'number' || typeof reorderLevel !== 'number') {
       console.error(`[${requestId}] ERROR: Invalid input data types:`, {
@@ -46,50 +42,15 @@ export async function PATCH(request, { params }) {
         error: 'availableQuantity and reorderLevel must be non-negative'
       }, { status: 400 });
     }
-    
-    // First, try to find the product or option to get the inventoryData ObjectId
-    let inventoryId = null;
-    let entityType = null;
-    let entityName = null;
-    
-    console.log(`[${requestId}] Looking up entity for ID: ${id}`);
-    
-    // Check if it's a product
-    const product = await Product.findById(id).select('inventoryData name');
-    if (product && product.inventoryData) {
-      inventoryId = product.inventoryData;
-      entityType = 'product';
-      entityName = product.name;
-      console.log(`[${requestId}] Found product "${product.name}" with inventory ID: ${inventoryId}`);
-    } else {
-      console.log(`[${requestId}] No product found, checking options...`);
-      // Check if it's an option
-      const option = await Option.findById(id).select('inventoryData optionDetails');
-      if (option && option.inventoryData) {
-        inventoryId = option.inventoryData;
-        entityType = 'option';
-        entityName = JSON.stringify(option.optionDetails);
-        console.log(`[${requestId}] Found option with inventory ID: ${inventoryId}, details: ${entityName}`);
-      }
-    }
-    
-    if (!inventoryId) {
-      console.error(`[${requestId}] ERROR: No inventory data found for ID: ${id} (checked both products and options)`);
-      return NextResponse.json({
-        success: false,
-        error: 'No inventory data found for this product/option',
-        details: `ID ${id} not found in products or options, or missing inventoryData reference`
-      }, { status: 404 });
-    }
-    
-    // Update the inventory record directly
-    console.log(`[${requestId}] Updating inventory ${inventoryId} for ${entityType} "${entityName}" with:`, {
+
+    console.log(`[${requestId}] Updating inventory ${id} with:`, {
       availableQuantity,
       reorderLevel
     });
     
+    // Update the inventory record directly using the inventory ID
     const inventoryUpdate = await Inventory.findByIdAndUpdate(
-      inventoryId,
+      id,
       { 
         $set: { 
           availableQuantity, 
@@ -101,17 +62,17 @@ export async function PATCH(request, { params }) {
     );
     
     if (!inventoryUpdate) {
-      console.error(`[${requestId}] ERROR: Inventory record not found for ID: ${inventoryId}`);
+      console.error(`[${requestId}] ERROR: Inventory record not found for ID: ${id}`);
       return NextResponse.json({
         success: false,
         error: 'Inventory record not found',
-        details: `Inventory ID ${inventoryId} does not exist in database`
+        details: `Inventory ID ${id} does not exist in database`
       }, { status: 404 });
     }
     
     const executionTime = Date.now() - startTime;
     
-    console.log(`[${requestId}] SUCCESS: Updated inventory ${inventoryId} for ${entityType} "${entityName}" in ${executionTime}ms`);
+    console.log(`[${requestId}] SUCCESS: Updated inventory ${id} in ${executionTime}ms`);
     console.log(`[${requestId}] New values:`, {
       availableQuantity: inventoryUpdate.availableQuantity,
       reorderLevel: inventoryUpdate.reorderLevel,
@@ -122,9 +83,7 @@ export async function PATCH(request, { params }) {
       success: true,
       data: inventoryUpdate,
       meta: {
-        entityType,
-        entityName,
-        inventoryId: inventoryId.toString(),
+        inventoryId: id,
         executionTimeMs: executionTime,
         requestId
       }
@@ -136,7 +95,7 @@ export async function PATCH(request, { params }) {
       message: err.message,
       stack: err.stack,
       requestId,
-      entityId: id
+      inventoryId: id
     });
     return NextResponse.json({
       success: false,

@@ -30,17 +30,20 @@ export async function PATCH(request) {
       console.error(`[${requestId}] ERROR: Invalid changes array - type: ${typeof changes}, length: ${changes?.length}`);
       return NextResponse.json({
         success: false,
-        error: 'Changes array is required and must not be empty'
+        error: 'Changes array is required and must not be empty',
+        details: { type: typeof changes, length: changes?.length, received: changes }
       }, { status: 400 });
     }
     
     const updatePromises = changes.map(async (change, index) => {
       const { id, after } = change;
       try {
-        if (!id) {
-          return { error: 'Missing inventory ID', changeIndex: index + 1 };
+        if (!id || typeof id !== 'string' || id.length < 10) {
+          console.error(`[${requestId}] BULK PATCH: Missing or invalid inventory ID`, { id, changeIndex: index + 1 });
+          return { error: 'Missing or invalid inventory ID', changeIndex: index + 1, id };
         }
         if (!after || typeof after.availableQuantity !== 'number' || typeof after.reorderLevel !== 'number') {
+          console.error(`[${requestId}] BULK PATCH: Invalid after data`, { after, changeIndex: index + 1, id });
           return { error: 'Invalid after data', changeIndex: index + 1, id };
         }
         // Directly update the inventory record by its _id
@@ -56,10 +59,12 @@ export async function PATCH(request) {
           { new: true }
         );
         if (!result) {
+          console.error(`[${requestId}] BULK PATCH: Inventory record not found`, { id, changeIndex: index + 1 });
           return { error: 'Inventory record not found', changeIndex: index + 1, id };
         }
         return { success: true, changeIndex: index + 1, id };
       } catch (error) {
+        console.error(`[${requestId}] BULK PATCH: Exception`, { error: error.message, id, changeIndex: index + 1 });
         return { error: error.message, changeIndex: index + 1, id };
       }
     });

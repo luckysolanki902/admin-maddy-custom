@@ -79,7 +79,7 @@ export async function GET(request) {
           inventoryData: {
             $cond: {
               if: { $eq: [{ $size: '$inventoryData' }, 0] },
-              then: { availableQuantity: 0, reorderLevel: 0 }, // Default values for products without inventory
+              then: null, // No inventory record
               else: { $arrayElemAt: ['$inventoryData', 0] }
             }
           }
@@ -224,14 +224,18 @@ export async function GET(request) {
       Option.aggregate(optionsPipeline)
     ]);
     
-    // Combine and format results
+    // Combine and format results, always include inventoryData._id if present, else null
     const combinedResults = [
       ...products.map(p => ({
         _id: p._id,
         name: p.name,
         sku: p.sku,
         images: p.images,
-        inventoryData: p.inventoryData,
+        inventoryData: p.inventoryData && p.inventoryData._id ? {
+          _id: p.inventoryData._id,
+          availableQuantity: p.inventoryData.availableQuantity,
+          reorderLevel: p.inventoryData.reorderLevel
+        } : null,
         variant: p.variant,
         option: null,
         type: 'product'
@@ -241,7 +245,11 @@ export async function GET(request) {
         name: o.product.name,
         sku: o.sku,
         images: o.product.images,
-        inventoryData: o.inventoryData,
+        inventoryData: o.inventoryData && o.inventoryData._id ? {
+          _id: o.inventoryData._id,
+          availableQuantity: o.inventoryData.availableQuantity,
+          reorderLevel: o.inventoryData.reorderLevel
+        } : null,
         variant: o.variant,
         option: {
           sku: o.sku,
@@ -251,6 +259,12 @@ export async function GET(request) {
         type: 'option'
       }))
     ];
+    // Log inventoryData structure for debugging
+    combinedResults.forEach(item => {
+      if (!item.inventoryData || !item.inventoryData._id) {
+        console.warn('Missing inventoryData or _id for item', item._id, item.name, item.sku);
+      }
+    });
     
     // Apply pagination
     const total = combinedResults.length;

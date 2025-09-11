@@ -117,8 +117,23 @@ export default function DesignGroupsPage() {
   const [isEditingGroupInfo, setIsEditingGroupInfo] = useState(false);
   const [editingGroupName, setEditingGroupName] = useState('');
   const [editingGroupTags, setEditingGroupTags] = useState([]);
+  const [editingGroupSearchKeywords, setEditingGroupSearchKeywords] = useState([]);
   const [newTag, setNewTag] = useState('');
+  const [newSearchKeyword, setNewSearchKeyword] = useState('');
   const [isUpdatingGroupInfo, setIsUpdatingGroupInfo] = useState(false);
+
+  // Create group dialog states
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupTags, setNewGroupTags] = useState([]);
+  const [newGroupSearchKeywords, setNewGroupSearchKeywords] = useState([]);
+  const [newGroupTag, setNewGroupTag] = useState('');
+  const [newGroupSearchKeyword, setNewGroupSearchKeyword] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+  // AI suggestions state
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Fetch specific categories
   const fetchSpecificCategories = useCallback(async () => {
@@ -378,33 +393,116 @@ export default function DesignGroupsPage() {
     setSelectedProducts([]);
   }, []);
 
-  // Save design group
+  // Generate AI suggestions for search keywords
+  const generateAISuggestions = useCallback(async (productNames) => {
+    if (!productNames || productNames.length === 0) return;
+    
+    setLoadingSuggestions(true);
+    try {
+      // Get first product to base suggestions on
+      const firstProduct = selectedProducts[0];
+      if (!firstProduct) return;
+      
+      // Simple keyword generation based on product names
+      const suggestions = new Set();
+      
+      // Add variations of product names
+      productNames.forEach(name => {
+        if (name) {
+          const words = name.toLowerCase().split(/\s+/);
+          words.forEach(word => {
+            if (word.length > 2) {
+              suggestions.add(word);
+            }
+          });
+          
+          // Add full name variants
+          suggestions.add(name.toLowerCase());
+          
+          // Add common variations
+          if (name.toLowerCase().includes('wrap')) {
+            suggestions.add('wrapping');
+            suggestions.add('vinyl wrap');
+            suggestions.add('car wrap');
+          }
+          if (name.toLowerCase().includes('sticker')) {
+            suggestions.add('decal');
+            suggestions.add('vinyl sticker');
+          }
+          if (name.toLowerCase().includes('design')) {
+            suggestions.add('custom design');
+            suggestions.add('personalized');
+          }
+        }
+      });
+      
+      setAiSuggestions(Array.from(suggestions).slice(0, 10));
+    } catch (error) {
+      console.error('Error generating AI suggestions:', error);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, [selectedProducts]);
+
+  // Save design group with dialog
   const saveDesignGroup = useCallback(async () => {
     if (selectedProducts.length < 2) {
       toast.error('Please select at least 2 products to create a group');
       return;
     }
 
+    // Get product names for suggestions
+    const productNames = selectedProducts.map(sp => {
+      // Find the product in the current products state
+      for (const variantId in products) {
+        const variantProducts = products[variantId] || [];
+        const product = variantProducts.find(p => p._id === sp.productId);
+        if (product) return product.name;
+      }
+      return null;
+    }).filter(Boolean);
+
+    // Set default group name to first product name
+    const defaultName = productNames[0] || `Group ${Date.now()}`;
+    setNewGroupName(defaultName);
+    setNewGroupTags([]);
+    setNewGroupSearchKeywords([]);
+    setNewGroupTag('');
+    setNewGroupSearchKeyword('');
+    
+    // Generate AI suggestions
+    await generateAISuggestions(productNames);
+    
+    // Show the create group dialog
+    setCreateGroupDialogOpen(true);
+  }, [selectedProducts, products, generateAISuggestions]);
+
+  // Actually create the design group
+  const createDesignGroup = useCallback(async () => {
+    if (!newGroupName.trim()) {
+      toast.error('Please enter a group name');
+      return;
+    }
+
     const groupId = generateDesignGroupId();
-    setLoading(true);
+    setIsCreatingGroup(true);
 
     try {
-      // Use the first product's name as the group name
-      const groupName = selectedProducts[0]?.name || `Group ${Date.now()}`;
-      
       const response = await fetch('/api/admin/design-groups/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           groupId,
           products: selectedProducts.map(p => p.productId),
-          name: groupName,
-          tags: [] // No tags by default
+          name: newGroupName.trim(),
+          tags: newGroupTags,
+          searchKeywords: newGroupSearchKeywords
         })
       });
 
       if (response.ok) {
-        toast.success(`Design group ${groupId} created! Ready for next group 🎉`);
+        const data = await response.json();
+        toast.success(`Design group "${newGroupName}" created! Ready for next group 🎉`);
 
         // Optimistic UI update: Remove products that now have design group IDs from the local state
         const groupedProductIds = selectedProducts.map(p => p.productId);
@@ -415,7 +513,7 @@ export default function DesignGroupsPage() {
           Object.keys(newProducts).forEach(variantId => {
             newProducts[variantId] = newProducts[variantId].map(product => {
               if (groupedProductIds.includes(product._id)) {
-                return { ...product, designGroupId: groupId };
+                return { ...product, designGroupId: data.groupId };
               }
               return product;
             });
@@ -426,20 +524,40 @@ export default function DesignGroupsPage() {
         // Clear only the selected products, keep variants and categories
         setSelectedProducts([]);
 
+        // Close dialog and reset state
+        setCreateGroupDialogOpen(false);
+        setNewGroupName('');
+        setNewGroupTags([]);
+        setNewGroupSearchKeywords([]);
+        setAiSuggestions([]);
+
         // Refresh existing groups to show the new group
         fetchExistingGroups();
       } else {
-        toast.error('Failed to create design group');
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to create design group');
       }
     } catch (error) {
       console.error('Error saving design group:', error);
       toast.error('Error creating design group');
     } finally {
-      setLoading(false);
+      setIsCreatingGroup(false);
     }
-  }, [selectedProducts, fetchExistingGroups]);
+  }, [newGroupName, newGroupTags, newGroupSearchKeywords, selectedProducts, fetchExistingGroups]);
 
-  // Add products to existing group
+  // Add AI suggestion to keywords
+  const addAISuggestion = (suggestion) => {
+    if (!newGroupSearchKeywords.includes(suggestion) && newGroupSearchKeywords.length < 20) {
+      setNewGroupSearchKeywords(prev => [...prev, suggestion]);
+    }
+  };
+
+  // Add AI suggestion to editing keywords
+  const addAISuggestionToEdit = (suggestion) => {
+    if (!editingGroupSearchKeywords.includes(suggestion) && editingGroupSearchKeywords.length < 20) {
+      setEditingGroupSearchKeywords(prev => [...prev, suggestion]);
+    }
+  };
   const addProductsToGroup = useCallback(async () => {
     if (!selectedGroup || selectedProductsToAdd.length === 0) {
       toast.error('Please select products to add');
@@ -1022,7 +1140,9 @@ export default function DesignGroupsPage() {
                           setSelectedGroup(group);
                           setEditingGroupName(group.name || '');
                           setEditingGroupTags(group.tags || []);
+                          setEditingGroupSearchKeywords(group.searchKeywords || []);
                           setNewTag('');
+                          setNewSearchKeyword('');
                           setIsEditingGroupInfo(false);
                           setGroupDialogOpen(true);
                         }}
@@ -1259,36 +1379,55 @@ export default function DesignGroupsPage() {
                     }}
                   />
 
-                  <Box>
-                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
-                      Tags (max 10):
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                      {editingGroupTags.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag}
-                          onDelete={isUpdatingGroupInfo ? undefined : () => {
-                            setEditingGroupTags(prev => prev.filter((_, i) => i !== index));
-                          }}
-                          size="small"
-                          sx={{
-                            bgcolor: 'rgba(59, 130, 246, 0.2)',
-                            color: '#3b82f6',
-                            '& .MuiChip-deleteIcon': { 
-                              color: '#3b82f6',
-                              opacity: isUpdatingGroupInfo ? 0.3 : 1
-                            },
-                            opacity: isUpdatingGroupInfo ? 0.7 : 1
-                          }}
-                        />
-                      ))}
+                  {/* Enhanced Tags Section */}
+                  <Box sx={{ 
+                    p: 3, 
+                    border: '1px solid rgba(59, 130, 246, 0.2)', 
+                    borderRadius: 2, 
+                    bgcolor: 'rgba(59, 130, 246, 0.05)' 
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <LocalOfferIcon sx={{ color: '#3b82f6', fontSize: 20 }} />
+                      <Typography variant="body1" sx={{ color: '#3b82f6', fontWeight: 600 }}>
+                        Tags (max 10)
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, minHeight: 32 }}>
+                      {editingGroupTags.length === 0 ? (
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic' }}>
+                          No tags added yet
+                        </Typography>
+                      ) : (
+                        editingGroupTags.map((tag, index) => (
+                          <Chip
+                            key={index}
+                            label={tag}
+                            onDelete={isUpdatingGroupInfo ? undefined : () => {
+                              setEditingGroupTags(prev => prev.filter((_, i) => i !== index));
+                            }}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(59, 130, 246, 0.3)',
+                              color: '#ffffff',
+                              border: '1px solid rgba(59, 130, 246, 0.5)',
+                              '& .MuiChip-deleteIcon': { 
+                                color: '#ffffff',
+                                opacity: isUpdatingGroupInfo ? 0.3 : 1,
+                                '&:hover': { color: '#ef4444' }
+                              },
+                              opacity: isUpdatingGroupInfo ? 0.7 : 1,
+                              transition: 'all 0.2s ease'
+                            }}
+                          />
+                        ))
+                      )}
                     </Box>
 
                     {editingGroupTags.length < 10 && (
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <TextField
-                          label="Add tag"
+                          label="Add new tag"
+                          placeholder="e.g., promotional, seasonal"
                           value={newTag}
                           onChange={(e) => setNewTag(e.target.value)}
                           variant="outlined"
@@ -1304,6 +1443,7 @@ export default function DesignGroupsPage() {
                             flexGrow: 1,
                             '& .MuiOutlinedInput-root': {
                               color: '#ffffff',
+                              bgcolor: 'rgba(255, 255, 255, 0.05)',
                               '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
                               '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
                               '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
@@ -1312,10 +1452,12 @@ export default function DesignGroupsPage() {
                                 '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.2)' }
                               }
                             },
-                            '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' }
+                            '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
+                            '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255, 255, 255, 0.4)' }
                           }}
                         />
                         <Button
+                          variant="outlined"
                           onClick={() => {
                             if (newTag.trim() && !editingGroupTags.includes(newTag.trim()) && !isUpdatingGroupInfo) {
                               setEditingGroupTags(prev => [...prev, newTag.trim()]);
@@ -1324,12 +1466,148 @@ export default function DesignGroupsPage() {
                           }}
                           disabled={!newTag.trim() || editingGroupTags.includes(newTag.trim()) || isUpdatingGroupInfo}
                           sx={{ 
+                            borderColor: '#3b82f6',
                             color: '#3b82f6',
-                            '&:disabled': { color: 'rgba(59, 130, 246, 0.3)' }
+                            '&:hover': { borderColor: '#2563eb', bgcolor: 'rgba(59, 130, 246, 0.1)' },
+                            '&:disabled': { borderColor: 'rgba(59, 130, 246, 0.3)', color: 'rgba(59, 130, 246, 0.3)' }
                           }}
                         >
                           Add
                         </Button>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Enhanced Search Keywords Section */}
+                  <Box sx={{ 
+                    p: 3, 
+                    border: '1px solid rgba(34, 197, 94, 0.2)', 
+                    borderRadius: 2, 
+                    bgcolor: 'rgba(34, 197, 94, 0.05)' 
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <SearchIcon sx={{ color: '#22c55e', fontSize: 20 }} />
+                      <Typography variant="body1" sx={{ color: '#22c55e', fontWeight: 600 }}>
+                        Search Keywords (max 20)
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, minHeight: 32 }}>
+                      {editingGroupSearchKeywords.length === 0 ? (
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic' }}>
+                          No keywords added yet
+                        </Typography>
+                      ) : (
+                        editingGroupSearchKeywords.map((keyword, index) => (
+                          <Chip
+                            key={index}
+                            label={keyword}
+                            onDelete={isUpdatingGroupInfo ? undefined : () => {
+                              setEditingGroupSearchKeywords(prev => prev.filter((_, i) => i !== index));
+                            }}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(34, 197, 94, 0.3)',
+                              color: '#ffffff',
+                              border: '1px solid rgba(34, 197, 94, 0.5)',
+                              '& .MuiChip-deleteIcon': { 
+                                color: '#ffffff',
+                                opacity: isUpdatingGroupInfo ? 0.3 : 1,
+                                '&:hover': { color: '#ef4444' }
+                              },
+                              opacity: isUpdatingGroupInfo ? 0.7 : 1,
+                              transition: 'all 0.2s ease'
+                            }}
+                          />
+                        ))
+                      )}
+                    </Box>
+
+                    {editingGroupSearchKeywords.length < 20 && (
+                      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                        <TextField
+                          label="Add search keyword"
+                          placeholder="e.g., vinyl wrap, car decal"
+                          value={newSearchKeyword}
+                          onChange={(e) => setNewSearchKeyword(e.target.value)}
+                          variant="outlined"
+                          size="small"
+                          disabled={isUpdatingGroupInfo}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && newSearchKeyword.trim() && !editingGroupSearchKeywords.includes(newSearchKeyword.trim().toLowerCase()) && !isUpdatingGroupInfo) {
+                              setEditingGroupSearchKeywords(prev => [...prev, newSearchKeyword.trim().toLowerCase()]);
+                              setNewSearchKeyword('');
+                            }
+                          }}
+                          sx={{
+                            flexGrow: 1,
+                            '& .MuiOutlinedInput-root': {
+                              color: '#ffffff',
+                              bgcolor: 'rgba(255, 255, 255, 0.05)',
+                              '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
+                              '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
+                              '&.Mui-focused fieldset': { borderColor: '#22c55e' },
+                              '&.Mui-disabled': {
+                                color: 'rgba(255, 255, 255, 0.5)',
+                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.2)' }
+                              }
+                            },
+                            '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
+                            '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255, 255, 255, 0.4)' }
+                          }}
+                        />
+                        <Button
+                          variant="outlined"
+                          onClick={() => {
+                            if (newSearchKeyword.trim() && !editingGroupSearchKeywords.includes(newSearchKeyword.trim().toLowerCase()) && !isUpdatingGroupInfo) {
+                              setEditingGroupSearchKeywords(prev => [...prev, newSearchKeyword.trim().toLowerCase()]);
+                              setNewSearchKeyword('');
+                            }
+                          }}
+                          disabled={!newSearchKeyword.trim() || editingGroupSearchKeywords.includes(newSearchKeyword.trim().toLowerCase()) || isUpdatingGroupInfo}
+                          sx={{ 
+                            borderColor: '#22c55e',
+                            color: '#22c55e',
+                            '&:hover': { borderColor: '#16a34a', bgcolor: 'rgba(34, 197, 94, 0.1)' },
+                            '&:disabled': { borderColor: 'rgba(34, 197, 94, 0.3)', color: 'rgba(34, 197, 94, 0.3)' }
+                          }}
+                        >
+                          Add
+                        </Button>
+                      </Box>
+                    )}
+
+                    {/* AI Suggestions for editing */}
+                    {aiSuggestions.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
+                          AI Suggestions:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {aiSuggestions.map((suggestion, index) => (
+                            <Chip
+                              key={index}
+                              label={suggestion}
+                              onClick={() => addAISuggestionToEdit(suggestion)}
+                              disabled={editingGroupSearchKeywords.includes(suggestion) || isUpdatingGroupInfo}
+                              size="small"
+                              sx={{
+                                bgcolor: editingGroupSearchKeywords.includes(suggestion) 
+                                  ? 'rgba(255, 255, 255, 0.1)' 
+                                  : 'rgba(139, 92, 246, 0.2)',
+                                color: editingGroupSearchKeywords.includes(suggestion) 
+                                  ? 'rgba(255, 255, 255, 0.5)' 
+                                  : '#8b5cf6',
+                                border: '1px solid rgba(139, 92, 246, 0.3)',
+                                cursor: editingGroupSearchKeywords.includes(suggestion) ? 'default' : 'pointer',
+                                '&:hover': editingGroupSearchKeywords.includes(suggestion) ? {} : {
+                                  bgcolor: 'rgba(139, 92, 246, 0.3)',
+                                  transform: 'scale(1.05)'
+                                },
+                                transition: 'all 0.2s ease'
+                              }}
+                            />
+                          ))}
+                        </Box>
                       </Box>
                     )}
                   </Box>
@@ -1347,14 +1625,15 @@ export default function DesignGroupsPage() {
                         const optimisticGroup = {
                           ...selectedGroup,
                           name: editingGroupName,
-                          tags: editingGroupTags
+                          tags: editingGroupTags,
+                          searchKeywords: editingGroupSearchKeywords
                         };
                         setSelectedGroup(optimisticGroup);
                         
                         // Also optimistically update in the existingGroups list
                         setExistingGroups(prev => prev.map(group => 
                           group._id === selectedGroup._id 
-                            ? { ...group, name: editingGroupName, tags: editingGroupTags }
+                            ? { ...group, name: editingGroupName, tags: editingGroupTags, searchKeywords: editingGroupSearchKeywords }
                             : group
                         ));
                         
@@ -1365,7 +1644,8 @@ export default function DesignGroupsPage() {
                             body: JSON.stringify({
                               designGroupId: selectedGroup._id,
                               name: editingGroupName,
-                              tags: editingGroupTags
+                              tags: editingGroupTags,
+                              searchKeywords: editingGroupSearchKeywords
                             })
                           });
 
@@ -1420,7 +1700,9 @@ export default function DesignGroupsPage() {
                         if (isUpdatingGroupInfo) return; // Prevent cancel during update
                         setEditingGroupName(selectedGroup.name || '');
                         setEditingGroupTags(selectedGroup.tags || []);
+                        setEditingGroupSearchKeywords(selectedGroup.searchKeywords || []);
                         setNewTag('');
+                        setNewSearchKeyword('');
                         setIsEditingGroupInfo(false);
                       }}
                       disabled={isUpdatingGroupInfo}

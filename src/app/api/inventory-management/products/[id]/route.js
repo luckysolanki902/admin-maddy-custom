@@ -62,3 +62,4 @@ export async function PATCH(request, { params }) {
       error: 'Failed to update inventory'
     }, { status: 500 });
   }
+}

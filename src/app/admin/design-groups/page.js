@@ -129,6 +129,10 @@ export default function DesignGroupsPage() {
   // AI suggestions state
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  
+  // Edit dialog AI suggestions state
+  const [editAiSuggestions, setEditAiSuggestions] = useState([]);
+  const [loadingEditSuggestions, setLoadingEditSuggestions] = useState(false);
 
   // Fetch specific categories
   const fetchSpecificCategories = useCallback(async () => {
@@ -452,6 +456,85 @@ export default function DesignGroupsPage() {
     }
   }, [selectedProducts]);
 
+  // Generate AI suggestions for edit dialog using first product's image
+  const generateEditAISuggestions = useCallback(async () => {
+    if (!selectedGroup || !selectedGroup.products || selectedGroup.products.length === 0) {
+      console.log('[Edit AI] No selected group or products available');
+      return;
+    }
+    
+    setLoadingEditSuggestions(true);
+    setEditAiSuggestions([]);
+    
+    try {
+      // Get first product from the group
+      const firstProduct = selectedGroup.products[0];
+      
+      if (!firstProduct) {
+        console.log('[Edit AI] No first product found');
+        return;
+      }
+      
+      // Get image URL from first product
+      let imageUrl = '';
+      if (firstProduct.images && firstProduct.images.length > 0) {
+        imageUrl = firstProduct.images[0];
+        
+        // If it's a relative path, make it absolute
+        if (imageUrl && imageUrl.startsWith('/') && !imageUrl.startsWith('//')) {
+          imageUrl = `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}${imageUrl}`;
+        }
+      }
+      
+      console.log('[Edit AI] Generating suggestions for:', { 
+        productName: firstProduct.name, 
+        imageUrl: imageUrl ? 'Image available' : 'No image',
+        groupName: selectedGroup.name 
+      });
+      
+      const timestamp = Date.now(); // For cache busting
+      
+      const response = await fetch('/api/admin/products/suggest-keywords', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        },
+        body: JSON.stringify({
+          title: firstProduct.name || firstProduct.title || selectedGroup.name || '',
+          mainTags: [],
+          imageUrl: imageUrl,
+          timestamp: timestamp
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.keywords) {
+        console.log('[Edit AI] Received AI keywords:', data.keywords);
+        
+        // Filter out keywords that already exist in current keywords
+        const newKeywords = data.keywords.filter(keyword => 
+          !editingGroupSearchKeywords.some(existing => 
+            existing.toLowerCase() === keyword.toLowerCase()
+          )
+        );
+        
+        setEditAiSuggestions(newKeywords);
+        console.log('[Edit AI] Set filtered suggestions:', newKeywords);
+      } else {
+        console.error('[Edit AI] Failed to get suggestions:', data.error || 'Unknown error');
+        toast.error(data.error || 'Failed to get AI keyword suggestions');
+      }
+    } catch (error) {
+      console.error('[Edit AI] Error getting suggestions:', error);
+      toast.error('Failed to get AI keyword suggestions. Please try again.');
+    } finally {
+      setLoadingEditSuggestions(false);
+    }
+  }, [selectedGroup, editingGroupSearchKeywords]);
+
   // Save design group with dialog
   const saveDesignGroup = useCallback(async () => {
     if (selectedProducts.length < 2) {
@@ -575,6 +658,15 @@ export default function DesignGroupsPage() {
   const addAISuggestionToEdit = (suggestion) => {
     if (!editingGroupSearchKeywords.includes(suggestion) && editingGroupSearchKeywords.length < 20) {
       setEditingGroupSearchKeywords(prev => [...prev, suggestion]);
+    }
+  };
+
+  // Add Edit AI suggestion to editing keywords
+  const addEditAISuggestion = (suggestion) => {
+    if (!editingGroupSearchKeywords.includes(suggestion) && editingGroupSearchKeywords.length < 20) {
+      setEditingGroupSearchKeywords(prev => [...prev, suggestion]);
+      // Remove from suggestions once added
+      setEditAiSuggestions(prev => prev.filter(s => s !== suggestion));
     }
   };
   const addProductsToGroup = useCallback(async () => {
@@ -1296,6 +1388,8 @@ export default function DesignGroupsPage() {
           setEditingGroupName('');
           setEditingGroupSearchKeywords([]);
           setNewSearchKeyword('');
+          setEditAiSuggestions([]);
+          setLoadingEditSuggestions(false);
         }}
         maxWidth="md"
         fullWidth
@@ -1496,11 +1590,70 @@ export default function DesignGroupsPage() {
                         >
                           Add
                         </Button>
+                        <Button
+                          variant="contained"
+                          onClick={generateEditAISuggestions}
+                          disabled={loadingEditSuggestions || isUpdatingGroupInfo}
+                          startIcon={
+                            loadingEditSuggestions ? (
+                              <CircularProgress size={16} color="inherit" />
+                            ) : (
+                              <AutoAwesomeIcon />
+                            )
+                          }
+                          sx={{ 
+                            background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
+                            '&:hover': {
+                              background: 'linear-gradient(45deg, #FF5252, #26C6DA)',
+                            },
+                            '&:disabled': {
+                              background: 'rgba(255, 255, 255, 0.1)',
+                              color: 'rgba(255, 255, 255, 0.3)'
+                            }
+                          }}
+                        >
+                          {loadingEditSuggestions ? 'Getting...' : 'AI Suggest'}
+                        </Button>
                       </Box>
                     )}
 
-                    {/* AI Suggestions for editing */}
-                    {aiSuggestions.length > 0 && (
+                    {/* Image-based AI Suggestions for editing */}
+                    {editAiSuggestions.length > 0 && (
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="body2" sx={{ color: '#FF6B6B', mb: 1, fontWeight: 600 }}>
+                          ✨ AI Image Analysis Suggestions - Click to add:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {editAiSuggestions.map((suggestion, index) => (
+                            <Chip
+                              key={index}
+                              label={suggestion}
+                              onClick={() => addEditAISuggestion(suggestion)}
+                              disabled={editingGroupSearchKeywords.includes(suggestion) || isUpdatingGroupInfo}
+                              size="small"
+                              sx={{
+                                bgcolor: editingGroupSearchKeywords.includes(suggestion) 
+                                  ? 'rgba(255, 255, 255, 0.1)' 
+                                  : 'rgba(255, 107, 107, 0.2)',
+                                color: editingGroupSearchKeywords.includes(suggestion) 
+                                  ? 'rgba(255, 255, 255, 0.5)' 
+                                  : '#FF6B6B',
+                                border: '1px solid rgba(255, 107, 107, 0.4)',
+                                cursor: editingGroupSearchKeywords.includes(suggestion) ? 'default' : 'pointer',
+                                '&:hover': editingGroupSearchKeywords.includes(suggestion) ? {} : {
+                                  bgcolor: 'rgba(255, 107, 107, 0.3)',
+                                  transform: 'scale(1.05)'
+                                },
+                                transition: 'all 0.2s ease'
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Old AI Suggestions for editing (fallback for create mode) */}
+                    {aiSuggestions.length > 0 && !editAiSuggestions.length && (
                       <Box>
                         <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
                           AI Suggestions:
@@ -1933,6 +2086,8 @@ export default function DesignGroupsPage() {
               setEditingGroupName('');
               setEditingGroupSearchKeywords([]);
               setNewSearchKeyword('');
+              setEditAiSuggestions([]);
+              setLoadingEditSuggestions(false);
             }}
             sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
           >

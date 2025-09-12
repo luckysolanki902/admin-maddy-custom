@@ -23,9 +23,21 @@ const SearchKeywords = ({
 
   const handleAddKeyword = (keyword = null) => {
     try {
-      console.log('[SearchKeywords] handleAddKeyword called with:', { keyword, newKeyword, currentKeywords: keywords });
+      console.log('[SearchKeywords] handleAddKeyword called with keyword:', keyword);
+      console.log('[SearchKeywords] typeof keyword:', typeof keyword);
       
-      const keywordToAdd = keyword || newKeyword.trim();
+      // Ensure we only process strings, not event objects
+      let keywordToAdd;
+      if (typeof keyword === 'string' && keyword.trim()) {
+        keywordToAdd = keyword.trim();
+      } else if (!keyword && typeof newKeyword === 'string') {
+        keywordToAdd = newKeyword.trim();
+      } else {
+        console.error('[SearchKeywords] Invalid keyword type:', typeof keyword, keyword);
+        setError('Invalid keyword format. Please try again.');
+        return;
+      }
+      
       if (keywordToAdd && !keywords.includes(keywordToAdd)) {
         const updatedKeywords = [...keywords, keywordToAdd];
         console.log('[SearchKeywords] Adding keyword, updating to:', updatedKeywords);
@@ -46,14 +58,29 @@ const SearchKeywords = ({
   };
 
   const handleRemoveKeyword = (keywordToRemove) => {
-    const updatedKeywords = keywords.filter(keyword => keyword !== keywordToRemove);
-    onKeywordsChange(updatedKeywords);
+    try {
+      console.log('[SearchKeywords] Removing keyword:', keywordToRemove);
+      if (typeof keywordToRemove !== 'string') {
+        console.error('[SearchKeywords] Invalid keyword type for removal:', typeof keywordToRemove);
+        return;
+      }
+      const updatedKeywords = keywords.filter(keyword => keyword !== keywordToRemove);
+      onKeywordsChange(updatedKeywords);
+    } catch (error) {
+      console.error('[SearchKeywords] Error removing keyword:', error);
+      setError('Failed to remove keyword. Please try again.');
+    }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddKeyword();
+    try {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddKeyword();
+      }
+    } catch (error) {
+      console.error('[SearchKeywords] Error in handleKeyPress:', error);
+      setError('Failed to process keyboard input. Please try again.');
     }
   };
 
@@ -76,6 +103,11 @@ const SearchKeywords = ({
       if (imageUrl && imageUrl.startsWith('/') && !imageUrl.startsWith('//')) {
         imageUrl = `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}${imageUrl}`;
       }
+      
+      console.log('[SearchKeywords] Getting AI suggestions for:', { 
+        title: productData.title, 
+        imageUrl: imageUrl?.substring(0, 100) + '...'
+      });
       
       const response = await fetch('/api/admin/products/suggest-keywords', {
         method: 'POST',
@@ -102,13 +134,16 @@ const SearchKeywords = ({
           )
         );
         
+        console.log('[SearchKeywords] AI suggestions received:', newKeywords);
+        
         // Set as suggestions instead of adding directly
         setSuggestedKeywords(newKeywords);
       } else {
+        console.error('[SearchKeywords] AI suggestions failed:', data.error);
         setError(data.error || 'Failed to get keyword suggestions');
       }
     } catch (error) {
-      console.error('Error getting suggestions:', error);
+      console.error('[SearchKeywords] Error getting suggestions:', error);
       setError('Failed to get keyword suggestions. Please try again.');
     } finally {
       setIsLoadingSuggestions(false);
@@ -143,7 +178,7 @@ const SearchKeywords = ({
         />
         <Button
           variant="outlined"
-          onClick={handleAddKeyword}
+          onClick={() => handleAddKeyword()}
           disabled={!newKeyword.trim() || disabled}
           startIcon={<AddIcon />}
         >

@@ -22,16 +22,26 @@ const SearchKeywords = ({
   const [error, setError] = useState('');
 
   const handleAddKeyword = (keyword = null) => {
-    const keywordToAdd = keyword || newKeyword.trim();
-    if (keywordToAdd && !keywords.includes(keywordToAdd)) {
-      const updatedKeywords = [...keywords, keywordToAdd];
-      onKeywordsChange(updatedKeywords);
-      if (!keyword) setNewKeyword(''); // Only clear input if adding from text field
+    try {
+      console.log('[SearchKeywords] handleAddKeyword called with:', { keyword, newKeyword, currentKeywords: keywords });
       
-      // Remove from suggestions if it was a suggested keyword
-      if (keyword) {
-        setSuggestedKeywords(prev => prev.filter(k => k !== keyword));
+      const keywordToAdd = keyword || newKeyword.trim();
+      if (keywordToAdd && !keywords.includes(keywordToAdd)) {
+        const updatedKeywords = [...keywords, keywordToAdd];
+        console.log('[SearchKeywords] Adding keyword, updating to:', updatedKeywords);
+        onKeywordsChange(updatedKeywords);
+        if (!keyword) setNewKeyword(''); // Only clear input if adding from text field
+        
+        // Remove from suggestions if it was a suggested keyword
+        if (keyword) {
+          setSuggestedKeywords(prev => prev.filter(k => k !== keyword));
+        }
+      } else {
+        console.log('[SearchKeywords] Keyword not added - already exists or empty:', { keywordToAdd, exists: keywords.includes(keywordToAdd) });
       }
+    } catch (error) {
+      console.error('[SearchKeywords] Error in handleAddKeyword:', error);
+      setError('Failed to add keyword. Please try again.');
     }
   };
 
@@ -173,7 +183,11 @@ const SearchKeywords = ({
                 key={index}
                 variant="outlined"
                 size="small"
-                onClick={() => handleAddKeyword(keyword)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAddKeyword(keyword);
+                }}
                 startIcon={<AddIcon />}
                 sx={{
                   borderColor: '#1976d2',

@@ -154,14 +154,27 @@ export default function DesignGroupsPage() {
       const response = await fetch('/api/admin/design-groups/existing-groups');
       if (response.ok) {
         const data = await response.json();
+        console.log('[Frontend] Fetched existing groups:', data.groups?.map(g => ({ 
+          id: g.designGroupId, 
+          name: g.name, 
+          searchKeywords: g.searchKeywords 
+        })));
         setExistingGroups(data.groups || []);
 
         // Update selectedGroup if requested and it exists in the new data
-        if (updateSelected && selectedGroup) {
-          const updatedGroup = data.groups.find(g => g.designGroupId === selectedGroup.designGroupId);
-          if (updatedGroup) {
-            setSelectedGroup(updatedGroup);
-          }
+        if (updateSelected) {
+          setSelectedGroup(prevSelected => {
+            if (!prevSelected) return null;
+            const updatedGroup = data.groups.find(g => g.designGroupId === prevSelected.designGroupId);
+            if (updatedGroup) {
+              console.log('[Frontend] Updating selected group with:', { 
+                name: updatedGroup.name, 
+                searchKeywords: updatedGroup.searchKeywords 
+              });
+              return updatedGroup;
+            }
+            return prevSelected;
+          });
         }
       } else {
         console.error('Failed to fetch existing groups:', response.status);
@@ -171,7 +184,7 @@ export default function DesignGroupsPage() {
     } finally {
       setExistingGroupsLoading(false);
     }
-  }, []); // Removed selectedGroup dependency to prevent infinite re-renders
+  }, []);
 
   // Fetch available products for adding to groups
   const fetchAvailableProducts = useCallback(async (searchQuery = '', categoryFilter = '') => {
@@ -1143,6 +1156,11 @@ export default function DesignGroupsPage() {
                           },
                         }}
                         onClick={() => {
+                          console.log('[Frontend] Group clicked, setting selectedGroup with searchKeywords:', { 
+                            name: group.name, 
+                            searchKeywords: group.searchKeywords,
+                            fullGroup: group 
+                          });
                           setSelectedGroup(group);
                           setEditingGroupName(group.name || '');
                           setEditingGroupSearchKeywords(group.searchKeywords || []);
@@ -1634,6 +1652,37 @@ export default function DesignGroupsPage() {
                   <Typography variant="body1" sx={{ color: '#ffffff', mb: 1 }}>
                     <strong>Name:</strong> {selectedGroup.name || 'Unnamed Group'}
                   </Typography>
+                  
+                  {/* Search Keywords Display */}
+                  <Box sx={{ mt: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <SearchIcon sx={{ color: '#22c55e', fontSize: 16 }} />
+                      <Typography variant="body2" sx={{ color: '#22c55e', fontWeight: 600 }}>
+                        Search Keywords
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, minHeight: 32 }}>
+                      {(!selectedGroup.searchKeywords || selectedGroup.searchKeywords.length === 0) ? (
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic' }}>
+                          No keywords set
+                        </Typography>
+                      ) : (
+                        selectedGroup.searchKeywords.map((keyword, index) => (
+                          <Chip
+                            key={index}
+                            label={keyword}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(34, 197, 94, 0.2)',
+                              color: '#ffffff',
+                              border: '1px solid rgba(34, 197, 94, 0.4)',
+                              fontSize: '0.75rem',
+                            }}
+                          />
+                        ))
+                      )}
+                    </Box>
+                  </Box>
                 </Box>
               )}
             </Box>

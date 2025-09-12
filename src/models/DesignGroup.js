@@ -22,6 +22,15 @@ const DesignGroupSchema = new mongoose.Schema(
     searchKeywords: {
       type: [String],
       default: [],
+      // Transform each keyword to lowercase and trim whitespace before saving
+      set: function(keywords) {
+        if (Array.isArray(keywords)) {
+          return keywords
+            .map(keyword => typeof keyword === 'string' ? keyword.toLowerCase().trim() : keyword)
+            .filter(keyword => keyword && keyword.length > 0);
+        }
+        return keywords;
+      },
       validate: {
         validator: function(keywords) {
           return keywords.length <= 20; // Limit to 20 keywords

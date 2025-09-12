@@ -86,7 +86,7 @@ export async function GET() {
           _id: group._id,
           designGroupId: group._id.toString(), // Keep for backward compatibility
           name: group.name,
-          tags: group.tags || [],
+          searchKeywords: group.searchKeywords || [],
           thumbnail: group.thumbnail,
           isActive: group.isActive,
           productCount: await Product.countDocuments({ 

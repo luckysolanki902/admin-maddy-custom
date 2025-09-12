@@ -97,6 +97,9 @@ const InventoryManagementPage = () => {
   }, []);
 
   // Fetch table data
+  // Mode: 'product' or 'option' for all-level chips
+  const [allLevelMode, setAllLevelMode] = useState('product'); // 'product' or 'option'
+
   const fetchTableData = useCallback(async () => {
     setLoading(true);
     try {
@@ -107,16 +110,26 @@ const InventoryManagementPage = () => {
         filter: filterMode,
         customValue: customFilterValue.toString(),
         skuSearch: skuSearch.trim(),
-        specificCategoryCode: selectedVariantId // overload for hb-cf, else ignored
+        allLevelMode: allLevelMode // pass mode to backend for all-level chips
       });
+      // For hb-cf, add specificCategoryVariantCode param
+      if (variants.find(v => v.variantCode === 'hb-cf') && (selectedVariantId === 'hb-cf' || variants.find(v => v._id === selectedVariantId)?.variantCode === 'hb-cf')) {
+        params.set('specificCategoryVariantCode', 'hb-cf');
+      }
+
+      // DEBUG: Log params
+      console.log('fetchTableData params:', Object.fromEntries(params.entries()));
 
       const res = await fetch(`/api/inventory-management/products?${params}`);
       const data = await res.json();
 
-      if (data.success && data.mode === 'hb-cf') {
+      // DEBUG: Log API response
+      console.log('fetchTableData response:', data);
+
+      if (data.success && (data.mode === 'hb-cf' || (allLevelMode === 'option' && data.hbCfInventories))) {
         setInventoryMode('hb-cf');
-        setHbCfInventories(data.inventories);
-        setTableData([]);
+        setHbCfInventories(data.hbCfInventories || data.inventories || []);
+        setTableData(data.products || []);
         setTotalCount(data.total);
         setOriginalData({});
         setChangedRows(new Set());
@@ -141,7 +154,7 @@ const InventoryManagementPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, selectedVariantId, filterMode, customFilterValue, skuSearch]);
+  }, [page, rowsPerPage, selectedVariantId, filterMode, customFilterValue, skuSearch, variants, allLevelMode]);
 
   useEffect(() => {
     fetchTableData();
@@ -377,7 +390,6 @@ const InventoryManagementPage = () => {
             <Typography variant="h6" fontWeight={600}>Filter by Variant</Typography>
             <Chip label={`${filteredVariants.length} variants`} size="small" variant="outlined" />
           </Stack>
-          
           <TextField
             size="small"
             placeholder="Search variants..."
@@ -399,33 +411,29 @@ const InventoryManagementPage = () => {
               }
             }}
           />
-
           <Stack direction="row" spacing={1.5} flexWrap="wrap" rowGap={1.5}>
             <Chip
-              label="All Variants"
-              onClick={() => setSelectedVariantId('all')}
-              color={selectedVariantId === 'all' ? 'primary' : 'default'}
-              variant={selectedVariantId === 'all' ? 'filled' : 'outlined'}
-              sx={{ 
-                borderRadius: 2,
-                fontWeight: 500,
-                '&:hover': { transform: 'translateY(-1px)' },
-                transition: 'all 0.2s'
-              }}
+              label="All Product Level"
+              onClick={() => { setSelectedVariantId('all'); setAllLevelMode('product'); }}
+              color={selectedVariantId === 'all' && allLevelMode === 'product' ? 'primary' : 'default'}
+              variant={selectedVariantId === 'all' && allLevelMode === 'product' ? 'filled' : 'outlined'}
+              sx={{ borderRadius: 2, fontWeight: 500, '&:hover': { transform: 'translateY(-1px)' }, transition: 'all 0.2s' }}
+            />
+            <Chip
+              label="All Option Level"
+              onClick={() => { setSelectedVariantId('all'); setAllLevelMode('option'); }}
+              color={selectedVariantId === 'all' && allLevelMode === 'option' ? 'primary' : 'default'}
+              variant={selectedVariantId === 'all' && allLevelMode === 'option' ? 'filled' : 'outlined'}
+              sx={{ borderRadius: 2, fontWeight: 500, '&:hover': { transform: 'translateY(-1px)' }, transition: 'all 0.2s' }}
             />
             {filteredVariants.map(variant => (
               <Chip
                 key={variant._id}
                 label={variant.name}
-                onClick={() => setSelectedVariantId(variant._id)}
+                onClick={() => { setSelectedVariantId(variant._id); setAllLevelMode('product'); }}
                 color={selectedVariantId === variant._id ? 'primary' : 'default'}
                 variant={selectedVariantId === variant._id ? 'filled' : 'outlined'}
-                sx={{ 
-                  borderRadius: 2,
-                  fontWeight: 500,
-                  '&:hover': { transform: 'translateY(-1px)' },
-                  transition: 'all 0.2s'
-                }}
+                sx={{ borderRadius: 2, fontWeight: 500, '&:hover': { transform: 'translateY(-1px)' }, transition: 'all 0.2s' }}
               />
             ))}
           </Stack>
@@ -575,69 +583,386 @@ const InventoryManagementPage = () => {
 
       {/* Inventory Table: Special for hb-cf */}
       {inventoryMode === 'hb-cf' ? (
+        <>
+          {/* Special section for hb-cf in option level */}
+          {allLevelMode === 'option' && hbCfInventories.length > 0 && (
+            <Card elevation={0} sx={{ border: '2px solid', borderColor: 'primary.main', borderRadius: 3, overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))', mb: 4 }}>
+              <Box sx={{ p: 2, pb: 0 }}>
+                <Typography variant="h6" fontWeight={700} color="primary.main">Manage Hanging Bottle Car Freshener Fragrances</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>These are the 4 shared inventories for all HB-CF options. Edit and save as needed.</Typography>
+              </Box>
+              <TableContainer>
+                <Table stickyHeader sx={{ minWidth: 600 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell width={60}>#</TableCell>
+                      <TableCell>Option Name</TableCell>
+                      <TableCell>Available</TableCell>
+                      <TableCell>Reorder Level</TableCell>
+                      {!viewMode && <TableCell>Actions</TableCell>}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {hbCfInventories.map((inv, idx) => {
+                      const isChanged = inv._changed;
+                      return (
+                        <TableRow key={inv._id}>
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell>
+                            {inv.options[0]?.optionDetails ? (
+                              <>
+                                {Object.values(inv.options[0].optionDetails).join(', ')}
+                                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                                  {inv.options[0]?.sku}
+                                </Typography>
+                              </>
+                            ) : inv.options[0]?.sku || inv._id}
+                          </TableCell>
+                          <TableCell>
+                            {viewMode ? (
+                              inv.availableQuantity
+                            ) : (
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={inv.availableQuantity}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  setHbCfInventories(prev => prev.map((row, i) => i === idx ? { ...row, availableQuantity: val, _changed: true } : row));
+                                }}
+                                inputProps={{ min: 0, style: { textAlign: 'center' } }}
+                                sx={{ width: 90 }}
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {viewMode ? (
+                              inv.reorderLevel
+                            ) : (
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={inv.reorderLevel}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  setHbCfInventories(prev => prev.map((row, i) => i === idx ? { ...row, reorderLevel: val, _changed: true } : row));
+                                }}
+                                inputProps={{ min: 0, style: { textAlign: 'center' } }}
+                                sx={{ width: 90 }}
+                              />
+                            )}
+                          </TableCell>
+                          {!viewMode && (
+                            <TableCell>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                color={isChanged ? 'warning' : 'default'}
+                                disabled={!isChanged}
+                                onClick={async () => {
+                                  // Save individual hb-cf inventory
+                                  const res = await fetch(`/api/inventory-management/products/${inv._id}`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      availableQuantity: inv.availableQuantity,
+                                      reorderLevel: inv.reorderLevel
+                                    })
+                                  });
+                                  if (res.ok) {
+                                    setHbCfInventories(prev => prev.map((row, i) => i === idx ? { ...row, _changed: false } : row));
+                                    setSnackbar({ severity: 'success', message: 'Inventory updated successfully' });
+                                  } else {
+                                    setSnackbar({ severity: 'error', message: 'Failed to update inventory' });
+                                  }
+                                }}
+                              >Save</Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {!viewMode && (
+                <Box sx={{ p: 2, pt: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    disabled={!hbCfInventories.some(inv => inv._changed)}
+                    onClick={async () => {
+                      // Bulk save for all changed hb-cf inventories
+                      const changes = hbCfInventories.filter(inv => inv._changed);
+                      let allOk = true;
+                      for (const inv of changes) {
+                        const res = await fetch(`/api/inventory-management/products/${inv._id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            availableQuantity: inv.availableQuantity,
+                            reorderLevel: inv.reorderLevel
+                          })
+                        });
+                        if (!res.ok) allOk = false;
+                      }
+                      setHbCfInventories(prev => prev.map(inv => ({ ...inv, _changed: false })));
+                      setSnackbar({ severity: allOk ? 'success' : 'error', message: allOk ? 'All changes saved!' : 'Some changes failed.' });
+                    }}
+                  >Save All Changes</Button>
+                </Box>
+              )}
+            </Card>
+          )}
+        </>
+      ) : (
         <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))' }}>
           <TableContainer>
-            <Table stickyHeader sx={{ minWidth: 600 }}>
+            <Table stickyHeader sx={{ minWidth: 800 }}>
               <TableHead>
                 <TableRow>
                   <TableCell width={60}>#</TableCell>
-                  <TableCell>Inventory Name</TableCell>
-                  <TableCell>Available</TableCell>
-                  <TableCell>Reorder Level</TableCell>
-                  <TableCell>Options Using This</TableCell>
+                  <TableCell width={80}>Image</TableCell>
+                  <TableCell>Product Name</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell>Variant</TableCell>
+                  {hasOptionsInCurrentPage && (
+                    <TableCell>Option</TableCell>
+                  )}
+                  <TableCell width={140} align="center">Available</TableCell>
+                  <TableCell width={140} align="center">Reorder Level</TableCell>
+                  <TableCell width={130} align="center">Status</TableCell>
+                  {!viewMode && (
+                    <TableCell width={80} align="center">Actions</TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
-                {hbCfInventories.map((inv, idx) => (
-                  <TableRow key={inv._id}>
-                    <TableCell>{idx + 1}</TableCell>
-                    <TableCell>
-                      {inv.options[0]?.name || inv._id}
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                        {inv.options[0]?.sku}
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={hasOptionsInCurrentPage ? (viewMode ? 9 : 10) : (viewMode ? 8 : 9)} align="center" sx={{ py: 8 }}>
+                      <CircularProgress size={48} />
+                      <Typography variant="body2" sx={{ mt: 2, opacity: 0.7 }}>
+                        Loading inventory data...
                       </Typography>
                     </TableCell>
-                    <TableCell>{inv.availableQuantity}</TableCell>
-                    <TableCell>{inv.reorderLevel}</TableCell>
-                    <TableCell>
-                      <Button size="small" variant="outlined" onClick={() => { setHbCfDialogOptions(inv.options); setHbCfDialogTitle(inv.options[0]?.name || inv._id); setHbCfDialogOpen(true); }}>View Options ({inv.options.length})</Button>
+                  </TableRow>
+                ) : tableData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={hasOptionsInCurrentPage ? (viewMode ? 9 : 10) : (viewMode ? 8 : 9)} align="center" sx={{ py: 8 }}>
+                      <Box sx={{ opacity: 0.6 }}>
+                        <InventoryIcon sx={{ fontSize: 48, mb: 2 }} />
+                        <Typography variant="h6" gutterBottom>
+                          No inventory data found
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Try adjusting your filters or check if products have inventory data
+                        </Typography>
+                      </Box>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  tableData.map((item, index) => {
+                    const isChanged = changedRows.has(item._id);
+                    const availableQuantity = item.inventoryData?.availableQuantity || 0;
+                    const reorderLevel = item.inventoryData?.reorderLevel || 0;
+                    const statusInfo = getStatusInfo(availableQuantity, reorderLevel);
+                    const managedByOptions = item.inventoryData?.managedByOptions;
+                    const isOptionRow = item.type === 'option';
+                    return (
+                      <TableRow key={item._id} hover selected={isChanged} sx={{
+                        '&:hover': { backgroundColor: alpha('#000', 0.02) },
+                        ...(isChanged && {
+                          backgroundColor: alpha('#ed6c02', 0.1),
+                          '&:hover': { backgroundColor: alpha('#ed6c02', 0.15) }
+                        })
+                      }}>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={500}>
+                            {page * rowsPerPage + index + 1}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Avatar
+                            src={getImageUrl(item)}
+                            variant="rounded"
+                            sx={{ width: 56, height: 56, border: '2px solid', borderColor: 'divider' }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
+                            {item.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {item.type === 'product' ? 'Product' : 'Product Option'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={item.sku || item.option?.sku}
+                            variant="outlined"
+                            size="small"
+                            sx={{ fontFamily: 'monospace', fontSize: '0.75rem', borderRadius: 1 }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={500}>
+                            {item.variant?.name}
+                          </Typography>
+                        </TableCell>
+                        {hasOptionsInCurrentPage && (
+                          <TableCell>
+                            {item.option ? (
+                              <Typography variant="body2" color="text.secondary">
+                                {Object.values(item.option.optionDetails || {}).join(', ')}
+                              </Typography>
+                            ) : (
+                              <Typography variant="body2" sx={{ opacity: 0.5 }}>—</Typography>
+                            )}
+                          </TableCell>
+                        )}
+                        <TableCell align="center">
+                          {managedByOptions && !isOptionRow ? (
+                            <Tooltip title="Inventory managed by options. Edit option rows below.">
+                              <span>
+                                <Chip
+                                  label={`Σ ${availableQuantity}`}
+                                  color={statusInfo.color}
+                                  size="medium"
+                                  variant="filled"
+                                  sx={{ fontWeight: 600, fontSize: '0.875rem', minWidth: 60, opacity: 0.7 }}
+                                />
+                              </span>
+                            </Tooltip>
+                          ) : viewMode ? (
+                            <Chip
+                              label={item.inventoryData && typeof availableQuantity === 'number' ? availableQuantity : '—'}
+                              color={statusInfo.color}
+                              size="medium"
+                              variant="filled"
+                              sx={{ fontWeight: 600, fontSize: '0.875rem', minWidth: 60 }}
+                            />
+                          ) : item.inventoryData && typeof availableQuantity === 'number' ? (
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={availableQuantity}
+                              onChange={(e) => handleFieldChange(item._id, 'availableQuantity', e.target.value)}
+                              inputProps={{ min: 0, style: { textAlign: 'center' } }}
+                              sx={{ width: 90, '& input[type=number]': { MozAppearance: 'textfield', '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 } } }}
+                            />
+                          ) : (
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={''}
+                              disabled
+                              placeholder="No inventory"
+                              sx={{ width: 90 }}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell align="center">
+                          {managedByOptions && !isOptionRow ? (
+                            <Tooltip title="Inventory managed by options. Edit option rows below.">
+                              <span>
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  value={reorderLevel}
+                                  disabled
+                                  sx={{ width: 90, opacity: 0.7 }}
+                                />
+                              </span>
+                            </Tooltip>
+                          ) : viewMode ? (
+                            <Typography variant="body2" fontWeight={500}>
+                              {item.inventoryData && typeof reorderLevel === 'number' ? reorderLevel : '—'}
+                            </Typography>
+                          ) : item.inventoryData && typeof reorderLevel === 'number' ? (
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={reorderLevel}
+                              onChange={(e) => handleFieldChange(item._id, 'reorderLevel', e.target.value)}
+                              inputProps={{ min: 0, style: { textAlign: 'center' } }}
+                              sx={{ width: 90, '& input[type=number]': { MozAppearance: 'textfield', '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 } } }}
+                            />
+                          ) : (
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={''}
+                              disabled
+                              placeholder="No inventory"
+                              sx={{ width: 90 }}
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Chip
+                            icon={statusInfo.icon}
+                            label={statusInfo.label}
+                            sx={{ backgroundColor: statusInfo.bgColor, color: statusInfo.textColor, fontWeight: 600, fontSize: '0.75rem', '& .MuiChip-icon': { color: statusInfo.textColor } }}
+                            size="small"
+                          />
+                        </TableCell>
+                        {!viewMode && (
+                          <TableCell align="center">
+                            {managedByOptions && !isOptionRow ? (
+                              <Tooltip title="Inventory managed by options. Edit option rows below.">
+                                <span>
+                                  <IconButton size="small" disabled color="default">
+                                    <SaveIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            ) : item.inventoryData && item.inventoryData._id ? (
+                              <Tooltip title={isChanged ? "Save changes" : "No changes to save"}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => saveRow(item._id)}
+                                  disabled={!isChanged}
+                                  color={isChanged ? 'warning' : 'default'}
+                                  sx={{ transition: 'all 0.2s', ...(isChanged && { backgroundColor: alpha('#ed6c02', 0.1), '&:hover': { backgroundColor: alpha('#ed6c02', 0.2), transform: 'scale(1.1)' } }) }}
+                                >
+                                  <SaveIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="No inventory record. Cannot save.">
+                                <span>
+                                  <IconButton size="small" disabled color="default">
+                                    <SaveIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </TableContainer>
-          <Dialog open={hbCfDialogOpen} onClose={() => setHbCfDialogOpen(false)} maxWidth="sm" fullWidth>
-            <DialogTitle>Options using inventory: {hbCfDialogTitle}</DialogTitle>
-            <DialogContent dividers>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>SKU</TableCell>
-                    <TableCell>Option Details</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {hbCfDialogOptions.map(opt => (
-                    <TableRow key={opt._id}>
-                      <TableCell>{opt.name}</TableCell>
-                      <TableCell>{opt.sku}</TableCell>
-                      <TableCell>{Object.values(opt.optionDetails || {}).join(', ')}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setHbCfDialogOpen(false)}>Close</Button>
-            </DialogActions>
-          </Dialog>
-        </Card>
-      ) : (
-        // ...existing code for normal inventory table...
-        <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))' }}>
-          {/* ...existing inventory table code here... */}
+          <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
+            <TablePagination
+              component="div"
+              count={totalCount}
+              page={page}
+              onPageChange={(_, newPage) => setPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value));
+                setPage(0);
+              }}
+              rowsPerPageOptions={[25, 50, 100]}
+              labelDisplayedRows={({ from, to, count }) => `${from}–${to} of ${count !== -1 ? count : `more than ${to}`}`}
+              sx={{ '& .MuiTablePagination-toolbar': { paddingLeft: 3, paddingRight: 3 } }}
+            />
+          </Box>
         </Card>
       )}
 

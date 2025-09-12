@@ -150,12 +150,7 @@ export async function GET(request) {
         }
       },
       { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
-      // Only include options from inventory categories
-            // Only include options from inventory categories that are available
-      { $match: { 
-        'category.inventoryMode': 'inventory',
-        'category.available': true
-      } },
+      { $match: { 'category.inventoryMode': 'inventory', 'category.available': true } },
       {
         $lookup: {
           from: 'inventories',
@@ -169,18 +164,10 @@ export async function GET(request) {
           inventoryData: {
             $cond: {
               if: { $eq: [{ $size: '$inventoryData' }, 0] },
-              then: { availableQuantity: 0, reorderLevel: 0 }, // Default values for options without inventory
+              then: { _id: null, availableQuantity: 0, reorderLevel: 0 },
               else: { $arrayElemAt: ['$inventoryData', 0] }
             }
           }
-        }
-      },
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'product',
-          foreignField: '_id',
-          as: 'product'
         }
       }
     ];
@@ -218,15 +205,16 @@ export async function GET(request) {
       optionsPipeline.push({ $match: { 'inventoryData.availableQuantity': { $lt: customValue } } });
     }
     
-    // Check for special case: specificCategoryCode 'hb-cf'
-    const specificCategoryCode = searchParams.get('specificCategoryCode');
-    if (specificCategoryCode && specificCategoryCode.toLowerCase() === 'hb-cf') {
-      // Find all options for hb-cf products, group by inventory _id
+    // Special handling for allLevelMode=option: exclude hb-cf options from main list, return them separately
+    const allLevelMode = searchParams.get('allLevelMode');
+    let hbCfInventories = [];
+    if (allLevelMode === 'option') {
+      // Find all options for products with specificCategoryVariant.variantCode === 'hb-cf', group by inventory _id
       const allOptions = await Option.find({})
         .populate('inventoryData')
-        .populate({ path: 'product', populate: { path: 'specificCategory' } })
+        .populate({ path: 'product', populate: { path: 'specificCategoryVariant' } })
         .lean();
-      const hbCfOptions = allOptions.filter(opt => opt.product && opt.product.specificCategory && opt.product.specificCategory.specificCategoryCode && opt.product.specificCategory.specificCategoryCode.toLowerCase() === 'hb-cf');
+      const hbCfOptions = allOptions.filter(opt => opt.product && opt.product.specificCategoryVariant && opt.product.specificCategoryVariant.variantCode && opt.product.specificCategoryVariant.variantCode.toLowerCase() === 'hb-cf');
       // Group by inventory _id
       const inventoryMap = {};
       hbCfOptions.forEach(opt => {
@@ -244,7 +232,48 @@ export async function GET(request) {
           _id: opt._id,
           name: opt.product.name,
           sku: opt.sku,
-          optionDetails: opt.optionDetails
+          optionDetails: opt.optionDetails,
+          inventoryData: opt.inventoryData && opt.inventoryData._id ? {
+            _id: opt.inventoryData._id,
+            availableQuantity: opt.inventoryData.availableQuantity,
+            reorderLevel: opt.inventoryData.reorderLevel
+          } : { _id: null, availableQuantity: 0, reorderLevel: 0 }
+        });
+      });
+      hbCfInventories = Object.values(inventoryMap);
+    }
+    // For specificCategoryVariantCode=hb-cf (direct navigation), keep old logic
+    const specificCategoryVariantCode = searchParams.get('specificCategoryVariantCode');
+    if (specificCategoryVariantCode && specificCategoryVariantCode.toLowerCase() === 'hb-cf') {
+      // ...existing code for direct hb-cf view...
+      const allOptions = await Option.find({})
+        .populate('inventoryData')
+        .populate({ path: 'product', populate: { path: 'specificCategoryVariant' } })
+        .lean();
+      const hbCfOptions = allOptions.filter(opt => opt.product && opt.product.specificCategoryVariant && opt.product.specificCategoryVariant.variantCode && opt.product.specificCategoryVariant.variantCode.toLowerCase() === 'hb-cf');
+      // Group by inventory _id
+      const inventoryMap = {};
+      hbCfOptions.forEach(opt => {
+        const invId = opt.inventoryData && opt.inventoryData._id ? String(opt.inventoryData._id) : null;
+        if (!invId) return;
+        if (!inventoryMap[invId]) {
+          inventoryMap[invId] = {
+            _id: invId,
+            availableQuantity: opt.inventoryData.availableQuantity,
+            reorderLevel: opt.inventoryData.reorderLevel,
+            options: []
+          };
+        }
+        inventoryMap[invId].options.push({
+          _id: opt._id,
+          name: opt.product.name,
+          sku: opt.sku,
+          optionDetails: opt.optionDetails,
+          inventoryData: opt.inventoryData && opt.inventoryData._id ? {
+            _id: opt.inventoryData._id,
+            availableQuantity: opt.inventoryData.availableQuantity,
+            reorderLevel: opt.inventoryData.reorderLevel
+          } : { _id: null, availableQuantity: 0, reorderLevel: 0 }
         });
       });
       const inventoryRows = Object.values(inventoryMap);
@@ -266,7 +295,51 @@ export async function GET(request) {
     ]);
     const productMode = products.filter(p => p.optionsAvailable).length > products.length / 2 ? 'option' : 'product';
     let rows = [];
-    if (productMode === 'option') {
+    if (allLevelMode === 'option') {
+      // Only show options, excluding hb-cf options
+      rows = options.filter(o => !(o.variant && o.variant.variantCode && o.variant.variantCode.toLowerCase() === 'hb-cf')).map(o => ({
+        _id: o._id,
+        name: o.product.name,
+        sku: o.sku,
+        images: o.product.images,
+        inventoryData: o.inventoryData && o.inventoryData._id ? {
+          _id: o.inventoryData._id,
+          availableQuantity: o.inventoryData.availableQuantity,
+          reorderLevel: o.inventoryData.reorderLevel,
+          managedByOptions: false
+        } : null,
+        variant: o.variant,
+        option: {
+          sku: o.sku,
+          optionDetails: o.optionDetails,
+          images: o.images
+        },
+        type: 'option'
+      }));
+    } else if (allLevelMode === 'product' || selectedVariantId === 'all') {
+      // Only show products without options
+      rows = products.filter(p => !p.optionsAvailable).map(p => {
+        let inventoryData = null;
+        if (p.inventoryData && p.inventoryData._id) {
+          inventoryData = {
+            _id: p.inventoryData._id,
+            availableQuantity: p.inventoryData.availableQuantity,
+            reorderLevel: p.inventoryData.reorderLevel,
+            managedByOptions: false
+          };
+        }
+        return {
+          _id: p._id,
+          name: p.name,
+          sku: p.sku,
+          images: p.images,
+          inventoryData,
+          variant: p.variant,
+          option: null,
+          type: 'product'
+        };
+      });
+    } else if (productMode === 'option') {
       rows = options.map(o => ({
         _id: o._id,
         name: o.product.name,
@@ -315,11 +388,12 @@ export async function GET(request) {
     const paginatedResults = rows.slice(startIndex, startIndex + limit);
     return NextResponse.json({
       success: true,
-      mode: productMode,
+      mode: allLevelMode === 'option' ? 'option' : productMode,
       products: paginatedResults,
       total,
       page,
-      limit
+      limit,
+      hbCfInventories: hbCfInventories // for option level special section
     });
     
   } catch (err) {

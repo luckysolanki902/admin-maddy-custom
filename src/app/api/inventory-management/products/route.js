@@ -218,41 +218,84 @@ export async function GET(request) {
       optionsPipeline.push({ $match: { 'inventoryData.availableQuantity': { $lt: customValue } } });
     }
     
-    // Execute aggregations
-    const [products, options, allOptions] = await Promise.all([
-      Product.aggregate(productsPipeline),
-      Option.aggregate(optionsPipeline),
-      Option.find({}) // For product-level aggregation
+    // Check for special case: specificCategoryCode 'hb-cf'
+    const specificCategoryCode = searchParams.get('specificCategoryCode');
+    if (specificCategoryCode && specificCategoryCode.toLowerCase() === 'hb-cf') {
+      // Find all options for hb-cf products, group by inventory _id
+      const allOptions = await Option.find({})
         .populate('inventoryData')
-        .lean()
+        .populate({ path: 'product', populate: { path: 'specificCategory' } })
+        .lean();
+      const hbCfOptions = allOptions.filter(opt => opt.product && opt.product.specificCategory && opt.product.specificCategory.specificCategoryCode && opt.product.specificCategory.specificCategoryCode.toLowerCase() === 'hb-cf');
+      // Group by inventory _id
+      const inventoryMap = {};
+      hbCfOptions.forEach(opt => {
+        const invId = opt.inventoryData && opt.inventoryData._id ? String(opt.inventoryData._id) : null;
+        if (!invId) return;
+        if (!inventoryMap[invId]) {
+          inventoryMap[invId] = {
+            _id: invId,
+            availableQuantity: opt.inventoryData.availableQuantity,
+            reorderLevel: opt.inventoryData.reorderLevel,
+            options: []
+          };
+        }
+        inventoryMap[invId].options.push({
+          _id: opt._id,
+          name: opt.product.name,
+          sku: opt.sku,
+          optionDetails: opt.optionDetails
+        });
+      });
+      const inventoryRows = Object.values(inventoryMap);
+      return NextResponse.json({
+        success: true,
+        mode: 'hb-cf',
+        inventories: inventoryRows,
+        total: inventoryRows.length,
+        page,
+        limit
+      });
+    }
+
+    // For all other categories, decide mode: 'option' or 'product'
+    // If most products have optionsAvailable true, use 'option' mode, else 'product'
+    const [products, options] = await Promise.all([
+      Product.aggregate(productsPipeline),
+      Option.aggregate(optionsPipeline)
     ]);
-
-    // Helper: aggregate inventory for a product from its options
-    const aggregateOptionInventory = (productId, allOptions) => {
-      const opts = allOptions.filter(opt => String(opt.product) === String(productId) && opt.inventoryData && typeof opt.inventoryData.availableQuantity === 'number');
-      if (!opts.length) return null;
-      return {
-        _id: null, // No direct inventory _id
-        availableQuantity: opts.reduce((sum, o) => sum + (o.inventoryData.availableQuantity || 0), 0),
-        reorderLevel: Math.min(...opts.map(o => o.inventoryData.reorderLevel || 0)),
-        managedByOptions: true
-      };
-    };
-
-    // Combine and format results, always include inventoryData._id if present, else aggregate from options if needed
-    const combinedResults = [
-      ...products.map(p => {
+    const productMode = products.filter(p => p.optionsAvailable).length > products.length / 2 ? 'option' : 'product';
+    let rows = [];
+    if (productMode === 'option') {
+      rows = options.map(o => ({
+        _id: o._id,
+        name: o.product.name,
+        sku: o.sku,
+        images: o.product.images,
+        inventoryData: o.inventoryData && o.inventoryData._id ? {
+          _id: o.inventoryData._id,
+          availableQuantity: o.inventoryData.availableQuantity,
+          reorderLevel: o.inventoryData.reorderLevel,
+          managedByOptions: false
+        } : null,
+        variant: o.variant,
+        option: {
+          sku: o.sku,
+          optionDetails: o.optionDetails,
+          images: o.images
+        },
+        type: 'option'
+      }));
+    } else {
+      rows = products.map(p => {
         let inventoryData = null;
         if (p.inventoryData && p.inventoryData._id) {
           inventoryData = {
             _id: p.inventoryData._id,
             availableQuantity: p.inventoryData.availableQuantity,
-            reorderLevel: p.inventoryData.reorderLevel
+            reorderLevel: p.inventoryData.reorderLevel,
+            managedByOptions: false
           };
-        } else if (p.optionsAvailable) {
-          // Aggregate from options if no direct inventory
-          const agg = aggregateOptionInventory(p._id, allOptions);
-          if (agg) inventoryData = agg;
         }
         return {
           _id: p._id,
@@ -264,40 +307,15 @@ export async function GET(request) {
           option: null,
           type: 'product'
         };
-      }),
-      ...options.map(o => ({
-        _id: o._id,
-        name: o.product.name,
-        sku: o.sku,
-        images: o.product.images,
-        inventoryData: o.inventoryData && o.inventoryData._id ? {
-          _id: o.inventoryData._id,
-          availableQuantity: o.inventoryData.availableQuantity,
-          reorderLevel: o.inventoryData.reorderLevel
-        } : null,
-        variant: o.variant,
-        option: {
-          sku: o.sku,
-          optionDetails: o.optionDetails,
-          images: o.images
-        },
-        type: 'option'
-      }))
-    ];
-    // Log inventoryData structure for debugging
-    combinedResults.forEach(item => {
-      if (!item.inventoryData || (!item.inventoryData._id && !item.inventoryData.managedByOptions)) {
-        console.warn('Missing inventoryData or _id for item', item._id, item.name, item.sku);
-      }
-    });
-    
-    // Apply pagination
-    const total = combinedResults.length;
+      });
+    }
+    // Pagination
+    const total = rows.length;
     const startIndex = page * limit;
-    const paginatedResults = combinedResults.slice(startIndex, startIndex + limit);
-    
+    const paginatedResults = rows.slice(startIndex, startIndex + limit);
     return NextResponse.json({
       success: true,
+      mode: productMode,
       products: paginatedResults,
       total,
       page,

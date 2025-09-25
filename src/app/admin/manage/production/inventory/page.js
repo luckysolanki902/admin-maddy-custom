@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -78,6 +78,13 @@ const InventoryManagementPage = () => {
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [saveAllLoading, setSaveAllLoading] = useState(false);
   const [snackbar, setSnackbar] = useState(null);
+  // Legacy navGuard object used by attemptChange; define to avoid ReferenceError
+  const [navGuard, setNavGuard] = useState(null);
+  // Track rows currently saving to show inline loading states
+  const [savingRows, setSavingRows] = useState(new Set());
+  // Refs to inputs for focus persistence after save
+  const inputRefs = useRef({});
+  const lastFocusRef = useRef({ rowId: null, field: null });
 
   // Derived stats for prettier dashboard summary
   const stats = useMemo(() => {
@@ -254,6 +261,17 @@ const InventoryManagementPage = () => {
     }
   };
 
+  // Helper: focus last focused input for a row (used after save)
+  const refocusRowInput = (id) => {
+    const { rowId, field } = lastFocusRef.current || {};
+    if (rowId === id && field) {
+      const ref = inputRefs.current[`${rowId}:${field}`];
+      if (ref && typeof ref.focus === 'function') {
+        setTimeout(() => { ref.focus(); if (ref.select) ref.select(); }, 30);
+      }
+    }
+  };
+
   // Save single row
   const saveRow = async (id) => {
     const item = tableData.find(row => row._id === id);
@@ -262,7 +280,7 @@ const InventoryManagementPage = () => {
       return;
     }
     const inventoryId = item.inventoryData._id;
-
+    setSavingRows(prev => { const ns = new Set(prev); ns.add(id); return ns; });
     try {
       const res = await fetch(`/api/inventory-management/products/${inventoryId}`, {
         method: 'PATCH',
@@ -278,19 +296,15 @@ const InventoryManagementPage = () => {
       });
 
       if (res.ok) {
-        // Update original data
         if (qtyUpdateMode === 'add') {
-          // Need to refetch to get final quantity, simpler approach
-          fetchTableData();
+          const delta = additiveDrafts[id]?.delta || 0;
+          // Mutate tableData & originals locally to avoid full refetch, preventing layout shift
+          setTableData(prev => prev.map(r => r._id === id ? { ...r, inventoryData: { ...r.inventoryData, availableQuantity: (r.inventoryData?.availableQuantity || 0) + delta } } : r));
+          setOriginalData(prev => ({ ...prev, [id]: { availableQuantity: (prev[id]?.availableQuantity || 0) + delta, reorderLevel: item.inventoryData?.reorderLevel || 0 } }));
           setAdditiveDrafts(prev => ({ ...prev, [id]: { delta: 0 } }));
         } else {
-          setOriginalData(prev => ({
-            ...prev,
-            [id]: {
-              availableQuantity: item.inventoryData?.availableQuantity || 0,
-              reorderLevel: item.inventoryData?.reorderLevel || 0
-            }
-          }));
+          // Overwrite mode – commit current values as new originals
+          setOriginalData(prev => ({ ...prev, [id]: { availableQuantity: item.inventoryData?.availableQuantity || 0, reorderLevel: item.inventoryData?.reorderLevel || 0 } }));
         }
         setChangedRows(prev => {
           const newSet = new Set(prev);
@@ -298,11 +312,14 @@ const InventoryManagementPage = () => {
           return newSet;
         });
         setSnackbar({ severity: 'success', message: 'Inventory updated successfully' });
+        refocusRowInput(id);
       } else {
         setSnackbar({ severity: 'error', message: 'Failed to update inventory' });
       }
     } catch (error) {
       setSnackbar({ severity: 'error', message: 'Network error' });
+    } finally {
+      setSavingRows(prev => { const ns = new Set(prev); ns.delete(id); return ns; });
     }
   };
 
@@ -377,20 +394,20 @@ const InventoryManagementPage = () => {
     }
   };
 
-  // Get image URL helper
+  // Improved & normalized image URL helper (prevents malformed double slashes & handles absolute URLs)
   const getImageUrl = (item) => {
-    let imageUrl = '';
-    if (item.option?.images?.[0]) {
-      imageUrl = item.option.images[0];
-    } else if (item.images?.[0]) {
-      imageUrl = item.images[0];
-    }
-    
-    if (imageUrl) {
-      return imageUrl.startsWith('/') ? `${CLOUDFRONT_BASE}${imageUrl}` : `${CLOUDFRONT_BASE}/${imageUrl}`;
-    }
-    return '/placeholder-image.png';
+    const placeholder = '/placeholder-image.png';
+    let raw = item?.option?.images?.[0] || item?.images?.[0] || '';
+    if (!raw) return placeholder;
+    // Already absolute (http, https)
+    if (/^https?:\/\//i.test(raw)) return raw;
+    // Strip public/ prefix if present
+    raw = raw.replace(/^public\//, '');
+    const base = (CLOUDFRONT_BASE || '').replace(/\/+$/,'');
+    const path = raw.replace(/^\/+/, '');
+    return base ? `${base}/${path}` : `/${path}`;
   };
+
 
   // Check if current page has any options
   const hasOptionsInCurrentPage = useMemo(() => {
@@ -435,17 +452,6 @@ const InventoryManagementPage = () => {
 
   const changedRowAccent = (isChanged) => isChanged ? {
     position: 'relative',
-    '&:before': {
-      content: '""',
-      position: 'absolute',
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: 4,
-      background: 'linear-gradient(180deg,#f97316,#ef4444)',
-      borderTopLeftRadius: 4,
-      borderBottomLeftRadius: 4
-    }
   } : {};
 
   const quantityChipSx = {
@@ -456,6 +462,28 @@ const InventoryManagementPage = () => {
     boxShadow: '0 0 0 1px rgba(255,255,255,0.04)',
     backdropFilter: 'blur(3px)',
     '& .MuiChip-label': { px: 1 }
+  };
+
+  // Backwards-compatible navigation guard used by existing onClick handlers
+  const attemptChange = (fn, message = 'You have unsaved inventory changes. Proceed and discard them?') => {
+    if (changedRows.size > 0) {
+      setNavGuard({ open: true, action: () => { setChangedRows(new Set()); setAdditiveDrafts({}); fn(); setNavGuard(null); }, message });
+    } else fn();
+  };
+
+  const cancelRow = (id) => {
+    if (qtyUpdateMode === 'add') {
+      setAdditiveDrafts(prev => ({ ...prev, [id]: { delta: 0 } }));
+      setChangedRows(prev => { const s = new Set(prev); s.delete(id); return s; });
+    } else {
+      const original = originalData[id];
+      if (!original) return;
+      setTableData(prev => prev.map(r => r._id === id ? {
+        ...r,
+        inventoryData: { ...r.inventoryData, availableQuantity: original.availableQuantity, reorderLevel: original.reorderLevel }
+      } : r));
+      setChangedRows(prev => { const s = new Set(prev); s.delete(id); return s; });
+    }
   };
 
   return (
@@ -543,14 +571,14 @@ const InventoryManagementPage = () => {
           <Stack direction="row" spacing={1.5} flexWrap="wrap" rowGap={1.5}>
             <Chip
               label="All Product Level"
-              onClick={() => { setSelectedVariantId('all'); setAllLevelMode('product'); }}
+              onClick={() => attemptChange(() => { setSelectedVariantId('all'); setAllLevelMode('product'); })}
               color={selectedVariantId === 'all' && allLevelMode === 'product' ? 'primary' : 'default'}
               variant={selectedVariantId === 'all' && allLevelMode === 'product' ? 'filled' : 'outlined'}
               sx={{ borderRadius: 2, fontWeight: 500, '&:hover': { transform: 'translateY(-1px)' }, transition: 'all 0.2s' }}
             />
             <Chip
               label="All Option Level"
-              onClick={() => { setSelectedVariantId('all'); setAllLevelMode('option'); }}
+              onClick={() => attemptChange(() => { setSelectedVariantId('all'); setAllLevelMode('option'); })}
               color={selectedVariantId === 'all' && allLevelMode === 'option' ? 'primary' : 'default'}
               variant={selectedVariantId === 'all' && allLevelMode === 'option' ? 'filled' : 'outlined'}
               sx={{ borderRadius: 2, fontWeight: 500, '&:hover': { transform: 'translateY(-1px)' }, transition: 'all 0.2s' }}
@@ -559,7 +587,7 @@ const InventoryManagementPage = () => {
               <Chip
                 key={variant._id}
                 label={variant.name}
-                onClick={() => { setSelectedVariantId(variant._id); setAllLevelMode('product'); }}
+                onClick={() => attemptChange(() => { setSelectedVariantId(variant._id); setAllLevelMode('product'); })}
                 color={selectedVariantId === variant._id ? 'primary' : 'default'}
                 variant={selectedVariantId === variant._id ? 'filled' : 'outlined'}
                 sx={{ borderRadius: 2, fontWeight: 500, '&:hover': { transform: 'translateY(-3px)', boxShadow: 2 }, transition: 'all 0.25s' }}
@@ -598,7 +626,7 @@ const InventoryManagementPage = () => {
                     key={filter.value}
                     icon={filter.icon}
                     label={filter.label}
-                    onClick={() => setFilterMode(filter.value)}
+                    onClick={() => attemptChange(() => setFilterMode(filter.value))}
                     color={filterMode === filter.value ? 'primary' : 'default'}
                     variant={filterMode === filter.value ? 'filled' : 'outlined'}
                     size="small"
@@ -721,7 +749,7 @@ const InventoryManagementPage = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Grouped shared inventories. {hbCfInventories.length === 0 ? 'No records.' : 'Edit quantities directly.'}</Typography>
           </Box>
           <StyledTableContainer>
-            <Table stickyHeader size="small" sx={{ minWidth: 600, '& tbody tr:hover': { backgroundColor: 'rgba(255,255,255,0.04)' }, '& tbody tr:nth-of-type(even)': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+            <Table stickyHeader size="small" sx={{ tableLayout: 'fixed', minWidth: 600, '& tbody tr:hover': { backgroundColor: 'rgba(255,255,255,0.04)' }, '& tbody tr:nth-of-type(even)': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
               <TableHead>
                 <TableRow sx={{ '& th': headerCellSx, background: headGradient }}>
                   <TableCell width={60}>#</TableCell>
@@ -766,6 +794,7 @@ const InventoryManagementPage = () => {
                               size="small"
                               value={inv._delta ?? ''}
                               placeholder={'+ / -'}
+                              onFocus={() => { lastFocusRef.current = { rowId: inv._id, field: 'delta-hbcf' }; }}
                               onChange={e => {
                                 const val = parseInt(e.target.value) || 0;
                                 setHbCfInventories(prev => prev.map((row, i) => i === idx ? { ...row, _delta: val, _changed: val !== 0 || row.reorderLevel !== inv.reorderLevel } : row));
@@ -777,14 +806,16 @@ const InventoryManagementPage = () => {
                           <TableCell align="center" sx={bodyCellSx}>
                             {(() => {
                               const delta = inv._delta || 0;
-                              const proj = inv.availableQuantity + delta;
-                              const show = delta !== 0;
+                              const projected = inv.availableQuantity + delta;
+                              const changed = delta !== 0;
                               return (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                  <Typography variant="caption" sx={{ textDecoration: show ? 'line-through' : 'none', opacity: show ? 0.45 : 0.9 }}>{inv.availableQuantity}</Typography>
-                                  <Box sx={{ height: 24, display: 'flex', alignItems: 'center', visibility: show ? 'visible' : 'hidden' }}>
-                                    <Chip label={proj} size="small" color={proj <= 0 ? 'error' : proj <= inv.reorderLevel ? 'warning' : 'success'} sx={quantityChipSx} />
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: .25, minHeight: 54 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: .5 }}>
+                                    <Chip label={inv.availableQuantity} size="small" variant="outlined" sx={{ ...quantityChipSx, textDecoration: changed ? 'line-through' : 'none', opacity: changed ? 0.45 : 0.9 }} />
+                                    <Typography variant="caption" sx={{ visibility: changed ? 'visible' : 'hidden', fontWeight: 700 }}>→</Typography>
+                                    <Chip label={projected} size="small" color={projected <= 0 ? 'error' : projected <= inv.reorderLevel ? 'warning' : 'success'} sx={{ ...quantityChipSx, visibility: changed ? 'visible' : 'hidden' }} />
                                   </Box>
+                                  <Typography variant="caption" sx={{ height: 14, fontWeight: 600, letterSpacing: .5, color: delta >=0 ? '#22c55e' : '#ef4444', visibility: changed ? 'visible' : 'hidden' }}>{delta > 0 ? `+${delta}` : delta}</Typography>
                                 </Box>
                               );
                             })()}
@@ -828,28 +859,49 @@ const InventoryManagementPage = () => {
                       </TableCell>
                       {!viewMode && (
                         <TableCell sx={bodyCellSx}>
-                          <Button
-                            variant="contained"
-                            size="small"
-                            color={isChanged ? 'warning' : 'default'}
-                            disabled={!isChanged}
-                            onClick={async () => {
-                              let payload;
-                              if (qtyUpdateMode === 'add') {
-                                const delta = inv._delta || 0;
-                                payload = { mode: 'add', delta, reorderLevel: inv.reorderLevel };
-                              } else {
-                                payload = { availableQuantity: inv.availableQuantity, reorderLevel: inv.reorderLevel };
-                              }
-                              const res = await fetch(`/api/inventory-management/products/${inv._id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                              if (res.ok) {
-                                setHbCfInventories(prev => prev.map((row, i) => i === idx ? { ...row, _changed: false, _delta: 0, availableQuantity: qtyUpdateMode === 'add' ? (row.availableQuantity + (row._delta || 0)) : row.availableQuantity } : row));
-                                setSnackbar({ severity: 'success', message: 'Inventory updated successfully' });
-                              } else {
-                                setSnackbar({ severity: 'error', message: 'Failed to update inventory' });
-                              }
-                            }}
-                          >Save</Button>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Button
+                              variant="contained"
+                              size="small"
+                              color={isChanged ? 'warning' : 'default'}
+                              disabled={!isChanged || savingRows.has(inv._id)}
+                              onClick={async () => {
+                                setSavingRows(p => { const ns = new Set(p); ns.add(inv._id); return ns; });
+                                let payload;
+                                if (qtyUpdateMode === 'add') {
+                                  const delta = inv._delta || 0;
+                                  payload = { mode: 'add', delta, reorderLevel: inv.reorderLevel };
+                                } else {
+                                  payload = { availableQuantity: inv.availableQuantity, reorderLevel: inv.reorderLevel };
+                                }
+                                try {
+                                  const res = await fetch(`/api/inventory-management/products/${inv._id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                                  if (res.ok) {
+                                    setHbCfInventories(prev => prev.map((row, i) => i === idx ? { ...row, _changed: false, _delta: 0, availableQuantity: qtyUpdateMode === 'add' ? (row.availableQuantity + (row._delta || 0)) : row.availableQuantity } : row));
+                                    setSnackbar({ severity: 'success', message: 'Inventory updated successfully' });
+                                  } else {
+                                    setSnackbar({ severity: 'error', message: 'Failed to update inventory' });
+                                  }
+                                } catch(e) {
+                                  setSnackbar({ severity: 'error', message: 'Network error' });
+                                } finally {
+                                  setSavingRows(p => { const ns = new Set(p); ns.delete(inv._id); return ns; });
+                                }
+                              }}
+                            >{savingRows.has(inv._id) ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : 'Save'}</Button>
+                            {isChanged && !savingRows.has(inv._id) && (
+                              <Tooltip title="Cancel row changes">
+                                <span>
+                                  <IconButton size="small" onClick={() => {
+                                    // revert
+                                    setHbCfInventories(prev => prev.map((row,i) => i===idx ? { ...row, _delta: 0, _changed: false } : row));
+                                  }}>
+                                    <CancelIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
+                          </Stack>
                         </TableCell>
                       )}
                     </TableRow>
@@ -893,7 +945,7 @@ const InventoryManagementPage = () => {
       ) : (
         <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 4, overflow: 'hidden', background: 'linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))', boxShadow: '0 16px 48px -18px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.04)' }}>
           <StyledTableContainer>
-            <Table stickyHeader size="small" sx={{ minWidth: 800, '& tbody tr:hover': { backgroundColor: 'rgba(255,255,255,0.04)' }, '& tbody tr:nth-of-type(even)': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
+            <Table stickyHeader size="small" sx={{ tableLayout: 'fixed', minWidth: 1000, '& tbody tr:hover': { backgroundColor: 'rgba(255,255,255,0.04)' }, '& tbody tr:nth-of-type(even)': { backgroundColor: 'rgba(255,255,255,0.02)' } }}>
               <TableHead>
                 <TableRow sx={{ '& th': headerCellSx, background: headGradient }}>
                   <TableCell width={60}>#</TableCell>
@@ -1018,6 +1070,9 @@ const InventoryManagementPage = () => {
                                   size="small"
                                   value={additiveDrafts[item._id]?.delta ?? ''}
                                   placeholder={'+ / -'}
+                                  disabled={savingRows.has(item._id)}
+                                  onFocus={() => { lastFocusRef.current = { rowId: item._id, field: 'delta' }; }}
+                                  inputRef={el => { if (el) inputRefs.current[`${item._id}:delta`] = el; }}
                                   onChange={(e) => handleFieldChange(item._id, 'availableQuantity', e.target.value)}
                                   inputProps={{ style: { textAlign: 'center' } }}
                                   sx={{ width: 90, '& input': { fontWeight: 600 } }}
@@ -1029,13 +1084,15 @@ const InventoryManagementPage = () => {
                               {(() => {
                                 const delta = additiveDrafts[item._id]?.delta || 0;
                                 const projected = availableQuantity + delta;
-                                const showProjection = delta !== 0;
+                                const changed = delta !== 0;
                                 return (
-                                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: .25 }}>
-                                    <Typography variant="caption" sx={{ textDecoration: showProjection ? 'line-through' : 'none', opacity: showProjection ? 0.45 : 0.9, fontWeight: 500 }}>{availableQuantity}</Typography>
-                                    {showProjection && (
-                                      <Chip label={projected} size="small" color={projected <= 0 ? 'error' : projected <= reorderLevel ? 'warning' : 'success'} sx={quantityChipSx} />
-                                    )}
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: .25, minHeight: 54 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: .5 }}>
+                                      <Chip label={availableQuantity} size="small" variant="outlined" sx={{ ...quantityChipSx, textDecoration: changed ? 'line-through' : 'none', opacity: changed ? 0.45 : 0.9 }} />
+                                      <Typography variant="caption" sx={{ visibility: changed ? 'visible' : 'hidden', fontWeight: 700 }}>→</Typography>
+                                      <Chip label={projected} size="small" color={projected <= 0 ? 'error' : projected <= reorderLevel ? 'warning' : 'success'} sx={{ ...quantityChipSx, visibility: changed ? 'visible' : 'hidden' }} />
+                                    </Box>
+                                    <Typography variant="caption" sx={{ height: 14, fontWeight: 600, letterSpacing: .5, color: delta >=0 ? '#22c55e' : '#ef4444', visibility: changed ? 'visible' : 'hidden' }}>{delta > 0 ? `+${delta}` : delta}</Typography>
                                   </Box>
                                 );
                               })()}
@@ -1068,6 +1125,9 @@ const InventoryManagementPage = () => {
                                 type="number"
                                 size="small"
                                 value={availableQuantity}
+                                disabled={savingRows.has(item._id)}
+                                onFocus={() => { lastFocusRef.current = { rowId: item._id, field: 'availableQuantity' }; }}
+                                inputRef={el => { if (el) inputRefs.current[`${item._id}:availableQuantity`] = el; }}
                                 onChange={(e) => handleFieldChange(item._id, 'availableQuantity', e.target.value)}
                                 inputProps={{ min: 0, style: { textAlign: 'center' } }}
                                 sx={{ width: 90, '& input[type=number]': { MozAppearance: 'textfield', '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 } } }}
@@ -1106,6 +1166,9 @@ const InventoryManagementPage = () => {
                               type="number"
                               size="small"
                               value={reorderLevel}
+                              disabled={savingRows.has(item._id)}
+                              onFocus={() => { lastFocusRef.current = { rowId: item._id, field: 'reorderLevel' }; }}
+                              inputRef={el => { if (el) inputRefs.current[`${item._id}:reorderLevel`] = el; }}
                               onChange={(e) => handleFieldChange(item._id, 'reorderLevel', e.target.value)}
                               inputProps={{ min: 0, style: { textAlign: 'center' } }}
                               sx={{ width: 90, '& input[type=number]': { MozAppearance: 'textfield', '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 } } }}
@@ -1139,15 +1202,30 @@ const InventoryManagementPage = () => {
                               </Tooltip>
                             ) : item.inventoryData && item.inventoryData._id ? (
                               <Tooltip title={isChanged ? "Save changes" : "No changes to save"}>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => saveRow(item._id)}
-                                  disabled={!isChanged}
-                                  color={isChanged ? 'warning' : 'default'}
-                                  sx={{ transition: 'all 0.2s', ...(isChanged && { backgroundColor: alpha('#ed6c02', 0.1), '&:hover': { backgroundColor: alpha('#ed6c02', 0.2), transform: 'scale(1.1)' } }) }}
-                                >
-                                  <SaveIcon fontSize="small" />
-                                </IconButton>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Tooltip title={isChanged ? "Save changes" : "No changes to save"}>
+                                    <span>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => saveRow(item._id)}
+                                        disabled={!isChanged || savingRows.has(item._id)}
+                                        color={isChanged ? 'warning' : 'default'}
+                                        sx={{ width: 32, height: 32, transition: 'all 0.2s', ...(isChanged && { backgroundColor: alpha('#ed6c02', 0.1), '&:hover': { backgroundColor: alpha('#ed6c02', 0.2), transform: 'scale(1.05)' } }) }}
+                                      >
+                                        {savingRows.has(item._id) ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
+                                      </IconButton>
+                                    </span>
+                                  </Tooltip>
+                                  {isChanged && !savingRows.has(item._id) && (
+                                    <Tooltip title="Cancel row changes">
+                                      <span>
+                                        <IconButton size="small" color="default" onClick={() => cancelRow(item._id)} sx={{ ml: .5, width: 32, height: 32 }}>
+                                          <CancelIcon fontSize="small" />
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                  )}
+                                </Box>
                               </Tooltip>
                             ) : (
                               <Tooltip title="No inventory record. Cannot save.">
@@ -1172,12 +1250,9 @@ const InventoryManagementPage = () => {
               component="div"
               count={totalCount}
               page={page}
-              onPageChange={(_, newPage) => setPage(newPage)}
+              onPageChange={(_, newPage) => attemptChange(() => setPage(newPage))}
               rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(e) => {
-                setRowsPerPage(parseInt(e.target.value));
-                setPage(0);
-              }}
+              onRowsPerPageChange={(e) => attemptChange(() => { setRowsPerPage(parseInt(e.target.value)); setPage(0); })}
               rowsPerPageOptions={[25, 50, 100]}
               labelDisplayedRows={({ from, to, count }) => `${from}–${to} of ${count !== -1 ? count : `more than ${to}`}`}
               sx={{ '& .MuiTablePagination-toolbar': { paddingLeft: 3, paddingRight: 3 } }}
@@ -1274,6 +1349,17 @@ const InventoryManagementPage = () => {
           </Alert>
         )}
       </Snackbar>
+      {/* Nav Guard Dialog */}
+      <Dialog open={Boolean(navGuard?.open)} onClose={() => setNavGuard(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Discard Unsaved Changes?</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">{navGuard?.message || 'You have unsaved changes. Continue and lose them?'}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNavGuard(null)}>Stay</Button>
+          <Button variant="contained" color="warning" onClick={() => { navGuard?.action && navGuard.action(); }}>Discard</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

@@ -16,14 +16,15 @@ import {
   ComposedChart
 } from 'recharts';
 import { Box, Typography, useMediaQuery, useTheme, alpha, Chip } from '@mui/material';
+import { analyticsPalette } from '../common/palette';
 import dayjs from 'dayjs';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { useSpring, animated } from '@react-spring/web';
 
-const LINE_COLOR = '#60A5FA';
-const POSITIVE_COLOR = '#34D399';
-const NEGATIVE_COLOR = '#F87171';
+const LINE_COLOR = analyticsPalette.primary;
+const POSITIVE_COLOR = analyticsPalette.positive;
+const NEGATIVE_COLOR = analyticsPalette.negative;
 
 // Helper functions
 const calculateGrowth = (current, previous) => {
@@ -70,14 +71,14 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <Box
       sx={{
-        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-        backdropFilter: 'blur(8px)',
-        p: 2.5,
-        borderRadius: '12px',
-        border: '1px solid rgba(96, 165, 250, 0.2)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+        background: 'rgba(17,24,39,0.8)',
+        backdropFilter: 'blur(12px)',
+        p: 2,
+        borderRadius: 2,
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 4px 28px -4px rgba(0,0,0,0.5)',
         color: 'white',
-        minWidth: 280,
+        minWidth: 260,
         position: 'relative',
         '&:before': {
           content: '""',
@@ -85,32 +86,28 @@ const CustomTooltip = ({ active, payload, label }) => {
           top: 0,
           left: 0,
           right: 0,
-          height: '2px',
-          background: `linear-gradient(90deg, 
-            ${alpha(LINE_COLOR, 0.4)}, 
-            ${alpha(LINE_COLOR, 0.8)}, 
-            ${alpha(LINE_COLOR, 0.4)})`,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
+          height: 2,
+          background: `linear-gradient(90deg, transparent, ${alpha(LINE_COLOR,0.6)}, transparent)`
         }
       }}
     >
       <Typography 
         variant="subtitle2" 
         sx={{ 
-          mb: 2,
+          mb: 1.2,
           color: '#FFF',
-          fontSize: '1rem',
+          fontSize: '.95rem',
           fontWeight: 600,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          pb: 1
+          borderBottom: '1px solid rgba(255,255,255,0.12)',
+          pb: .6,
+          letterSpacing: '.3px'
         }}
       >
         {dayjs(label).format('MMMM YYYY')}
       </Typography>
 
       {/* Current Month Revenue */}
-      <Box sx={{ mb: 2 }}>
+  <Box sx={{ mb: 1.4 }}>
         <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5 }}>
           Monthly Revenue
         </Typography>
@@ -121,12 +118,12 @@ const CustomTooltip = ({ active, payload, label }) => {
 
       {/* Monthly Growth */}
       <Box sx={{ 
-        mb: 2,
+        mb: 1.4,
         display: 'flex',
         alignItems: 'center',
-        gap: 1,
-        backgroundColor: monthlyGrowth >= 0 ? alpha(POSITIVE_COLOR, 0.1) : alpha(NEGATIVE_COLOR, 0.1),
-        p: 1,
+        gap: .8,
+        backgroundColor: monthlyGrowth >= 0 ? alpha(POSITIVE_COLOR, 0.12) : alpha(NEGATIVE_COLOR, 0.12),
+        p: .75,
         borderRadius: 1
       }}>
         {monthlyGrowth >= 0 ? (
@@ -149,9 +146,9 @@ const CustomTooltip = ({ active, payload, label }) => {
       <Box sx={{ 
         display: 'grid', 
         gridTemplateColumns: '1fr 1fr',
-        gap: 2,
-        pt: 2,
-        borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+        gap: 1.6,
+        pt: 1.2,
+        borderTop: '1px solid rgba(255,255,255,0.12)'
       }}>
         <Box>
           <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5 }}>
@@ -249,18 +246,7 @@ const TotalRevenueChart = ({ data }) => {
   });
 
   return (
-    <Box
-      sx={{
-        width: '100%',
-        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-        p: 4,
-        borderRadius: 3,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-        minHeight: 500,
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
+    <Box sx={{ width: '100%', position: 'relative' }}>
       {/* Header with title and toggle */}
       <Box sx={{ 
         display: 'flex', 
@@ -268,10 +254,7 @@ const TotalRevenueChart = ({ data }) => {
         alignItems: 'center',
         mb: 3 
       }}>
-        <Typography
-          variant="h6"
-          sx={{ color: 'white', fontWeight: 600, fontSize: isSmallScreen ? '1.1rem' : '1.25rem' }}
-        >
+        <Typography variant="h6" sx={{ color: '#fff', fontWeight: 500, fontSize: isSmallScreen ? '1.05rem' : '1.2rem' }}>
           Total Revenue
         </Typography>
         
@@ -384,7 +367,7 @@ const TotalRevenueChart = ({ data }) => {
             <defs>
               <linearGradient id="gradient-total-revenue" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={LINE_COLOR} stopOpacity={1} />
-                <stop offset="100%" stopColor="#3B82F6" stopOpacity={1} />
+                <stop offset="100%" stopColor={LINE_COLOR} stopOpacity={1} />
               </linearGradient>
               <filter id="shadow-total-revenue" x="-20%" y="-20%" width="140%" height="140%">
                 <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor={alpha(LINE_COLOR, 0.3)} />

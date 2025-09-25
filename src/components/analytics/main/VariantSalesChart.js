@@ -13,20 +13,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
-
-// Define a palette of professional colors for variants
-const COLORS = [
-  '#60A5FA',  // vibrant blue
-  '#F472B6',  // pink
-  '#34D399',  // emerald
-  '#A78BFA',  // purple
-  '#FBBF24',  // amber
-  '#F87171',  // red
-  '#38BDF8',  // sky blue
-  '#FB923C',  // orange
-  '#4ADE80',  // green
-  '#C084FC',  // violet
-];
+import { categorical, getCategoricalColor, analyticsPalette } from '../common/palette';
 
 // Custom tooltip component
 const CustomTooltip = ({ active, payload, label }) => {
@@ -38,25 +25,25 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <Box
       sx={{
-        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-        backdropFilter: 'blur(8px)',
-        p: 2.5,
-        borderRadius: '12px',
-        border: '1px solid rgba(99, 102, 241, 0.2)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-        color: 'white',
+        background: 'rgba(17,24,39,0.72)',
+        backdropFilter: 'blur(10px)',
+        p: 2.25,
+        borderRadius: 2,
+        border: '1px solid rgba(255,255,255,0.08)',
+        color: '#fff',
         minWidth: 200,
         position: 'relative',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
         '&:before': {
           content: '""',
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '2px',
-          background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
+          inset: 0,
+          borderRadius: 8,
+          padding: '1px',
+          background: `linear-gradient(135deg, ${analyticsPalette.primary}33, ${analyticsPalette.primary}05)` ,
+          WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+          WebkitMaskComposite: 'xor',
+          pointerEvents: 'none'
         }
       }}
     >
@@ -90,7 +77,7 @@ const CustomTooltip = ({ active, payload, label }) => {
               alignItems: 'center', 
               justifyContent: 'space-between',
               mb: 1,
-              backgroundColor: index % 2 === 0 ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+              backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.035)' : 'transparent',
               p: 0.8,
               borderRadius: 1,
               transition: 'all 0.2s ease',
@@ -107,7 +94,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                   borderRadius: '50%',
                   backgroundColor: entry.fill,
                   mr: 1.5,
-                  boxShadow: `0 0 10px ${entry.fill}40`
+                  boxShadow: `0 0 0 1px ${entry.fill}55`
                 }}
               />
               <Typography 
@@ -200,23 +187,15 @@ const VariantSalesChart = ({ data }) => {
   }, [data]);
 
   return (
-    <Box
-      sx={{
-        width: '100%',
-        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-        p: 4,
-        borderRadius: 3,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-        minHeight: 450
-      }}
-    >
+    <Box sx={{ width: '100%' }}>
       <Typography
         variant="h6"
         sx={{ 
-          color: 'white', 
-          fontWeight: 600, 
-          mb: 3,
-          fontSize: isSmallScreen ? '1.1rem' : '1.25rem'
+          color: '#fff', 
+          fontWeight: 500, 
+          mb: 2.5,
+          letterSpacing: '.5px',
+          fontSize: isSmallScreen ? '1.05rem' : '1.2rem'
         }}
       >
         Variant Sales
@@ -272,11 +251,11 @@ const VariantSalesChart = ({ data }) => {
               dataKey={variant}
               stackId="a"
               name={variant}
-              fill={COLORS[index % COLORS.length]}
+              fill={getCategoricalColor(index)}
               radius={index === 0 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
               isAnimationActive
-              animationDuration={1500}
-              animationBegin={index * 150}
+              animationDuration={1200}
+              animationBegin={index * 110}
             />
           ))}
           

@@ -14,6 +14,7 @@ import {
   ReferenceLine
 } from 'recharts';
 import { Box, Typography, useMediaQuery, useTheme, Chip } from '@mui/material';
+import { analyticsPalette } from '../common/palette';
 import dayjs from '@/lib/dayjsConfig';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -90,26 +91,26 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <Box
       sx={{
-        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-        backdropFilter: 'blur(8px)',
-        p: 2.5,
-        borderRadius: '12px',
-        border: '1px solid rgba(255, 114, 94, 0.2)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-        color: 'white',
-        minWidth: 340,
-        maxWidth: 400,
+        background: 'rgba(17,24,39,0.72)',
+        backdropFilter: 'blur(10px)',
+        p: 2.25,
+        borderRadius: 2,
+        border: `1px solid rgba(255,255,255,0.08)`,
+        color: '#fff',
+        minWidth: 320,
+        maxWidth: 380,
         position: 'relative',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
         '&:before': {
           content: '""',
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '2px',
-          background: 'linear-gradient(90deg, rgba(255, 128, 66, 0.2), rgba(255, 128, 66, 0.4), rgba(255, 128, 66, 0.2))',
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
+            inset: 0,
+            borderRadius: 8,
+            padding: '1px',
+            background: `linear-gradient(135deg, ${analyticsPalette.orange}33, ${analyticsPalette.orange}05)` ,
+            WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+            WebkitMaskComposite: 'xor',
+            pointerEvents: 'none'
         }
       }}
     >
@@ -132,16 +133,17 @@ const CustomTooltip = ({ active, payload, label }) => {
           label={`${value} carts`} 
           size="small"
           sx={{
-            backgroundColor: 'rgba(255, 128, 66, 0.2)',
-            color: '#FF8042',
-            fontWeight: 700,
-            fontSize: '0.85rem',
+            backgroundColor: `${analyticsPalette.orange}22`,
+            color: analyticsPalette.orange,
+            fontWeight: 600,
+            fontSize: '0.75rem',
+            letterSpacing: '.5px'
           }}
         />
       </Typography>
       
       {/* Main analytics section */}
-      <Box sx={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', p: 1.5, borderRadius: 1, mb: 2 }}>
+  <Box sx={{ backgroundColor: 'rgba(255,255,255,0.03)', p: 1.4, borderRadius: 1.5, mb: 2 }}>
         <Typography 
           variant="subtitle2" 
           sx={{
@@ -166,11 +168,11 @@ const CustomTooltip = ({ active, payload, label }) => {
                 label={`${percentChange > 0 ? '+' : ''}${percentChange.toFixed(1)}%`}
                 size="small"
                 sx={{
-                  backgroundColor: percentChange < 0 ? 'rgba(52, 211, 153, 0.2)' : 'rgba(244, 114, 182, 0.2)',
-                  color: percentChange < 0 ? '#34D399' : '#F472B6',
+                  backgroundColor: percentChange < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
+                  color: percentChange < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
                   fontWeight: 600,
-                  fontSize: '0.75rem',
-                  height: 24
+                  fontSize: '0.7rem',
+                  height: 22
                 }}
               />
             </Box>
@@ -186,11 +188,11 @@ const CustomTooltip = ({ active, payload, label }) => {
                 label={`${vsAverage.percentage > 0 ? '+' : ''}${vsAverage.percentage.toFixed(1)}%`}
                 size="small"
                 sx={{
-                  backgroundColor: vsAverage.percentage < 0 ? 'rgba(52, 211, 153, 0.2)' : 'rgba(244, 114, 182, 0.2)',
-                  color: vsAverage.percentage < 0 ? '#34D399' : '#F472B6',
+                  backgroundColor: vsAverage.percentage < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
+                  color: vsAverage.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
                   fontWeight: 600,
-                  fontSize: '0.75rem',
-                  height: 24
+                  fontSize: '0.7rem',
+                  height: 22
                 }}
               />
             </Box>
@@ -206,11 +208,11 @@ const CustomTooltip = ({ active, payload, label }) => {
                 label={`${weekComparison.percentage > 0 ? '+' : ''}${weekComparison.percentage.toFixed(1)}%`}
                 size="small"
                 sx={{
-                  backgroundColor: weekComparison.percentage < 0 ? 'rgba(52, 211, 153, 0.2)' : 'rgba(244, 114, 182, 0.2)',
-                  color: weekComparison.percentage < 0 ? '#34D399' : '#F472B6',
+                  backgroundColor: weekComparison.percentage < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
+                  color: weekComparison.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
                   fontWeight: 600,
-                  fontSize: '0.75rem',
-                  height: 24
+                  fontSize: '0.7rem',
+                  height: 22
                 }}
               />
             </Box>
@@ -226,11 +228,11 @@ const CustomTooltip = ({ active, payload, label }) => {
                 label={`${monthComparison.percentage > 0 ? '+' : ''}${monthComparison.percentage.toFixed(1)}%`}
                 size="small"
                 sx={{
-                  backgroundColor: monthComparison.percentage < 0 ? 'rgba(52, 211, 153, 0.2)' : 'rgba(244, 114, 182, 0.2)',
-                  color: monthComparison.percentage < 0 ? '#34D399' : '#F472B6',
+                  backgroundColor: monthComparison.percentage < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
+                  color: monthComparison.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
                   fontWeight: 600,
-                  fontSize: '0.75rem',
-                  height: 24
+                  fontSize: '0.7rem',
+                  height: 22
                 }}
               />
             </Box>
@@ -244,9 +246,9 @@ const CustomTooltip = ({ active, payload, label }) => {
           sx={{ 
             mb: 2,
             p: 1.5,
-            borderRadius: 1,
-            background: 'linear-gradient(135deg, rgba(255, 128, 66, 0.15) 0%, rgba(255, 128, 66, 0.05) 100%)',
-            border: '1px solid rgba(255, 128, 66, 0.1)',
+            borderRadius: 1.5,
+            background: `linear-gradient(135deg, ${analyticsPalette.orange}26 0%, ${analyticsPalette.orange}0A 100%)`,
+            border: `1px solid ${analyticsPalette.orange}1A`,
           }}
         >
           <Typography 
@@ -267,7 +269,7 @@ const CustomTooltip = ({ active, payload, label }) => {
               <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
                 Unrealized Revenue
               </Typography>
-              <Typography variant="h6" sx={{ color: '#FF8042', fontWeight: 600, fontSize: '1.1rem' }}>
+              <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600, fontSize: '1.05rem' }}>
                 ₹{typeof current.cartValue === 'number' ? 
                   current.cartValue.toLocaleString('en-IN') : 
                   'N/A'}
@@ -298,10 +300,11 @@ const CustomTooltip = ({ active, payload, label }) => {
                   <Typography 
                     variant="caption" 
                     sx={{ 
-                      color: '#34D399',
+                      color: analyticsPalette.positive,
                       display: 'block',
-                      fontSize: '0.75rem',
-                      mb: 0.25
+                      fontSize: '0.7rem',
+                      mb: 0.25,
+                      letterSpacing: '.5px'
                     }}
                   >
                     Recovery Potential
@@ -310,7 +313,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                     variant="body2" 
                     sx={{ 
                       color: '#FFF',
-                      fontSize: '0.95rem',
+                      fontSize: '0.9rem',
                       fontWeight: 600
                     }}
                   >
@@ -321,10 +324,11 @@ const CustomTooltip = ({ active, payload, label }) => {
                   <Typography 
                     variant="caption" 
                     sx={{ 
-                      color: '#34D399',
+                      color: analyticsPalette.positive,
                       display: 'block',
-                      fontSize: '0.75rem',
-                      mb: 0.25
+                      fontSize: '0.7rem',
+                      mb: 0.25,
+                      letterSpacing: '.5px'
                     }}
                   >
                     Recoverable Carts
@@ -333,7 +337,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                     variant="body2" 
                     sx={{ 
                       color: '#FFF',
-                      fontSize: '0.95rem',
+                      fontSize: '0.9rem',
                       fontWeight: 600
                     }}
                   >
@@ -352,9 +356,9 @@ const CustomTooltip = ({ active, payload, label }) => {
           sx={{ 
             mb: 2,
             p: 1.5,
-            borderRadius: 1,
-            background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(96, 165, 250, 0.05) 100%)',
-            border: '1px solid rgba(96, 165, 250, 0.1)',
+            borderRadius: 1.5,
+            background: `linear-gradient(135deg, ${analyticsPalette.primary}26 0%, ${analyticsPalette.primary}0A 100%)`,
+            border: `1px solid ${analyticsPalette.primary}1A`,
           }}
         >
           <Typography 
@@ -408,37 +412,37 @@ const CustomTooltip = ({ active, payload, label }) => {
         >
           {(percentChange && percentChange > 20) ? (
             <>
-              <Box component="span" sx={{ color: '#F472B6', fontWeight: 600 }}>
+              <Box component="span" sx={{ color: analyticsPalette.accentPink, fontWeight: 600 }}>
                 {Math.abs(Math.round(percentChange))}% increase
               </Box> from previous day, significantly above historical patterns. High correlation with {vsAverage && vsAverage.day} traffic spikes.
             </>
           ) : (percentChange && percentChange < -20) ? (
             <>
-              <Box component="span" sx={{ color: '#34D399', fontWeight: 600 }}>
+              <Box component="span" sx={{ color: analyticsPalette.positive, fontWeight: 600 }}>
                 {Math.abs(Math.round(percentChange))}% decrease
               </Box> compared to previous day, showing better conversion efficiency than average {vsAverage ? `${vsAverage.day}s` : 'days'}.
             </>
           ) : (recovery && recovery.potentialRecovery > 10000) ? (
             <>
-              High-value abandonment pattern detected with <Box component="span" sx={{ color: '#FF8042', fontWeight: 600 }}>
+              High-value abandonment pattern detected with <Box component="span" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
                 ₹{Math.round(recovery.perCart).toLocaleString('en-IN')}
               </Box> per cart, {Math.round((recovery.perCart / dataArray?.reduce((sum, i) => sum + (i.cartValue || 0) / i.abandonedCartsCount, 0) * dataArray?.length) * 100 - 100)}% above average.
             </>
           ) : (value > (dataArray?.reduce((sum, i) => sum + i.abandonedCartsCount, 0) / dataArray?.length * 1.5)) ? (
             <>
-              Statistically significant <Box component="span" sx={{ color: '#F472B6', fontWeight: 600 }}>
+              Statistically significant <Box component="span" sx={{ color: analyticsPalette.accentPink, fontWeight: 600 }}>
                 {Math.round((value / (dataArray?.reduce((sum, i) => sum + i.abandonedCartsCount, 0) / dataArray?.length) * 100) - 100)}% higher
               </Box> than period average, suggesting checkout friction during peak traffic periods.
             </>
           ) : (weekComparison && Math.abs(weekComparison.percentage) > 15) ? (
             <>
-              <Box component="span" sx={{ color: weekComparison.percentage < 0 ? '#34D399' : '#F472B6', fontWeight: 600 }}>
+              <Box component="span" sx={{ color: weekComparison.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink, fontWeight: 600 }}>
                 {Math.abs(Math.round(weekComparison.percentage))}% {weekComparison.percentage < 0 ? 'lower' : 'higher'}
               </Box> than same day last week, reflecting {weekComparison.percentage < 0 ? 'improved checkout experience' : 'increased abandonment patterns'}.
             </>
           ) : (
             <>
-              Within normal fluctuation range (<Box component="span" sx={{ color: '#60A5FA', fontWeight: 600 }}>±{Math.round((value / (dataArray?.reduce((sum, i) => sum + i.abandonedCartsCount, 0) / dataArray?.length) * 100) - 100)}%</Box> from average). Consistent with historical {vsAverage ? vsAverage.day : 'daily'} patterns.
+              Within normal fluctuation range (<Box component="span" sx={{ color: analyticsPalette.primary, fontWeight: 600 }}>±{Math.round((value / (dataArray?.reduce((sum, i) => sum + i.abandonedCartsCount, 0) / dataArray?.length) * 100) - 100)}%</Box> from average). Consistent with historical {vsAverage ? vsAverage.day : 'daily'} patterns.
             </>
           )}
         </Typography>
@@ -544,23 +548,15 @@ const AbandonedCartsChart = ({ data }) => {
   const averageLineValue = useMemo(() => avgCartsPerDay, [avgCartsPerDay]);
   
   return (
-    <Box
-      sx={{
-        width: '100%',
-        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-        p: 4,
-        borderRadius: 3,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-        minHeight: 450
-      }}
-    >
+    <Box sx={{ width: '100%' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
         <Typography
           variant="h6"
           sx={{ 
-            color: 'white', 
-            fontWeight: 600,
-            fontSize: isSmallScreen ? '1.1rem' : '1.25rem'
+            color: '#fff', 
+            fontWeight: 500,
+            letterSpacing: '.5px',
+            fontSize: isSmallScreen ? '1.05rem' : '1.2rem'
           }}
         >
           Abandoned Carts Over Time
@@ -568,9 +564,9 @@ const AbandonedCartsChart = ({ data }) => {
         
         <Box
           sx={{
-            backgroundColor: 'rgba(255, 128, 66, 0.15)',
-            borderRadius: '10px',
-            padding: '8px 15px',
+            backgroundColor: `${analyticsPalette.orange}1F`,
+            borderRadius: '8px',
+            padding: '6px 14px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -580,7 +576,7 @@ const AbandonedCartsChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
             Total Carts
           </Typography>
-          <Typography variant="subtitle1" sx={{ color: '#FF8042', fontWeight: 'bold' }}>
+          <Typography variant="subtitle1" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
             {totalCarts}
           </Typography>
         </Box>
@@ -598,8 +594,8 @@ const AbandonedCartsChart = ({ data }) => {
         >
           <defs>
             <linearGradient id="colorAbandoned" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#FF8042" stopOpacity={0.8} />
-              <stop offset="95%" stopColor="#FF8042" stopOpacity={0.1} />
+              <stop offset="5%" stopColor={analyticsPalette.orange} stopOpacity={0.85} />
+              <stop offset="95%" stopColor={analyticsPalette.orange} stopOpacity={0.05} />
             </linearGradient>
           </defs>
           <CartesianGrid 
@@ -670,12 +666,12 @@ const AbandonedCartsChart = ({ data }) => {
           <Area
             type="monotone"
             dataKey="abandonedCartsCount"
-            stroke="#FF8042"
+            stroke={analyticsPalette.orange}
             fill="url(#colorAbandoned)"
             fillOpacity={1}
             strokeWidth={2}
             activeDot={{ 
-              r: 6, 
+              r: 5, 
               strokeWidth: 1,
               stroke: '#FFF'
             }}
@@ -697,7 +693,7 @@ const AbandonedCartsChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
             Average Per Day
           </Typography>
-          <Typography variant="h6" sx={{ color: '#FF8042', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
             {avgCartsPerDay}
           </Typography>
         </Box>
@@ -707,7 +703,7 @@ const AbandonedCartsChart = ({ data }) => {
             <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
               Peak Day
             </Typography>
-            <Typography variant="h6" sx={{ color: '#FF8042', fontWeight: 'bold' }}>
+            <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
               {dayjs(maxCartsDay.date).format('MMM D')} ({maxCartsDay.abandonedCartsCount})
             </Typography>
           </Box>
@@ -718,13 +714,13 @@ const AbandonedCartsChart = ({ data }) => {
             <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
               Est. Revenue Loss
             </Typography>
-            <Typography variant="h6" sx={{ color: '#FF8042', fontWeight: 'bold' }}>
+            <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
               ₹{totalRevenueLoss.toLocaleString('en-IN')}
             </Typography>
           </Box>
         )}
       </Box>
-    </Box>
+      </Box>
   );
 };
 

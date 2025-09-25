@@ -11,17 +11,12 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme, alpha } from '@mui/material';
+import { getCategoricalColor, categorical, analyticsPalette } from '../common/palette';
 import dayjs from 'dayjs';
 
-const COLORS = [
-    '#60A5FA',  // vibrant blue
-    '#F472B6',  // pink
-    '#34D399',  // emerald
-    '#A78BFA',  // purple
-    '#FBBF24',  // amber
-    '#F87171'   // red
-];
+// Use centralized categorical palette
+const COLORS = categorical;
 
 // Custom tooltip renderer
 const CustomTooltip = ({ active, payload, totalOrders }) => {
@@ -31,30 +26,29 @@ const CustomTooltip = ({ active, payload, totalOrders }) => {
     const total = data.value;
 
     return (
-        <Box
-            sx={{
-                backgroundColor: 'rgba(17, 24, 39, 0.95)',
-                backdropFilter: 'blur(8px)',
-                p: 2.5,
-                borderRadius: '12px',
-                border: '1px solid rgba(99, 102, 241, 0.2)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-                color: 'white',
-                minWidth: 200,
-                position: 'relative',
-                '&:before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: '2px',
-                    background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
-                    borderTopLeftRadius: '12px',
-                    borderTopRightRadius: '12px',
-                }
-            }}
-        >
+    <Box
+      sx={{
+        background: 'rgba(17,24,39,0.8)',
+        backdropFilter: 'blur(12px)',
+        p: 2,
+        borderRadius: 2,
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 4px 28px -4px rgba(0,0,0,.5)',
+        color: 'white',
+        minWidth: 210,
+        position: 'relative',
+        overflow: 'hidden',
+        '&:before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background: (theme) => `linear-gradient(90deg, transparent, ${alpha(theme.palette.primary.main,0.6)}, transparent)`
+        }
+      }}
+    >
             <Typography 
                 variant="subtitle2" 
                 sx={{ 
@@ -74,12 +68,12 @@ const CustomTooltip = ({ active, payload, totalOrders }) => {
                     alignItems: 'center', 
                     justifyContent: 'space-between',
                     mb: 1,
-                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    backgroundColor: 'rgba(255,255,255,0.04)',
                     p: 0.8,
                     borderRadius: 1,
                     transition: 'all 0.2s ease',
                     '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.06)'
+      backgroundColor: 'rgba(255,255,255,0.1)'
                     }
                 }}
             >
@@ -97,8 +91,8 @@ const CustomTooltip = ({ active, payload, totalOrders }) => {
                     <Typography 
                         variant="body2" 
                         sx={{ 
-                            fontSize: '0.85rem',
-                            color: '#EEE'
+              fontSize: '0.8rem',
+        color: 'rgba(255,255,255,0.7)'
                         }}
                     >
                         Orders
@@ -107,9 +101,9 @@ const CustomTooltip = ({ active, payload, totalOrders }) => {
                 <Typography 
                     variant="body2" 
                     sx={{ 
-                        fontSize: '0.85rem',
+            fontSize: '0.8rem',
                         fontWeight: 600,
-                        color: '#FFF'
+      color: '#fff'
                     }}
                 >
                     {total}
@@ -128,8 +122,8 @@ const CustomTooltip = ({ active, payload, totalOrders }) => {
                 <Typography 
                     variant="body2" 
                     sx={{ 
-                        color: '#CCC',
-                        fontSize: '0.85rem'
+                        color: 'rgba(255,255,255,0.6)',
+            fontSize: '0.75rem'
                     }}
                 >
                     Percentage
@@ -137,9 +131,9 @@ const CustomTooltip = ({ active, payload, totalOrders }) => {
                 <Typography 
                     variant="body2" 
                     sx={{ 
-                        color: '#FFF',
+        color: '#fff',
                         fontWeight: 600,
-                        fontSize: '0.9rem'
+            fontSize: '0.8rem'
                     }}
                 >
                     {((total / totalOrders) * 100).toFixed(1)}%
@@ -201,30 +195,21 @@ const SalesSourcesChart = ({ data }) => {
   };
 
   return (
-    <Box
-      sx={{
-        width: '100%',
-        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-        p: 4,
-        borderRadius: 3,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-        minHeight: 450
-      }}
-    >
+    <Box sx={{ width: '100%' }}>
       <Typography
         variant="h6"
         sx={{ 
-          color: 'white', 
-          fontWeight: 600, 
-          mb: 3,
-          fontSize: isSmallScreen ? '1.1rem' : '1.25rem'
+          color: '#fff',
+          fontWeight: 500,
+          mb: 2,
+          letterSpacing: '.5px',
+          fontSize: isSmallScreen ? '1.05rem' : '1.2rem'
         }}
       >
         Sales Sources
       </Typography>
 
-      {/* Pie Chart */}
-      <ResponsiveContainer width="100%" height={380}>
+      <ResponsiveContainer width="100%" height={360}>
         <PieChart>
           <Pie
             data={data}
@@ -232,8 +217,8 @@ const SalesSourcesChart = ({ data }) => {
             nameKey="source"
             cx="50%"
             cy="50%"
-            outerRadius={120}
-            innerRadius={80}
+            outerRadius={118}
+            innerRadius={78}
             fill="#8884d8"
             labelLine={false}
           >
@@ -251,7 +236,6 @@ const SalesSourcesChart = ({ data }) => {
         </PieChart>
       </ResponsiveContainer>
 
-      {/* Custom Legend */}
       {renderCustomLegend()}
     </Box>
   );

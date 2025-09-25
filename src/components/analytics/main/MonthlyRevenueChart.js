@@ -14,11 +14,12 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import { Box, Typography, useMediaQuery, useTheme, Chip } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme, Chip, alpha } from '@mui/material';
+import { analyticsPalette } from '../common/palette';
 import dayjs from '@/lib/dayjsConfig';
 
-const ACTUAL_LINE_COLOR = '#60A5FA'; // Professional blue color
-const PREDICTED_LINE_COLOR = '#F472B6'; // Pink for prediction
+const ACTUAL_LINE_COLOR = analyticsPalette.primary;
+const PREDICTED_LINE_COLOR = analyticsPalette.accentPink;
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -44,25 +45,31 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <Box
       sx={{
-        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-        backdropFilter: 'blur(8px)',
-        p: 2.5,
-        borderRadius: '12px',
-        border: '1px solid rgba(99, 102, 241, 0.2)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+        backgroundColor: 'rgba(17,24,39,0.82)',
+        backdropFilter: 'blur(10px)',
+        p: 2.2,
+        borderRadius: '14px',
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 4px 28px rgba(0,0,0,0.35)',
         color: 'white',
         minWidth: 240,
         position: 'relative',
+        overflow: 'hidden',
         '&:before': {
           content: '""',
           position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
-          height: '2px',
-          background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
+          height: '3px',
+          background: `linear-gradient(90deg, ${ACTUAL_LINE_COLOR}22, ${ACTUAL_LINE_COLOR}66, ${ACTUAL_LINE_COLOR}22)`
+        },
+        '&:after': {
+          content: '""',
+            position: 'absolute',
+            inset: 0,
+            background: 'radial-gradient(circle at 25% 0%, rgba(255,255,255,0.06), transparent 60%)',
+            pointerEvents: 'none'
         }
       }}
     >
@@ -73,7 +80,7 @@ const CustomTooltip = ({ active, payload, label }) => {
           color: '#FFF',
           fontSize: '0.95rem',
           fontWeight: 600,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
           pb: 1
         }}
       >
@@ -86,9 +93,10 @@ const CustomTooltip = ({ active, payload, label }) => {
           alignItems: 'center', 
           justifyContent: 'space-between',
           mb: 1,
-          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-          p: 0.8,
-          borderRadius: 1
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          p: 0.85,
+          borderRadius: 1.5,
+          border: '1px solid rgba(255,255,255,0.06)'
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -98,8 +106,8 @@ const CustomTooltip = ({ active, payload, label }) => {
               height: 8,
               borderRadius: '50%',
               backgroundColor: ACTUAL_LINE_COLOR,
-              mr: 1.5,
-              boxShadow: `0 0 10px ${ACTUAL_LINE_COLOR}40`
+              mr: 1.4,
+              boxShadow: `0 0 0 3px ${ACTUAL_LINE_COLOR}22`
             }}
           />
           <Typography 
@@ -131,8 +139,8 @@ const CustomTooltip = ({ active, payload, label }) => {
             alignItems: 'center', 
             justifyContent: 'space-between',
             mb: 1,
-            p: 0.8,
-            borderRadius: 1
+            p: 0.85,
+            borderRadius: 1.5
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -142,8 +150,8 @@ const CustomTooltip = ({ active, payload, label }) => {
                 height: 8,
                 borderRadius: '50%',
                 backgroundColor: PREDICTED_LINE_COLOR,
-                mr: 1.5,
-                boxShadow: `0 0 10px ${PREDICTED_LINE_COLOR}40`
+                mr: 1.4,
+                boxShadow: `0 0 0 3px ${PREDICTED_LINE_COLOR}22`
               }}
             />
             <Typography 
@@ -175,7 +183,7 @@ const CustomTooltip = ({ active, payload, label }) => {
           sx={{ 
             mt: 1.5, 
             pt: 1.5,
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between'
@@ -246,43 +254,17 @@ const MonthlyRevenueChart = ({ data }) => {
   }, [formattedData]);
 
   return (
-    <Box
-      sx={{
-        width: '100%',
-        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-        p: 4,
-        borderRadius: 3,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-        minHeight: 500
-      }}
-    >
+    <Box sx={{ width: '100%' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-        <Typography
-          variant="h6"
-          sx={{ 
-            color: 'white', 
-            fontWeight: 600,
-            fontSize: isSmallScreen ? '1.1rem' : '1.25rem'
-          }}
-        >
+        <Typography variant="h6" sx={{ color: '#fff', fontWeight: 500, fontSize: isSmallScreen ? '1.05rem' : '1.2rem' }}>
           Monthly Revenue Trends
         </Typography>
         
-        <Box
-          sx={{
-            backgroundColor: 'rgba(96, 165, 250, 0.15)',
-            borderRadius: '10px',
-            padding: '8px 15px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
+        <Box sx={{ backgroundColor: alpha(ACTUAL_LINE_COLOR,0.15), borderRadius: '10px', px: 2, py: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
             Avg Monthly
           </Typography>
-          <Typography variant="subtitle1" sx={{ color: '#60A5FA', fontWeight: 'bold' }}>
+          <Typography variant="subtitle1" sx={{ color: ACTUAL_LINE_COLOR, fontWeight: 'bold' }}>
             ₹{avgMonthlyRevenue.toLocaleString('en-IN')}
           </Typography>
         </Box>
@@ -417,7 +399,7 @@ const MonthlyRevenueChart = ({ data }) => {
               boxShadow: `0 0 10px ${ACTUAL_LINE_COLOR}40`
             }}
           />
-          <Typography variant="body2" sx={{ color: '#EEE' }}>
+          <Typography variant="body2" sx={{ color: '#eee' }}>
             Actual Revenue
           </Typography>
         </Box>
@@ -432,7 +414,7 @@ const MonthlyRevenueChart = ({ data }) => {
               boxShadow: `0 0 10px ${PREDICTED_LINE_COLOR}40`
             }}
           />
-          <Typography variant="body2" sx={{ color: '#EEE' }}>
+          <Typography variant="body2" sx={{ color: '#eee' }}>
             Predicted Revenue
           </Typography>
         </Box>
@@ -446,7 +428,7 @@ const MonthlyRevenueChart = ({ data }) => {
               mr: 1.5
             }}
           />
-          <Typography variant="body2" sx={{ color: '#EEE' }}>
+          <Typography variant="body2" sx={{ color: '#eee' }}>
             Average Revenue
           </Typography>
         </Box>

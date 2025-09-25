@@ -15,8 +15,10 @@ import {
   useMediaQuery,
   ButtonGroup,
   Button,
-  Fade
+  Fade,
+  alpha
 } from '@mui/material';
+import { analyticsPalette } from '../common/palette';
 import dayjs from '@/lib/dayjsConfig';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -26,25 +28,31 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <Box
       sx={{
-        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-        backdropFilter: 'blur(8px)',
-        p: 2.5,
-        borderRadius: '12px',
-        border: '1px solid rgba(99, 102, 241, 0.2)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+        backgroundColor: 'rgba(17,24,39,0.82)',
+        backdropFilter: 'blur(10px)',
+        p: 2.2,
+        borderRadius: '14px',
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 4px 28px rgba(0,0,0,0.35)',
         color: 'white',
         minWidth: 240,
         position: 'relative',
+        overflow: 'hidden',
         '&:before': {
           content: '""',
           position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
-          height: '2px',
-          background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
+          height: '3px',
+          background: `linear-gradient(90deg, ${analyticsPalette.info}22, ${analyticsPalette.info}66, ${analyticsPalette.info}22)`
+        },
+        '&:after': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          background: 'radial-gradient(circle at 30% 0%, rgba(255,255,255,0.06), transparent 60%)',
+          pointerEvents: 'none'
         }
       }}
     >
@@ -55,7 +63,7 @@ const CustomTooltip = ({ active, payload, label }) => {
           color: '#FFF',
           fontSize: '0.95rem',
           fontWeight: 600,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
           pb: 1
         }}
       >
@@ -68,8 +76,8 @@ const CustomTooltip = ({ active, payload, label }) => {
           alignItems: 'center', 
           justifyContent: 'space-between',
           mb: 1,
-          p: 0.8,
-          borderRadius: 1
+          p: 0.85,
+          borderRadius: 1.5
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -78,9 +86,9 @@ const CustomTooltip = ({ active, payload, label }) => {
               width: 8,
               height: 8,
               borderRadius: '50%',
-              backgroundColor: '#A78BFA',
-              mr: 1.5,
-              boxShadow: '0 0 10px #A78BFA40'
+              backgroundColor: analyticsPalette.info,
+              mr: 1.4,
+              boxShadow: `0 0 0 3px ${analyticsPalette.info}22`
             }}
           />
           <Typography 
@@ -111,9 +119,10 @@ const CustomTooltip = ({ active, payload, label }) => {
           alignItems: 'center', 
           justifyContent: 'space-between',
           mb: 1,
-          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-          p: 0.8,
-          borderRadius: 1
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          p: 0.85,
+          borderRadius: 1.5,
+          border: '1px solid rgba(255,255,255,0.06)'
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -122,9 +131,9 @@ const CustomTooltip = ({ active, payload, label }) => {
               width: 8,
               height: 8,
               borderRadius: '50%',
-              backgroundColor: '#34D399',
-              mr: 1.5,
-              boxShadow: '0 0 10px #34D39940'
+              backgroundColor: analyticsPalette.positive,
+              mr: 1.4,
+              boxShadow: `0 0 0 3px ${analyticsPalette.positive}22`
             }}
           />
           <Typography 
@@ -153,7 +162,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         sx={{
           mt: 1.5,
           pt: 1.5,
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.12)',
         }}
       >
         <Typography 
@@ -175,14 +184,15 @@ const CustomTooltip = ({ active, payload, label }) => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              mb: 0.8,
+              mb: 0.7,
               pl: 1,
               pr: 1,
               py: 0.5,
-              borderRadius: 1,
-              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              borderRadius: 1.5,
+              backgroundColor: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.04)',
               '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.04)'
+                backgroundColor: 'rgba(255,255,255,0.05)'
               }
             }}
           >
@@ -279,29 +289,14 @@ const RetargetedCustomersChart = ({ data }) => {
     : Math.ceil(yMaxRaw / 10) * 10;
 
   return (
-    <Box sx={{
-      width: '100%',
-      background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-      p: 4,
-      borderRadius: 3,
-      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-      minHeight: 450
-    }}>
+    <Box sx={{ width: '100%' }}>
       {/* Header with creative UI instead of toggle switch */}
       <Box
         display="flex"
         flexDirection="column"
         mb={3}
       >
-        <Typography 
-          variant="h6" 
-          sx={{ 
-            color: 'white', 
-            fontWeight: 600, 
-            mb: 2,
-            fontSize: isSmall ? '1.1rem' : '1.25rem'
-          }}
-        >
+        <Typography variant="h6" sx={{ color:'#fff', fontWeight:500, mb:2, fontSize: isSmall ? '1.05rem':'1.2rem' }}>
           Retargeted Customers (Daily)
         </Typography>
         
@@ -320,30 +315,10 @@ const RetargetedCustomersChart = ({ data }) => {
             }
           }}
         >
-          <Button 
-            onClick={() => setShowSent(true)}
-            sx={{ 
-              color: showSent ? '#FFF' : 'rgba(255, 255, 255, 0.5)', 
-              backgroundColor: showSent ? 'rgba(99, 102, 241, 0.8)' : 'transparent',
-              minWidth: '130px',
-              '&:hover': {
-                backgroundColor: showSent ? 'rgba(99, 102, 241, 0.85)' : 'rgba(255, 255, 255, 0.1)'
-              }
-            }}
-          >
+          <Button onClick={() => setShowSent(true)} sx={{ color: showSent ? '#fff':'rgba(255,255,255,0.5)', backgroundColor: showSent ? alpha(analyticsPalette.info,0.9):'transparent', minWidth:'130px', '&:hover':{ backgroundColor: showSent ? alpha(analyticsPalette.info,1):'rgba(255,255,255,0.08)'} }}>
             All Data
           </Button>
-          <Button 
-            onClick={() => setShowSent(false)}
-            sx={{ 
-              color: !showSent ? '#FFF' : 'rgba(255, 255, 255, 0.5)', 
-              backgroundColor: !showSent ? 'rgba(52, 211, 153, 0.8)' : 'transparent',
-              minWidth: '130px',
-              '&:hover': {
-                backgroundColor: !showSent ? 'rgba(52, 211, 153, 0.85)' : 'rgba(255, 255, 255, 0.1)'
-              }
-            }}
-          >
+          <Button onClick={() => setShowSent(false)} sx={{ color: !showSent ? '#fff':'rgba(255,255,255,0.5)', backgroundColor: !showSent ? alpha(analyticsPalette.positive,0.85):'transparent', minWidth:'130px', '&:hover':{ backgroundColor: !showSent ? alpha(analyticsPalette.positive,0.95):'rgba(255,255,255,0.08)'} }}>
             Purchases Only
           </Button>
         </ButtonGroup>
@@ -356,12 +331,12 @@ const RetargetedCustomersChart = ({ data }) => {
         >
           <defs>
             <linearGradient id="sentGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#A78BFA" stopOpacity={0.8}/>
-              <stop offset="95%" stopColor="#A78BFA" stopOpacity={0}/>
+              <stop offset="5%" stopColor={analyticsPalette.info} stopOpacity={0.8}/>
+              <stop offset="95%" stopColor={analyticsPalette.info} stopOpacity={0}/>
             </linearGradient>
             <linearGradient id="purchasedGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#34D399" stopOpacity={0.8}/>
-              <stop offset="95%" stopColor="#34D399" stopOpacity={0}/>
+              <stop offset="5%" stopColor={analyticsPalette.positive} stopOpacity={0.8}/>
+              <stop offset="95%" stopColor={analyticsPalette.positive} stopOpacity={0}/>
             </linearGradient>
           </defs>
           <CartesianGrid stroke="rgba(255, 255, 255, 0.1)" strokeDasharray="3 3" vertical={false} />
@@ -406,28 +381,10 @@ const RetargetedCustomersChart = ({ data }) => {
           
           {/* Show sent count area only when showSent is true */}
           {showSent && (
-            <Area
-              type="monotone"
-              dataKey="sentCount"
-              name="Emails Sent"
-              stroke="#A78BFA"
-              fill="url(#sentGradient)"
-              fillOpacity={1}
-              strokeWidth={2}
-              activeDot={{ r: 6, strokeWidth: 1, stroke: '#FFF' }}
-            />
+            <Area type="monotone" dataKey="sentCount" name="Emails Sent" stroke={analyticsPalette.info} fill="url(#sentGradient)" fillOpacity={1} strokeWidth={2} activeDot={{ r:6, strokeWidth:1, stroke:'#FFF' }} />
           )}
           
-          <Area
-            type="monotone"
-            dataKey="purchasedCount"
-            name="Purchases"
-            stroke="#34D399"
-            fill="url(#purchasedGradient)"
-            fillOpacity={1}
-            strokeWidth={2}
-            activeDot={{ r: 6, strokeWidth: 1, stroke: '#FFF' }}
-          />
+          <Area type="monotone" dataKey="purchasedCount" name="Purchases" stroke={analyticsPalette.positive} fill="url(#purchasedGradient)" fillOpacity={1} strokeWidth={2} activeDot={{ r:6, strokeWidth:1, stroke:'#FFF' }} />
         </AreaChart>
       </ResponsiveContainer>
       
@@ -445,7 +402,7 @@ const RetargetedCustomersChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
             Total Sent
           </Typography>
-          <Typography variant="h6" sx={{ color: '#A78BFA', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.info, fontWeight: 'bold' }}>
             {data.reduce((sum, item) => sum + item.sentCount, 0).toLocaleString()}
           </Typography>
         </Box>
@@ -454,7 +411,7 @@ const RetargetedCustomersChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
             Total Purchases
           </Typography>
-          <Typography variant="h6" sx={{ color: '#34D399', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.positive, fontWeight: 'bold' }}>
             {data.reduce((sum, item) => sum + item.purchasedCount, 0).toLocaleString()}
           </Typography>
         </Box>
@@ -463,7 +420,7 @@ const RetargetedCustomersChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
             Conversion Rate
           </Typography>
-          <Typography variant="h6" sx={{ color: '#F472B6', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.accentPink, fontWeight: 'bold' }}>
             {(data.reduce((sum, item) => sum + item.purchasedCount, 0) / 
               Math.max(1, data.reduce((sum, item) => sum + item.sentCount, 0)) * 100).toFixed(1)}%
           </Typography>

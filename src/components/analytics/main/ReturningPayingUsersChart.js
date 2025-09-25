@@ -14,15 +14,16 @@ import {
   Area,
   AreaChart
 } from 'recharts';
-import { Box, Typography, useMediaQuery, useTheme, Chip } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme, Chip, alpha } from '@mui/material';
+import { analyticsPalette } from '../common/palette';
 import dayjs from '@/lib/dayjsConfig'; // Centralized Day.js import
 
 // Color palette for the chart to match the theme
 const COLORS = {
-  primary: '#60A5FA',  // vibrant blue
-  highlight: '#A78BFA', // purple
-  accent: '#F472B6',   // pink
-  success: '#34D399',  // emerald
+  primary: analyticsPalette.primary,
+  highlight: analyticsPalette.info,
+  accent: analyticsPalette.accentPink,
+  success: analyticsPalette.positive,
 };
 
 const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
@@ -184,41 +185,46 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
         growth = ((value - prevValue) / prevValue) * 100;
       }
     }
-    
     return (
       <Box
         sx={{
-          backgroundColor: 'rgba(17, 24, 39, 0.95)',
-          backdropFilter: 'blur(8px)',
-          p: 2.5,
-          borderRadius: '12px',
-          border: '1px solid rgba(99, 102, 241, 0.2)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+          backgroundColor: 'rgba(17,24,39,0.82)',
+          backdropFilter: 'blur(10px)',
+          p: 2.2,
+          borderRadius: '14px',
+          border: '1px solid rgba(255,255,255,0.12)',
+          boxShadow: '0 4px 28px rgba(0,0,0,0.35)',
           color: 'white',
           minWidth: 200,
           position: 'relative',
+          overflow: 'hidden',
           '&:before': {
             content: '""',
             position: 'absolute',
             top: 0,
             left: 0,
             right: 0,
-            height: '2px',
-            background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
-            borderTopLeftRadius: '12px',
-            borderTopRightRadius: '12px',
+            height: '3px',
+            background: `linear-gradient(90deg, ${COLORS.primary}22, ${COLORS.primary}66, ${COLORS.primary}22)`
+          },
+          '&:after': {
+            content: '""',
+            position: 'absolute',
+            inset: 0,
+            background: 'radial-gradient(circle at 30% 0%, rgba(255,255,255,0.06), transparent 60%)',
+            pointerEvents: 'none'
           }
         }}
       >
-        <Typography 
-          variant="subtitle2" 
-          sx={{ 
-            mb: 1.5, 
-            color: '#FFF',
+        <Typography
+          variant="subtitle2"
+          sx={{
+            mb: 1.5,
             fontSize: '0.95rem',
             fontWeight: 600,
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            pb: 1
+            borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+            pb: 1,
+            color: '#FFF'
           }}
         >
           {formattedLabel}
@@ -230,9 +236,10 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
             alignItems: 'center', 
             justifyContent: 'space-between',
             mb: 1,
-            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            p: 0.8,
-            borderRadius: 1
+            backgroundColor: 'rgba(255,255,255,0.05)',
+            p: 0.85,
+            borderRadius: 1.5,
+            border: '1px solid rgba(255,255,255,0.06)'
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -242,8 +249,8 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
                 height: 8,
                 borderRadius: '50%',
                 backgroundColor: COLORS.primary,
-                mr: 1.5,
-                boxShadow: `0 0 10px ${COLORS.primary}40`
+                mr: 1.4,
+                boxShadow: `0 0 0 3px ${COLORS.primary}22`
               }}
             />
             <Typography 
@@ -273,7 +280,7 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
             sx={{ 
               mt: 1.5, 
               pt: 1.5,
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              borderTop: '1px solid rgba(255, 255, 255, 0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
@@ -299,16 +306,7 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
   };
 
   return (
-    <Box
-      sx={{
-        width: '100%',
-        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-        p: 4,
-        borderRadius: 3,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-        minHeight: 450
-      }}
-    >
+    <Box sx={{ width: '100%' }}>
       {/* Chart Title and Summary Stats */}
       <Box
         sx={{ 
@@ -319,15 +317,7 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
           mb: 3
         }}
       >
-        <Typography
-          variant="h6"
-          sx={{ 
-            color: 'white', 
-            fontWeight: 600, 
-            fontSize: isSmallScreen ? '1.1rem' : '1.25rem',
-            mb: isSmallScreen ? 2 : 0
-          }}
-        >
+        <Typography variant="h6" sx={{ color: '#fff', fontWeight: 500, fontSize: isSmallScreen ? '1.05rem' : '1.2rem', mb: isSmallScreen ? 2 : 0 }}>
           Users Re-ordering Over Time
         </Typography>
 
@@ -339,17 +329,7 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
             flexWrap: 'wrap',
           }}
         >
-          <Box
-            sx={{
-              backgroundColor: 'rgba(96, 165, 250, 0.15)',
-              borderRadius: '10px',
-              padding: '8px 15px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          <Box sx={{ backgroundColor: alpha(COLORS.primary,0.15), borderRadius: '10px', padding: '8px 15px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
             <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
               Total
             </Typography>
@@ -359,19 +339,7 @@ const ReturningPayingUsersChart = ({ data, startDate, endDate }) => {
           </Box>
           
           {previousPeriodTotal.firstHalf > 0 && (
-            <Box
-              sx={{
-                backgroundColor: previousPeriodTotal.growth > 0 
-                  ? 'rgba(52, 211, 153, 0.15)'
-                  : 'rgba(244, 114, 182, 0.15)',
-                borderRadius: '10px',
-                padding: '8px 15px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
+            <Box sx={{ backgroundColor: previousPeriodTotal.growth > 0 ? alpha(COLORS.success,0.15) : alpha(COLORS.accent,0.15), borderRadius:'10px', padding:'8px 15px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
               <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                 Growth
               </Typography>

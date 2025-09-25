@@ -1,5 +1,5 @@
 # Admin UI Theme Guide (One‑Page)
-
+Minimalism is the key
 This document distills the visual language and UX patterns from the Homepage and Department Homepages to help you keep a consistent brand feel across new pages.
 
 ## Brand DNA

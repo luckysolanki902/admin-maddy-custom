@@ -13,207 +13,63 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme, alpha } from '@mui/material';
+import { analyticsPalette } from '../common/palette';
 import dayjs from '@/lib/dayjsConfig';
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
-
-  const currentPayload = payload[0].payload;
-  const dailyRevenue = currentPayload.dailyRevenue || 0;
-  const averageDailyRevenue = currentPayload.averageDailyRevenue || 0;
-  const previousDayRevenue = currentPayload.previousDayRevenue || 0;
-  
-  // Calculate percentage changes
-  const previousDayChange = previousDayRevenue ? ((dailyRevenue - previousDayRevenue) / previousDayRevenue * 100).toFixed(1) : null;
-  const avgDeviation = averageDailyRevenue ? ((dailyRevenue - averageDailyRevenue) / averageDailyRevenue * 100).toFixed(1) : null;
+  const p = payload[0].payload;
+  const dailyRevenue = p.dailyRevenue || 0;
+  const avg = p.averageDailyRevenue || 0;
+  const prev = p.previousDayRevenue || 0;
+  const prevChange = prev ? ((dailyRevenue - prev) / prev) * 100 : null;
+  const avgDev = avg ? ((dailyRevenue - avg) / avg) * 100 : null;
 
   return (
-    <Box
-      sx={{
-        backgroundColor: 'rgba(17, 24, 39, 0.95)',
-        backdropFilter: 'blur(8px)',
-        p: 2.5,
-        borderRadius: '12px',
-        border: '1px solid rgba(99, 102, 241, 0.2)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-        color: 'white',
-        minWidth: 280,
-        position: 'relative',
-        '&:before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '2px',
-          background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.4), rgba(99, 102, 241, 0.2))',
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-        }
-      }}
-    >
-      <Typography 
-        variant="subtitle2" 
-        sx={{ 
-          mb: 1.5, 
-          color: '#FFF',
-          fontSize: '0.95rem',
-          fontWeight: 600,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          pb: 1
-        }}
-      >
-        {currentPayload.fullLabel}
-      </Typography>
-      
-      {/* Today's Revenue */}
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          mb: 1.5,
-          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-          p: 1,
-          borderRadius: 1
-        }}
-      >
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            fontSize: '1rem',
-            color: '#FFF',
-            fontWeight: 600
-          }}
-        >
-          ₹{dailyRevenue.toLocaleString('en-IN')}
-        </Typography>
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            fontSize: '0.85rem',
-            color: '#EEE',
-            ml: 1
-          }}
-        >
-          Daily Revenue
-        </Typography>
+    <Box sx={{
+      background: 'rgba(17,24,39,0.78)',
+      backdropFilter: 'blur(12px)',
+      p: 2,
+      borderRadius: 2,
+      minWidth: 240,
+      border: '1px solid rgba(255,255,255,0.12)',
+      boxShadow: '0 4px 28px -4px rgba(0,0,0,0.45)',
+      position: 'relative',
+      '&:before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 2,
+        background: `linear-gradient(90deg, transparent, ${analyticsPalette.primary}66, transparent)`
+      }
+    }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#fff', fontSize: '.9rem', letterSpacing: '.3px' }}>{p.fullLabel}</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.2 }}>
+        <Typography sx={{ fontSize: '.75rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', letterSpacing: '.6px' }}>Revenue</Typography>
+        <Typography sx={{ fontWeight: 600, color: '#fff', fontSize: '.95rem' }}>₹{dailyRevenue.toLocaleString('en-IN')}</Typography>
       </Box>
-
-      {/* Previous Day Comparison */}
-      {previousDayRevenue > 0 && (
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            mb: 1,
-            p: 0.8,
-            borderRadius: 1
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box
-              component="span"
-              sx={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                backgroundColor: previousDayChange >= 0 ? '#34D399' : '#F472B6',
-                mr: 1
-              }}
-            />
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                fontSize: '0.85rem',
-                color: '#EEE'
-              }}
-            >
-              vs Previous Day
-            </Typography>
-          </Box>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              color: previousDayChange >= 0 ? '#34D399' : '#F472B6'
-            }}
-          >
-            {previousDayChange >= 0 ? '+' : ''}{previousDayChange}%
+      {prev > 0 && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: .6 }}>
+          <Typography sx={{ fontSize: '.7rem', color: 'rgba(255,255,255,0.55)' }}>vs Prev Day</Typography>
+          <Typography sx={{ fontSize: '.7rem', fontWeight: 600, color: prevChange >=0 ? analyticsPalette.positive : analyticsPalette.accentPink }}>
+            {prevChange >=0 ? '+' : ''}{prevChange?.toFixed(1)}%
           </Typography>
         </Box>
       )}
-
-      {/* Average Comparison */}
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          mb: 1,
-          p: 0.8,
-          borderRadius: 1
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Box
-            component="span"
-            sx={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              backgroundColor: avgDeviation >= 0 ? '#34D399' : '#F472B6',
-              mr: 1
-            }}
-          />
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              fontSize: '0.85rem',
-              color: '#EEE'
-            }}
-          >
-            vs Daily Average
-          </Typography>
-        </Box>
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            color: avgDeviation >= 0 ? '#34D399' : '#F472B6'
-          }}
-        >
-          {avgDeviation >= 0 ? '+' : ''}{avgDeviation}%
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: .6 }}>
+        <Typography sx={{ fontSize: '.7rem', color: 'rgba(255,255,255,0.55)' }}>vs Avg</Typography>
+        <Typography sx={{ fontSize: '.7rem', fontWeight: 600, color: avgDev >=0 ? analyticsPalette.positive : analyticsPalette.accentPink }}>
+          {avgDev >=0 ? '+' : ''}{avgDev?.toFixed(1)}%
         </Typography>
       </Box>
-
-      {/* Additional Context */}
-      {currentPayload.dayContext && (
-        <Box 
-          sx={{ 
-            mt: 1.5, 
-            pt: 1.5,
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-        >
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              color: '#CCC',
-              fontSize: '0.85rem',
-              fontStyle: 'italic'
-            }}
-          >
-            {currentPayload.dayContext}
-          </Typography>
-        </Box>
+      {p.dayContext && (
+        <Typography sx={{ mt: 1, fontSize: '.65rem', color: 'rgba(255,255,255,0.55)', fontStyle: 'italic' }}>{p.dayContext}</Typography>
       )}
     </Box>
-  );
+  )
 };
 
 const DailyRevenueChart = ({ data }) => {
@@ -224,7 +80,9 @@ const DailyRevenueChart = ({ data }) => {
   const processedData = useMemo(() => {
     if (!data?.length) return [];
 
-    const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sortedData = [...data]
+      .map(d => ({ ...d, date: dayjs(d.date).startOf('day').toISOString() }))
+      .sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
     
     // Calculate daily average
     const totalRevenue = sortedData.reduce((sum, item) => sum + item.dailyRevenue, 0);
@@ -245,7 +103,7 @@ const DailyRevenueChart = ({ data }) => {
       return {
         ...item,
         date: date.format('MMM D'),
-        fullLabel: date.format('dddd, MMMM D, YYYY'),
+  fullLabel: date.format('dddd, MMM D YYYY'),
         previousDayRevenue: index > 0 ? sortedData[index - 1].dailyRevenue : null,
         averageDailyRevenue,
         dayContext
@@ -277,23 +135,14 @@ const DailyRevenueChart = ({ data }) => {
   }, [processedData]);
 
   return (
-    <Box
-      sx={{
-        width: '100%',
-        background: 'linear-gradient(180deg, #1F2937 0%, #111827 100%)',
-        p: 4,
-        borderRadius: 3,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
-        minHeight: 500
-      }}
-    >
+    <Box sx={{ width: '100%' }}>
       <Typography
         variant="h6"
         sx={{ 
-          color: 'white', 
-          fontWeight: 600,
-          fontSize: isSmallScreen ? '1.1rem' : '1.25rem',
-          mb: 3
+          color: '#fff',
+          fontWeight: 500,
+          fontSize: isSmallScreen ? '1.05rem' : '1.2rem',
+          mb: 2
         }}
       >
         Daily Revenue
@@ -311,8 +160,8 @@ const DailyRevenueChart = ({ data }) => {
         >
           <defs>
             <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#60A5FA" stopOpacity={0.8} />
-              <stop offset="95%" stopColor="#60A5FA" stopOpacity={0.3} />
+              <stop offset="0%" stopColor={analyticsPalette.primary} stopOpacity={0.8} />
+              <stop offset="95%" stopColor={analyticsPalette.primary} stopOpacity={0.3} />
             </linearGradient>
           </defs>
 
@@ -375,7 +224,7 @@ const DailyRevenueChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
             Peak Day
           </Typography>
-          <Typography variant="h6" sx={{ color: '#34D399', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.positive, fontWeight: 'bold' }}>
             ₹{Math.max(...processedData.map(d => d.dailyRevenue)).toLocaleString('en-IN')}
           </Typography>
         </Box>
@@ -383,7 +232,7 @@ const DailyRevenueChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
             Daily Average
           </Typography>
-          <Typography variant="h6" sx={{ color: '#60A5FA', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.primary, fontWeight: 'bold' }}>
             ₹{Math.round(stats.avg).toLocaleString('en-IN')}
           </Typography>
         </Box>
@@ -391,7 +240,7 @@ const DailyRevenueChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
             Worst Day
           </Typography>
-          <Typography variant="h6" sx={{ color: '#F472B6', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.accentPink, fontWeight: 'bold' }}>
             ₹{stats.min.toLocaleString('en-IN')}
           </Typography>
         </Box>
@@ -399,7 +248,7 @@ const DailyRevenueChart = ({ data }) => {
           <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
             Period Total
           </Typography>
-          <Typography variant="h6" sx={{ color: '#60A5FA', fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.primary, fontWeight: 'bold' }}>
             ₹{processedData.reduce((sum, d) => sum + d.dailyRevenue, 0).toLocaleString('en-IN')}
           </Typography>
         </Box>

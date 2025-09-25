@@ -36,28 +36,40 @@ export async function PATCH(request) {
     }
     
     const updatePromises = changes.map(async (change, index) => {
-      const { id, after } = change;
+      const { id, after, mode, delta } = change; // mode optional per change
       try {
         if (!id || typeof id !== 'string' || id.length < 10) {
           console.error(`[${requestId}] BULK PATCH: Missing or invalid inventory ID`, { id, changeIndex: index + 1 });
           return { error: 'Missing or invalid inventory ID', changeIndex: index + 1, id };
         }
-        if (!after || typeof after.availableQuantity !== 'number' || typeof after.reorderLevel !== 'number') {
-          console.error(`[${requestId}] BULK PATCH: Invalid after data`, { after, changeIndex: index + 1, id });
-          return { error: 'Invalid after data', changeIndex: index + 1, id };
+        let result;
+        if (mode === 'add') {
+          if (typeof delta !== 'number') {
+            console.error(`[${requestId}] BULK PATCH: Missing numeric delta in add mode`, { id, changeIndex: index + 1 });
+            return { error: 'Missing numeric delta in add mode', changeIndex: index + 1, id };
+          }
+            const updateOps = { $inc: { availableQuantity: delta }, $set: { updatedAt: new Date() } };
+          if (after && typeof after.reorderLevel === 'number') {
+            updateOps.$set.reorderLevel = after.reorderLevel;
+          }
+          result = await Inventory.findByIdAndUpdate(id, updateOps, { new: true });
+        } else {
+          if (!after || typeof after.availableQuantity !== 'number' || typeof after.reorderLevel !== 'number') {
+            console.error(`[${requestId}] BULK PATCH: Invalid after data`, { after, changeIndex: index + 1, id });
+            return { error: 'Invalid after data', changeIndex: index + 1, id };
+          }
+          result = await Inventory.findByIdAndUpdate(
+            id,
+            {
+              $set: {
+                availableQuantity: after.availableQuantity,
+                reorderLevel: after.reorderLevel,
+                updatedAt: new Date()
+              }
+            },
+            { new: true }
+          );
         }
-        // Directly update the inventory record by its _id
-        const result = await Inventory.findByIdAndUpdate(
-          id,
-          {
-            $set: {
-              availableQuantity: after.availableQuantity,
-              reorderLevel: after.reorderLevel,
-              updatedAt: new Date()
-            }
-          },
-          { new: true }
-        );
         if (!result) {
           console.error(`[${requestId}] BULK PATCH: Inventory record not found`, { id, changeIndex: index + 1 });
           return { error: 'Inventory record not found', changeIndex: index + 1, id };

@@ -33,19 +33,18 @@ import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import DetailedChartSkeleton from '@/components/analytics/common/DetailedChartSkeleton';
 
-/* ---------- 1.  Fancy sticky navbar ---------- */
+/* ---------- 1.  Minimal sticky navbar (theme-aligned) ---------- */
 const GlassAppBar = styled(Box)(({ theme }) => ({
   position: 'fixed',
   top: 0,
   left: 0,
   right: 0,
   zIndex: 1200,
-  backdropFilter: 'blur(20px)',
-  borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
-  background: 'transparent',
-  boxShadow: `0 8px 32px ${alpha('#000', 0.2)}`,
-  padding: '12px 0',
-  transition: 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
+  backdropFilter: 'blur(18px)',
+  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+  background: 'linear-gradient(135deg, rgba(17,17,17,0.75) 0%, rgba(17,17,17,0.6) 100%)',
+  padding: '8px 0',
+  transition: 'transform 0.25s ease',
   transform: 'translateY(0)',
   '&::before': {
     content: '""',
@@ -54,62 +53,57 @@ const GlassAppBar = styled(Box)(({ theme }) => ({
     left: 0,
     right: 0,
     height: '2px',
-    background: `linear-gradient(90deg, 
-      ${alpha(theme.palette.primary.main, 0)}, 
-      ${alpha(theme.palette.primary.main, 0.5)}, 
-      ${alpha(theme.palette.primary.main, 0)})`,
+    background: `linear-gradient(90deg, transparent, ${alpha(theme.palette.primary.main, 0.25)}, transparent)`,
   },
   '&.hidden': {
     transform: 'translateY(-100%)'
   },
   '.date-range-section': {
-    background: alpha(theme.palette.background.paper, 0.07),
-    borderTop: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
-    marginTop: '15px',
-    padding: '8px 16px',
-    paddingBottom: '-13px',
+    background: 'rgba(255,255,255,0.04)',
+    borderTop: '1px solid rgba(255,255,255,0.08)',
+    marginTop: '10px',
+    padding: '6px 12px',
     borderBottomLeftRadius: '8px',
     borderBottomRightRadius: '8px',
   },
 }));
 
-// Custom pill-style tabs with animations
+// Minimal tabs matching app theme (no circus colors)
 const FancyTabs = styled(Tabs)(({ theme }) => ({
-  minHeight: 48,
-  '& .MuiTabs-scroller': {
-    padding: '0 16px'
-  },
+  minHeight: 44,
+  '& .MuiTabs-scroller': { padding: '0 12px' },
   '& .MuiTab-root': {
-    color: alpha('#fff', 0.7),
-    minHeight: 48,
-    padding: '12px 24px',
+    color: 'rgba(255,255,255,0.75)',
+    minHeight: 44,
+    padding: '8px 16px',
     fontWeight: 500,
     textTransform: 'none',
-    borderRadius: '8px',
+    borderRadius: 8,
     margin: '0 4px',
-    transition: 'all 0.2s ease',
+    transition: 'background-color 0.15s ease, color 0.15s ease',
     '&:hover:not(.Mui-selected)': {
-      backgroundColor: alpha(theme.palette.primary.main, 0.08),
-      color: '#fff'
+      backgroundColor: 'rgba(255,255,255,0.06)'
     },
     '&.Mui-selected': {
-      color: '#000',
-      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.dark, 0.95)} 100%)`,
-      boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.25)}`,
+      color: '#fff',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      border: '1px solid rgba(255,255,255,0.10)'
     }
   },
   '& .MuiTabs-indicator': {
-    display: 'none'
+    height: 2,
+    backgroundColor: alpha(theme.palette.primary.main, 0.8),
+    borderRadius: 1
   }
 }));
 
 /* ---------- 2.  Lazy + animated wrapper ---------- */
-function LazyCard({ children, height = 500, loading = false, variant = 'bars', theme = 'blue' }) {
+function LazyCard({ children, height = 500, loading = false, variant = 'bars' }) {
   const { ref, inView } = useInView({ threshold: 0.15, triggerOnce: true });
   const styles = useSpring({
     opacity: inView ? 1 : 0,
-    y: inView ? 0 : 40,
-    config: { tension: 260, friction: 24 }
+    y: inView ? 0 : 8,
+    config: { tension: 180, friction: 22 }
   });
 
   return (
@@ -120,15 +114,27 @@ function LazyCard({ children, height = 500, loading = false, variant = 'bars', t
             <DetailedChartSkeleton
               height={height}
               variant={variant}
-              theme={theme}
+              theme="brand"
             />
-          ) : children}
+          ) : (
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                border: '1px solid rgba(255,255,255,0.08)',
+                bgcolor: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
+                backdropFilter: 'blur(10px)'
+              }}
+            >
+              {children}
+            </Box>
+          )}
         </Box>
       ) : (
         <DetailedChartSkeleton
           height={height}
           variant={variant}
-          theme={theme}
+          theme="brand"
         />
       )}
     </animated.div>
@@ -150,8 +156,8 @@ function Section({ id, title, children, onVisible }) {
 
   const slideIn = useSpring({
     opacity: inView ? 1 : 0,
-    transform: inView ? 'translateY(0)' : 'translateY(40px)',
-    config: { tension: 280, friction: 60 }
+    transform: inView ? 'translateY(0)' : 'translateY(12px)',
+    config: { tension: 180, friction: 26 }
   });
 
   return (
@@ -164,13 +170,12 @@ function Section({ id, title, children, onVisible }) {
             display: 'flex',
             alignItems: 'center',
             gap: 2,
+            color: '#fff',
             '&::after': {
               content: '""',
               flex: 1,
               height: '2px',
-              background: theme => `linear-gradient(90deg, 
-                ${alpha(theme.palette.primary.main, 0.5)}, 
-                ${alpha(theme.palette.primary.main, 0)})`
+              background: (theme) => `linear-gradient(90deg, transparent, ${alpha(theme.palette.primary.main, 0.35)}, transparent)`
             }
           }}
         >
@@ -348,7 +353,7 @@ export default function AnalyticsDashboard({ admin = false }) {
       
       try {
         switch(section) {
-          case 'snapshot':
+          case 'snapshot': {
             const [src, cs] = await Promise.all([
               ranged('/api/admin/analytics/main/sales-sources'),
               ranged('/api/admin/analytics/main/cart-sources')
@@ -356,11 +361,13 @@ export default function AnalyticsDashboard({ admin = false }) {
             setSalesSources(src.salesSources);
             setCartSources(cs.cartSources);
             break;
-          case 'products':
+          }
+          case 'products': {
             const vs = await ranged('/api/admin/analytics/main/variant-sales');
             setVariantSales(vs.variantSales);
             break;
-          case 'traffic':
+          }
+          case 'traffic': {
             const [ru, rt, ab] = await Promise.all([
               ranged('/api/admin/analytics/main/returning-paying-users'),
               ranged('/api/admin/analytics/main/retargeted-customers'),
@@ -370,7 +377,8 @@ export default function AnalyticsDashboard({ admin = false }) {
             setRetargeted(rt.retargetedCustomers);
             setAbandoned(ab.abandonedCarts);
             break;
-          case 'revenue':
+          }
+          case 'revenue': {
             const [tot, mon, daily] = await Promise.all([
               fetchCached('/api/admin/analytics/main/total-revenue'),
               fetchCached('/api/admin/analytics/main/monthly-revenue'),
@@ -380,6 +388,7 @@ export default function AnalyticsDashboard({ admin = false }) {
             setMonthlyRev(mon.monthlyRevenue);
             setDailyRev(daily.dailyRevenue);
             break;
+          }
         }
         // Mark this section as fetched with current date range
         sectionLastFetched.current[section] = dateRangeKey;
@@ -468,9 +477,11 @@ export default function AnalyticsDashboard({ admin = false }) {
 
   // Clear cache when component unmounts
   useEffect(() => {
+    // Snapshot the current timers object reference; it's mutated but not replaced
+    const timersRef = fetchDebounceTimers.current;
     return () => {
       // Clear all debounce timers on unmount
-      Object.values(fetchDebounceTimers.current).forEach(timer => {
+      Object.values(timersRef).forEach(timer => {
         if (timer) clearTimeout(timer);
       });
     };
@@ -556,7 +567,7 @@ export default function AnalyticsDashboard({ admin = false }) {
   /* ------------ RENDER ------------ */
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Container maxWidth="xl" sx={{ pb: 8, pt: 30 }}>
+  <Container maxWidth="xl" sx={{ pb: 8, pt: 26 }}>
         {/* Top bar */}
         <GlassAppBar className={!isNavbarVisible ? 'hidden' : ''}>
           <FancyTabs
@@ -566,30 +577,7 @@ export default function AnalyticsDashboard({ admin = false }) {
             allowScrollButtonsMobile
           >
             {tabs.map(t => (
-              <Tab 
-                key={t.key} 
-                label={t.label}
-                sx={{
-                  position: 'relative',
-                  '&::after': sectionLoading[t.key] ? {
-                    content: '""',
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 2,
-                    background: theme => `linear-gradient(90deg, 
-                      ${alpha(theme.palette.primary.main, 0)} 0%,
-                      ${alpha(theme.palette.primary.main, 0.5)} 50%,
-                      ${alpha(theme.palette.primary.main, 0)} 100%)`,
-                    animation: 'loading 1.5s infinite',
-                    '@keyframes loading': {
-                      '0%': { transform: 'translateX(-100%)' },
-                      '100%': { transform: 'translateX(100%)' }
-                    }
-                  } : {}
-                }}
-              />
+              <Tab key={t.key} label={t.label} />
             ))}
           </FancyTabs>
           {/* Range chips */}
@@ -611,24 +599,23 @@ export default function AnalyticsDashboard({ admin = false }) {
           <Box
             sx={{
               position: 'fixed',
-              bottom: 20,
-              right: 20,
+              bottom: 16,
+              right: 16,
               zIndex: 2000,
               display: 'flex',
               alignItems: 'center',
-              backgroundColor: alpha('#111827', 0.9),
-              backdropFilter: 'blur(8px)',
-              padding: '8px 16px',
-              borderRadius: 20,
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-              border: '1px solid rgba(96, 165, 250, 0.2)',
-              transition: 'all 0.2s ease',
-              gap: 1.5
+              backgroundColor: 'rgba(17,17,17,0.85)',
+              backdropFilter: 'blur(6px)',
+              px: 1.25,
+              py: 0.75,
+              borderRadius: 16,
+              border: '1px solid rgba(255,255,255,0.08)',
+              gap: 1
             }}
           >
-            <CircularProgress size={20} thickness={4} sx={{ color: '#60A5FA' }} />
-            <Typography variant="body2" sx={{ color: '#FFF', fontWeight: 500 }}>
-              Updating data...
+            <CircularProgress size={16} thickness={4} sx={{ color: '#60A5FA' }} />
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)' }}>
+              Updating...
             </Typography>
           </Box>
         )}
@@ -643,12 +630,12 @@ export default function AnalyticsDashboard({ admin = false }) {
         >
           <Grid container spacing={4}>
             <Grid item xs={12} md={6}>
-              <LazyCard loading={sectionLoading.snapshot} variant="pie" theme="blue">
+              <LazyCard loading={sectionLoading.snapshot} variant="pie">
                 <SalesSourcesChart data={salesSources} />
               </LazyCard>
             </Grid>
             <Grid item xs={12} md={6}>
-              <LazyCard loading={sectionLoading.snapshot} variant="pie" theme="green">
+              <LazyCard loading={sectionLoading.snapshot} variant="pie">
                 <CartSourcesChart data={cartSources} />
               </LazyCard>
             </Grid>
@@ -661,7 +648,7 @@ export default function AnalyticsDashboard({ admin = false }) {
           title="Product Insights" 
           onVisible={() => handleSectionVisible('products')}
         >
-          <LazyCard height={550} loading={sectionLoading.products} variant="bars" theme="purple">
+          <LazyCard height={550} loading={sectionLoading.products} variant="bars">
             <VariantSalesChart data={variantSales} />
           </LazyCard>
         </Section>
@@ -674,7 +661,7 @@ export default function AnalyticsDashboard({ admin = false }) {
         >
           <Grid container spacing={4}>
             <Grid item xs={12} md={6}>
-              <LazyCard loading={sectionLoading.traffic} variant="line" theme="blue">
+              <LazyCard loading={sectionLoading.traffic} variant="line">
                 <ReturningPayingUsersChart
                   data={returnUsers}
                   startDate={dateRange.start}
@@ -683,12 +670,12 @@ export default function AnalyticsDashboard({ admin = false }) {
               </LazyCard>
             </Grid>
             <Grid item xs={12} md={6}>
-              <LazyCard loading={sectionLoading.traffic} variant="line" theme="green">
+              <LazyCard loading={sectionLoading.traffic} variant="line">
                 <RetargetedCustomersChart data={retargeted} />
               </LazyCard>
             </Grid>
             <Grid item xs={12}>
-              <LazyCard height={500} loading={sectionLoading.traffic} variant="area" theme="amber">
+              <LazyCard height={500} loading={sectionLoading.traffic} variant="area">
                 <AbandonedCartsChart data={abandoned} />
               </LazyCard>
             </Grid>
@@ -704,17 +691,17 @@ export default function AnalyticsDashboard({ admin = false }) {
           >
             <Grid container spacing={4}>
               <Grid item xs={12} md={6}>
-                <LazyCard loading={sectionLoading.revenue} variant="bars" theme="blue">
+                <LazyCard loading={sectionLoading.revenue} variant="bars">
                   <DailyRevenueChart data={dailyRev} />
                 </LazyCard>
               </Grid>
               <Grid item xs={12} md={6}>
-                <LazyCard loading={sectionLoading.revenue} variant="area" theme="green">
+                <LazyCard loading={sectionLoading.revenue} variant="area">
                   <TotalRevenueChart data={totalRev} />
                 </LazyCard>
               </Grid>
               <Grid item xs={12}>
-                <LazyCard loading={sectionLoading.revenue} variant="combo" theme="purple">
+                <LazyCard loading={sectionLoading.revenue} variant="combo">
                   <MonthlyRevenueChart data={monthlyRev} />
                 </LazyCard>
               </Grid>

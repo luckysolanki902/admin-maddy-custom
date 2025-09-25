@@ -150,7 +150,7 @@ const DownloadProductionTemplates = () => {
 
       // Function to fetch each image and add to zip
       const fetchAndAddToZip = async image => {
-        const { sku, specificCategoryVariant, presignedUrl, imageUrl, count, wrapFinish } = image;
+        const { sku, specificCategoryVariant, presignedUrl, imageUrl, count, wrapFinish, templateName } = image;
 
         if (!presignedUrl) {
           console.error(`No presigned URL for SKU ${sku}.`);
@@ -174,6 +174,22 @@ const DownloadProductionTemplates = () => {
           const fileExtensionMatch = imageUrl.match(/\.(jpg|jpeg|png|gif|bmp|svg)$/i);
           const fileExtension = fileExtensionMatch ? fileExtensionMatch[0] : ".jpg";
 
+          // Determine template suffix based on template name
+          let templateSuffix = "";
+          if (templateName && templateName !== "template") {
+            // Handle mirror templates (e.g., "mirror-template" becomes "-m")
+            if (templateName.includes("mirror")) {
+              templateSuffix = "-m";
+            } else if (templateName.includes("front")) {
+              templateSuffix = "-f";
+            } else if (templateName.includes("back")) {
+              templateSuffix = "-b";
+            } else {
+              // Use first letter of template name
+              templateSuffix = `-${templateName.charAt(0).toLowerCase()}`;
+            }
+          }
+
           if (wrapFinish && typeof wrapFinish === "object") {
             for (const [finish, qty] of Object.entries(wrapFinish)) {
               if (finish === "None") continue;
@@ -187,8 +203,15 @@ const DownloadProductionTemplates = () => {
               const folderPath = `${sanitizedCategoryVariant}/${sanitizedFinish}`;
               
               for (let i = 1; i <= qty; i++) {
-                // Use first letter of finish in filename (e.g., -m for matte, -g for glossy)
-                const imagePath = `${folderPath}/${sanitizedSKU}-${finishLetter}-${i}${fileExtension}`;
+                // Use naming convention: sku-templateSuffix-finishLetter-count (e.g., bsw9-m-g-1a)
+                let fileName;
+                if (templateSuffix) {
+                  fileName = `${sanitizedSKU}${templateSuffix}-${finishLetter}-${i}${String.fromCharCode(96 + i)}${fileExtension}`;
+                } else {
+                  fileName = `${sanitizedSKU}-${finishLetter}-${i}${String.fromCharCode(96 + i)}${fileExtension}`;
+                }
+                
+                const imagePath = `${folderPath}/${fileName}`;
                 zip.file(imagePath, arrayBuffer, { binary: true });
               }
             }
@@ -198,7 +221,14 @@ const DownloadProductionTemplates = () => {
               const folderPath = `${sanitizedCategoryVariant}/regular`;
               
               for (let i = 1; i <= wrapFinish["None"]; i++) {
-                const imagePath = `${folderPath}/${sanitizedSKU}-${i}${fileExtension}`;
+                let fileName;
+                if (templateSuffix) {
+                  fileName = `${sanitizedSKU}${templateSuffix}-${i}${String.fromCharCode(96 + i)}${fileExtension}`;
+                } else {
+                  fileName = `${sanitizedSKU}-${i}${String.fromCharCode(96 + i)}${fileExtension}`;
+                }
+                
+                const imagePath = `${folderPath}/${fileName}`;
                 zip.file(imagePath, arrayBuffer, { binary: true });
               }
             }
@@ -451,7 +481,7 @@ const DownloadProductionTemplates = () => {
       <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6" gutterBottom>
-            Sticker Orders with Design Templates
+            Wrap Orders with Design Templates
           </Typography>
           <Typography variant="subtitle1">
             Total Items having template: {imagesData.reduce((acc, item) => acc + item.count, 0)}
@@ -475,6 +505,9 @@ const DownloadProductionTemplates = () => {
                   <strong>Specific Category Variant</strong>
                 </TableCell>
                 <TableCell align="left">
+                  <strong>Template Name</strong>
+                </TableCell>
+                <TableCell align="left">
                   <strong>Wrap Finish</strong>
                 </TableCell>
                 <TableCell align="center">
@@ -484,11 +517,27 @@ const DownloadProductionTemplates = () => {
             </TableHead>
             <TableBody>
               {imagesData.length > 0 ? (
-                imagesData.map(item => (
-                  <TableRow key={item.sku}>
+                imagesData.map((item, index) => (
+                  <TableRow key={`${item.sku}-${item.templateName || 'template'}-${index}`}>
                     <TableCell>{item.sku}</TableCell>
                     <TableCell align="right">{item.count}</TableCell>
                     <TableCell align="left">{item.specificCategoryVariant}</TableCell>
+                    <TableCell align="left">
+                      {item.templateName && item.templateName !== 'template' ? (
+                        <span style={{ 
+                          padding: '2px 8px', 
+                          backgroundColor: item.templateName.includes('mirror') ? '#e3f2fd' : '#f3e5f5',
+                          color: item.templateName.includes('mirror') ? '#1976d2' : '#7b1fa2',
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold'
+                        }}>
+                          {item.templateName}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#666', fontStyle: 'italic' }}>Default</span>
+                      )}
+                    </TableCell>
                     <TableCell align="left">
                       {Object.keys(item.wrapFinish).length === 1 && item.wrapFinish["None"]
                         ? "N/A"
@@ -522,7 +571,7 @@ const DownloadProductionTemplates = () => {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">
+                  <TableCell colSpan={6} align="center">
                     No data available.
                   </TableCell>
                 </TableRow>

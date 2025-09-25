@@ -4,8 +4,13 @@ import React from 'react';
 import CategorySelector from '@/components/layout/CategorySelector';
 
 const CategorySelectorWrapper = ({ selection, onSelectionChange, loadingProducts }) => {
-  // Always display the CategorySelector (which is now a breadcrumb) for persistent navigation
-  return <CategorySelector onSelectionChange={onSelectionChange} />;
+  // Breadcrumb-style selector matching dark theme; auto-selects single variant.
+  return (
+    <CategorySelector
+      onSelectionChange={onSelectionChange}
+      disabled={!!loadingProducts}
+    />
+  );
 };
 
 export default CategorySelectorWrapper;

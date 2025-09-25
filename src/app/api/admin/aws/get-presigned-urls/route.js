@@ -87,7 +87,12 @@ async function handleGetPresignedUrls(request) {
       { $unwind: "$product" },
       {
         $match: {
-          "product.designTemplate.imageUrl": { $exists: true, $ne: "", $type: "string" },
+          $or: [
+            // Check for legacy designTemplate field
+            { "product.designTemplate.imageUrl": { $exists: true, $ne: "", $type: "string" } },
+            // Check for new designTemplates array field
+            { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } }
+          ],
         },
       },
       {
@@ -99,12 +104,33 @@ async function handleGetPresignedUrls(request) {
         },
       },
       { $unwind: "$specificCategoryVariant" },
+      // Add field to get all template images (both legacy and new)
+      {
+        $addFields: {
+          templateImages: {
+            $cond: {
+              if: { $and: [{ $exists: ["$product.designTemplates"] }, { $ne: ["$product.designTemplates", []] }] },
+              then: "$product.designTemplates",
+              else: {
+                $cond: {
+                  if: { $ne: ["$product.designTemplate.imageUrl", ""] },
+                  then: [{ imageUrl: "$product.designTemplate.imageUrl", name: "template" }],
+                  else: []
+                }
+              }
+            }
+          }
+        }
+      },
+      // Unwind the template images to create separate entries for each template
+      { $unwind: "$templateImages" },
       {
         $group: {
           _id: {
             sku: "$product.sku",
             specificCategoryVariant: "$specificCategoryVariant.name",
-            imageUrl: "$product.designTemplate.imageUrl",
+            imageUrl: "$templateImages.imageUrl",
+            templateName: "$templateImages.name",
             wrapFinish: {
               $cond: {
                 if: { $and: [{ $ne: ["$items.wrapFinish", null] }, { $ne: ["$items.wrapFinish", ""] }] },
@@ -122,6 +148,7 @@ async function handleGetPresignedUrls(request) {
             sku: "$_id.sku",
             specificCategoryVariant: "$_id.specificCategoryVariant",
             imageUrl: "$_id.imageUrl",
+            templateName: "$_id.templateName",
           },
           wrapFinish: {
             $push: {
@@ -143,13 +170,14 @@ async function handleGetPresignedUrls(request) {
 
     const imagesWithPresignedUrls = await Promise.all(
       imagesData.map(async item => {
-        const { sku, specificCategoryVariant, imageUrl } = item._id;
+        const { sku, specificCategoryVariant, imageUrl, templateName } = item._id;
         if (!imageUrl) {
           console.warn(`⚠️ No imageUrl for SKU: ${sku}`);
           return {
             sku,
             specificCategoryVariant,
             imageUrl: null,
+            templateName: templateName || 'template',
             presignedUrl: null,
             count: item.count,
             wrapFinish: item.wrapFinish,
@@ -162,6 +190,7 @@ async function handleGetPresignedUrls(request) {
             sku,
             specificCategoryVariant,
             imageUrl,
+            templateName: templateName || 'template',
             presignedUrl,
             count: item.count,
             wrapFinish: item.wrapFinish,
@@ -172,6 +201,7 @@ async function handleGetPresignedUrls(request) {
             sku,
             specificCategoryVariant,
             imageUrl,
+            templateName: templateName || 'template',
             presignedUrl: null,
             count: item.count,
             wrapFinish: item.wrapFinish,

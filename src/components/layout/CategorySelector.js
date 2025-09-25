@@ -1,7 +1,7 @@
 // /src/components/layout/CategorySelector.jsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import {
   Box,
@@ -52,6 +52,8 @@ const CategorySelector = ({
   // For popover menu state
   const [categoryAnchorEl, setCategoryAnchorEl] = useState(null);
   const [variantAnchorEl, setVariantAnchorEl] = useState(null);
+  // Track last fetched category to avoid re-fetch loops on auto-select
+  const lastFetchedCategoryRef = useRef(null);
   
   // Fetch Categories on Mount
   useEffect(() => {
@@ -91,11 +93,14 @@ const CategorySelector = ({
 
   useEffect(() => {
     if (!selectedCategory) return;
-    
+
+    // Prevent re-fetch if we already fetched for this category and have variants
+    if (lastFetchedCategoryRef.current === selectedCategory && variants.length) {
+      return;
+    }
+
     const fetchVariants = async () => {
       setLoadingVariants(true);
-      setVariants([]); // Clear variants while loading
-      
       try {
         const res = await fetch(
           `/api/admin/get-main/products-related/specific-category-variants/${selectedCategory}`
@@ -103,10 +108,17 @@ const CategorySelector = ({
         const data = await res.json();
         
         if (res.ok) {
-          // Make sure we set the variants array even if it's empty
           const variantsData = Array.isArray(data) ? data : [];
           setVariants(variantsData);
           setErrorVariants('');
+          lastFetchedCategoryRef.current = selectedCategory;
+          // Auto-select if exactly one variant is available and not already selected
+          if (variantsData.length === 1 && (!selectedVariant || selectedVariant !== variantsData[0]._id)) {
+            const only = variantsData[0];
+            setSelectedVariantData(only);
+            updateSelection({ category: selectedCategory, variant: only._id });
+            onSelectionChange({ category: selectedCategory, variant: only._id });
+          }
         } else {
           setErrorVariants(data.error || 'Failed to fetch variants');
           setVariants([]);
@@ -115,11 +127,13 @@ const CategorySelector = ({
         setErrorVariants(error.message || 'Failed to fetch variants');
         setVariants([]);
       } finally {
-        setLoadingVariants(false); // Always reset loading state when finished
+        setLoadingVariants(false);
       }
-    }
+    };
 
     fetchVariants();
+  // We intentionally depend only on selectedCategory to avoid re-fetch loops when variant auto-select updates state
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory]);
 
   useEffect(() => {
@@ -204,18 +218,17 @@ const CategorySelector = ({
   return (    <Box 
       sx={{ 
         mt: 2,
-        mb: 4, 
+        mb: 3, 
         position: 'relative',
-        padding: 2,
-        background: 'linear-gradient(145deg, rgba(18,18,30,1) 0%, rgba(30,30,45,1) 100%)',
-        borderRadius: 2,
-        boxShadow: '0 4px 15px rgba(0,0,0,0.35)',
-        borderLeft: '4px solid #2196f3',
+        padding: { xs: 1.5, sm: 2 },
+        background: 'linear-gradient(145deg, #0f1117 0%, #151a25 100%)',
+        borderRadius: 3,
+        boxShadow: '0 10px 28px rgba(0,0,0,0.35)',
+        border: '1px solid rgba(255,255,255,0.06)',
         transition: 'all 0.3s ease',
         '&:hover': {
-          boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
-          transform: 'translateY(-1px)',
-          borderLeft: '4px solid #64b5f6',
+          boxShadow: '0 14px 34px rgba(0,0,0,0.45)',
+          transform: 'translateY(-1px)'
         },
         color: 'white'
       }}
@@ -233,36 +246,37 @@ const CategorySelector = ({
           '& .MuiBreadcrumbs-ol': {
             alignItems: 'center'
           },
-          color: 'white'
+          color: 'white',
+          flexWrap: 'wrap',
+          rowGap: 1
         }}
       >
         {/* Category Selection Chip */}        <Chip
-          color={selectedCategory ? "primary" : "default"}
           label={selectedCategoryData ? selectedCategoryData.name : categoryLabel}
           onClick={handleCategoryClick}
           disabled={disabled || loadingCategories}
           icon={loadingCategories ? <CircularProgress size={16} color="inherit" /> : undefined}
           sx={{ 
             height: 'auto', 
-            padding: '10px 6px',
-            borderRadius: '8px',
+            padding: '10px 10px',
+            borderRadius: '10px',
             transition: 'all 0.2s ease',
-            backgroundColor: selectedCategory ? '#1976d2' : 'rgba(255,255,255,0.15)',
+            backgroundColor: selectedCategory ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.06)',
             color: 'white',
-            boxShadow: selectedCategory ? '0 2px 10px rgba(33, 150, 243, 0.6)' : 'none',
+            boxShadow: 'none',
             '&:hover': {
               transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(33, 150, 243, 0.5)',
-              backgroundColor: selectedCategory ? '#1976d2' : 'rgba(255,255,255,0.25)',
+              backgroundColor: selectedCategory ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.12)',
             },
             '& .MuiChip-label': {
               fontSize: '1rem',
               fontWeight: 600,
-              padding: '4px 8px',
+              padding: '4px 10px',
               textShadow: '0 1px 2px rgba(0,0,0,0.2)'
             }
           }}
-        />        {/* Variant Selection Chip - Only show when category is selected */}        {selectedCategory && (          <Chip            color={selectedVariant ? "primary" : "default"}
+    />        {/* Variant Selection Chip - Only show when category is selected */}        {selectedCategory && (          <Chip
+      color={"default"}
             label={
               // Prevent showing loading state if we already have a selected variant
               (loadingVariants)
@@ -275,29 +289,29 @@ const CategorySelector = ({
             disabled={disabled || (loadingVariants) || (variants.length === 0 && !selectedVariantData)}
             icon={(loadingVariants) ? <CircularProgress size={16} color="inherit" /> : undefined}sx={{ 
               height: 'auto', 
-              padding: '10px 6px',
-              borderRadius: '8px',
+              padding: '10px 10px',
+              borderRadius: '10px',
               transition: 'all 0.2s ease',
               backgroundColor: loadingVariants 
-                ? 'rgba(255,255,255,0.1)' 
+                ? 'rgba(255,255,255,0.08)' 
                 : (variants.length === 0 
                    ? 'rgba(255,255,255,0.05)' 
-                   : (selectedVariant ? '#1976d2' : 'rgba(255,255,255,0.15)')),
+                   : (selectedVariant ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.06)')),
               color: (loadingVariants || variants.length === 0) ? 'rgba(255,255,255,0.5)' : 'white',
               opacity: (disabled || loadingVariants || variants.length === 0) ? 0.7 : 1,
-              boxShadow: selectedVariant ? '0 2px 10px rgba(33, 150, 243, 0.6)' : 'none',
+              boxShadow: 'none',
               '&:hover': {
                 transform: !(disabled || loadingVariants || variants.length === 0) ? 'translateY(-2px)' : 'none',
-                boxShadow: !(disabled || loadingVariants || variants.length === 0) ? '0 4px 12px rgba(33, 150, 243, 0.5)' : 'none',
+                boxShadow: 'none',
                 backgroundColor: variants.length === 0 
                   ? 'rgba(255,255,255,0.05)'
-                  : (selectedVariant ? '#1976d2' : 'rgba(255,255,255,0.25)'),
+                  : (selectedVariant ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.12)'),
                 cursor: (disabled || loadingVariants || variants.length === 0) ? 'default' : 'pointer'
               },
               '& .MuiChip-label': {
                 fontSize: '1rem',
                 fontWeight: 600,
-                padding: '4px 8px',
+                padding: '4px 10px',
                 textShadow: '0 1px 2px rgba(0,0,0,0.2)'
               } 
             }}
@@ -315,13 +329,12 @@ const CategorySelector = ({
               height: '28px',
               fontSize: '0.75rem',
               fontWeight: 600,
-              bgcolor: 'rgba(211, 47, 47, 0.25)',
-              color: '#ff6c6c',
-              boxShadow: '0 2px 8px rgba(211, 47, 47, 0.2)',
+              bgcolor: 'rgba(255,255,255,0.08)',
+              color: '#ccc',
+              boxShadow: 'none',
               '&:hover': {
-                bgcolor: 'rgba(211, 47, 47, 0.35)',
-                transform: 'scale(1.05)',
-                boxShadow: '0 2px 10px rgba(211, 47, 47, 0.3)',
+                bgcolor: 'rgba(255,255,255,0.12)',
+                transform: 'scale(1.03)'
               },
               transition: 'all 0.2s ease'
             }}
@@ -351,9 +364,9 @@ const CategorySelector = ({
           sx: {
             borderRadius: 2,
             mt: 0.5,
-            backgroundColor: '#1c1c2e',
+            backgroundColor: '#1b1d22',
             color: 'white',
-            border: '1px solid rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.08)',
             boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
             animation: 'fadeIn 0.25s ease-in-out',
             '@keyframes fadeIn': {
@@ -369,14 +382,14 @@ const CategorySelector = ({
           }
         }}
       >
-        <Paper sx={{ maxHeight: 350, width: 280, overflow: 'auto', backgroundColor: '#1c1c2e' }}>          <Typography 
+        <Paper sx={{ maxHeight: 350, width: 280, overflow: 'auto', backgroundColor: '#1b1d22' }}>          <Typography 
             variant="subtitle1" 
             sx={{ 
               px: 2, 
               py: 1.5, 
-              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
               fontWeight: 600,
-              bgcolor: '#0d47a1', /* Darker blue header */
+              bgcolor: '#23262e',
               color: 'white' 
             }}
           >
@@ -391,14 +404,14 @@ const CategorySelector = ({
                     py: 1.2,
                     color: 'white',
                     '&.Mui-selected': {
-                      backgroundColor: 'rgba(33, 150, 243, 0.3)',
+                      backgroundColor: 'rgba(255,255,255,0.12)',
                       fontWeight: 600,
                       '&:hover': {
-                        backgroundColor: 'rgba(33, 150, 243, 0.4)',
+                        backgroundColor: 'rgba(255,255,255,0.16)',
                       }
                     },
                     '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
                     }
                   }}
                 >
@@ -438,8 +451,8 @@ const CategorySelector = ({
           sx: {
             borderRadius: 2,
             mt: 0.5,
-            backgroundColor: '#1c1c2e',
-            border: '1px solid rgba(255,255,255,0.1)',
+            backgroundColor: '#1b1d22',
+            border: '1px solid rgba(255,255,255,0.08)',
             boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
             animation: 'fadeIn 0.25s ease-in-out',
             '@keyframes fadeIn': {
@@ -455,14 +468,14 @@ const CategorySelector = ({
           }
         }}
       >
-        <Paper sx={{ maxHeight: 350, width: 280, overflow: 'auto', backgroundColor: '#1c1c2e' }}>          <Typography 
+        <Paper sx={{ maxHeight: 350, width: 280, overflow: 'auto', backgroundColor: '#1b1d22' }}>          <Typography 
             variant="subtitle1" 
             sx={{ 
               px: 2, 
               py: 1.5, 
-              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
               fontWeight: 600,
-              bgcolor: '#0d47a1', /* Darker blue header */
+              bgcolor: '#23262e',
               color: 'white' 
             }}
           >
@@ -478,14 +491,14 @@ const CategorySelector = ({
                       py: 1.2,
                       color: 'white',
                       '&.Mui-selected': {
-                        backgroundColor: 'rgba(33, 150, 243, 0.3)',
+                        backgroundColor: 'rgba(255,255,255,0.12)',
                         fontWeight: 600,
                         '&:hover': {
-                          backgroundColor: 'rgba(33, 150, 243, 0.4)',
+                          backgroundColor: 'rgba(255,255,255,0.16)',
                         }
                       },
                       '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.06)',
                       }
                     }}
                   >

@@ -53,6 +53,7 @@ import {
   Image as ImageIcon,
 } from '@mui/icons-material';
 import { toast } from 'react-hot-toast';
+import SearchKeywords from '@/components/common/SearchKeywords';
 
 // Generate design group ID in format: DESXXXXXYY
 const generateDesignGroupId = () => {
@@ -494,7 +495,7 @@ export default function DesignGroupsPage() {
       
       const timestamp = Date.now(); // For cache busting
       
-      const response = await fetch('/api/admin/products/suggest-keywords', {
+  const response = await fetch('/api/admin/products/suggest-keywords', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -942,9 +943,9 @@ export default function DesignGroupsPage() {
                   </Box>
 
                   <Box sx={{ display: 'flex', gap: 1 }}>
-                    {selectedProducts.map((_, index) => (
+                    {selectedProducts.map((sp, index) => (
                       <Box
-                        key={index}
+                        key={`${sp.productId || sp._id || 'p'}-${sp.variantId || index}-${index}`}
                         sx={{
                           width: 12,
                           height: 12,
@@ -1067,7 +1068,7 @@ export default function DesignGroupsPage() {
 
               {selectedRows.map((row, index) => (
                 <CategoryRow
-                  key={index}
+                  key={`${row.specCatId || 'spec'}-${row.variantId || 'var'}-${index}`}
                   row={row}
                   index={index}
                   specificCategories={specificCategories}
@@ -1248,11 +1249,6 @@ export default function DesignGroupsPage() {
                           },
                         }}
                         onClick={() => {
-                          console.log('[Frontend] Group clicked, setting selectedGroup with searchKeywords:', { 
-                            name: group.name, 
-                            searchKeywords: group.searchKeywords,
-                            fullGroup: group 
-                          });
                           setSelectedGroup(group);
                           setEditingGroupName(group.name || '');
                           setEditingGroupSearchKeywords(group.searchKeywords || []);
@@ -1263,7 +1259,7 @@ export default function DesignGroupsPage() {
                       >
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                           <Chip
-                            label={group.designGroupId}
+                            label={group.name}
                             size="small"
                             sx={{
                               bgcolor: generateGroupColor(group.designGroupId).background,
@@ -1345,7 +1341,7 @@ export default function DesignGroupsPage() {
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {[...new Set(group.products.map(p => p.categoryName))].slice(0, 3).map((category, index) => (
                             <Chip
-                              key={category}
+                              key={`${group.designGroupId}-${category}-${index}`}
                               label={category}
                               size="small"
                               sx={{
@@ -1496,126 +1492,23 @@ export default function DesignGroupsPage() {
                   />
 
                   {/* Enhanced Search Keywords Section */}
-                  <Box sx={{ 
-                    p: 3, 
-                    border: '1px solid rgba(34, 197, 94, 0.2)', 
-                    borderRadius: 2, 
-                    bgcolor: 'rgba(34, 197, 94, 0.05)' 
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                      <SearchIcon sx={{ color: '#22c55e', fontSize: 20 }} />
-                      <Typography variant="body1" sx={{ color: '#22c55e', fontWeight: 600 }}>
-                        Search Keywords (max 20)
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, minHeight: 32 }}>
-                      {editingGroupSearchKeywords.length === 0 ? (
-                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic' }}>
-                          No keywords added yet
-                        </Typography>
-                      ) : (
-                        editingGroupSearchKeywords.map((keyword, index) => (
-                          <Chip
-                            key={index}
-                            label={keyword}
-                            onDelete={isUpdatingGroupInfo ? undefined : () => {
-                              setEditingGroupSearchKeywords(prev => prev.filter((_, i) => i !== index));
-                            }}
-                            size="small"
-                            sx={{
-                              bgcolor: 'rgba(34, 197, 94, 0.3)',
-                              color: '#ffffff',
-                              border: '1px solid rgba(34, 197, 94, 0.5)',
-                              '& .MuiChip-deleteIcon': { 
-                                color: '#ffffff',
-                                opacity: isUpdatingGroupInfo ? 0.3 : 1,
-                                '&:hover': { color: '#ef4444' }
-                              },
-                              opacity: isUpdatingGroupInfo ? 0.7 : 1,
-                              transition: 'all 0.2s ease'
-                            }}
-                          />
-                        ))
-                      )}
-                    </Box>
-
-                    {editingGroupSearchKeywords.length < 20 && (
-                      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                        <TextField
-                          label="Add search keyword"
-                          placeholder="e.g., vinyl wrap, car decal"
-                          value={newSearchKeyword}
-                          onChange={(e) => setNewSearchKeyword(e.target.value)}
-                          variant="outlined"
-                          size="small"
-                          disabled={isUpdatingGroupInfo}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter' && newSearchKeyword.trim() && !editingGroupSearchKeywords.includes(newSearchKeyword.trim().toLowerCase()) && !isUpdatingGroupInfo) {
-                              setEditingGroupSearchKeywords(prev => [...prev, newSearchKeyword.trim().toLowerCase()]);
-                              setNewSearchKeyword('');
-                            }
-                          }}
-                          sx={{
-                            flexGrow: 1,
-                            '& .MuiOutlinedInput-root': {
-                              color: '#ffffff',
-                              bgcolor: 'rgba(255, 255, 255, 0.05)',
-                              '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
-                              '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.5)' },
-                              '&.Mui-focused fieldset': { borderColor: '#22c55e' },
-                              '&.Mui-disabled': {
-                                color: 'rgba(255, 255, 255, 0.5)',
-                                '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.2)' }
-                              }
-                            },
-                            '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
-                            '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255, 255, 255, 0.4)' }
-                          }}
-                        />
-                        <Button
-                          variant="outlined"
-                          onClick={() => {
-                            if (newSearchKeyword.trim() && !editingGroupSearchKeywords.includes(newSearchKeyword.trim().toLowerCase()) && !isUpdatingGroupInfo) {
-                              setEditingGroupSearchKeywords(prev => [...prev, newSearchKeyword.trim().toLowerCase()]);
-                              setNewSearchKeyword('');
-                            }
-                          }}
-                          disabled={!newSearchKeyword.trim() || editingGroupSearchKeywords.includes(newSearchKeyword.trim().toLowerCase()) || isUpdatingGroupInfo}
-                          sx={{ 
-                            borderColor: '#22c55e',
-                            color: '#22c55e',
-                            '&:hover': { borderColor: '#16a34a', bgcolor: 'rgba(34, 197, 94, 0.1)' },
-                            '&:disabled': { borderColor: 'rgba(34, 197, 94, 0.3)', color: 'rgba(34, 197, 94, 0.3)' }
-                          }}
-                        >
-                          Add
-                        </Button>
-                        <Button
-                          variant="contained"
-                          onClick={generateEditAISuggestions}
-                          disabled={loadingEditSuggestions || isUpdatingGroupInfo}
-                          startIcon={
-                            loadingEditSuggestions ? (
-                              <CircularProgress size={16} color="inherit" />
-                            ) : (
-                              <AutoAwesomeIcon />
-                            )
-                          }
-                          sx={{ 
-                            background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                            '&:hover': {
-                              background: 'linear-gradient(45deg, #FF5252, #26C6DA)',
-                            },
-                            '&:disabled': {
-                              background: 'rgba(255, 255, 255, 0.1)',
-                              color: 'rgba(255, 255, 255, 0.3)'
-                            }
-                          }}
-                        >
-                          {loadingEditSuggestions ? 'Getting...' : 'AI Suggest'}
-                        </Button>
-                      </Box>
-                    )}
+                  <Box sx={{ p: 2.5, border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: 2, bgcolor: 'rgba(34, 197, 94, 0.05)' }}>
+                    <SearchKeywords
+                      keywords={editingGroupSearchKeywords}
+                      onKeywordsChange={(kws) => setEditingGroupSearchKeywords(kws)}
+                      productData={{
+                        title: editingGroupName || selectedGroup?.name || '',
+                        mainTags: [],
+                        images: selectedGroup?.products?.[0]?.images?.length
+                          ? [
+                              selectedGroup.products[0].images[0].startsWith('/')
+                                ? `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}${selectedGroup.products[0].images[0]}`
+                                : selectedGroup.products[0].images[0]
+                            ]
+                          : []
+                      }}
+                      disabled={isUpdatingGroupInfo}
+                    />
 
                     {/* Image-based AI Suggestions for editing */}
                     {editAiSuggestions.length > 0 && (
@@ -1626,7 +1519,7 @@ export default function DesignGroupsPage() {
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                           {editAiSuggestions.map((suggestion, index) => (
                             <Chip
-                              key={index}
+                              key={`edit-ai-${suggestion}-${index}`}
                               label={suggestion}
                               onClick={() => addEditAISuggestion(suggestion)}
                               disabled={editingGroupSearchKeywords.includes(suggestion) || isUpdatingGroupInfo}
@@ -1661,7 +1554,7 @@ export default function DesignGroupsPage() {
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                           {aiSuggestions.map((suggestion, index) => (
                             <Chip
-                              key={index}
+                              key={`edit-fallback-ai-${suggestion}-${index}`}
                               label={suggestion}
                               onClick={() => addAISuggestionToEdit(suggestion)}
                               disabled={editingGroupSearchKeywords.includes(suggestion) || isUpdatingGroupInfo}
@@ -1822,7 +1715,7 @@ export default function DesignGroupsPage() {
                       ) : (
                         selectedGroup.searchKeywords.map((keyword, index) => (
                           <Chip
-                            key={index}
+                            key={`selected-kw-${keyword}-${index}`}
                             label={keyword}
                             size="small"
                             sx={{
@@ -2575,9 +2468,9 @@ export default function DesignGroupsPage() {
           </Box>
         </DialogTitle>
 
-        <DialogContent sx={{ p: 3 }}>
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 2 }}>
+        <DialogContent sx={{ p: 3, mt: 2 }}>
+          <Box sx={{ mb: 3, mt: 2 }}>
+            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 2, }}>
               Creating group for {selectedProducts.length} selected products
             </Typography>
             
@@ -2600,128 +2493,37 @@ export default function DesignGroupsPage() {
             />
           </Box>
 
-          {/* Search Keywords Section */}
+          {/* Search Keywords - reuse shared component with AI */}
           <Box sx={{ mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <SearchIcon sx={{ color: '#22c55e', fontSize: 20 }} />
-              <Typography variant="body1" sx={{ color: '#22c55e', fontWeight: 600 }}>
-                Search Keywords (max 20)
-              </Typography>
-            </Box>
-            
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, minHeight: 32 }}>
-              {newGroupSearchKeywords.length === 0 ? (
-                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic' }}>
-                  No keywords added yet
-                </Typography>
-              ) : (
-                newGroupSearchKeywords.map((keyword, index) => (
-                  <Chip
-                    key={index}
-                    label={keyword}
-                    onDelete={() => {
-                      setNewGroupSearchKeywords(prev => prev.filter((_, i) => i !== index));
-                    }}
-                    size="small"
-                    sx={{
-                      bgcolor: 'rgba(34, 197, 94, 0.3)',
-                      color: '#ffffff',
-                      border: '1px solid rgba(34, 197, 94, 0.5)',
-                      '& .MuiChip-deleteIcon': { 
-                        color: '#ffffff',
-                        '&:hover': { color: '#ef4444' }
-                      },
-                    }}
-                  />
-                ))
-              )}
-            </Box>
-
-            {newGroupSearchKeywords.length < 20 && (
-              <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                <TextField
-                  label="Add search keyword"
-                  placeholder="e.g., vinyl wrap, car decal"
-                  value={newGroupSearchKeyword}
-                  onChange={(e) => setNewGroupSearchKeyword(e.target.value)}
-                  variant="outlined"
-                  size="small"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && newGroupSearchKeyword.trim() && !newGroupSearchKeywords.includes(newGroupSearchKeyword.trim().toLowerCase())) {
-                      setNewGroupSearchKeywords(prev => [...prev, newGroupSearchKeyword.trim().toLowerCase()]);
-                      setNewGroupSearchKeyword('');
+            <SearchKeywords
+              keywords={newGroupSearchKeywords}
+              onKeywordsChange={setNewGroupSearchKeywords}
+              productData={{
+                title: newGroupName || (selectedProducts[0]?.name || ''),
+                mainTags: [],
+                images: (() => {
+                  try {
+                    // Find the first selected product object to pass an image to AI
+                    const firstSel = selectedProducts?.[0];
+                    if (!firstSel) return [];
+                    let found = null;
+                    for (const vid in products) {
+                      const list = products[vid] || [];
+                      found = list.find(p => p._id === (firstSel.productId || firstSel._id));
+                      if (found) break;
                     }
-                  }}
-                  sx={{
-                    flexGrow: 1,
-                    '& .MuiOutlinedInput-root': {
-                      color: '#ffffff',
-                      bgcolor: 'rgba(255, 255, 255, 0.05)',
-                      '& fieldset': { borderColor: 'rgba(255, 255, 255, 0.2)' },
-                      '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
-                      '&.Mui-focused fieldset': { borderColor: '#22c55e' },
-                    },
-                    '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
-                    '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255, 255, 255, 0.4)' }
-                  }}
-                />
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    if (newGroupSearchKeyword.trim() && !newGroupSearchKeywords.includes(newGroupSearchKeyword.trim().toLowerCase())) {
-                      setNewGroupSearchKeywords(prev => [...prev, newGroupSearchKeyword.trim().toLowerCase()]);
-                      setNewGroupSearchKeyword('');
-                    }
-                  }}
-                  disabled={!newGroupSearchKeyword.trim() || newGroupSearchKeywords.includes(newGroupSearchKeyword.trim().toLowerCase())}
-                  sx={{ 
-                    borderColor: '#22c55e',
-                    color: '#22c55e',
-                    '&:hover': { borderColor: '#16a34a', bgcolor: 'rgba(34, 197, 94, 0.1)' },
-                    '&:disabled': { borderColor: 'rgba(255, 255, 255, 0.2)', color: 'rgba(255, 255, 255, 0.3)' }
-                  }}
-                >
-                  Add
-                </Button>
-              </Box>
-            )}
-
-            {/* AI Suggestions */}
-            {loadingSuggestions ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <CircularProgress size={16} sx={{ color: '#8b5cf6' }} />
-                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-                  Generating AI suggestions...
-                </Typography>
-              </Box>
-            ) : aiSuggestions.length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" sx={{ color: '#8b5cf6', mb: 1, fontWeight: 600 }}>
-                  ✨ AI Suggested Keywords:
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {aiSuggestions.map((suggestion, index) => (
-                    <Chip
-                      key={index}
-                      label={suggestion}
-                      onClick={() => addAISuggestion(suggestion)}
-                      size="small"
-                      sx={{
-                        bgcolor: newGroupSearchKeywords.includes(suggestion) ? 'rgba(139, 92, 246, 0.5)' : 'rgba(139, 92, 246, 0.2)',
-                        color: '#ffffff',
-                        border: '1px solid rgba(139, 92, 246, 0.4)',
-                        cursor: newGroupSearchKeywords.includes(suggestion) ? 'default' : 'pointer',
-                        '&:hover': newGroupSearchKeywords.includes(suggestion) ? {} : {
-                          bgcolor: 'rgba(139, 92, 246, 0.3)',
-                          transform: 'scale(1.05)'
-                        },
-                        transition: 'all 0.2s ease'
-                      }}
-                    />
-                  ))}
-                </Box>
-              </Box>
-            )}
+                    const raw = found?.images?.[0];
+                    if (!raw) return [];
+                    if (raw.startsWith('blob:')) return [];
+                    if (raw.startsWith('/')) return [`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}${raw}`];
+                    if (raw.startsWith('//')) return [`https:${raw}`];
+                    return [raw];
+                  } catch {
+                    return [];
+                  }
+                })()
+              }}
+            />
           </Box>
         </DialogContent>
 

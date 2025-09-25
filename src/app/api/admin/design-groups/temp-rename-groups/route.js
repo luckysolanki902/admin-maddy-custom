@@ -1,3 +1,4 @@
+// src/app/api/admin/design-groups/temp-rename-groups/route.js
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '../../../../../lib/db';
 import Product from '../../../../../models/Product';

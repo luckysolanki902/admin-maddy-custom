@@ -9,6 +9,7 @@ import { useMediaQuery } from "@mui/material";
 import CategorySelectorWrapper from "@/components/page-sections/product-edit-page/CategorySelectorWrapper";
 import ProductThumbnailSlider from "@/components/page-sections/product-edit-page/ProductThumbnailSlider";
 import ProductImageCarousel from "@/components/page-sections/product-edit-page/ProductImageCarousel";
+import DesignTemplates from "@/components/page-sections/product-edit-page/DesignTemplates";
 import DesignTemplateImage from "@/components/page-sections/product-edit-page/DesignTemplateImage";
 import ProductEditForm from "@/components/page-sections/product-edit-page/ProductEditForm";
 import CommonCardImages from "@/components/page-sections/product-edit-page/CommonCardImages";
@@ -31,6 +32,9 @@ const EditProductPage = () => {
   // State for selected product to edit
   const [selectedProduct, setSelectedProduct] = useState(null);
 
+  // State for specific category information
+  const [specificCategory, setSpecificCategory] = useState(null);
+
   // Unique main tags
   const [uniqueMainTags, setUniqueMainTags] = useState([]);
 
@@ -38,7 +42,12 @@ const EditProductPage = () => {
   const [carouselImages, setCarouselImages] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  // Design template image
+  // Design templates (replacing single designTemplateImage)
+  const [designTemplates, setDesignTemplates] = useState([]);
+  const [designTemplatesLoading, setDesignTemplatesLoading] = useState(false);
+  const [mirrorLoading, setMirrorLoading] = useState(false);
+
+  // Legacy design template image (for backward compatibility)
   const [designTemplateImage, setDesignTemplateImage] = useState("");
   const [designImageLoading, setDesignImageLoading] = useState(false);
 
@@ -70,6 +79,26 @@ const EditProductPage = () => {
 
   // CloudFront Base URL
   const cloudfrontBaseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || "";
+
+  // Fetch specific category information
+  const fetchSpecificCategory = useCallback(async (product) => {
+    try {
+      if (product && product.specificCategoryVariant) {
+        const variantRes = await fetch(`/api/admin/manage/product/get/get-specific-category-variant/${product.specificCategoryVariant}`);
+        if (variantRes.ok) {
+          const variantData = await variantRes.json();
+          
+          const categoryRes = await fetch(`/api/admin/manage/product/get/get-specific-category/${variantData.specificCategory}`);
+          if (categoryRes.ok) {
+            const categoryData = await categoryRes.json();
+            setSpecificCategory(categoryData);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching specific category:', error);
+    }
+  }, []);
 
   // Fetch unique main tags
   const fetchUniqueMainTags = useCallback(async () => {
@@ -144,6 +173,10 @@ const EditProductPage = () => {
     setCarouselImages(product.images ?? []);
     setCurrentImageIndex(0);
     setDesignTemplateImage(product.designTemplate?.imageUrl ?? "");
+    setDesignTemplates(product.designTemplates ?? []);
+    
+    // Fetch specific category information for the selected product
+    fetchSpecificCategory(product);
   };
 
   // New function to handle image upload using presigned URLs
@@ -340,6 +373,286 @@ const EditProductPage = () => {
     }
 
     return processedProducts;
+  };
+
+  // New Design Templates Management Functions
+  
+  // Handle adding new templates
+  const handleAddTemplate = async () => {
+    if (!selectedProduct) return;
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/png,image/jpeg,image/jpg";
+    input.multiple = true;
+    
+    input.onchange = async (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+
+      setDesignTemplatesLoading(true);
+
+      try {
+        const newTemplateUrls = [];
+        
+        for (const file of files) {
+          // Generate path for new template
+          const basePath = `design-templates-2/${selectedProduct.sku}`;
+          const fileName = `${selectedProduct.sku}-template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.png`;
+          const fullPath = `${basePath}/${fileName}`;
+
+          // Get presigned URL for upload
+          const presignedRes = await fetch('/api/admin/aws/generate-presigned-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              fullPath, 
+              fileType: 'image/png',
+              operation: 'put'
+            }),
+          });
+
+          if (!presignedRes.ok) {
+            throw new Error('Failed to get presigned URL');
+          }
+
+          const { presignedUrl } = await presignedRes.json();
+
+          // Upload file to S3
+          const uploadRes = await fetch(presignedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'image/png' },
+            body: file,
+          });
+
+          if (!uploadRes.ok) {
+            throw new Error('Failed to upload template');
+          }
+
+          // Add just the URL string (as expected by the schema)
+          newTemplateUrls.push(`/${fullPath}`);
+        }
+
+        // Update product with new templates
+        const updatedTemplates = [...designTemplates, ...newTemplateUrls];
+        
+        const updateRes = await fetch(`/api/admin/manage/product/design-templates/${selectedProduct._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ designTemplates: updatedTemplates }),
+        });
+
+        if (!updateRes.ok) {
+          throw new Error('Failed to update product templates');
+        }
+
+        const { designTemplates: serverTemplates } = await updateRes.json();
+        setDesignTemplates(serverTemplates);
+        
+        // Update the selected product in the products list as well
+        setProducts(prevProducts => 
+          prevProducts.map(product => 
+            product._id === selectedProduct._id 
+              ? { ...product, designTemplates: serverTemplates }
+              : product
+          )
+        );
+        
+        // Update selected product
+        setSelectedProduct(prev => ({ ...prev, designTemplates: serverTemplates }));
+        
+        setSuccessAlert(true);
+
+      } catch (error) {
+        console.error('Error adding templates:', error);
+        setErrorAlert(error.message || 'Failed to add templates');
+      } finally {
+        setDesignTemplatesLoading(false);
+      }
+    };
+
+    input.click();
+  };
+
+  // Handle editing a specific template
+  const handleEditTemplate = async (index) => {
+    if (!selectedProduct || index < 0 || index >= designTemplates.length) return;
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/png,image/jpeg,image/jpg";
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      setDesignTemplatesLoading(true);
+
+      try {
+        // Handle string format (the schema expects strings not objects)
+        const currentTemplateUrl = designTemplates[index];
+        const originalPath = currentTemplateUrl.replace(/^\/+/, '');
+        const pathParts = originalPath.split('/');
+        const fileName = pathParts[pathParts.length - 1];
+        const newFileName = `${selectedProduct.sku}-template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.png`;
+        pathParts[pathParts.length - 1] = newFileName;
+        const fullPath = pathParts.join('/');
+
+        // Get presigned URL for upload
+        const presignedRes = await fetch('/api/admin/aws/generate-presigned-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            fullPath, 
+            fileType: 'image/png',
+            operation: 'put'
+          }),
+        });
+
+        if (!presignedRes.ok) {
+          throw new Error('Failed to get presigned URL');
+        }
+
+        const { presignedUrl } = await presignedRes.json();
+
+        // Upload file to S3
+        const uploadRes = await fetch(presignedUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'image/png' },
+          body: file,
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error('Failed to upload template');
+        }
+
+        // Update templates array with new URL string
+        const updatedTemplates = [...designTemplates];
+        updatedTemplates[index] = `/${fullPath}`;
+
+        // Update product
+        const updateRes = await fetch(`/api/admin/manage/product/design-templates/${selectedProduct._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ designTemplates: updatedTemplates }),
+        });
+
+        if (!updateRes.ok) {
+          throw new Error('Failed to update product templates');
+        }
+
+        const { designTemplates: serverTemplates } = await updateRes.json();
+        setDesignTemplates(serverTemplates);
+        
+        // Update the selected product in the products list as well
+        setProducts(prevProducts => 
+          prevProducts.map(product => 
+            product._id === selectedProduct._id 
+              ? { ...product, designTemplates: serverTemplates }
+              : product
+          )
+        );
+        
+        // Update selected product
+        setSelectedProduct(prev => ({ ...prev, designTemplates: serverTemplates }));
+        
+        setSuccessAlert(true);
+
+      } catch (error) {
+        console.error('Error editing template:', error);
+        setErrorAlert(error.message || 'Failed to edit template');
+      } finally {
+        setDesignTemplatesLoading(false);
+      }
+    };
+
+    input.click();
+  };
+
+  // Handle deleting a template
+  const handleDeleteTemplate = async (index) => {
+    if (!selectedProduct || index < 0 || index >= designTemplates.length) return;
+
+    try {
+      const updatedTemplates = designTemplates.filter((_, i) => i !== index);
+
+      const updateRes = await fetch(`/api/admin/manage/product/design-templates/${selectedProduct._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ designTemplates: updatedTemplates }),
+      });
+
+      if (!updateRes.ok) {
+        throw new Error('Failed to delete template');
+      }
+
+      const { designTemplates: serverTemplates } = await updateRes.json();
+      setDesignTemplates(serverTemplates);
+      
+      // Update the selected product in the products list as well
+      setProducts(prevProducts => 
+        prevProducts.map(product => 
+          product._id === selectedProduct._id 
+            ? { ...product, designTemplates: serverTemplates }
+            : product
+        )
+      );
+      
+      // Update selected product
+      setSelectedProduct(prev => ({ ...prev, designTemplates: serverTemplates }));
+      
+      setSuccessAlert(true);
+
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      setErrorAlert(error.message || 'Failed to delete template');
+    }
+  };
+
+  // Handle creating mirror template
+  const handleCreateMirrorTemplate = async () => {
+    if (!selectedProduct || designTemplates.length !== 1) return;
+
+    setMirrorLoading(true);
+
+    try {
+      const response = await fetch('/api/admin/manage/product/create-mirror-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          productId: selectedProduct._id,
+          templateIndex: 0 
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create mirror template');
+      }
+
+      const { designTemplates: serverTemplates } = await response.json();
+      setDesignTemplates(serverTemplates);
+      
+      // Update the selected product in the products list as well
+      setProducts(prevProducts => 
+        prevProducts.map(product => 
+          product._id === selectedProduct._id 
+            ? { ...product, designTemplates: serverTemplates }
+            : product
+        )
+      );
+      
+      // Update selected product
+      setSelectedProduct(prev => ({ ...prev, designTemplates: serverTemplates }));
+      
+      setSuccessAlert(true);
+
+    } catch (error) {
+      console.error('Error creating mirror template:', error);
+      setErrorAlert(error.message || 'Failed to create mirror template');
+    } finally {
+      setMirrorLoading(false);
+    }
   };
 
   // Carousel Navigation Handlers
@@ -545,14 +858,29 @@ const EditProductPage = () => {
                 available={selectedProduct.available}
               />
 
-              {/* Design Template */}
-              <DesignTemplateImage
-                imageUrl={designTemplateImage}
-                onEditImage={() => handleImageEdit("design", "replace", setDesignImageLoading)}
+              {/* Design Templates (New Multi-Template Support) */}
+              <DesignTemplates
+                designTemplates={designTemplates}
+                onEditTemplates={handleEditTemplate}
+                onAddTemplate={handleAddTemplate}
+                onDeleteTemplate={handleDeleteTemplate}
+                onCreateMirrorTemplate={handleCreateMirrorTemplate}
                 cloudfrontBaseUrl={cloudfrontBaseUrl}
                 available={selectedProduct.available}
-                loading={designImageLoading}
+                loading={designTemplatesLoading}
+                mirrorLoading={mirrorLoading}
               />
+
+              {/* Legacy Design Template (for backward compatibility - hidden when new templates exist) */}
+              {designTemplates.length === 0 && designTemplateImage && (
+                <DesignTemplateImage
+                  imageUrl={designTemplateImage}
+                  onEditImage={() => handleImageEdit("design", "replace", setDesignImageLoading)}
+                  cloudfrontBaseUrl={cloudfrontBaseUrl}
+                  available={selectedProduct.available}
+                  loading={designImageLoading}
+                />
+              )}
 
               {/* Common Card Images */}
               <CommonCardImages
@@ -572,6 +900,7 @@ const EditProductPage = () => {
                 onAddNewTag={handleOpenDialog}
                 loading={loading}
                 onSubmit={handleFormSubmit}
+                specificCategory={specificCategory}
               />
             </Box>
           </Box>
@@ -580,30 +909,39 @@ const EditProductPage = () => {
             display="flex" 
             justifyContent="center" 
             alignItems="center" 
-            height="400px" 
+            height="360px" 
             flexDirection="column"
             sx={{
-              background: 'white',
               borderRadius: 3,
-              border: '1px solid #333',
-              backgroundColor: '#1a1a1a',
-              mx: 1
+              border: '1px dashed rgba(255,255,255,0.15)',
+              background: 'linear-gradient(145deg, #0f1117 0%, #151a25 100%)',
+              mx: 1,
+              position: 'relative',
+              overflow: 'hidden'
             }}
           >
+            <Box sx={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(1200px 200px at 50% 0%, rgba(33,150,243,0.08), transparent)',
+              pointerEvents: 'none'
+            }} />
             {initialLoading ? (
               <>
-                <CircularProgress sx={{ mb: 2, color: '#1976d2' }} />
-                <Typography variant="h6" color="#ddd">
+                <CircularProgress sx={{ mb: 2, color: '#64b5f6' }} />
+                <Typography variant="h6" color="#e0e0e0">
                   Loading products...
                 </Typography>
               </>
             ) : (
               <>
                 <Typography variant="h5" gutterBottom color="#f0f0f0" sx={{ fontWeight: 300 }}>
-                  Select a Product to Edit
+                  {selection.category && !selection.variant ? 'Pick a Variant to Continue' : 'Select a Product to Edit'}
                 </Typography>
-                <Typography variant="body1" color="#ccc" textAlign="center" sx={{ maxWidth: 400 }}>
-                  Choose a product from the thumbnail slider below to begin editing its details and images.
+                <Typography variant="body1" color="#bbb" textAlign="center" sx={{ maxWidth: 520 }}>
+                  {selection.category && !selection.variant
+                    ? 'We found a category. Select a variant to load products. If there is only one variant, we will auto-select it for you.'
+                    : 'Choose a product from the thumbnail slider below to begin editing its details and images.'}
                 </Typography>
                 {!loadingProducts && products.length === 0 && (
                   <Typography variant="body2" color="#ff6b6b" mt={2}>

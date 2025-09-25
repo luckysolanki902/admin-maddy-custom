@@ -12,13 +12,21 @@ export const config = {
 };
 
 export async function POST(request) {
+  console.log('🔥 PRESIGNED URL API CALLED!');
   try {
-    const { fullPath, fileType } = await request.json();
+    const { fullPath, fileType, operation } = await request.json();
+    console.log('Request params:', { fullPath, fileType, operation });
+    
     if (!fullPath || !fileType) {
+      console.log('Missing required parameters');
       return NextResponse.json({ message: "Missing required parameters: fullPath and fileType" }, { status: 400 });
     }
-    const { presignedUrl, url } = await getPresignedUrl(fullPath, fileType);
-
+    
+    // Default operation to 'putObject' for backward compatibility
+    const opType = operation === 'get' ? 'getObject' : 'putObject';
+    console.log('Operation type:', opType);
+    
+    const { presignedUrl, url } = await getPresignedUrl(fullPath, fileType, opType);
 
     return NextResponse.json({ presignedUrl, url }, { status: 200 });
   } catch (error) {

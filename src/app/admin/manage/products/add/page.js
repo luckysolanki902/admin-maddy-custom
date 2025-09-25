@@ -32,6 +32,7 @@ import slugify from 'slugify';
 import ImageUpload from '@/components/utils/ImageUpload';
 import ProductImageManager from '@/components/page-sections/product-add-page/ProductImageManager';
 import ProductImagePreview from '@/components/page-sections/product-add-page/ProductImagePreview';
+import DesignTemplateManager from '@/components/page-sections/product-add-page/DesignTemplateManager';
 import CategorySelector from '@/components/layout/CategorySelector';
 import VariantNameConflictDialog from '@/components/page-sections/common/VariantNameConflictDialog';
 import OptionForm from '@/components/page-sections/options/OptionForm';
@@ -63,7 +64,8 @@ const AddProductPage = () => {
   const [MRP, setMRP] = useState(1000);
   const [displayOrder, setDisplayOrder] = useState(0);
   const [productImages, setProductImages] = useState([]);            // multi
-  const [productionTemplateImage, setProductionTemplateImage] = useState(null);
+  const [designTemplates, setDesignTemplates] = useState([]);        // New field for multiple templates
+  const [productionTemplateImage, setProductionTemplateImage] = useState(null); // Legacy field for backward compatibility
   const [pricingMode, setPricingMode] = useState('price'); // 'price' or 'discount'
   const [discountPercentage, setDiscountPercentage] = useState(0);
 
@@ -71,6 +73,11 @@ const AddProductPage = () => {
   const [selectedDesignGroup, setSelectedDesignGroup] = useState('');
   const [designGroups, setDesignGroups] = useState([]);
   const [designGroupsLoading, setDesignGroupsLoading] = useState(false);
+  const [dgSelectorOpen, setDgSelectorOpen] = useState(false);
+  const [createDgOpen, setCreateDgOpen] = useState(false);
+  const [newDgName, setNewDgName] = useState('');
+  const [newDgKeywords, setNewDgKeywords] = useState([]);
+  const [creatingDg, setCreatingDg] = useState(false);
 
   /* ─────────────── inventory fields (conditional) ─────────────── */
   const [enableInventory, setEnableInventory] = useState(false);
@@ -124,9 +131,10 @@ const AddProductPage = () => {
   const fetchDesignGroups = useCallback(async () => {
     setDesignGroupsLoading(true);
     try {
-      const res = await fetch('/api/admin/design-groups/list');
+      // Use existing-groups which includes product previews and image fallbacks
+      const res = await fetch('/api/admin/design-groups/existing-groups');
       const data = await res.json();
-      if (res.ok) setDesignGroups(data.designGroups || []);
+      if (res.ok) setDesignGroups(data.groups || []);
     } catch (err) {
       console.error('design groups fetch:', err.message);
     } finally {
@@ -147,6 +155,7 @@ const AddProductPage = () => {
     setPrice(0);
     setDisplayOrder(0);
     setProductImages([]);
+    setDesignTemplates([]);
     setProductionTemplateImage(null);
     setSkuSerial(1);
     setErrorAlert('');
@@ -216,13 +225,13 @@ const AddProductPage = () => {
             freebies: { available: false, description: '', image: '' }
           }
         });
-        
+
         // Set default form values for first product
         setMRP(1000);
         setPrice(0);
         setMainTag('');
         setDisplayOrder(0);
-        
+
         // Ensure category and subCategory are preserved from specificCategory
         setHiddenFields(prev => ({
           ...prev, // Keep category and subCategory from fetchSpecificCategoryData
@@ -232,13 +241,13 @@ const AddProductPage = () => {
           showInSearch: true,
           freebies: { available: false, description: '', image: '' },
         }));
-        
+
         return;
       }
 
       const details = await res.json();
       setFirstProductDetails(details);
-      
+
       // Set defaults from first product or fallback defaults
       const defaults = details.defaults;
       setMRP(defaults.MRP || 1000);
@@ -249,35 +258,39 @@ const AddProductPage = () => {
         ...prev, // Preserve existing category and subCategory from specificCategory
         deliveryCost: defaults.deliveryCost ?? 100,
         stock: 1000,
-        available:true,
+        available: true,
         showInSearch: defaults.showInSearch ?? true,
         freebies: defaults.freebies || { available: false, description: '', image: '' },
       }));
 
-      // Set inventory state based on first product
+      // Set inventory state based on first product AND specific category inventory mode
+      const shouldEnableInventory = specificCategory?.inventoryMode === 'inventory';
+
       if (details.hasFirstProduct) {
-        setEnableInventory(details.requiresInventory);
+        setEnableInventory(shouldEnableInventory && details.requiresInventory);
         setEnableOptions(details.requiresOptions);
-        
-        if (details.requiresInventory && details.inventoryDefaults) {
+
+        if (shouldEnableInventory && details.requiresInventory && details.inventoryDefaults) {
           setInventoryData({
             availableQuantity: details.inventoryDefaults.availableQuantity ?? 0,
             reorderLevel: details.inventoryDefaults.reorderLevel ?? 50,
           });
         }
       } else {
-        // For first product, allow user to choose
-        setEnableInventory(false);
+        // For first product, enable inventory only if category uses inventory mode
+        setEnableInventory(shouldEnableInventory);
         setEnableOptions(false);
       }
 
     } catch (err) {
       console.error('first product details fetch:', err.message);
       // Set default values if fetch fails
+      const shouldEnableInventory = specificCategory?.inventoryMode === 'inventory';
+
       setFirstProductDetails({
         hasFirstProduct: false,
         nextSku: `${specificCategoryVariant.variantCode}-001`,
-        requiresInventory: false,
+        requiresInventory: shouldEnableInventory,
         requiresOptions: false,
         defaults: {
           MRP: 1000,
@@ -289,13 +302,14 @@ const AddProductPage = () => {
           freebies: { available: false, description: '', image: '' }
         }
       });
-      
-      // Set default form values
+
+      // Set default form values and respect inventory mode
+      setEnableInventory(shouldEnableInventory);
       setMRP(1000);
       setPrice(0);
       setMainTag('');
       setDisplayOrder(0);
-      
+
       // Ensure category and subCategory are preserved from specificCategory
       setHiddenFields(prev => ({
         ...prev, // Keep category and subCategory from fetchSpecificCategoryData
@@ -306,7 +320,7 @@ const AddProductPage = () => {
         freebies: { available: false, description: '', image: '' },
       }));
     }
-  }, [specificCategoryVariant]);
+  }, [specificCategoryVariant, specificCategory?.inventoryMode]);
 
   /* ╭──────────────────────────────────────────────────────────╮
      │  LIFE CYCLES                                            │
@@ -351,7 +365,7 @@ const AddProductPage = () => {
     if (price > MRP) errors.push('Price cannot be greater than MRP');
     if (!hiddenFields.category) errors.push('Category is missing - please refresh the page');
     if (!hiddenFields.subCategory) errors.push('SubCategory is missing - please refresh the page');
-    
+
     if (errors.length > 0) {
       setErrorAlert(errors.join(', '));
       console.error('Validation errors:', errors);
@@ -398,12 +412,12 @@ const AddProductPage = () => {
       const basePath = `products/${hiddenFields.category
         .toLowerCase()
         .replace(/\s+/g, '-')}/${hiddenFields.subCategory
-        .toLowerCase()
-        .replace(/\s+/g, '-')}/${specificCategory.name
-        .toLowerCase()
-        .replace(/\s+/g, '-')}/${specificCategoryVariant.variantCode
-        .toLowerCase()
-        .replace(/\s+/g, '-')}`;
+          .toLowerCase()
+          .replace(/\s+/g, '-')}/${specificCategory.name
+            .toLowerCase()
+            .replace(/\s+/g, '-')}/${specificCategoryVariant.variantCode
+              .toLowerCase()
+              .replace(/\s+/g, '-')}`;
 
       const imagePaths = productImages.map(
         (_, i) => `${basePath}/${sku}-${i + 1}.jpg`
@@ -411,11 +425,11 @@ const AddProductPage = () => {
       const designTemplatePath = `${specificCategoryVariant.designTemplateFolderPath}/${sku}.png`;
 
       /* helpers for S3 */
-      const getPresignedUrl = async (fullPath, fileType) => {
+      const getPresignedUrl = async (fullPath, fileType, operation = 'put') => {
         const res = await fetch('/api/admin/aws/generate-presigned-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullPath, fileType }),
+          body: JSON.stringify({ fullPath, fileType, operation }),
         });
         if (!res.ok) {
           const e = await res.json().catch(() => ({}));
@@ -454,6 +468,22 @@ const AddProductPage = () => {
         designTemplateObj = { designCode: sku, imageUrl: designTemplatePath };
       }
 
+      /* upload multiple design templates if exists */
+      const designTemplateUrls = [];
+      if (designTemplates.length > 0) {
+        for (let i = 0; i < designTemplates.length; i++) {
+          const template = designTemplates[i];
+          const templatePath = `${specificCategoryVariant.designTemplateFolderPath}/${sku}-template-${i + 1}.png`;
+
+          const { presignedUrl: templateUrl } = await getPresignedUrl(
+            templatePath,
+            template.type
+          );
+          await uploadFile(template, templateUrl);
+          designTemplateUrls.push(`/${templatePath}`);
+        }
+      }
+
       /* build payload */
       console.log('Hidden fields before submission:', hiddenFields);
       const productData = {
@@ -470,20 +500,21 @@ const AddProductPage = () => {
         ...hiddenFields,
         sku,
         optionsAvailable: enableOptions, // Use checkbox state
-        ...(designTemplateObj && { designTemplate: designTemplateObj }),
+        ...(designTemplateObj && { designTemplate: designTemplateObj }), // Legacy field for backward compatibility
+        ...(designTemplateUrls.length > 0 && { designTemplates: designTemplateUrls }), // New field for multiple templates
         images: imagePaths.map((p) => '/' + p),
         productSource: 'inhouse',
         // Include design group if selected
         ...(selectedDesignGroup && { designGroupId: selectedDesignGroup }),
         // Include inventory data if enabled
-        ...(enableInventory && { 
+        ...(enableInventory && {
           inventoryData: {
             ...inventoryData,
             reservedQuantity: 0, // Always default to 0
           }
         }),
       };
-      
+
       /* save product */
       const saveRes = await fetch('/api/admin/manage/product/add', {
         method: 'POST',
@@ -507,12 +538,13 @@ const AddProductPage = () => {
       setMRP(firstProductDetails.defaults?.MRP || 1000);
       setDisplayOrder(firstProductDetails.defaults?.displayOrder || 0);
       setProductImages([]);
+      setDesignTemplates([]);
       setProductionTemplateImage(null);
       setSelectedDesignGroup(''); // Reset design group selection
       setErrorAlert('');
       setPricingMode('price');
       setDiscountPercentage(0);
-      
+
       // Reset inventory data if enabled
       if (enableInventory) {
         const defaults = firstProductDetails.inventoryDefaults;
@@ -521,7 +553,7 @@ const AddProductPage = () => {
           reorderLevel: defaults?.reorderLevel ?? 0,
         });
       }
-      
+
       await fetchFirstProductDetails();
     } catch (err) {
       console.error(err);
@@ -537,19 +569,60 @@ const AddProductPage = () => {
   /* 1. Always show the CategorySelector as breadcrumbs, but only the product form when a variant is selected */
   if (!selectedVariantId) {
     return (
-      <Box p={4} maxWidth="900px" margin="0 auto">
-        <Typography variant="h4" gutterBottom>
-          Add New Product
-        </Typography>
-        <CategorySelector
-          onSelectionChange={({ category, variant }) => {
-            setSelectedCategoryId(category);
-            setSelectedVariantId(variant);
+      <Box
+        sx={{
+          p: { xs: 2, sm: 3, md: 4 },
+          maxWidth: '1400px',
+          margin: '0 auto',
+          minHeight: '100vh',
+          bgcolor: '#0a0a0a',
+          color: '#f0f0f0'
+        }}
+      >
+        <Box display="flex" flexDirection="column" mb={{ xs: 3, sm: 4 }}>
+          <Typography variant="h3" gutterBottom sx={{
+            fontWeight: 300,
+            color: '#f0f0f0',
+            fontSize: { xs: '1.8rem', sm: '2.5rem', md: '3rem' }
+          }}>
+            Add Product
+          </Typography>
+          <Box mt={2}>
+            <CategorySelector
+              onSelectionChange={({ category, variant }) => {
+                setSelectedCategoryId(category);
+                setSelectedVariantId(variant);
+              }}
+            />
+          </Box>
+        </Box>
+
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          height="360px"
+          flexDirection="column"
+          sx={{
+            borderRadius: 3,
+            border: '1px dashed rgba(255,255,255,0.15)',
+            background: 'linear-gradient(145deg, #0f1117 0%, #151a25 100%)',
+            mx: 1,
+            position: 'relative',
+            overflow: 'hidden'
           }}
-        />
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Typography variant="body1" color="text.secondary">
-            Please select a category and variant to continue
+        >
+          <Box sx={{
+            position: 'absolute',
+            inset: 0,
+            background: 'radial-gradient(1200px 200px at 50% 0%, rgba(33,150,243,0.08), transparent)',
+            pointerEvents: 'none'
+          }} />
+          <Typography variant="h5" gutterBottom color="#f0f0f0" sx={{ fontWeight: 300 }}>
+            Pick a Category and Variant to Start
+          </Typography>
+          <Typography variant="body1" color="#bbb" textAlign="center" sx={{ maxWidth: 520 }}>
+            We’ll auto-select the variant if there’s only one option available.
           </Typography>
         </Box>
       </Box>
@@ -558,9 +631,18 @@ const AddProductPage = () => {
   /* 2. still loading variant / category → skeleton but still show breadcrumbs */
   if (!specificCategoryVariant || !specificCategory) {
     return (
-      <Box p={4} maxWidth="900px" margin="0 auto">
-        <Typography variant="h4" gutterBottom>
-          Add New Product
+      <Box
+        sx={{
+          p: { xs: 2, sm: 3, md: 4 },
+          maxWidth: '1400px',
+          margin: '0 auto',
+          minHeight: '100vh',
+          bgcolor: '#0a0a0a',
+          color: '#f0f0f0'
+        }}
+      >
+        <Typography variant="h3" gutterBottom sx={{ fontWeight: 300 }}>
+          Add Product
         </Typography>
         <CategorySelector
           onSelectionChange={({ category, variant }) => {
@@ -569,36 +651,65 @@ const AddProductPage = () => {
           }}
           disabled={true}
         />
-        <Skeleton variant="rectangular" height={400} sx={{ mt: 2 }} />
+        <Box
+          sx={{
+            mt: 3,
+            borderRadius: 3,
+            border: '1px dashed rgba(255,255,255,0.15)',
+            background: 'linear-gradient(145deg, #0f1117 0%, #151a25 100%)'
+          }}
+        >
+          <Skeleton variant="rectangular" height={300} sx={{ bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 3 }} />
+        </Box>
       </Box>
     );
   }
   /* 3. main form */
   return (
-    <Box p={4} maxWidth="900px" margin="0 auto">
-      {/* Always show the CategorySelector as breadcrumbs for consistent navigation */}
-      <Typography variant="h4" gutterBottom>
-        Add New Product
-      </Typography>
-      <CategorySelector
-        onSelectionChange={({ category, variant }) => {
-          setSelectedCategoryId(category);
-          setSelectedVariantId(variant);
-        }}
-      />
-      
-      <div
-        style={{
+    <Box
+      sx={{
+        p: { xs: 2, sm: 3, md: 4 },
+        maxWidth: '1400px',
+        margin: '0 auto',
+        minHeight: '100vh',
+        bgcolor: '#0a0a0a',
+        color: '#f0f0f0'
+      }}
+    >
+      {/* Header */}
+      <Box display="flex" flexDirection="column" mb={{ xs: 3, sm: 4 }}>
+        <Typography variant="h3" gutterBottom sx={{
+          fontWeight: 300,
+          color: '#f0f0f0',
+          fontSize: { xs: '1.8rem', sm: '2.5rem', md: '3rem' }
+        }}>
+          Add Product
+        </Typography>
+        <Box mt={2}>
+          <CategorySelector
+            onSelectionChange={({ category, variant }) => {
+              setSelectedCategoryId(category);
+              setSelectedVariantId(variant);
+            }}
+          />
+        </Box>
+      </Box>
+
+      {/* Sub-header */}
+      <Box
+        sx={{
           display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'flex-end',
-          gap: '0.6rem',
-          marginBottom: '1rem',
+          alignItems: 'center',
+          gap: 1,
+          mb: 2,
+          color: '#cfd8dc'
         }}
       >
-        <h1>Add New Product</h1>
-        <span>{specificCategoryVariant?.name}</span>
-      </div>
+        <Typography variant="h6" sx={{ fontWeight: 400 }}>Variant:</Typography>
+        <Typography variant="body1" sx={{ fontWeight: 600, color: '#fff' }}>
+          {specificCategoryVariant?.name}
+        </Typography>
+      </Box>
 
       {/* ───── Product form ───── */}
       <Grid container spacing={4}>
@@ -614,13 +725,11 @@ const AddProductPage = () => {
         </Grid>
 
         <Grid item xs={12}>
-          <ImageUpload
-            label="Production Template Image (PNG) - Optional"
-            accept="image/png"
-            files={productionTemplateImage ? [productionTemplateImage] : []}
-            onFilesChange={(files) =>
-              setProductionTemplateImage(files[0] || null)
-            }
+          <DesignTemplateManager
+            templates={designTemplates}
+            onTemplatesChange={setDesignTemplates}
+            disabled={loading}
+            maxTemplates={10}
           />
         </Grid>
 
@@ -752,45 +861,16 @@ const AddProductPage = () => {
 
         {/* Design Group Selection (Optional) */}
         <Grid item xs={12}>
-          <FormControl fullWidth>
-            <InputLabel id="design-group-label">Design Group (Optional)</InputLabel>
-            <Select
-              labelId="design-group-label"
-              value={selectedDesignGroup}
-              label="Design Group (Optional)"
-              onChange={(e) => setSelectedDesignGroup(e.target.value)}
-              disabled={designGroupsLoading}
-            >
-              <MenuItem value="">No Design Group</MenuItem>
-              {designGroups.map((group) => (
-                <MenuItem key={group._id} value={group._id}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    {group.thumbnail && (
-                      <Box
-                        component="img"
-                        src={`${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL}${group.thumbnail}`}
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          objectFit: 'cover',
-                          borderRadius: 1,
-                          border: '1px solid #e0e0e0'
-                        }}
-                      />
-                    )}
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {group.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {group.productCount} products
-                      </Typography>
-                    </Box>
-                  </Box>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button variant="outlined" onClick={() => setDgSelectorOpen(true)} disabled={designGroupsLoading}>
+              {selectedDesignGroup ? 'Change Design Group' : 'Select Design Group (Optional)'}
+            </Button>
+            {selectedDesignGroup && (
+              <Button variant="text" color="error" onClick={() => setSelectedDesignGroup('')}>
+                Clear
+              </Button>
+            )}
+          </Box>
         </Grid>
 
         {/* First Product Configuration (only show if this is the first product) */}
@@ -807,10 +887,20 @@ const AddProductPage = () => {
                   <Checkbox
                     checked={enableInventory}
                     onChange={(e) => setEnableInventory(e.target.checked)}
+                    disabled={specificCategory?.inventoryMode !== 'inventory'}
                   />
                 }
-                label="Enable Inventory Management"
+                label={
+                  specificCategory?.inventoryMode === 'inventory'
+                    ? "Enable Inventory Management"
+                    : "Enable Inventory Management (Not Available - Category uses On-Demand mode)"
+                }
               />
+              {specificCategory?.inventoryMode !== 'inventory' && (
+                <Typography variant="caption" sx={{ display: 'block', color: '#666', mt: 0.5 }}>
+                  This category uses on-demand fulfillment instead of inventory tracking
+                </Typography>
+              )}
             </Grid>
             <Grid item xs={12} sm={6}>
               <FormControlLabel
@@ -868,30 +958,30 @@ const AddProductPage = () => {
         {/* Product Configuration Summary */}
         {firstProductDetails && (
           <Grid item xs={12}>
-            <Box 
-              sx={{ 
-                p: 2, 
-                borderRadius: 1, 
+            <Box
+              sx={{
+                p: 2.5,
+                borderRadius: 2,
                 mt: 2,
-                backgroundColor: '#2d2d2d',
-                border: '1px solid #ffffffff'
+                background: 'linear-gradient(145deg, #0f1117 0%, #151a25 100%)',
+                border: '1px solid rgba(255,255,255,0.08)'
               }}
             >
-              <Typography variant="subtitle1" sx={{ mb: 2, color: '#f3f3f3ff', fontWeight: 600 }}>
+              <Typography variant="subtitle1" sx={{ mb: 2, color: '#f3f3f3', fontWeight: 600 }}>
                 Product Configuration
               </Typography>
-              
+
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
                   <Box sx={{ mb: 1 }}>
                     <Typography variant="body2" sx={{ color: '#c8c8c8ff', fontSize: '0.875rem' }}>
                       SKU
                     </Typography>
-                    <Typography variant="body1" sx={{ 
+                    <Typography variant="body1" sx={{
                       fontFamily: 'monospace',
                       fontSize: '0.95rem',
                       fontWeight: 600,
-                      color: '#ffffffff'
+                      color: '#eaeff1'
                     }}>
                       {firstProductDetails.nextSku}
                     </Typography>
@@ -903,7 +993,7 @@ const AddProductPage = () => {
                     <Typography variant="body2" sx={{ color: '#c8c8c8ff', fontSize: '0.875rem' }}>
                       Type
                     </Typography>
-                    <Typography variant="body1" sx={{ fontSize: '0.95rem', color: '#ffffffff' }}>
+                    <Typography variant="body1" sx={{ fontSize: '0.95rem', color: '#eaeff1' }}>
                       {firstProductDetails.hasFirstProduct ? 'Additional Product' : 'First Product'}
                     </Typography>
                   </Box>
@@ -914,14 +1004,14 @@ const AddProductPage = () => {
                     <Typography variant="body2" sx={{ color: '#c8c8c8ff', fontSize: '0.875rem' }}>
                       Inventory
                     </Typography>
-                    <Typography variant="body1" sx={{ 
-                      fontSize: '0.95rem', 
-                      color: firstProductDetails.hasFirstProduct 
+                    <Typography variant="body1" sx={{
+                      fontSize: '0.95rem',
+                      color: firstProductDetails.hasFirstProduct
                         ? (firstProductDetails.requiresInventory ? '#198754' : '#dc3545')
                         : (enableInventory ? '#198754' : '#dc3545'),
                       fontWeight: 500
                     }}>
-                      {firstProductDetails.hasFirstProduct 
+                      {firstProductDetails.hasFirstProduct
                         ? (firstProductDetails.requiresInventory ? 'Required' : 'Not Used')
                         : (enableInventory ? 'Enabled' : 'Disabled')
                       }
@@ -931,17 +1021,17 @@ const AddProductPage = () => {
 
                 <Grid item xs={12} sm={6}>
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" sx={{ color: '#6c757d', fontSize: '0.875rem' }}>
+                    <Typography variant="body2" sx={{ color: '#9aa4af', fontSize: '0.875rem' }}>
                       Options
                     </Typography>
-                    <Typography variant="body1" sx={{ 
-                      fontSize: '0.95rem', 
-                      color: firstProductDetails.hasFirstProduct 
+                    <Typography variant="body1" sx={{
+                      fontSize: '0.95rem',
+                      color: firstProductDetails.hasFirstProduct
                         ? (firstProductDetails.requiresOptions ? '#198754' : '#dc3545')
                         : (enableOptions ? '#198754' : '#dc3545'),
                       fontWeight: 500
                     }}>
-                      {firstProductDetails.hasFirstProduct 
+                      {firstProductDetails.hasFirstProduct
                         ? (firstProductDetails.requiresOptions ? 'Available' : 'Not Used')
                         : (enableOptions ? 'Enabled' : 'Disabled')
                       }
@@ -951,28 +1041,28 @@ const AddProductPage = () => {
               </Grid>
 
               {firstProductDetails.hasFirstProduct && (
-                <Box sx={{ 
-                  mt: 2, 
-                  p: 1.5, 
-                  backgroundColor: '#d1ecf1',
-                  border: '1px solid #bee5eb',
+                <Box sx={{
+                  mt: 2,
+                  p: 1.5,
+                  backgroundColor: 'rgba(25, 118, 210, 0.12)',
+                  border: '1px solid rgba(25,118,210,0.35)',
                   borderRadius: 1
                 }}>
-                  <Typography variant="body2" sx={{ color: '#0c5460', fontSize: '0.875rem' }}>
+                  <Typography variant="body2" sx={{ color: '#90caf9', fontSize: '0.875rem' }}>
                     Configuration follows existing products in this variant
                   </Typography>
                 </Box>
               )}
-              
+
               {!firstProductDetails.hasFirstProduct && (
-                <Box sx={{ 
-                  mt: 2, 
-                  p: 1.5, 
-                  backgroundColor: '#d1e7dd',
-                  border: '1px solid #badbcc',
+                <Box sx={{
+                  mt: 2,
+                  p: 1.5,
+                  backgroundColor: 'rgba(76,175,80,0.12)',
+                  border: '1px solid rgba(76,175,80,0.35)',
                   borderRadius: 1
                 }}>
-                  <Typography variant="body2" sx={{ color: '#0a3622', fontSize: '0.875rem' }}>
+                  <Typography variant="body2" sx={{ color: '#a5d6a7', fontSize: '0.875rem' }}>
                     First product - your choices will set the pattern
                   </Typography>
                 </Box>
@@ -998,25 +1088,25 @@ const AddProductPage = () => {
 
       {/* ───── Enhanced Options accordion (after product saved) ───── */}
       {savedProduct && (
-        <Accordion 
-          defaultExpanded 
-          sx={{ 
+        <Accordion
+          defaultExpanded
+          sx={{
             mt: 4,
             borderRadius: 2,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            border: '1px solid #e0e0e0',
+            background: 'linear-gradient(145deg, #0f1117 0%, #151a25 100%)',
+            border: '1px solid rgba(255,255,255,0.08)',
             '&:before': { display: 'none' }
           }}
         >
-          <AccordionSummary 
-            expandIcon={<ExpandMoreIcon />}
-            sx={{ 
-              backgroundColor: '#f8f9fa',
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon sx={{ color: '#90caf9' }} />}
+            sx={{
+              background: 'rgba(255,255,255,0.03)',
               borderRadius: '8px 8px 0 0',
               minHeight: 56
             }}
           >
-            <Typography variant="h6" sx={{ color: '#2c3e50', fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ color: '#e0e0e0', fontWeight: 600 }}>
               🔧 Options for &quot;{savedProduct.name}&quot;
             </Typography>
           </AccordionSummary>
@@ -1099,6 +1189,161 @@ const AddProductPage = () => {
         conflictingProducts={conflictingProducts}
         cloudfrontBaseUrl={process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}
       />
+
+      {/* Design Group Selector Modal */}
+      <Dialog
+        open={dgSelectorOpen}
+        onClose={() => setDgSelectorOpen(false)}
+        fullWidth
+        maxWidth="lg"
+        PaperProps={{ sx: { bgcolor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' } }}
+      >
+        <DialogTitle sx={{ color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            Or Choose a Design Group </Box>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setNewDgName(toTitleCase(name || ''));
+              setNewDgKeywords([]);
+              setCreateDgOpen(true);
+            }}
+          >
+            Create New Group
+          </Button>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+              {designGroupsLoading ? 'Loading groups…' : `${designGroups.length} groups`}
+            </Typography>
+
+          </Box>
+
+          {/* Grid of groups with larger thumbnails */}
+          <Grid container spacing={2}>
+            {designGroups.map((group) => {
+              // Compute a best image to show: group.thumbnail or first product image
+              let img = group.thumbnail || (group.products?.[0]?.images?.[0] || '');
+              if (img) {
+                if (img.startsWith('blob:')) img = '';
+                else if (img.startsWith('//')) img = 'https:' + img;
+                else if (img.startsWith('/')) img = `${process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || ''}${img}`;
+              }
+              return (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={group._id}>
+                  <Box
+                    onClick={() => {
+                      setSelectedDesignGroup(group._id);
+                      setDgSelectorOpen(false);
+                    }}
+                    sx={{
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      bgcolor: 'rgba(255,255,255,0.03)',
+                      '&:hover': { transform: 'translateY(-2px)' },
+                      transition: 'all .2s ease',
+                    }}
+                  >
+                    <Box sx={{ height: 160, position: 'relative', bgcolor: 'rgba(255,255,255,0.04)' }}>
+                      {img ? (
+                        <Box component="img" src={img} alt={group.name} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)' }}>
+                          No Image
+                        </Box>
+                      )}
+                      {selectedDesignGroup === group._id && (
+                        <Box sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(34,197,94,0.9)', color: '#fff', px: 1, py: 0.5, borderRadius: 1, fontSize: 12 }}>
+                          Selected
+                        </Box>
+                      )}
+                    </Box>
+                    <Box sx={{ p: 1.5 }}>
+                      <Typography variant="subtitle2" sx={{ color: '#fff', fontWeight: 600 }}>
+                        {group.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                        {group.productCount} products
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <Button onClick={() => setDgSelectorOpen(false)}>Close</Button>
+          {selectedDesignGroup && (
+            <Button variant="contained" onClick={() => setDgSelectorOpen(false)}>
+              Use Selected
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Inline Create Design Group Modal */}
+      <Dialog
+        open={createDgOpen}
+        onClose={() => setCreateDgOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { bgcolor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' } }}
+      >
+        <DialogTitle sx={{ color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          Create New Design Group
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <TextField
+            fullWidth
+            label="Group Name"
+            value={newDgName}
+            onChange={(e) => setNewDgName(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <SearchKeywords
+            keywords={newDgKeywords}
+            onKeywordsChange={setNewDgKeywords}
+            productData={{
+              title: newDgName || toTitleCase(name || ''),
+              mainTags: mainTag ? [mainTag] : [],
+              images: [],
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <Button onClick={() => setCreateDgOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!newDgName.trim() || creatingDg}
+            onClick={async () => {
+              try {
+                setCreatingDg(true);
+                const res = await fetch('/api/admin/design-groups/create-empty', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: newDgName.trim(), searchKeywords: newDgKeywords })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to create group');
+                // Refresh list and select new group
+                await fetchDesignGroups();
+                setSelectedDesignGroup(data.group._id);
+                setCreateDgOpen(false);
+              } catch (e) {
+                alert(e.message);
+              } finally {
+                setCreatingDg(false);
+              }
+            }}
+          >
+            {creatingDg ? 'Creating…' : 'Create Group'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -18,14 +18,16 @@ const ProductThumbnailSlider = ({
       bottom={0}
       left={0}
       width="100%"
-      bgcolor="rgb(25, 25, 25)"
+      bgcolor="rgba(18, 18, 22, 0.9)"
       p={2}
       sx={{
         overflowX: 'auto',
         display: 'flex',
         gap: '16px',
         alignItems: 'center',
-        zIndex:"9"
+        zIndex: 1201,
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        backdropFilter: 'blur(6px)'
       }}
     >
       {loadingProducts ? (
@@ -64,7 +66,7 @@ const ProductThumbnailSlider = ({
                 height={400}
                 src={productImageUrl}
                 alt={product.name}
-                style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }}
+                style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '6px' }}
                 // Removed placeholder and blurDataURL
                 key={productImageUrl} // Key to force re-render with updated URL
               />

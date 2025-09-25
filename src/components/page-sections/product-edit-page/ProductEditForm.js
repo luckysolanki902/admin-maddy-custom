@@ -1,6 +1,6 @@
 // /src/components/page-sections/product-edit-page/ProductEditForm.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   TextField,
@@ -26,6 +26,7 @@ const ProductEditForm = ({
   onAddNewTag,
   loading,
   onSubmit,
+  specificCategory, // New prop for specific category
 }) => {
   const [name, setName] = useState(selectedProduct.name);
   const [title, setTitle] = useState(selectedProduct.title);
@@ -49,6 +50,27 @@ const ProductEditForm = ({
   const [reorderLevel, setReorderLevel] = useState(0);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventorySaving, setInventorySaving] = useState(false);
+
+    // Fetch inventory data
+  const fetchInventoryData = useCallback(async () => {
+    // Only fetch inventory data if the category supports inventory mode
+    if (!selectedProduct._id || specificCategory?.inventoryMode !== 'inventory') return;
+    
+    try {
+      setInventoryLoading(true);
+      const response = await fetch(`/api/admin/manage/product-inventory?productId=${selectedProduct._id}`);
+      const data = await response.json();
+      
+      if (response.ok && data.inventory) {
+        setAvailableQuantity(data.inventory.availableQuantity || 0);
+        setReorderLevel(data.inventory.reorderLevel || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    } finally {
+      setInventoryLoading(false);
+    }
+  }, [selectedProduct._id, specificCategory?.inventoryMode]);
 
   useEffect(() => {
     setName(selectedProduct.name);
@@ -81,29 +103,18 @@ const ProductEditForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct]);
 
-  // Fetch inventory data
-  const fetchInventoryData = async () => {
-    if (!selectedProduct._id) return;
-    
-    try {
-      setInventoryLoading(true);
-      const response = await fetch(`/api/admin/manage/product-inventory?productId=${selectedProduct._id}`);
-      const data = await response.json();
-      
-      if (response.ok && data.inventory) {
-        setAvailableQuantity(data.inventory.availableQuantity || 0);
-        setReorderLevel(data.inventory.reorderLevel || 0);
-      }
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
-    } finally {
-      setInventoryLoading(false);
+  // Fetch inventory data when specific category changes
+  useEffect(() => {
+    if (specificCategory?.inventoryMode === 'inventory') {
+      fetchInventoryData();
     }
-  };
+  }, [specificCategory?.inventoryMode, fetchInventoryData]);
+
 
   // Update inventory data
   const handleInventoryUpdate = async () => {
-    if (!selectedProduct._id) return;
+    // Only update inventory if the category supports inventory mode
+    if (!selectedProduct._id || specificCategory?.inventoryMode !== 'inventory') return;
     
     try {
       setInventorySaving(true);
@@ -530,63 +541,91 @@ const ProductEditForm = ({
         </Select>
       </FormControl>
 
-      {/* Inventory Management Section */}
-      <Paper 
-        elevation={1} 
-        sx={{ 
-          p: 3, 
-          mt: 3,
-          backgroundColor: '#2a2a2a',
-          border: '1px solid #444'
-        }}
-      >
-        <Typography variant="h6" gutterBottom color="white">
-          Inventory Management
-        </Typography>
-        <Divider sx={{ mb: 2, backgroundColor: '#444' }} />
-        
-        {inventoryLoading ? (
-          <Box display="flex" justifyContent="center" py={2}>
-            <CircularProgress size={24} sx={{ color: '#1976d2' }} />
-          </Box>
-        ) : (
-          <Box>
-            <TextField
-              label="Available Quantity"
-              type="number"
-              value={availableQuantity}
-              onChange={handleAvailableQuantityChange}
-              fullWidth
-              margin="normal"
-              inputProps={{ min: 0 }}
-              helperText="Current stock available for sale"
-            />
-            
-            <TextField
-              label="Reorder Level"
-              type="number"
-              value={reorderLevel}
-              onChange={handleReorderLevelChange}
-              fullWidth
-              margin="normal"
-              inputProps={{ min: 0 }}
-              helperText="Stock level at which reordering is needed"
-            />
-            
-            <Box textAlign="center" mt={3}>
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={handleInventoryUpdate}
-                disabled={inventorySaving}
-                startIcon={inventorySaving && <CircularProgress size={20} />}
-              >
-                {inventorySaving ? 'Saving...' : 'Save Inventory'}
-              </Button>
+      {/* Inventory Management Section - Only show if category uses inventory mode */}
+      {specificCategory?.inventoryMode === 'inventory' ? (
+        <Paper 
+          elevation={1} 
+          sx={{ 
+            p: 3, 
+            mt: 3,
+            backgroundColor: '#2a2a2a',
+            border: '1px solid #444'
+          }}
+        >
+          <Typography variant="h6" gutterBottom color="white">
+            Inventory Management
+          </Typography>
+          <Divider sx={{ mb: 2, backgroundColor: '#444' }} />
+          
+          {inventoryLoading ? (
+            <Box display="flex" justifyContent="center" py={2}>
+              <CircularProgress size={24} sx={{ color: '#1976d2' }} />
             </Box>
-          </Box>
-        )}
-      </Paper>
+          ) : (
+            <Box>
+              <TextField
+                label="Available Quantity"
+                type="number"
+                value={availableQuantity}
+                onChange={handleAvailableQuantityChange}
+                fullWidth
+                margin="normal"
+                inputProps={{ min: 0 }}
+                helperText="Current stock available for sale"
+              />
+              
+              <TextField
+                label="Reorder Level"
+                type="number"
+                value={reorderLevel}
+                onChange={handleReorderLevelChange}
+                fullWidth
+                margin="normal"
+                inputProps={{ min: 0 }}
+                helperText="Stock level at which reordering is needed"
+              />
+              
+              <Box textAlign="center" mt={3}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  onClick={handleInventoryUpdate}
+                  disabled={inventorySaving}
+                  startIcon={inventorySaving && <CircularProgress size={20} />}
+                >
+                  {inventorySaving ? 'Saving...' : 'Save Inventory'}
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </Paper>
+      ) : (
+        specificCategory && (
+          <Paper 
+            elevation={1} 
+            sx={{ 
+              p: 3, 
+              mt: 3,
+              backgroundColor: '#f5f5f5',
+              border: '1px solid #ddd'
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              Inventory Management
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            
+            <Box textAlign="center" py={2}>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                This category uses on-demand fulfillment
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                No inventory tracking is available for products in this category
+              </Typography>
+            </Box>
+          </Paper>
+        )
+      )}
 
       {/* Submit Button */}
       <Box textAlign="center" mt={4}>

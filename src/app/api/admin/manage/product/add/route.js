@@ -35,6 +35,7 @@ export async function POST(req) {
       freebies,
       sku,
       designTemplate,
+      designTemplates, // New field for multiple templates
       productSource,
       images,
       inventoryData, // New field for inventory
@@ -156,7 +157,8 @@ export async function POST(req) {
       sku,
       productSource,
       ...(inventoryId && { inventoryData: inventoryId }), // Include inventory if created
-      ...(designTemplate ? { designTemplate } : {}), // Only include designTemplate if it exists
+      ...(designTemplate ? { designTemplate } : {}), // Only include designTemplate if it exists (backward compatibility)
+      ...(designTemplates && designTemplates.length > 0 ? { designTemplates } : {}), // Include designTemplates if provided
     });
 
     await newProduct.save();

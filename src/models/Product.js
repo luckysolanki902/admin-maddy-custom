@@ -99,14 +99,19 @@ const ProductSchema = new mongoose.Schema(
     },
     designTemplate: {
       designCode: {
-        type: String,
+        type: String, // Same as product's sku
         required: false,
       },
       imageUrl: {
         type: String,
         required: false,
       },
-    },
+    }, // this field will be deprecated, instead we'll use designTemplates to store multiple templates (like mirror images with text properly rendered)
+
+    designTemplates: [{
+      type: String,
+      required: false
+    }], // New field replacing designTemplate and will just be simple imageUrls for the design templates and will cover mirror images too with text being rendered properly
 
     displayOrder: {
       type: Number,

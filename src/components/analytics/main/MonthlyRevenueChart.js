@@ -197,33 +197,6 @@ const CustomTooltip = ({ active, payload, label }) => {
         </Box>
       )}
       
-      {/* Prediction Accuracy */}
-      {percentDiff !== null && (
-        <Box 
-          sx={{ 
-            mt: 1.5, 
-            pt: 1.5,
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <Typography variant="body2" sx={{ color: '#CCC', fontSize: '0.85rem' }}>
-            Vs Prediction
-          </Typography>
-          <Chip
-            label={`${percentDiff > 0 ? '+' : ''}${percentDiff.toFixed(1)}%`}
-            size="small"
-            sx={{
-              backgroundColor: 'rgba(167, 139, 250, 0.2)',
-              color: '#A78BFA',
-              fontWeight: 600,
-              fontSize: '0.75rem'
-            }}
-          />
-        </Box>
-      )}
     </Box>
   );
 };

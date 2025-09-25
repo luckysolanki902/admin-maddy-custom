@@ -34,102 +34,71 @@ const DateRangeChips = ({
   const [selectedRangeStart, setSelectedRangeStart] = useState(dayjs().subtract(7, 'day'));
   const [selectedRangeEnd, setSelectedRangeEnd] = useState(dayjs());
 
-  // Memoize handlers for better performance
+  // Memoized helpers for performance
   const handlePredefinedRange = useCallback((tag, start, end) => {
     setActiveTag(tag);
-    
-    const startAsDayjs = dayjs.isDayjs(start) ? start : dayjs(start);
-    const endAsDayjs = dayjs.isDayjs(end) ? end : dayjs(end);
-    
-    setDateRange({ 
-      start: startAsDayjs,
-      end: endAsDayjs 
-    });
-    
-    if (setCurrentPage) setCurrentPage(1);
-    if (setProblematicCurrentPage) setProblematicCurrentPage(1);
-  }, [setActiveTag, setDateRange, setCurrentPage, setProblematicCurrentPage]);
+    setCurrentPage(1);
+    setProblematicCurrentPage(1);
+    setDateRange({ start, end });
+  }, [setActiveTag, setCurrentPage, setProblematicCurrentPage, setDateRange]);
 
-  // Handle chip click - optimized with useCallback
-  const handleChipClick = useCallback((chipId) => {
-    // Prevent any lag by immediately updating the active tag
-    setActiveTag(chipId);
-    
-    // Then process the actual date logic
-    switch (chipId) {
-      case 'today':
-        handlePredefinedRange(
-          'today', 
-          dayjs().startOf('day'), 
-          dayjs().endOf('day')
-        );
+  const handleChipClick = useCallback((tag) => {
+    switch (tag) {
+      case 'today': {
+        handlePredefinedRange('today', dayjs().startOf('day'), dayjs().endOf('day'));
         break;
-      case 'yesterday':
+      }
+      case 'yesterday': {
         const yesterday = dayjs().subtract(1, 'day');
-        handlePredefinedRange(
-          'yesterday', 
-          yesterday.startOf('day'), 
-          yesterday.endOf('day')
-        );
+        handlePredefinedRange('yesterday', yesterday.startOf('day'), yesterday.endOf('day'));
         break;
-      case 'thisMonth':
+      }
+      case 'thisMonth': {
         if (handleMonthSelection) {
           handleMonthSelection('thisMonth');
         } else {
-          handlePredefinedRange(
-            'thisMonth', 
-            dayjs().startOf('month'), 
-            dayjs().endOf('day')
-          );
+          handlePredefinedRange('thisMonth', dayjs().startOf('month'), dayjs().endOf('day'));
         }
         break;
-      case 'lastMonth':
+      }
+      case 'lastMonth': {
         if (handleMonthSelection) {
           handleMonthSelection('lastMonth');
         } else {
           const lastMonth = dayjs().subtract(1, 'month');
-          handlePredefinedRange(
-            'lastMonth', 
-            lastMonth.startOf('month'), 
-            lastMonth.endOf('month')
-          );
+          handlePredefinedRange('lastMonth', lastMonth.startOf('month'), lastMonth.endOf('month'));
         }
         break;
-      case 'last7days':
-        handlePredefinedRange(
-          'last7days', 
-          dayjs().subtract(6, 'day').startOf('day'), 
-          dayjs().endOf('day')
-        );
+      }
+      case 'last7days': {
+        handlePredefinedRange('last7days', dayjs().subtract(6, 'day').startOf('day'), dayjs().endOf('day'));
         break;
-      case 'last30days':
-        handlePredefinedRange(
-          'last30days', 
-          dayjs().subtract(29, 'day').startOf('day'), 
-          dayjs().endOf('day')
-        );
+      }
+      case 'last30days': {
+        handlePredefinedRange('last30days', dayjs().subtract(29, 'day').startOf('day'), dayjs().endOf('day'));
         break;
-      case 'all':
+      }
+      case 'all': {
         if (handleAllTagClick) {
           handleAllTagClick();
         } else {
-          handlePredefinedRange(
-            'all', 
-            dayjs('2020-01-01').startOf('day'), 
-            dayjs().endOf('day')
-          );
+          handlePredefinedRange('all', dayjs('2020-01-01').startOf('day'), dayjs().endOf('day'));
         }
         break;
-      case 'custom':
+      }
+      case 'custom': {
         setCustomDayDialogOpen(true);
         break;
-      case 'customRange':
+      }
+      case 'customRange': {
         setCustomRangeDialogOpen(true);
         break;
-      default:
+      }
+      default: {
         break;
+      }
     }
-  }, [handlePredefinedRange, handleMonthSelection, handleAllTagClick, setActiveTag]);
+  }, [handlePredefinedRange, handleMonthSelection, handleAllTagClick]);
 
   // Apply selected custom day - optimized
   const applyCustomDay = useCallback(() => {

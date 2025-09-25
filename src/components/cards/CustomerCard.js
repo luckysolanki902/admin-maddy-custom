@@ -36,7 +36,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
-import { WhatsApp } from '@mui/icons-material';
+import { CopyAll, CopyAllOutlined, CopyAllRounded, WhatsApp } from '@mui/icons-material';
 import Link from 'next/link';
 import { generateInvoicePdf } from '@/utils/pdfGenerator';
 import Image from 'next/image';
@@ -1473,7 +1473,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                 border: '1px solid rgba(255, 255, 255, 0.1)',
                                 fontFamily: 'monospace'
                               }}>
-                                ID: {shipment.shipmentId.slice(0, 8)}...
+                                ID: {shipment.shipmentId}
                               </Typography>
                               
                               <Typography variant="caption" sx={{
@@ -1521,9 +1521,20 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                         <Grid container spacing={{ xs: 1, sm: 2 }}>
                           {/* Shipment Items */}
                           <Grid item xs={12} lg={6}>
-                            <Typography variant="subtitle2" sx={{ color: 'white', mb: 1.5, fontWeight: 600 }}>
-                              Items in this Shipment
+                            <Box sx={{display: 'flex', alignItems: 'center',}}>
+                                 <Typography variant="subtitle2" sx={{ color: 'white', mb: 1.5, fontWeight: 600 }}>
+                              Items in this Shipment 
+                             
                             </Typography>
+                            <Typography  variant="subtitle2" sx={{ color: 'gray', mb: 1.5, fontWeight: 600, ml: 1 }}>
+                            {shipment.shipmentId}
+
+                            </Typography>
+
+                            <CopyAll sx={{fontSize: '1.25rem', color: 'gray', ml: 0.5, mt: -2, cursor: 'pointer' }}  onClick={(e) => {navigator.clipboard.writeText(order.address?.receiverPhoneNumber);}}/>
+                            </Box>
+                         
+                            
                             {shipmentData.items.map((item, itemIndex) => (
                               <Card
                                 key={itemIndex}

@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useState } from 'react';
+import dayjs from 'dayjs';
 import {
   Box,
   Typography,
@@ -222,6 +223,11 @@ const OrdersList = ({
 }) => {
   const [statsExpanded, setStatsExpanded] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
+  const isEveningWindow = (() => {
+    const h = dayjs().hour();
+    return h >= 1 && h <= 23; // 6:00 PM to 11:59:59 PM
+  })();
+  const invertedMetricKeys = new Set(['cac', 'totalDiscount', 'discountRate']);
   
   const { metaOrders = 0, instagramBioOrders = 0 } = utmCounts;
   const { spend } = cacData;
@@ -247,12 +253,13 @@ const OrdersList = ({
   useEffect(() => {
   }, [cacData, checkoutToPurchaseRatio]);
 
-  // Helper function to format percentage change with icon
-  const formatPercentageChange = (change) => {
+  // Helper function to format percentage change with icon, supports inverted-good metrics
+  const formatPercentageChange = (metricKey, change) => {
     if (!comparisonData || change === undefined || change === null) return null;
-    
-    const isPositive = change > 0;
-    const isNegative = change < 0;
+
+    const inverted = invertedMetricKeys.has(metricKey);
+    const isPositive = inverted ? change < 0 : change > 0;
+    const isNegative = inverted ? change > 0 : change < 0;
     const formattedChange = Math.abs(change).toFixed(1);
     
     if (change === 0) return null;
@@ -303,44 +310,50 @@ const OrdersList = ({
   // Essential metrics for closed state - updated per requirements
   const essentialMetrics = [
     { 
+      key: 'totalOrders',
       label: 'Orders', 
       value: totalOrders?.toLocaleString('en-IN') || '0',
-      change: formatPercentageChange(getMetricChange('totalOrders'))
+      change: formatPercentageChange('totalOrders', getMetricChange('totalOrders'))
     },
     ...(isAdmin ? [{ 
+      key: 'revenue',
       label: 'Sales', 
       value: `₹${revenue?.toLocaleString('en-IN') || '0'}`,
-      change: formatPercentageChange(getMetricChange('revenue'))
+      change: formatPercentageChange('revenue', getMetricChange('revenue'))
     }] : []),
     { 
+      key: 'aov',
       label: 'AOV', 
       value: `₹${aov?.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}`,
-      change: formatPercentageChange(getMetricChange('aov'))
+      change: formatPercentageChange('aov', getMetricChange('aov'))
     },
     { 
+      key: 'cac',
       label: 'CAC', 
       value: `₹${calculatedOverallCAC}`,
-      change: formatPercentageChange(getMetricChange('cac'))
+      change: formatPercentageChange('cac', getMetricChange('cac'))
     },
     { 
+      key: 'roas',
       label: 'ROAS', 
       value: `${roas?.toFixed(2) || '0'}`,
-      change: formatPercentageChange(getMetricChange('roas'))
+      change: formatPercentageChange('roas', getMetricChange('roas'))
     },
     { 
+      key: 'c2p',
       label: 'C2P', 
       value: `${checkoutToPurchaseRatio}%`,
-      change: formatPercentageChange(getMetricChange('c2p'))
+      change: formatPercentageChange('c2p', getMetricChange('c2p'))
     },
   ];
   // All metrics for expanded state with tooltips
   const allMetrics = [
     // Basic metrics
     { 
-      label: 'Orders', 
+  label: 'Orders', 
       value: totalOrders?.toLocaleString('en-IN') || '0', 
       category: 'basic',
-      change: formatPercentageChange(getMetricChange('totalOrders')),
+  change: formatPercentageChange('totalOrders', getMetricChange('totalOrders')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -353,10 +366,10 @@ const OrdersList = ({
       )
     },
     { 
-      label: 'Items', 
+  label: 'Items', 
       value: totalItems?.toLocaleString('en-IN') || '0', 
       category: 'basic',
-      change: formatPercentageChange(getMetricChange('totalItems')),
+  change: formatPercentageChange('totalItems', getMetricChange('totalItems')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -369,10 +382,10 @@ const OrdersList = ({
       )
     },
     { 
-      label: 'AOV', 
+  label: 'AOV', 
       value: `₹${aov?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0'}`, 
       category: 'basic',
-      change: formatPercentageChange(getMetricChange('aov')),
+  change: formatPercentageChange('aov', getMetricChange('aov')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -388,10 +401,10 @@ const OrdersList = ({
       )
     },
     { 
-      label: 'Discounts', 
+  label: 'Discounts', 
       value: `₹${sumTotalDiscount?.toLocaleString('en-IN') || '0'}`, 
       category: 'basic',
-      change: formatPercentageChange(getMetricChange('totalDiscount')),
+  change: formatPercentageChange('totalDiscount', getMetricChange('totalDiscount')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -410,10 +423,10 @@ const OrdersList = ({
     // Admin metrics
     ...(isAdmin ? [
       { 
-        label: 'Gross Sales', 
+  label: 'Gross Sales', 
         value: `₹${grossSales?.toLocaleString('en-IN') || '0'}`, 
         category: 'admin',
-        change: formatPercentageChange(getMetricChange('grossSales')),
+  change: formatPercentageChange('grossSales', getMetricChange('grossSales')),
         tooltip: (
           <>
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -429,10 +442,10 @@ const OrdersList = ({
         )
       },
       { 
-        label: 'Revenue', 
+  label: 'Revenue', 
         value: `₹${revenue?.toLocaleString('en-IN') || '0'}`, 
         category: 'admin',
-        change: formatPercentageChange(getMetricChange('revenue')),
+  change: formatPercentageChange('revenue', getMetricChange('revenue')),
         tooltip: (          <>
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
               Net Revenue
@@ -447,9 +460,10 @@ const OrdersList = ({
         )
       },
       { 
-        label: 'Discount %', 
+  label: 'Discount %', 
         value: `${discountRate?.toFixed(2) || '0'}%`, 
         category: 'admin',
+  change: formatPercentageChange('discountRate', getMetricChange('discountRate')),
         tooltip: (          <>
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
               Discount Rate
@@ -464,10 +478,10 @@ const OrdersList = ({
         )
       },
       { 
-        label: 'RAT', 
+  label: 'RAT', 
         value: `₹${rat?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0'}`, 
         category: 'admin',
-        change: formatPercentageChange(getMetricChange('rat')),
+  change: formatPercentageChange('rat', getMetricChange('rat')),
         tooltip: (          <>
             <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
               Revenue After Tax (RAT)
@@ -485,10 +499,10 @@ const OrdersList = ({
     
     // Performance metrics
     { 
-      label: 'Meta CAC', 
+  label: 'Meta CAC', 
       value: `₹${calculatedMetaCAC}`, 
       category: 'performance',
-      change: formatPercentageChange(getMetricChange('cac')),
+  change: formatPercentageChange('cac', getMetricChange('cac')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -504,10 +518,10 @@ const OrdersList = ({
       )
     },
     { 
-      label: 'Overall CAC', 
+  label: 'Overall CAC', 
       value: `₹${calculatedOverallCAC}`, 
       category: 'performance',
-      change: formatPercentageChange(getMetricChange('cac')),
+  change: formatPercentageChange('cac', getMetricChange('cac')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -523,10 +537,10 @@ const OrdersList = ({
       )
     },
     { 
-      label: 'ROAS', 
+  label: 'ROAS', 
       value: `${roas?.toFixed(2) || '0'}`, 
       category: 'performance',
-      change: formatPercentageChange(getMetricChange('roas')),
+  change: formatPercentageChange('roas', getMetricChange('roas')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -542,10 +556,10 @@ const OrdersList = ({
       )
     },
     { 
-      label: 'C2P Ratio', 
+  label: 'C2P Ratio', 
       value: `${checkoutToPurchaseRatio}%`, 
       category: 'performance',
-      change: formatPercentageChange(getMetricChange('c2p')),
+  change: formatPercentageChange('c2p', getMetricChange('c2p')),
       tooltip: (
         <>
           <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
@@ -569,22 +583,24 @@ const OrdersList = ({
         <Typography variant="h6" sx={{ color: '#ffffff', fontWeight: 600 }}>
           Analytics Dashboard
         </Typography>
-        <Tooltip title={compareMode ? "Hide comparisons" : "Show period comparisons"}>
-          <IconButton
-            onClick={() => setCompareMode(!compareMode)}
-            size="small"
-            sx={{ 
-              color: compareMode ? '#4CAF50' : '#ffffff',
-              backgroundColor: compareMode ? 'rgba(76, 175, 80, 0.1)' : 'transparent',
-              border: `1px solid ${compareMode ? '#4CAF50' : '#4a4a4a'}`,
-              '&:hover': {
-                backgroundColor: compareMode ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-              }
-            }}
-          >
-            <CompareArrowsIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        {isEveningWindow && (
+          <Tooltip title={compareMode ? "Hide comparisons" : "Show period comparisons"}>
+            <IconButton
+              onClick={() => setCompareMode(!compareMode)}
+              size="small"
+              sx={{ 
+                color: compareMode ? '#4CAF50' : '#ffffff',
+                backgroundColor: compareMode ? 'rgba(76, 175, 80, 0.1)' : 'transparent',
+                border: `1px solid ${compareMode ? '#4CAF50' : '#4a4a4a'}`,
+                '&:hover': {
+                  backgroundColor: compareMode ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
+            >
+              <CompareArrowsIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
       
       {/* Compact Stats Accordion */}
@@ -600,29 +616,27 @@ const OrdersList = ({
             
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flex: 1 }}>
               {!loading && essentialMetrics.map((metric, index) => {
-                // Extract percentage value from the change component if it exists
-                let changeValue = 0;
+                // Determine change direction using comparison data and inversion rules
                 let hasPositiveChange = false;
                 let hasNegativeChange = false;
-                
-                if (compareMode && metric.change && typeof metric.change === 'object' && metric.change.props?.children) {
-                  const changeText = metric.change.props.children;
-                  if (typeof changeText === 'string') {
-                    changeValue = parseFloat(changeText.replace(/[^-\d.]/g, '') || '0');
-                    hasPositiveChange = changeValue > 0;
-                    hasNegativeChange = changeValue < 0;
+                if (isEveningWindow && compareMode && metric.key) {
+                  const raw = getMetricChange(metric.key);
+                  if (typeof raw === 'number') {
+                    const inverted = invertedMetricKeys.has(metric.key);
+                    hasPositiveChange = inverted ? raw < 0 : raw > 0;
+                    hasNegativeChange = inverted ? raw > 0 : raw < 0;
                   }
                 }
                 
                 return (
                   <SummaryMetricChip
                     key={index}
-                    hasPositiveChange={compareMode && hasPositiveChange}
-                    hasNegativeChange={compareMode && hasNegativeChange}
+                    hasPositiveChange={isEveningWindow && compareMode && hasPositiveChange}
+                    hasNegativeChange={isEveningWindow && compareMode && hasNegativeChange}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <span>{metric.label}: {metric.value}</span>
-                      {compareMode && metric.change && (
+                      {isEveningWindow && compareMode && metric.change && (
                         <Box 
                           sx={{ 
                             fontSize: '0.7rem', 
@@ -688,7 +702,7 @@ const OrdersList = ({
                         }}
                       />
                     </DarkTooltip>
-                    {metric.change && (
+                    {isEveningWindow && metric.change && compareMode && (
                       <Box sx={{ alignSelf: 'center' }}>
                         {metric.change}
                       </Box>
@@ -738,7 +752,7 @@ const OrdersList = ({
                             }}
                           />
                         </DarkTooltip>
-                        {metric.change && (
+                        {isEveningWindow && metric.change && compareMode && (
                           <Box sx={{ alignSelf: 'center' }}>
                             {metric.change}
                           </Box>
@@ -788,7 +802,7 @@ const OrdersList = ({
                         }}
                       />
                     </DarkTooltip>
-                    {metric.change && (
+                    {isEveningWindow && metric.change && compareMode && (
                       <Box sx={{ alignSelf: 'center' }}>
                         {metric.change}
                       </Box>

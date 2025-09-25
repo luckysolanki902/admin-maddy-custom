@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Order from "@/models/Order";
-import Product from "@/models/Product";
-import SpecificCategoryVariant from "@/models/SpecificCategoryVariant";
+import Product from "@/models/Product"; // ensures model is registered
+import SpecificCategoryVariant from "@/models/SpecificCategoryVariant"; // ensures model is registered
 import { getPresignedUrl } from "@/lib/aws";
 import jwt from "jsonwebtoken";
 import dayjs from "dayjs";
@@ -68,7 +68,8 @@ async function handleGetPresignedUrls(request) {
     ]);
     const totalItems = totalItemsAgg[0] ? totalItemsAgg[0].totalItems : 0;
 
-    const imagesData = await Order.aggregate([
+    // Aggregate by product (sku) collecting wrap finish distribution and templates (supports new designTemplates array)
+    const aggregated = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: start, $lte: end },
@@ -86,16 +87,6 @@ async function handleGetPresignedUrls(request) {
       },
       { $unwind: "$product" },
       {
-        $match: {
-          $or: [
-            // Check for legacy designTemplate field
-            { "product.designTemplate.imageUrl": { $exists: true, $ne: "", $type: "string" } },
-            // Check for new designTemplates array field
-            { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } }
-          ],
-        },
-      },
-      {
         $lookup: {
           from: "specificcategoryvariants",
           localField: "product.specificCategoryVariant",
@@ -104,113 +95,110 @@ async function handleGetPresignedUrls(request) {
         },
       },
       { $unwind: "$specificCategoryVariant" },
-      // Add field to get all template images (both legacy and new)
+      {
+        $match: {
+          $or: [
+            { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
+            { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
+          ],
+        },
+      },
       {
         $addFields: {
-          templateImages: {
+          normalizedWrapFinish: {
             $cond: {
-              if: { $and: [{ $exists: ["$product.designTemplates"] }, { $ne: ["$product.designTemplates", []] }] },
-              then: "$product.designTemplates",
-              else: {
-                $cond: {
-                  if: { $ne: ["$product.designTemplate.imageUrl", ""] },
-                  then: [{ imageUrl: "$product.designTemplate.imageUrl", name: "template" }],
-                  else: []
-                }
-              }
-            }
-          }
-        }
+              if: { $and: [{ $ne: ["$items.wrapFinish", null] }, { $ne: ["$items.wrapFinish", ""] }] },
+              then: "$items.wrapFinish",
+              else: "Matte",
+            },
+          },
+        },
       },
-      // Unwind the template images to create separate entries for each template
-      { $unwind: "$templateImages" },
       {
         $group: {
           _id: {
             sku: "$product.sku",
+            productId: "$product._id",
+            productName: "$product.name",
             specificCategoryVariant: "$specificCategoryVariant.name",
-            imageUrl: "$templateImages.imageUrl",
-            templateName: "$templateImages.name",
-            wrapFinish: {
-              $cond: {
-                if: { $and: [{ $ne: ["$items.wrapFinish", null] }, { $ne: ["$items.wrapFinish", ""] }] },
-                then: "$items.wrapFinish",
-                else: "Matte", // or N/A when you switch to items other than wraps in download template page
-              },
-            },
+            wrapFinish: "$normalizedWrapFinish",
           },
-          count: { $sum: "$items.quantity" },
+          quantity: { $sum: "$items.quantity" },
+          designTemplate: { $first: "$product.designTemplate.imageUrl" },
+          designTemplates: { $first: "$product.designTemplates" },
         },
       },
       {
         $group: {
           _id: {
             sku: "$_id.sku",
+            productName: "$_id.productName",
             specificCategoryVariant: "$_id.specificCategoryVariant",
-            imageUrl: "$_id.imageUrl",
-            templateName: "$_id.templateName",
           },
-          wrapFinish: {
-            $push: {
-              k: "$_id.wrapFinish",
-              v: "$count",
-            },
+          wrapFinishes: {
+            $push: { k: "$_id.wrapFinish", v: "$quantity" },
           },
-          count: { $sum: "$count" },
+          totalCount: { $sum: "$quantity" },
+          designTemplate: { $first: "$designTemplate" },
+          designTemplates: { $first: "$designTemplates" },
         },
       },
-
       {
         $addFields: {
-          wrapFinish: { $arrayToObject: "$wrapFinish" },
+          wrapFinish: { $arrayToObject: "$wrapFinishes" },
         },
       },
-      { $sort: { count: -1 } },
+      { $sort: { totalCount: -1 } },
     ]);
 
-    const imagesWithPresignedUrls = await Promise.all(
-      imagesData.map(async item => {
-        const { sku, specificCategoryVariant, imageUrl, templateName } = item._id;
-        if (!imageUrl) {
-          console.warn(`⚠️ No imageUrl for SKU: ${sku}`);
-          return {
-            sku,
-            specificCategoryVariant,
-            imageUrl: null,
-            templateName: templateName || 'template',
-            presignedUrl: null,
-            count: item.count,
-            wrapFinish: item.wrapFinish,
-          };
-        }
-        try {
-          const presignedUrlObj = await getPresignedUrl(imageUrl, "image/png", "getObject");
-          const presignedUrl = presignedUrlObj.presignedUrl;
-          return {
-            sku,
-            specificCategoryVariant,
-            imageUrl,
-            templateName: templateName || 'template',
-            presignedUrl,
-            count: item.count,
-            wrapFinish: item.wrapFinish,
-          };
-        } catch (error) {
-          console.error(`❌ Error generating presigned URL for SKU ${sku}:`, error.message);
-          return {
-            sku,
-            specificCategoryVariant,
-            imageUrl,
-            templateName: templateName || 'template',
-            presignedUrl: null,
-            count: item.count,
-            wrapFinish: item.wrapFinish,
-          };
-        }
+    // Build final structure with presigned URLs for each template (only used for downloading, table will use CloudFront)
+    const images = await Promise.all(
+      aggregated.map(async doc => {
+        const sku = doc._id.sku;
+        const productName = doc._id.productName || "";
+        const specificCategoryVariant = doc._id.specificCategoryVariant;
+        const wrapFinish = doc.wrapFinish || {};
+
+        // Determine templates list (prefer new designTemplates array)
+        let templatePaths = Array.isArray(doc.designTemplates) && doc.designTemplates.length > 0
+          ? doc.designTemplates.filter(Boolean)
+          : (doc.designTemplate ? [doc.designTemplate] : []);
+
+        // Ensure uniqueness and cleanliness
+        templatePaths = [...new Set(templatePaths.map(p => (typeof p === 'string' ? p.trim() : '')).filter(Boolean))];
+
+        // Generate presigned URLs (only for first two templates if more, as per UI requirement)
+        const templates = await Promise.all(
+          templatePaths.slice(0, 2).map(async (path, idx) => {
+            try {
+              const { presignedUrl } = await getPresignedUrl(path, "image/png", "getObject");
+              return {
+                path,
+                presignedUrl,
+                letter: idx === 0 ? 'a' : 'b',
+              };
+            } catch (e) {
+              console.error(`Failed presigned URL for template ${path} (SKU ${sku})`, e.message);
+              return { path, presignedUrl: null, letter: idx === 0 ? 'a' : 'b' };
+            }
+          })
+        );
+
+        return {
+          sku,
+          productName,
+          specificCategoryVariant,
+            // number of orders (items quantity) for this sku
+          count: doc.totalCount,
+          wrapFinish,
+          templateCount: templatePaths.length,
+          templates, // up to two template entries with presignedUrl (for download) and path
+          extraTemplatesHidden: templatePaths.length > 2 ? templatePaths.length - 2 : 0,
+        };
       })
     );
 
-    return NextResponse.json({ totalOrders, totalItems, images: imagesWithPresignedUrls }, { status: 200 });
+    return NextResponse.json({ totalOrders, totalItems, images }, { status: 200 });
   } catch (error) {
     console.error("❌ Error in get-presigned-urls handler:", error.message, error.stack);
     return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });

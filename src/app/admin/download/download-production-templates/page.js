@@ -18,7 +18,9 @@ import {
   Tooltip,
   Snackbar,
   IconButton,
-  TextField
+  TextField,
+  Skeleton,
+  Box,
 } from "@mui/material";
 import {
   Download as DownloadIcon,
@@ -43,7 +45,7 @@ const DownloadProductionTemplates = () => {
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [unavailableImages, setUnavailableImages] = useState(new Set()); // Track unavailable images
+  // Removed unavailable image tracking (no warnings required now)
   const [snackbarOpen, setSnackbarOpen] = useState(false); // For clipboard feedback
 
   const [activeTag, setActiveTag] = useState('today');
@@ -119,7 +121,7 @@ const DownloadProductionTemplates = () => {
       setImagesData(data.images);
       setTotalOrders(data.totalOrders);
       setTotalItems(data.totalItems);
-      setUnavailableImages(new Set()); // Reset unavailable images on new fetch
+  // no need to track unavailable images now
     } catch (error) {
       console.error("Error fetching images:", error);
       setError(error.message || "Failed to fetch images data.");
@@ -135,7 +137,7 @@ const DownloadProductionTemplates = () => {
   // Function to handle image download via client-side zipping
   const handleDownload = async () => {
     if (imagesData.length === 0) {
-      setError("No available images to download.");
+      setError("No available templates to download.");
       return;
     }
 
@@ -150,97 +152,44 @@ const DownloadProductionTemplates = () => {
 
       // Function to fetch each image and add to zip
       const fetchAndAddToZip = async image => {
-        const { sku, specificCategoryVariant, presignedUrl, imageUrl, count, wrapFinish, templateName } = image;
-
-        if (!presignedUrl) {
-          console.error(`No presigned URL for SKU ${sku}.`);
-          setUnavailableImages(prev => new Set(prev).add(sku));
-          return;
-        }
-
-        try {
-          const response = await fetch(presignedUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch image for SKU ${sku}`);
-          }
-          const blob = await response.blob();
-          const arrayBuffer = await blob.arrayBuffer();
-
-          // Sanitize folder and file names
-          const sanitizedSKU = sku.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
-          const sanitizedCategoryVariant = specificCategoryVariant.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
-
-          // Extract file extension from imageUrl using regex
-          const fileExtensionMatch = imageUrl.match(/\.(jpg|jpeg|png|gif|bmp|svg)$/i);
-          const fileExtension = fileExtensionMatch ? fileExtensionMatch[0] : ".jpg";
-
-          // Determine template suffix based on template name
-          let templateSuffix = "";
-          if (templateName && templateName !== "template") {
-            // Handle mirror templates (e.g., "mirror-template" becomes "-m")
-            if (templateName.includes("mirror")) {
-              templateSuffix = "-m";
-            } else if (templateName.includes("front")) {
-              templateSuffix = "-f";
-            } else if (templateName.includes("back")) {
-              templateSuffix = "-b";
-            } else {
-              // Use first letter of template name
-              templateSuffix = `-${templateName.charAt(0).toLowerCase()}`;
-            }
-          }
-
-          if (wrapFinish && typeof wrapFinish === "object") {
-            for (const [finish, qty] of Object.entries(wrapFinish)) {
-              if (finish === "None") continue;
-
-              let sanitizedFinish = finish.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
-              
-              // Get first letter of finish for the filename suffix
-              const finishLetter = sanitizedFinish.charAt(0);
-              
-              // Create subfolder by wrap finish
-              const folderPath = `${sanitizedCategoryVariant}/${sanitizedFinish}`;
-              
-              for (let i = 1; i <= qty; i++) {
-                // Use naming convention: sku-templateSuffix-finishLetter-count (e.g., bsw9-m-g-1a)
-                let fileName;
-                if (templateSuffix) {
-                  fileName = `${sanitizedSKU}${templateSuffix}-${finishLetter}-${i}${String.fromCharCode(96 + i)}${fileExtension}`;
-                } else {
-                  fileName = `${sanitizedSKU}-${finishLetter}-${i}${String.fromCharCode(96 + i)}${fileExtension}`;
+        const { sku, specificCategoryVariant, templates, wrapFinish } = image;
+        if (!templates || templates.length === 0) return;
+        for (const tmpl of templates) {
+          if (!tmpl.presignedUrl) continue;
+            try {
+              const response = await fetch(tmpl.presignedUrl);
+              if (!response.ok) continue;
+              const blob = await response.blob();
+              const arrayBuffer = await blob.arrayBuffer();
+              const sanitizedSKU = sku.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
+              const sanitizedCategoryVariant = specificCategoryVariant.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
+              const fileExtensionMatch = tmpl.path.match(/\.(jpg|jpeg|png|gif|bmp|svg)$/i);
+              const fileExtension = fileExtensionMatch ? fileExtensionMatch[0] : ".jpg";
+              const baseFileName = `${sanitizedSKU}-${tmpl.letter}`;
+              if (wrapFinish && typeof wrapFinish === 'object') {
+                for (const [finish, qty] of Object.entries(wrapFinish)) {
+                  if (finish === 'None') continue;
+                  const sanitizedFinish = finish.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
+                  const folderPath = `${sanitizedCategoryVariant}/${sanitizedFinish}`;
+                  for (let i = 1; i <= qty; i++) {
+                    const imagePath = `${folderPath}/${baseFileName}-${i}${fileExtension}`;
+                    zip.file(imagePath, arrayBuffer, { binary: true });
+                  }
                 }
-                
-                const imagePath = `${folderPath}/${fileName}`;
-                zip.file(imagePath, arrayBuffer, { binary: true });
-              }
-            }
-
-            // Handle items with "None" wrap finish
-            if (wrapFinish["None"]) {
-              const folderPath = `${sanitizedCategoryVariant}/regular`;
-              
-              for (let i = 1; i <= wrapFinish["None"]; i++) {
-                let fileName;
-                if (templateSuffix) {
-                  fileName = `${sanitizedSKU}${templateSuffix}-${i}${String.fromCharCode(96 + i)}${fileExtension}`;
-                } else {
-                  fileName = `${sanitizedSKU}-${i}${String.fromCharCode(96 + i)}${fileExtension}`;
+                if (wrapFinish['None']) {
+                  const folderPath = `${sanitizedCategoryVariant}/regular`;
+                  for (let i = 1; i <= wrapFinish['None']; i++) {
+                    const imagePath = `${folderPath}/${baseFileName}-${i}${fileExtension}`;
+                    zip.file(imagePath, arrayBuffer, { binary: true });
+                  }
                 }
-                
-                const imagePath = `${folderPath}/${fileName}`;
-                zip.file(imagePath, arrayBuffer, { binary: true });
               }
+            } catch (e) {
+              // ignore fetch errors
             }
-          }
-        } catch (error) {
-          console.error(`Error fetching image for SKU ${sku}:`, error);
-          setUnavailableImages(prev => new Set(prev).add(sku));
         }
       };
-
-      // Fetch and add all images to zip
-      await Promise.all(imagesData.map(image => fetchAndAddToZip(image)));
+      await Promise.all(imagesData.map(fetchAndAddToZip));
 
       // Generate zip blob
       const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
@@ -422,12 +371,7 @@ const DownloadProductionTemplates = () => {
         </Grid>
       </Paper>
 
-      {/* Warning for unavailable files */}
-      {unavailableImages.size > 0 && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          {`${unavailableImages.size} file${unavailableImages.size > 1 ? "s are" : " is"} unavailable in the AWS bucket`}
-        </Alert>
-      )}
+      {/* Unavailable images warning removed as per new requirement */}
 
       {/* Action Buttons */}
       <Paper elevation={3} sx={{ p: 3 }}>
@@ -481,97 +425,94 @@ const DownloadProductionTemplates = () => {
       <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6" gutterBottom>
-            Wrap Orders with Design Templates
+            Wrap Orders with Design Templates (CloudFront preview)
           </Typography>
           <Typography variant="subtitle1">
-            Total Items having template: {imagesData.reduce((acc, item) => acc + item.count, 0)}
+            Total templates: {imagesData.reduce((acc, item) => acc + item.count, 0)} | Unique SKUs: {imagesData.length}
           </Typography>
         </Stack>
         {loading ? (
-          <Stack alignItems="center" sx={{ py: 4 }}>
-            <CircularProgress />
-          </Stack>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>SKU</strong></TableCell>
+                <TableCell><strong>Product Name</strong></TableCell>
+                <TableCell align="right"><strong>Orders Qty</strong></TableCell>
+                <TableCell><strong>Specific Category Variant</strong></TableCell>
+                <TableCell><strong>Templates</strong></TableCell>
+                <TableCell><strong>Wrap Finish</strong></TableCell>
+                <TableCell><strong>Preview</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <TableRow key={idx}>
+                  <TableCell><Skeleton width={80} /></TableCell>
+                  <TableCell><Skeleton width={140} /></TableCell>
+                  <TableCell align="right"><Skeleton width={40} /></TableCell>
+                  <TableCell><Skeleton width={160} /></TableCell>
+                  <TableCell><Skeleton width={60} /></TableCell>
+                  <TableCell><Skeleton width={120} /></TableCell>
+                  <TableCell>
+                    <Box display="flex" gap={1}>
+                      <Skeleton variant="rectangular" width={40} height={40} />
+                      <Skeleton variant="rectangular" width={40} height={40} />
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         ) : (
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>
-                  <strong>SKU</strong>
-                </TableCell>
-                <TableCell align="right">
-                  <strong>Order Count</strong>
-                </TableCell>
-                <TableCell align="left">
-                  <strong>Specific Category Variant</strong>
-                </TableCell>
-                <TableCell align="left">
-                  <strong>Template Name</strong>
-                </TableCell>
-                <TableCell align="left">
-                  <strong>Wrap Finish</strong>
-                </TableCell>
-                <TableCell align="center">
-                  <strong>Image</strong>
-                </TableCell>
+                <TableCell><strong>SKU</strong></TableCell>
+                <TableCell><strong>Product Name</strong></TableCell>
+                <TableCell align="right"><strong>Orders Qty</strong></TableCell>
+                <TableCell><strong>Specific Category Variant</strong></TableCell>
+                <TableCell><strong>Templates</strong></TableCell>
+                <TableCell><strong>Wrap Finish</strong></TableCell>
+                <TableCell><strong>Preview (a/b)</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {imagesData.length > 0 ? (
-                imagesData.map((item, index) => (
-                  <TableRow key={`${item.sku}-${item.templateName || 'template'}-${index}`}>
-                    <TableCell>{item.sku}</TableCell>
-                    <TableCell align="right">{item.count}</TableCell>
-                    <TableCell align="left">{item.specificCategoryVariant}</TableCell>
-                    <TableCell align="left">
-                      {item.templateName && item.templateName !== 'template' ? (
-                        <span style={{ 
-                          padding: '2px 8px', 
-                          backgroundColor: item.templateName.includes('mirror') ? '#e3f2fd' : '#f3e5f5',
-                          color: item.templateName.includes('mirror') ? '#1976d2' : '#7b1fa2',
-                          borderRadius: '12px',
-                          fontSize: '0.75rem',
-                          fontWeight: 'bold'
-                        }}>
-                          {item.templateName}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#666', fontStyle: 'italic' }}>Default</span>
-                      )}
-                    </TableCell>
-                    <TableCell align="left">
-                      {Object.keys(item.wrapFinish).length === 1 && item.wrapFinish["None"]
-                        ? "N/A"
-                        : Object.entries(item.wrapFinish)
-                          .filter(([key]) => key !== "None")
-                          .map(([key, value]) => (
-                            <div key={key}>
-                              {key}: {value}
-                            </div>
+                imagesData.map(item => {
+                  const { sku, productName, specificCategoryVariant, wrapFinish, templates = [], templateCount, extraTemplatesHidden } = item;
+                  const cloudFrontTemplates = templates.map(t => ({ ...t, cloudUrl: `${CLOUDFRONT_BASEURL}${t.path.startsWith('/') ? t.path : '/' + t.path}` }));
+                  return (
+                    <TableRow key={sku}>
+                      <TableCell>{sku}</TableCell>
+                      <TableCell>{productName || '—'}</TableCell>
+                      <TableCell align="right">{item.count}</TableCell>
+                      <TableCell>{specificCategoryVariant}</TableCell>
+                      <TableCell>{templateCount}</TableCell>
+                      <TableCell>
+                        {Object.keys(wrapFinish).length === 1 && wrapFinish['None']
+                          ? 'N/A'
+                          : Object.entries(wrapFinish)
+                              .filter(([k]) => k !== 'None')
+                              .map(([k,v]) => <div key={k}>{k}: {v}</div>)}
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          {cloudFrontTemplates.slice(0,2).map(t => (
+                            <Box key={t.path} sx={{ width:40, display:'flex', alignItems:'center' }}>
+                              <img src={t.cloudUrl} alt={sku + '-' + t.letter} style={{ width:40, height:'auto', display:'block' }} />
+                            </Box>
                           ))}
-                    </TableCell>
-                    <TableCell align="center">
-                      {item.presignedUrl && !unavailableImages.has(item.sku) ? (
-                        <Image
-                          src={item.presignedUrl}
-                          width={50}
-                          height={50}
-                          style={{ width: "50px", height: "auto" }}
-                          alt={`Sticker ${item.sku}`}
-                          onError={() => {
-                            setUnavailableImages(prev => new Set(prev).add(item.sku));
-                          }}
-                        />
-                      ) : (
-                        <Tooltip title="Image unavailable">
-                          <ImageNotSupportedIcon color="error" />
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
+                          {extraTemplatesHidden > 0 && (
+                            <Typography variant="caption" color="text.secondary">+{extraTemplatesHidden} more</Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={4} align="center">
                     No data available.
                   </TableCell>
                 </TableRow>

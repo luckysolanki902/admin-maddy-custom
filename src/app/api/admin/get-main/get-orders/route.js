@@ -244,8 +244,17 @@ export async function GET(req) {
       const aggregationResult = await Order.aggregate([
         { $match: query },
         {
+          $lookup: {
+            from: 'modeofpayments',
+            localField: 'paymentDetails.mode',
+            foreignField: '_id',
+            as: 'paymentMode'
+          }
+        },
+        {
           $addFields: {
-            extraChargesTotal: { $sum: "$extraCharges.chargesAmount" }
+            extraChargesTotal: { $sum: "$extraCharges.chargesAmount" },
+            paymentModeName: { $arrayElemAt: ["$paymentMode.name", 0] }
           }
         },
         {
@@ -258,6 +267,15 @@ export async function GET(req) {
                   sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue)
                   sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
                   sumItemsTotal: { $sum: { $add: ["$itemsTotal", "$extraChargesTotal"] } }, // Sum of itemsTotal + extraCharges (Gross Sales)
+                  sumTotalAmountWithoutCod: { 
+                    $sum: {
+                      $cond: [
+                        { $ne: ["$paymentModeName", "cod"] },
+                        "$totalAmount",
+                        0
+                      ]
+                    }
+                  }, // Sum of totalAmount excluding COD orders
                   oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
                   count: { $sum: 1 }, // Total number of orders
                 }
@@ -320,6 +338,7 @@ export async function GET(req) {
         sumTotalAmount = 0,
         sumTotalDiscount = 0,
         sumItemsTotal = 0,
+        sumTotalAmountWithoutCod = 0,
         oldestOrderDate = null,
         count = 0,
       } = metrics;
@@ -332,12 +351,14 @@ export async function GET(req) {
 
       const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal + extraCharges
       const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
+      const revenueWithoutCod = sumTotalAmountWithoutCod; // Revenue excluding COD orders
       const aov = count > 0 ? revenue / count : 0;
       const discountRate = grossSales > 0 ? (sumTotalDiscount / grossSales) * 100 : 0;
 
       return {
         grossSales,
         revenue,
+        revenueWithoutCod,
         sumTotalAmount,
         sumTotalDiscount,
         aov,
@@ -434,6 +455,7 @@ export async function GET(req) {
       const {
         grossSales,
         revenue,
+        revenueWithoutCod,
         sumTotalAmount,
         sumTotalDiscount,
         aov,
@@ -521,6 +543,7 @@ export async function GET(req) {
         totalItems,
         grossSales,
         revenue,
+        revenueWithoutCod,
         sumTotalAmount,
         sumTotalDiscount,
         aov,
@@ -574,6 +597,7 @@ export async function GET(req) {
         totalItems,
         grossSales,
         revenue,
+        revenueWithoutCod,
         sumTotalAmount,
         sumTotalDiscount,
         aov,
@@ -592,6 +616,7 @@ export async function GET(req) {
           totalItems,
           grossSales,
           revenue,
+          revenueWithoutCod,
           sumTotalAmount,
           sumTotalDiscount,
           aov,
@@ -613,6 +638,7 @@ export async function GET(req) {
         totalItems,
         grossSales,
         revenue,
+        revenueWithoutCod,
         sumTotalAmount,
         sumTotalDiscount,
         aov,
@@ -631,6 +657,7 @@ export async function GET(req) {
           totalItems,
           grossSales,
           revenue,
+          revenueWithoutCod,
           sumTotalAmount,
           sumTotalDiscount,
           aov,

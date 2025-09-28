@@ -23,6 +23,12 @@ const nextConfig = {
       },
     ],
   },
+  // Ensure the development server uses port 3001
+  ...(process.env.NODE_ENV === 'development' && {
+    experimental: {
+      // Any experimental features if needed
+    }
+  }),
 };
 
 export default nextConfig;

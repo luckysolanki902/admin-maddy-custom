@@ -164,11 +164,33 @@ export async function GET(req) {
 			};
 			const aggregationResult = await Order.aggregate([
 				{ $match: aggregatesQuery },
-				{ $addFields: { extraChargesTotal: { $sum: '$extraCharges.chargesAmount' } } },
+				{
+					$lookup: {
+						from: 'modeofpayments',
+						localField: 'paymentDetails.mode',
+						foreignField: '_id',
+						as: 'paymentMode'
+					}
+				},
+				{ 
+					$addFields: { 
+						extraChargesTotal: { $sum: '$extraCharges.chargesAmount' },
+						paymentModeName: { $arrayElemAt: ["$paymentMode.name", 0] }
+					} 
+				},
 				{ $group: {
 					_id: null,
 					totalOrders: { $sum: 1 },
 					revenue: { $sum: '$totalAmount' },
+					revenueWithoutCod: { 
+						$sum: {
+							$cond: [
+								{ $ne: ["$paymentModeName", "cod"] },
+								"$totalAmount",
+								0
+							]
+						}
+					},
 					grossSales: { $sum: { $add: ['$itemsTotal', '$extraChargesTotal'] } },
 					totalDiscount: { $sum: '$totalDiscount' },
 					totalItems: { $sum: '$itemsCount' },
@@ -188,7 +210,7 @@ export async function GET(req) {
 
 			const metrics = aggregationResult[0] || {};
 			const utmStats = utmStatsResult[0] || {};
-			const { totalOrders = 0, revenue = 0, grossSales = 0, totalDiscount = 0, totalItems = 0, totalShippingCost = 0, totalExtraCharges = 0 } = metrics;
+			const { totalOrders = 0, revenue = 0, revenueWithoutCod = 0, grossSales = 0, totalDiscount = 0, totalItems = 0, totalShippingCost = 0, totalExtraCharges = 0 } = metrics;
 			const { totalOrdersWithUTM = 0, totalRevenueWithUTM = 0 } = utmStats;
 			const aov = totalOrders > 0 ? revenue / totalOrders : 0;
 			const discountRate = grossSales > 0 ? (totalDiscount / grossSales) * 100 : 0;
@@ -196,8 +218,11 @@ export async function GET(req) {
 			const cac = totalOrdersWithUTM > 0 ? (totalExtraCharges * 0.1) / totalOrdersWithUTM : 0;
 			const rat = totalOrders > 0 ? (revenue / totalOrders) * 100 : 0;
 			const roas = totalExtraCharges > 0 ? (totalRevenueWithUTM / (totalExtraCharges * 0.1)) : 0;
+			// Calculate ROAS without COD - using revenue after tax
+			const revenueAfterTaxWithoutCod = revenueWithoutCod - (revenueWithoutCod * 18 / 118);
+			const roasWithoutCod = totalExtraCharges > 0 ? (revenueAfterTaxWithoutCod / (totalExtraCharges * 0.1)) : 0;
 			const c2p = grossSales > 0 ? ((revenue - (grossSales * 0.3)) / revenue) * 100 : 0;
-			return { totalOrders, revenue, grossSales, totalDiscount, totalItems, aov, discountRate, netRevenue, cac, rat, roas, c2p, totalOrdersWithUTM, totalRevenueWithUTM };
+			return { totalOrders, revenue, revenueWithoutCod, grossSales, totalDiscount, totalItems, aov, discountRate, netRevenue, cac, rat, roas, roasWithoutCod, c2p, totalOrdersWithUTM, totalRevenueWithUTM };
 		};
 
 		const currentQuery = buildQuery(currentStart.toISOString(), currentEnd.toISOString());
@@ -217,6 +242,7 @@ export async function GET(req) {
 			cac: { current: currentMetrics.cac, previous: previousMetrics.cac, change: change(currentMetrics.cac, previousMetrics.cac) },
 			rat: { current: currentMetrics.rat, previous: previousMetrics.rat, change: change(currentMetrics.rat, previousMetrics.rat) },
 			roas: { current: currentMetrics.roas, previous: previousMetrics.roas, change: change(currentMetrics.roas, previousMetrics.roas) },
+			roasWithoutCod: { current: currentMetrics.roasWithoutCod, previous: previousMetrics.roasWithoutCod, change: change(currentMetrics.roasWithoutCod, previousMetrics.roasWithoutCod) },
 			c2p: { current: currentMetrics.c2p, previous: previousMetrics.c2p, change: change(currentMetrics.c2p, previousMetrics.c2p) }
 		};
 

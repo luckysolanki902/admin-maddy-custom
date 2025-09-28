@@ -52,6 +52,7 @@ const OrderListFull = ({ isAdmin }) => {
     grossSales: 0,
     sumTotalDiscount: 0,
     revenue: 0,
+    revenueWithoutCod: 0,
     aov: 0,
     discountRate: 0,
     oldestOrderDate: null,
@@ -61,6 +62,7 @@ const OrderListFull = ({ isAdmin }) => {
   // RAT & ROAS
   const [revenueAfterTax, setRevenueAfterTax] = useState(0);
   const [roas, setRoas] = useState(0);
+  const [roasWithoutCod, setRoasWithoutCod] = useState(0);
 
   // Loading/UI
   const [loading, setLoading] = useState(true);
@@ -226,6 +228,7 @@ const OrderListFull = ({ isAdmin }) => {
           grossSales: isAdmin ? data.grossSales || 0 : 0,
           sumTotalDiscount: data.sumTotalDiscount || 0,
           revenue: isAdmin ? data.revenue || 0 : 0,
+          revenueWithoutCod: isAdmin ? data.revenueWithoutCod || 0 : 0,
           aov: data.aov || 0,
           discountRate: isAdmin ? data.discountRate || 0 : 0,
           oldestOrderDate: data.oldestOrderDate || null,
@@ -480,6 +483,15 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [revenueAfterTax, cacData.spend, isAdmin]);
 
+  useEffect(() => {
+    if (isAdmin) {
+      const revenueAfterTaxWithoutCod = orderData.revenueWithoutCod - (orderData.revenueWithoutCod * 18 / 118);
+      setRoasWithoutCod(cacData.spend ? revenueAfterTaxWithoutCod / cacData.spend : 0);
+    } else {
+      setRoasWithoutCod(0);
+    }
+  }, [orderData.revenueWithoutCod, cacData.spend, isAdmin]);
+
   /*****************************************************
    * Handlers
    *****************************************************/
@@ -697,6 +709,7 @@ const OrderListFull = ({ isAdmin }) => {
         totalOrders={orderData.totalOrders}
         grossSales={orderData.grossSales}
         revenue={orderData.revenue}
+        revenueWithoutCod={orderData.revenueWithoutCod}
         sumTotalDiscount={orderData.sumTotalDiscount}
         aov={orderData.aov}
         discountRate={orderData.discountRate}
@@ -709,6 +722,7 @@ const OrderListFull = ({ isAdmin }) => {
         utmCounts={orderData.utmCounts}
         rat={revenueAfterTax}
         roas={roas}
+        roasWithoutCod={roasWithoutCod}
         comparisonData={comparisonData}
       />
 

@@ -201,6 +201,7 @@ const OrdersList = ({
   totalOrders = 0,
   grossSales = 0,
   revenue = 0,
+  revenueWithoutCod = 0,
   sumTotalDiscount = 0,
   aov = 0,
   discountRate = 0,
@@ -219,15 +220,16 @@ const OrdersList = ({
   utmCounts = {},
   rat = 0,
   roas = 0,
+  roasWithoutCod = 0,
   comparisonData = null, // New prop for comparison data
 }) => {
   const [statsExpanded, setStatsExpanded] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const isEveningWindow = (() => {
     const h = dayjs().hour();
-    return h >= 1 && h <= 23; // 6:00 PM to 11:59:59 PM
+    return h >= 18 && h <= 23; // 6:00 PM to 11:59:59 PM
   })();
-  const invertedMetricKeys = new Set(['cac', 'totalDiscount', 'discountRate']);
+  const invertedMetricKeys = new Set(['cac', 'totalDiscount', 'discountRate', 'roas', 'roasWithoutCod']);
   
   const { metaOrders = 0, instagramBioOrders = 0 } = utmCounts;
   const { spend } = cacData;
@@ -491,6 +493,24 @@ const OrdersList = ({
             </Typography>
             <Typography variant="caption" sx={{ color: '#a0a0a0', fontFamily: 'monospace', fontSize: '0.75rem' }}>
               Formula: RAT = Revenue - (Revenue × 0.18)
+            </Typography>
+          </>
+        )
+      },
+      { 
+  label: 'ROAS w/o COD', 
+        value: `${roasWithoutCod?.toFixed(2) || '0'}`, 
+        category: 'admin',
+  change: formatPercentageChange('roasWithoutCod', getMetricChange('roasWithoutCod')),
+        tooltip: (          <>
+            <Typography variant="subtitle2" sx={{ color: '#ffffff', mb: 1, fontWeight: 600 }}>
+              ROAS without COD Orders
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#c0c0c0', mb: 1, lineHeight: 1.5 }}>
+              Return on ad spend excluding Cash on Delivery orders.
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#a0a0a0', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+              Formula: (Revenue w/o COD - Tax) ÷ Ad Spend
             </Typography>
           </>
         )

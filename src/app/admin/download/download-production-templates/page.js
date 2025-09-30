@@ -150,43 +150,43 @@ const DownloadProductionTemplates = () => {
     try {
       const zip = new JSZip();
 
-      // Function to fetch each image and add to zip
+      // Function to fetch each template and add to zip (use all templates returned by API)
       const fetchAndAddToZip = async image => {
         const { sku, specificCategoryVariant, templates, wrapFinish } = image;
         if (!templates || templates.length === 0) return;
         for (const tmpl of templates) {
           if (!tmpl.presignedUrl) continue;
-            try {
-              const response = await fetch(tmpl.presignedUrl);
-              if (!response.ok) continue;
-              const blob = await response.blob();
-              const arrayBuffer = await blob.arrayBuffer();
-              const sanitizedSKU = sku.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
-              const sanitizedCategoryVariant = specificCategoryVariant.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
-              const fileExtensionMatch = tmpl.path.match(/\.(jpg|jpeg|png|gif|bmp|svg)$/i);
-              const fileExtension = fileExtensionMatch ? fileExtensionMatch[0] : ".jpg";
-              const baseFileName = `${sanitizedSKU}-${tmpl.letter}`;
-              if (wrapFinish && typeof wrapFinish === 'object') {
-                for (const [finish, qty] of Object.entries(wrapFinish)) {
-                  if (finish === 'None') continue;
-                  const sanitizedFinish = finish.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
-                  const folderPath = `${sanitizedCategoryVariant}/${sanitizedFinish}`;
-                  for (let i = 1; i <= qty; i++) {
-                    const imagePath = `${folderPath}/${baseFileName}-${i}${fileExtension}`;
-                    zip.file(imagePath, arrayBuffer, { binary: true });
-                  }
-                }
-                if (wrapFinish['None']) {
-                  const folderPath = `${sanitizedCategoryVariant}/regular`;
-                  for (let i = 1; i <= wrapFinish['None']; i++) {
-                    const imagePath = `${folderPath}/${baseFileName}-${i}${fileExtension}`;
-                    zip.file(imagePath, arrayBuffer, { binary: true });
-                  }
+          try {
+            const response = await fetch(tmpl.presignedUrl);
+            if (!response.ok) continue;
+            const blob = await response.blob();
+            const arrayBuffer = await blob.arrayBuffer();
+            const sanitizedSKU = sku.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
+            const sanitizedCategoryVariant = specificCategoryVariant.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
+            const fileExtensionMatch = tmpl.path.match(/\.(jpg|jpeg|png|gif|bmp|svg|webp)$/i);
+            const fileExtension = fileExtensionMatch ? fileExtensionMatch[0] : ".jpg";
+            const baseFileName = `${sanitizedSKU}-${tmpl.letter}`;
+            if (wrapFinish && typeof wrapFinish === 'object') {
+              for (const [finish, qty] of Object.entries(wrapFinish)) {
+                if (finish === 'None') continue;
+                const sanitizedFinish = finish.replace(/[/\\?%*:|"<>]/g, "-").toLowerCase();
+                const folderPath = `${sanitizedCategoryVariant}/${sanitizedFinish}`;
+                for (let i = 1; i <= qty; i++) {
+                  const imagePath = `${folderPath}/${baseFileName}-${i}${fileExtension}`;
+                  zip.file(imagePath, arrayBuffer, { binary: true });
                 }
               }
-            } catch (e) {
-              // ignore fetch errors
+              if (wrapFinish['None']) {
+                const folderPath = `${sanitizedCategoryVariant}/regular`;
+                for (let i = 1; i <= wrapFinish['None']; i++) {
+                  const imagePath = `${folderPath}/${baseFileName}-${i}${fileExtension}`;
+                  zip.file(imagePath, arrayBuffer, { binary: true });
+                }
+              }
             }
+          } catch (e) {
+            // ignore fetch errors and continue with others
+          }
         }
       };
       await Promise.all(imagesData.map(fetchAndAddToZip));
@@ -428,7 +428,7 @@ const DownloadProductionTemplates = () => {
             Wrap Orders with Design Templates (CloudFront preview)
           </Typography>
           <Typography variant="subtitle1">
-            Total templates: {imagesData.reduce((acc, item) => acc + item.count, 0)} | Unique SKUs: {imagesData.length}
+            Total templates: {imagesData.reduce((acc, item) => acc + (item.count * (item.templateCount || 0)), 0)} | Unique SKUs: {imagesData.length}
           </Typography>
         </Stack>
         {loading ? (

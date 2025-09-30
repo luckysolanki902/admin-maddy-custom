@@ -51,31 +51,84 @@ async function handleGetPresignedUrls(request) {
       return NextResponse.json({ message: "Invalid date format in token." }, { status: 400 });
     }
 
-    const totalOrders = await Order.countDocuments({
+    // Build base match to align with Orders Dashboard (exclude pending/failed), and exclude test orders
+    const baseMatch = {
       createdAt: { $gte: start, $lte: end },
-      "paymentDetails.amountPaidOnline": { $gt: 0 },
-    });
+      paymentStatus: { $nin: ["pending", "failed"] },
+      // Exclude explicit test orders if any
+      $or: [
+        { isTestingOrder: { $exists: false } },
+        { isTestingOrder: false }
+      ]
+    };
 
-    const totalItemsAgg = await Order.aggregate([
+    // Count unique orders (order groups) that contain at least 1 templated item
+    const totalOrdersAgg = await Order.aggregate([
+      { $match: baseMatch },
+      { $unwind: "$items" },
+      // Join product to check for template presence
+      {
+        $lookup: {
+          from: "products",
+          localField: "items.product",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+      { $unwind: "$product" },
       {
         $match: {
-          createdAt: { $gte: start, $lte: end },
-          "paymentDetails.amountPaidOnline": { $gt: 0 },
-        },
+          $or: [
+            { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
+            { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
+          ]
+        }
       },
+      // Collapse linked orders: group by orderGroupId if present, else by _id
+      {
+        $addFields: {
+          groupKey: {
+            $cond: [
+              { $and: [ { $ne: ["$orderGroupId", null] }, { $ne: ["$orderGroupId", ""] } ] },
+              "$orderGroupId",
+              { $toString: "$_id" }
+            ]
+          }
+        }
+      },
+      { $group: { _id: "$groupKey" } },
+      { $count: "totalOrders" }
+    ]);
+    const totalOrders = totalOrdersAgg[0]?.totalOrders || 0;
+
+    // Count total templated items (sum of quantities for items whose product has templates)
+    const totalItemsAgg = await Order.aggregate([
+      { $match: baseMatch },
       { $unwind: "$items" },
+      {
+        $lookup: {
+          from: "products",
+          localField: "items.product",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+      { $unwind: "$product" },
+      {
+        $match: {
+          $or: [
+            { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
+            { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
+          ]
+        }
+      },
       { $group: { _id: null, totalItems: { $sum: "$items.quantity" } } },
     ]);
-    const totalItems = totalItemsAgg[0] ? totalItemsAgg[0].totalItems : 0;
+    const totalItems = totalItemsAgg[0]?.totalItems || 0;
 
     // Aggregate by product (sku) collecting wrap finish distribution and templates (supports new designTemplates array)
     const aggregated = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: start, $lte: end },
-          "paymentDetails.amountPaidOnline": { $gt: 0 },
-        },
-      },
+      { $match: baseMatch },
       { $unwind: "$items" },
       {
         $lookup: {
@@ -151,7 +204,7 @@ async function handleGetPresignedUrls(request) {
       { $sort: { totalCount: -1 } },
     ]);
 
-    // Build final structure with presigned URLs for each template (only used for downloading, table will use CloudFront)
+    // Build final structure with presigned URLs for each template (download uses all, table preview will show first two)
     const images = await Promise.all(
       aggregated.map(async doc => {
         const sku = doc._id.sku;
@@ -167,19 +220,19 @@ async function handleGetPresignedUrls(request) {
         // Ensure uniqueness and cleanliness
         templatePaths = [...new Set(templatePaths.map(p => (typeof p === 'string' ? p.trim() : '')).filter(Boolean))];
 
-        // Generate presigned URLs (only for first two templates if more, as per UI requirement)
+        // Generate presigned URLs for all templates (preview can still show first two)
         const templates = await Promise.all(
-          templatePaths.slice(0, 2).map(async (path, idx) => {
+          templatePaths.map(async (path, idx) => {
             try {
               const { presignedUrl } = await getPresignedUrl(path, "image/png", "getObject");
               return {
                 path,
                 presignedUrl,
-                letter: idx === 0 ? 'a' : 'b',
+                letter: String.fromCharCode(97 + (idx % 26)), // a, b, c ...
               };
             } catch (e) {
               console.error(`Failed presigned URL for template ${path} (SKU ${sku})`, e.message);
-              return { path, presignedUrl: null, letter: idx === 0 ? 'a' : 'b' };
+              return { path, presignedUrl: null, letter: String.fromCharCode(97 + (idx % 26)) };
             }
           })
         );
@@ -192,7 +245,7 @@ async function handleGetPresignedUrls(request) {
           count: doc.totalCount,
           wrapFinish,
           templateCount: templatePaths.length,
-          templates, // up to two template entries with presignedUrl (for download) and path
+          templates, // full template list with presignedUrl (download)
           extraTemplatesHidden: templatePaths.length > 2 ? templatePaths.length - 2 : 0,
         };
       })

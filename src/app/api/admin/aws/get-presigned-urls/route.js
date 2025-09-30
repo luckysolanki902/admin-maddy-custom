@@ -99,7 +99,26 @@ async function handleGetPresignedUrls(request) {
       { $group: { _id: "$groupKey" } },
       { $count: "totalOrders" }
     ]);
-    const totalOrders = totalOrdersAgg[0]?.totalOrders || 0;
+    const totalMainTemplatedOrders = totalOrdersAgg[0]?.totalOrders || 0;
+
+    // Count total main orders (unique groups) regardless of templates
+    const totalMainOrdersAgg = await Order.aggregate([
+      { $match: baseMatch },
+      {
+        $addFields: {
+          groupKey: {
+            $cond: [
+              { $and: [ { $ne: ["$orderGroupId", null] }, { $ne: ["$orderGroupId", ""] } ] },
+              "$orderGroupId",
+              { $toString: "$_id" }
+            ]
+          }
+        }
+      },
+      { $group: { _id: "$groupKey" } },
+      { $count: "totalOrders" }
+    ]);
+    const totalMainOrders = totalMainOrdersAgg[0]?.totalOrders || 0;
 
     // Count total templated items (sum of quantities for items whose product has templates)
     const totalItemsAgg = await Order.aggregate([
@@ -251,7 +270,17 @@ async function handleGetPresignedUrls(request) {
       })
     );
 
-    return NextResponse.json({ totalOrders, totalItems, images }, { status: 200 });
+    // Backward compatibility: keep totalOrders/totalItems while adding clearer fields
+    return NextResponse.json({
+      // Old fields (kept): represent templated counts for backward compatibility
+      totalOrders: totalMainTemplatedOrders,
+      totalItems,
+      // New fields for clarity
+      totalMainOrders,
+      totalMainTemplatedOrders,
+      totalTemplatedItems: totalItems,
+      images
+    }, { status: 200 });
   } catch (error) {
     console.error("❌ Error in get-presigned-urls handler:", error.message, error.stack);
     return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });

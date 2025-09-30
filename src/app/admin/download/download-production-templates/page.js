@@ -39,8 +39,11 @@ const DownloadProductionTemplates = () => {
   const [startDate, setStartDate] = useState(dayjs().startOf("day").toISOString());
   const [endDate, setEndDate] = useState(dayjs().endOf("day").toISOString());
   const [imagesData, setImagesData] = useState([]);
-  const [totalOrders, setTotalOrders] = useState(0);
-  const [totalItems, setTotalItems] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0); // templated orders (back-compat)
+  const [totalItems, setTotalItems] = useState(0); // templated items (back-compat)
+  const [totalMainOrders, setTotalMainOrders] = useState(0);
+  const [totalMainTemplatedOrders, setTotalMainTemplatedOrders] = useState(0);
+  const [totalTemplatedItems, setTotalTemplatedItems] = useState(0);
   const [loading, setLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [error, setError] = useState("");
@@ -53,6 +56,10 @@ const DownloadProductionTemplates = () => {
     start: dayjs().startOf('day'),
     end: dayjs().endOf('day')
   });
+  // Simple preview: fixed width 30px, height auto (no extra logic)
+  const TemplateThumb = ({ src, alt }) => (
+    <Image src={src} alt={alt} width={30} height={30} style={{ width: 30, height: 'auto' }} />
+  );
 
   const CLOUDFRONT_BASEURL = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL;
   const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -117,10 +124,13 @@ const DownloadProductionTemplates = () => {
         throw new Error(errorData.message || "Error fetching images data.");
       }
 
-      const data = await res.json();
-      setImagesData(data.images);
-      setTotalOrders(data.totalOrders);
-      setTotalItems(data.totalItems);
+  const data = await res.json();
+  setImagesData(data.images || []);
+  setTotalOrders(data.totalOrders || 0);
+  setTotalItems(data.totalItems || 0);
+  setTotalMainOrders(data.totalMainOrders || 0);
+  setTotalMainTemplatedOrders(data.totalMainTemplatedOrders || 0);
+  setTotalTemplatedItems(data.totalTemplatedItems ?? data.totalItems ?? 0);
   // no need to track unavailable images now
     } catch (error) {
       console.error("Error fetching images:", error);
@@ -300,10 +310,49 @@ const DownloadProductionTemplates = () => {
       </Typography>
 
       {/* Display Totals */}
-      <Paper elevation={3} sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6">Summary</Typography>
-        <Typography variant="body1">Total Orders: {totalOrders}</Typography>
-        <Typography variant="body1">Total Items: {totalItems}</Typography>
+      <Paper elevation={0} sx={{
+        p: 2,
+        mb: 3,
+        bgcolor: '#1f1f1f',
+        border: '1px solid #3a3a3a',
+        borderRadius: 2
+      }}>
+        <Typography variant="h6" sx={{ color: '#fff', mb: 1 }}>Summary</Typography>
+        <Grid container spacing={1.5}>
+          {[{
+            label: 'Total Main Orders',
+            value: totalMainOrders
+          },{
+            label: 'Orders With Templates',
+            value: totalMainTemplatedOrders
+          },{
+            label: 'Templated Items Qty',
+            value: totalTemplatedItems
+          },{
+            label: 'Total Templates (to print)',
+            value: imagesData.reduce((acc, item) => acc + (item.count * (item.templateCount || 0)), 0)
+          }].map((m, idx) => (
+            <Grid item xs={6} md={3} key={idx}>
+              <Box sx={{
+                p: 2,
+                bgcolor: '#2d2d2d',
+                border: '1px solid #3f3f3f',
+                borderRadius: 2,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0.5,
+                height: '100%'
+              }}>
+                <Typography variant="caption" sx={{ color: '#bdbdbd', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {m.label}
+                </Typography>
+                <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>
+                  {m.value?.toLocaleString('en-IN')}
+                </Typography>
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
       </Paper>
 
       {/* Feedback Messages */}
@@ -422,31 +471,34 @@ const DownloadProductionTemplates = () => {
       </Paper>
 
       {/* Images Data Table */}
-      <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
+      <Paper elevation={0} sx={{ p: 3, mt: 4, bgcolor: '#1f1f1f', border: '1px solid #3a3a3a', borderRadius: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6" gutterBottom>
+          <Typography variant="h6" gutterBottom sx={{ color: '#fff' }}>
             Wrap Orders with Design Templates (CloudFront preview)
           </Typography>
-          <Typography variant="subtitle1">
+          <Typography variant="subtitle1" sx={{ color: '#bdbdbd' }}>
             Total templates: {imagesData.reduce((acc, item) => acc + (item.count * (item.templateCount || 0)), 0)} | Unique SKUs: {imagesData.length}
           </Typography>
         </Stack>
         {loading ? (
-          <Table>
+          <Box sx={{ width: '100%', overflowX: 'auto' }}>
+          <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell><strong>SKU</strong></TableCell>
-                <TableCell><strong>Product Name</strong></TableCell>
-                <TableCell align="right"><strong>Orders Qty</strong></TableCell>
-                <TableCell><strong>Specific Category Variant</strong></TableCell>
-                <TableCell><strong>Templates</strong></TableCell>
-                <TableCell><strong>Wrap Finish</strong></TableCell>
-                <TableCell><strong>Preview</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>#</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>SKU</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Product Name</strong></TableCell>
+                <TableCell align="right" sx={{ color: '#e0e0e0' }}><strong>Orders Qty</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Specific Category Variant</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Templates</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Wrap Finish</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Preview</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {Array.from({ length: 8 }).map((_, idx) => (
                 <TableRow key={idx}>
+                  <TableCell><Skeleton width={20} /></TableCell>
                   <TableCell><Skeleton width={80} /></TableCell>
                   <TableCell><Skeleton width={140} /></TableCell>
                   <TableCell align="right"><Skeleton width={40} /></TableCell>
@@ -463,26 +515,30 @@ const DownloadProductionTemplates = () => {
               ))}
             </TableBody>
           </Table>
+          </Box>
         ) : (
-          <Table>
+          <Box sx={{ width: '100%', overflowX: 'auto' }}>
+          <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell><strong>SKU</strong></TableCell>
-                <TableCell><strong>Product Name</strong></TableCell>
-                <TableCell align="right"><strong>Orders Qty</strong></TableCell>
-                <TableCell><strong>Specific Category Variant</strong></TableCell>
-                <TableCell><strong>Templates</strong></TableCell>
-                <TableCell><strong>Wrap Finish</strong></TableCell>
-                <TableCell><strong>Preview (a/b)</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>#</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>SKU</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Product Name</strong></TableCell>
+                <TableCell align="right" sx={{ color: '#e0e0e0' }}><strong>Orders Qty</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Specific Category Variant</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Templates</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Wrap Finish</strong></TableCell>
+                <TableCell sx={{ color: '#e0e0e0' }}><strong>Preview (a/b)</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {imagesData.length > 0 ? (
-                imagesData.map(item => {
+                imagesData.map((item, index) => {
                   const { sku, productName, specificCategoryVariant, wrapFinish, templates = [], templateCount, extraTemplatesHidden } = item;
                   const cloudFrontTemplates = templates.map(t => ({ ...t, cloudUrl: `${CLOUDFRONT_BASEURL}${t.path.startsWith('/') ? t.path : '/' + t.path}` }));
                   return (
                     <TableRow key={sku}>
+                      <TableCell sx={{ color: '#e0e0e0' }}>{index + 1}</TableCell>
                       <TableCell>{sku}</TableCell>
                       <TableCell>{productName || '—'}</TableCell>
                       <TableCell align="right">{item.count}</TableCell>
@@ -498,9 +554,7 @@ const DownloadProductionTemplates = () => {
                       <TableCell>
                         <Box display="flex" alignItems="center" gap={1}>
                           {cloudFrontTemplates.slice(0,2).map(t => (
-                            <Box key={t.path} sx={{ width:40, display:'flex', alignItems:'center' }}>
-                              <img src={t.cloudUrl} alt={sku + '-' + t.letter} style={{ width:40, height:'auto', display:'block' }} />
-                            </Box>
+                            <TemplateThumb key={t.path} src={t.cloudUrl} alt={`${sku}-${t.letter}`} />
                           ))}
                           {extraTemplatesHidden > 0 && (
                             <Typography variant="caption" color="text.secondary">+{extraTemplatesHidden} more</Typography>
@@ -519,6 +573,7 @@ const DownloadProductionTemplates = () => {
               )}
             </TableBody>
           </Table>
+          </Box>
         )}
       </Paper>
 

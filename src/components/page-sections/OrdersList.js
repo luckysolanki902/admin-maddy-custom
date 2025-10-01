@@ -821,7 +821,7 @@ const OrdersList = ({
   const conversionRatios = useMemo(() => ([
     { label: 'Visit → Cart', value: funnel?.ratios?.visit_to_cart || 0 },
     { label: 'Cart → View Cart', value: funnel?.ratios?.cart_to_view_cart || 0 },
-    { label: 'View Cart → Form', value: funnel?.ratios?.view_cart_to_form || 0 },
+    // { label: 'View Cart → Form', value: funnel?.ratios?.view_cart_to_form || 0 },
     { label: 'Cart → Form', value: funnel?.ratios?.cart_to_form || 0 },
     { label: 'Form → Address', value: funnel?.ratios?.form_to_address || 0 },
     { label: 'Address → Payment', value: funnel?.ratios?.address_to_payment || 0 },
@@ -1060,7 +1060,7 @@ const OrdersList = ({
                     </SectionHeader>
                     {funnelLoading ? (
                       <ConversionGrid>
-                        {Array.from({ length: conversionRatios.length || 8 }).map((_, idx) => (
+                        {Array.from({ length: conversionRatios.length || 7 }).map((_, idx) => (
                           <Skeleton
                             key={idx}
                             variant="rectangular"

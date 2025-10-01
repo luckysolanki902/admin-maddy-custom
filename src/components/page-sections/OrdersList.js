@@ -324,24 +324,63 @@ const OrdersList = ({
   
   const { spend } = cacData;
   const calculatedOverallCAC = totalOrders > 0 ? (spend / totalOrders).toFixed(2) : 'N/A';
-    // Fix the checkout to purchase ratio calculation - ensure it's properly parsed
-  const checkoutToPurchaseRatio = (() => {
-    const ratio = cacData.checkoutToPurchaseRatio;
-    if (!ratio || ratio === 0) return '0.00';
-    
-    if (typeof ratio === 'string') {
-      const parsed = parseFloat(ratio);
-      return isNaN(parsed) ? '0.00' : parsed.toFixed(2);
+  const parseRatioValue = useCallback((value) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
     }
-    
-    if (typeof ratio === 'number') {
-      return ratio.toFixed(2);
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : null;
     }
-    
-    return '0.00';
-  })();
-  useEffect(() => {
-  }, [cacData, checkoutToPurchaseRatio]);
+    return null;
+  }, []);
+
+  const derivedC2PRatio = useMemo(() => {
+    const funnelSource = funnel?.meta?.source;
+    const firstPartyC2P = parseRatioValue(funnel?.ratios?.c2p);
+    const checkoutFallback = parseRatioValue(funnel?.ratios?.checkout_to_purchase);
+    const metaC2P = parseRatioValue(cacData?.checkoutToPurchaseRatio);
+
+    if (funnelSource !== 'meta_ads') {
+      if (firstPartyC2P !== null) {
+        return { value: firstPartyC2P, source: 'first_party' };
+      }
+      if (checkoutFallback !== null) {
+        return { value: checkoutFallback, source: 'first_party' };
+      }
+    }
+
+    if (firstPartyC2P !== null) {
+      return { value: firstPartyC2P, source: funnelSource || 'first_party' };
+    }
+
+    if (checkoutFallback !== null) {
+      return { value: checkoutFallback, source: funnelSource || 'first_party' };
+    }
+
+    if (metaC2P !== null) {
+      return { value: metaC2P, source: 'meta_ads' };
+    }
+
+    return { value: 0, source: funnelSource || 'unknown' };
+  }, [cacData, funnel, parseRatioValue]);
+
+  const c2pValueRaw = derivedC2PRatio.value;
+  const c2pSource = derivedC2PRatio.source;
+
+  const checkoutToPurchaseRatio = useMemo(() => {
+    const numeric = Number.isFinite(c2pValueRaw) ? c2pValueRaw : 0;
+    return numeric.toFixed(2);
+  }, [c2pValueRaw]);
+
+  const c2pSourceDescriptor = useMemo(() => {
+    if (c2pSource === 'meta_ads') return 'Meta Ads';
+    if (c2pSource === 'first_party') return 'First-party funnel events';
+    if (c2pSource === 'unknown') return 'Unknown';
+    if (!c2pSource) return 'Unknown';
+    return c2pSource;
+  }, [c2pSource]);
 
   // Helper function to format percentage change with icon, supports inverted-good metrics
   const formatPercentageChange = useCallback((metricKey, change) => {
@@ -434,7 +473,7 @@ const OrdersList = ({
       {
         key: 'c2p',
         label: 'C2P',
-        value: `${checkoutToPurchaseRatio}%`,
+        value: `${checkoutToPurchaseRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
         change: formatPercentageChange('c2p', getMetricChange('c2p')),
       },
     ]
@@ -446,6 +485,7 @@ const OrdersList = ({
     calculatedOverallCAC,
     roas,
     checkoutToPurchaseRatio,
+    c2pSource,
     formatPercentageChange,
     getMetricChange,
   ]);
@@ -683,7 +723,7 @@ const OrdersList = ({
     {
       key: 'c2p',
       label: 'C2P Ratio',
-      value: `${checkoutToPurchaseRatio}%`,
+      value: `${checkoutToPurchaseRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
       category: 'performance',
       change: formatPercentageChange('c2p', getMetricChange('c2p')),
       rawChange: getMetricChange('c2p'),
@@ -697,6 +737,9 @@ const OrdersList = ({
           </Typography>
           <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', fontFamily: 'monospace', fontSize: '0.75rem' }}>
             Formula: (Purchases ÷ Checkouts) × 100%
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', display: 'block', mt: 1 }}>
+            Data source: {c2pSourceDescriptor}
           </Typography>
         </>
       ),
@@ -714,6 +757,8 @@ const OrdersList = ({
     calculatedOverallCAC,
     roas,
     checkoutToPurchaseRatio,
+    c2pSource,
+    c2pSourceDescriptor,
     isAdmin,
     formatPercentageChange,
     getMetricChange,

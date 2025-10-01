@@ -3,16 +3,25 @@
 import { getCachedValue, setCachedValue } from '@/lib/cache/serverCache';
 import { connectToDatabase } from '@/lib/db';
 import computeFunnelSnapshot from '@/lib/analytics/funnelMetrics';
+import fetchMetaFunnelSnapshot from '@/lib/analytics/metaFunnel';
 
 const CACHE_NAMESPACE = 'funnelMetrics';
 const CACHE_TTL = 5 * 60 * 1000;
 const buildCacheKey = (startDate, endDate) => JSON.stringify({ startDate, endDate });
+const FIRST_PARTY_CUTOVER = new Date('2025-10-01T010:30:00.000Z');
 
 export async function POST(req) {
   try {
     const { startDate, endDate, skipCache = false } = await req.json();
     if (!startDate || !endDate) {
       return new Response(JSON.stringify({ message: 'startDate and endDate are required' }), { status: 400 });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return new Response(JSON.stringify({ message: 'Invalid date range provided' }), { status: 400 });
     }
 
     const cacheKey = buildCacheKey(startDate, endDate);
@@ -26,17 +35,36 @@ export async function POST(req) {
       }
     }
 
-    await connectToDatabase();
-
     // Debug: log input range
     console.info('[funnel-metrics] range', { startDate, endDate });
 
-    const snapshot = await computeFunnelSnapshot({ startDate, endDate });
+    const isFirstPartyWindow = start.getTime() >= FIRST_PARTY_CUTOVER.getTime();
+    let snapshot;
+    let sourceUsed = 'first_party';
+    const sourceReasons = [];
+
+    if (isFirstPartyWindow) {
+      await connectToDatabase();
+      snapshot = await computeFunnelSnapshot({ startDate, endDate });
+    } else {
+      try {
+        snapshot = await fetchMetaFunnelSnapshot({ startDate, endDate });
+        sourceUsed = 'meta_ads';
+        sourceReasons.push({ reason: 'pre_cutover_window', cutoverIso: FIRST_PARTY_CUTOVER.toISOString() });
+      } catch (metaError) {
+        console.error('[funnel-metrics] Meta fallback failed, reverting to first-party data', metaError);
+        sourceReasons.push({ reason: 'meta_fetch_failed', message: metaError.message });
+        await connectToDatabase();
+        snapshot = await computeFunnelSnapshot({ startDate, endDate });
+      }
+    }
+
     const {
       counts,
       ratios,
       window: windowMeta,
       generatedAt,
+      raw: rawSnapshot,
     } = snapshot;
 
     const measures = {
@@ -46,10 +74,13 @@ export async function POST(req) {
       reachedAddressTab: 'session_counts',
       startedPayment: 'session_counts',
       purchased: 'session_counts',
+      initiatedCheckout: 'session_counts',
+      contactInfo: 'session_counts',
+      uniqueSessions: 'session_counts',
     };
 
     const measureSources = Object.fromEntries(
-      Object.keys(measures).map((key) => [key, 'funnel_events'])
+      Object.keys(measures).map((key) => [key, sourceUsed === 'first_party' ? 'funnel_events' : 'meta_ads'])
     );
 
     const payload = {
@@ -66,7 +97,7 @@ export async function POST(req) {
       },
       ratios,
       meta: {
-        source: 'first_party',
+        source: sourceUsed,
         measures,
         measureSources,
         generatedAt,
@@ -74,8 +105,21 @@ export async function POST(req) {
         stats: {
           uniqueSessions: counts.uniqueSessions,
         },
+        cutover: {
+          iso: FIRST_PARTY_CUTOVER.toISOString(),
+          timezone: 'Asia/Kolkata',
+          firstPartyActive: sourceUsed === 'first_party',
+        },
       },
     };
+
+    if (rawSnapshot) {
+      payload.meta.raw = rawSnapshot;
+    }
+
+    if (sourceReasons.length > 0) {
+      payload.meta.sourceNotes = sourceReasons;
+    }
 
     setCachedValue(CACHE_NAMESPACE, cacheKey, payload, CACHE_TTL);
 

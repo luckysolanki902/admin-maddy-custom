@@ -1110,7 +1110,7 @@ const OrdersList = ({
                           <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', display: 'block', mb: 1 }}>
                             Visitors who didn&apos;t add to cart
                           </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, mb: 2 }}>
                             <Typography variant="h5" sx={{ color: 'rgba(255,99,71,0.95)', fontWeight: 700 }}>
                               {dropoffMetrics.visitedButNoCart.toLocaleString('en-IN')}
                             </Typography>
@@ -1118,9 +1118,55 @@ const OrdersList = ({
                               ({((dropoffMetrics.visitedButNoCart / (funnel?.counts?.visited || 1)) * 100).toFixed(1)}%)
                             </Typography>
                           </Box>
-                          <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.55)', display: 'block', mt: 1 }}>
-                            {dropoffMetrics.visitedOtherPages.toLocaleString('en-IN')} ({dropoffMetrics.visitedOtherPagesPercentage.toFixed(1)}%) visited other pages
-                          </Typography>
+                          
+                          {/* Breakdown of drop-off behavior */}
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                            {/* Visited other pages */}
+                            <Box sx={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center',
+                              p: 1.5,
+                              borderRadius: '8px',
+                              background: 'rgba(255,255,255,0.03)',
+                              border: '1px solid rgba(255,255,255,0.06)'
+                            }}>
+                              <Box>
+                                <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.55)', display: 'block', fontSize: '0.7rem' }}>
+                                  Explored other pages
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.85)', fontWeight: 600, mt: 0.5 }}>
+                                  {dropoffMetrics.visitedOtherPages.toLocaleString('en-IN')}
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.65)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                {dropoffMetrics.visitedOtherPagesPercentage.toFixed(1)}%
+                              </Typography>
+                            </Box>
+                            
+                            {/* Dropped directly from landing page */}
+                            <Box sx={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center',
+                              p: 1.5,
+                              borderRadius: '8px',
+                              background: 'rgba(255,255,255,0.03)',
+                              border: '1px solid rgba(255,255,255,0.06)'
+                            }}>
+                              <Box>
+                                <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.55)', display: 'block', fontSize: '0.7rem' }}>
+                                  Dropped from landing page
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.85)', fontWeight: 600, mt: 0.5 }}>
+                                  {(dropoffMetrics.visitedButNoCart - dropoffMetrics.visitedOtherPages).toLocaleString('en-IN')}
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.65)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                {(((dropoffMetrics.visitedButNoCart - dropoffMetrics.visitedOtherPages) / (funnel?.counts?.visited || 1)) * 100).toFixed(1)}%
+                              </Typography>
+                            </Box>
+                          </Box>
                         </Box>
                         
                         <Box>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   Container,
   TextField,
@@ -26,6 +26,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import { comparisonCache } from '@/lib/comparisonCache';
+import { getClientCache, setClientCache, clearClientCache, hydrateClientCache } from '@/lib/cache/clientCache';
 
 import OrdersList from '@/components/page-sections/OrdersList';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
@@ -34,6 +35,9 @@ import CustomerCard from '@/components/cards/CustomerCard';
 import { formatDate } from '@/utils/dateUtils';
 
 const ITEMS_PER_PAGE = 30;
+const CACHE_TTL = 5 * 60 * 1000;
+const ORDERS_CACHE_NS = 'ordersClient';
+const FUNNEL_CACHE_NS = 'funnelClient';
 
 const OrderListFull = ({ isAdmin }) => {
   // Date range
@@ -67,6 +71,7 @@ const OrderListFull = ({ isAdmin }) => {
   // Loading/UI
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  const [cacheClearing, setCacheClearing] = useState(false);
 
   // Search & pagination
   const [searchInput, setSearchInput] = useState('');
@@ -118,6 +123,13 @@ const OrderListFull = ({ isAdmin }) => {
   const [comparisonData, setComparisonData] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
 
+  // Funnel metrics: visits -> form -> address -> payment -> purchase
+  const [funnelMetrics, setFunnelMetrics] = useState({
+    counts: { visited: 0, openedOrderForm: 0, reachedAddressTab: 0, startedPayment: 0, purchased: 0 },
+    ratios: { visit_to_form: 0, form_to_address: 0, address_to_payment: 0, payment_to_purchase: 0, visit_to_purchase: 0, c2p: 0 },
+  });
+  const [funnelLoading, setFunnelLoading] = useState(true);
+
   // Variant snackbar
   const [variantSnackbar, setVariantSnackbar] = useState({ open: false, message: '', severity: 'warning' });
 
@@ -125,6 +137,71 @@ const OrderListFull = ({ isAdmin }) => {
   const hasFetchedVariants = useRef(false);
   const hasFetchedUTM = useRef(false);
   const hasFetchedSpecCategories = useRef(false);
+
+  useEffect(() => {
+    hydrateClientCache(ORDERS_CACHE_NS);
+    hydrateClientCache(FUNNEL_CACHE_NS);
+  }, []);
+
+  const startDateValue = dateRange.start;
+  const endDateValue = dateRange.end;
+
+  const startIso = useMemo(
+    () => (startDateValue ? startDateValue.toISOString() : null),
+    [startDateValue]
+  );
+  const endIso = useMemo(
+    () => (endDateValue ? endDateValue.toISOString() : null),
+    [endDateValue]
+  );
+  const utmKey = useMemo(() => JSON.stringify(selectedUTMFilters), [selectedUTMFilters]);
+  const variantsKey = useMemo(
+    () => [...selectedVariants].sort().join('|'),
+    [selectedVariants]
+  );
+  const specKey = useMemo(
+    () => [...selectedSpecificCategories].sort().join('|'),
+    [selectedSpecificCategories]
+  );
+
+  const ordersCacheKey = useMemo(
+    () => JSON.stringify({
+      page: currentPage,
+      limit: ITEMS_PER_PAGE,
+      searchInput,
+      searchField,
+      startDate: startIso,
+      endDate: endIso,
+      shiprocketFilter,
+      paymentStatusFilter,
+      utmKey,
+      variantsKey,
+      specKey,
+      onlyIncludeSelectedVariants,
+      singleVariantOnly,
+      singleItemCountOnly,
+    }),
+    [
+      currentPage,
+      searchInput,
+      searchField,
+      startIso,
+      endIso,
+      shiprocketFilter,
+      paymentStatusFilter,
+      utmKey,
+      variantsKey,
+      specKey,
+      onlyIncludeSelectedVariants,
+      singleVariantOnly,
+      singleItemCountOnly,
+    ]
+  );
+
+  const funnelCacheKey = useMemo(
+    () => JSON.stringify({ startDate: startIso, endDate: endIso }),
+    [startIso, endIso]
+  );
 
   /*****************************************************
    * Fetch Variants and Specific Categories when FiltersDrawer opens
@@ -194,7 +271,16 @@ const OrderListFull = ({ isAdmin }) => {
   /*****************************************************
    * Fetch Main Orders
    *****************************************************/
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async ({ forceRefresh = false } = {}) => {
+    if (!forceRefresh) {
+      const cached = getClientCache(ORDERS_CACHE_NS, ordersCacheKey);
+      if (cached) {
+        setOrderData(cached);
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
 
     const qp = [
@@ -215,12 +301,13 @@ const OrderListFull = ({ isAdmin }) => {
     if (onlyIncludeSelectedVariants) qp.push('onlyIncludeSelectedVariants=true');
     if (singleVariantOnly) qp.push('singleVariantOnly=true');
     if (singleItemCountOnly) qp.push('singleItemCountOnly=true');
+    if (forceRefresh) qp.push('skipCache=true');
 
     try {
       const res = await fetch(`/api/admin/get-main/get-orders?${qp.join('&')}`);
       const data = await res.json();
       if (res.ok) {
-        setOrderData({
+        const nextData = {
           orders: data.orders || [],
           totalOrders: data.totalOrders || 0,
           totalPages: data.totalPages || 1,
@@ -233,7 +320,9 @@ const OrderListFull = ({ isAdmin }) => {
           discountRate: isAdmin ? data.discountRate || 0 : 0,
           oldestOrderDate: data.oldestOrderDate || null,
           utmCounts: data.utmCounts || {},
-        });
+        };
+        setOrderData(nextData);
+        setClientCache(ORDERS_CACHE_NS, ordersCacheKey, nextData, CACHE_TTL);
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -254,6 +343,7 @@ const OrderListFull = ({ isAdmin }) => {
     singleVariantOnly,
     singleItemCountOnly,
     isAdmin,
+    ordersCacheKey,
   ]);
 
   /*****************************************************
@@ -449,10 +539,78 @@ const OrderListFull = ({ isAdmin }) => {
   ]);
 
   /*****************************************************
+   * Fetch Funnel Metrics
+   *****************************************************/
+  const fetchFunnelMetrics = useCallback(async ({ forceRefresh = false } = {}) => {
+    if (!dateRange.start || !dateRange.end) return;
+
+    if (!forceRefresh) {
+      const cached = getClientCache(FUNNEL_CACHE_NS, funnelCacheKey);
+      if (cached) {
+        setFunnelMetrics(cached);
+        setFunnelLoading(false);
+        return;
+      }
+    }
+
+    setFunnelLoading(true);
+
+    try {
+      const res = await fetch('/api/admin/get-main/get-funnel-metrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate: dateRange.start.toISOString(),
+          endDate: dateRange.end.toISOString(),
+          skipCache: forceRefresh,
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFunnelMetrics(data);
+        setClientCache(FUNNEL_CACHE_NS, funnelCacheKey, data, CACHE_TTL);
+      }
+    } catch (e) {
+      console.error('Error fetching funnel metrics:', e);
+    } finally {
+      setFunnelLoading(false);
+    }
+  }, [dateRange, funnelCacheKey]);
+
+  const handleClearCaches = useCallback(async () => {
+    setCacheClearing(true);
+    try {
+      clearClientCache(ORDERS_CACHE_NS);
+      clearClientCache(FUNNEL_CACHE_NS);
+      comparisonCache.clear?.();
+    } catch (err) {
+      console.warn('Failed to clear client caches', err);
+    }
+
+    try {
+      await fetch('/api/admin/cache/purge', { method: 'POST' });
+    } catch (err) {
+      console.warn('Failed to clear server caches', err);
+    }
+
+    await Promise.allSettled([
+      fetchOrders({ forceRefresh: true }),
+      fetchFunnelMetrics({ forceRefresh: true }),
+    ]);
+
+    setCacheClearing(false);
+  }, [fetchOrders, fetchFunnelMetrics]);
+
+  /*****************************************************
    * Trigger Fetches on Dependency Changes
    *****************************************************/
   useEffect(() => {
-    fetchOrders();
+    (async () => {
+      await Promise.allSettled([
+        fetchOrders(),
+        fetchFunnelMetrics(),
+      ]);
+    })();
     fetchCacData();
     fetchProblematicOrders();
     fetchComparisonData();
@@ -461,6 +619,7 @@ const OrderListFull = ({ isAdmin }) => {
     fetchCacData,
     fetchProblematicOrders,
     fetchComparisonData,
+    fetchFunnelMetrics,
     selectedProblematicFilter,
   ]);
 
@@ -724,6 +883,10 @@ const OrderListFull = ({ isAdmin }) => {
         roas={roas}
         roasWithoutCod={roasWithoutCod}
         comparisonData={comparisonData}
+        funnel={funnelMetrics}
+        funnelLoading={funnelLoading}
+        onClearCache={handleClearCaches}
+        cacheClearing={cacheClearing}
       />
 
       {/* Orders Pagination */}

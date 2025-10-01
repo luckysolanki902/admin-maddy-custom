@@ -9,10 +9,21 @@ import mongoose from 'mongoose';
 import SpecificCategory from '@/models/SpecificCategory';
 import User from '@/models/User';
 import ModeOfPayment from '@/models/ModeOfPayment';
+import { getCachedValue, setCachedValue } from '@/lib/cache/serverCache';
 
 // Extend dayjs with plugins
 dayjs.extend(utc);
 dayjs.extend(timezone);
+
+const CACHE_NAMESPACE = 'ordersRoute';
+const CACHE_TTL = 5 * 60 * 1000;
+
+const buildCacheKey = (searchParams) => {
+  const entries = Array.from(searchParams.entries())
+    .filter(([key]) => key !== 'skipCache')
+    .sort(([aKey], [bKey]) => aKey.localeCompare(bKey));
+  return JSON.stringify(entries);
+};
 
 /**
  * GET /api/admin/get-main/get-orders
@@ -43,9 +54,22 @@ dayjs.extend(timezone);
 
 export async function GET(req) {
   try {
+    const { searchParams } = new URL(req.url);
+    const skipCache = searchParams.get('skipCache') === 'true';
+    const cacheKey = buildCacheKey(searchParams);
+
+    if (!skipCache) {
+      const cached = getCachedValue(CACHE_NAMESPACE, cacheKey);
+      if (cached) {
+        return new Response(
+          JSON.stringify(cached),
+          { status: 200, headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' } }
+        );
+      }
+    }
+
     await connectToDatabase();
 
-    const { searchParams } = new URL(req.url);
     // Extract query parameters with defaults
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = Math.min(parseInt(searchParams.get('limit') || '30', 10), 30);
@@ -607,24 +631,28 @@ export async function GET(req) {
       } = problematicResult;
 
       // Respond with data including utmCounts
+      const responsePayload = {
+        orders,
+        totalOrders,
+        totalPages,
+        currentPage: page,
+        totalItems,
+        grossSales,
+        revenue,
+        revenueWithoutCod,
+        sumTotalAmount,
+        sumTotalDiscount,
+        aov,
+        discountRate,
+        oldestOrderDate: formattedOldestOrderDate,
+        utmCounts, // Include the new UTM counts
+      };
+
+      setCachedValue(CACHE_NAMESPACE, cacheKey, responsePayload, CACHE_TTL);
+
       return new Response(
-        JSON.stringify({
-          orders,
-          totalOrders,
-          totalPages,
-          currentPage: page,
-          totalItems,
-          grossSales,
-          revenue,
-          revenueWithoutCod,
-          sumTotalAmount,
-          sumTotalDiscount,
-          aov,
-          discountRate,
-          oldestOrderDate: formattedOldestOrderDate,
-          utmCounts, // Include the new UTM counts
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify(responsePayload),
+        { status: 200, headers: { 'Content-Type': 'application/json', 'X-Cache': skipCache ? 'SKIP' : 'MISS' } }
       );
     } else {
       // No problematic filter, proceed with base query
@@ -648,24 +676,28 @@ export async function GET(req) {
       } = baseResult;
 
       // Respond with data including utmCounts
+      const responsePayload = {
+        orders,
+        totalOrders,
+        totalPages,
+        currentPage: page,
+        totalItems,
+        grossSales,
+        revenue,
+        revenueWithoutCod,
+        sumTotalAmount,
+        sumTotalDiscount,
+        aov,
+        discountRate,
+        oldestOrderDate: formattedOldestOrderDate,
+        utmCounts, // Include the new UTM counts
+      };
+
+      setCachedValue(CACHE_NAMESPACE, cacheKey, responsePayload, CACHE_TTL);
+
       return new Response(
-        JSON.stringify({
-          orders,
-          totalOrders,
-          totalPages,
-          currentPage: page,
-          totalItems,
-          grossSales,
-          revenue,
-          revenueWithoutCod,
-          sumTotalAmount,
-          sumTotalDiscount,
-          aov,
-          discountRate,
-          oldestOrderDate: formattedOldestOrderDate,
-          utmCounts, // Include the new UTM counts
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify(responsePayload),
+        { status: 200, headers: { 'Content-Type': 'application/json', 'X-Cache': skipCache ? 'SKIP' : 'MISS' } }
       );
     }
   } catch (error) {

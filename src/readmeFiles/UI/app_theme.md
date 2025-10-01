@@ -75,3 +75,4 @@ This document distills the visual language and UX patterns from the Homepage and
 - Don’t: mix random bright colors; overuse heavy shadows; place text directly on busy images without overlay.
 
 Keep new pages minimal, glassy, and neon-accented. Reuse the DepartmentHomePage and DepartmentLinks visual patterns wherever possible for instant brand consistency.
+<!-- For most of the things unless graphs or etc we prefer grey scale to match our brand color theme white or light text and dark backgrounds but mainly everything greyscale -->

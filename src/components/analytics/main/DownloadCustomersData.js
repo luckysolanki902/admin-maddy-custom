@@ -27,6 +27,7 @@ import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InfoIcon from '@mui/icons-material/Info';
+import RemoveShoppingCartIcon from '@mui/icons-material/RemoveShoppingCart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import * as FileSaver from 'file-saver';
 import dayjs from 'dayjs';
@@ -108,16 +109,15 @@ export default function DownloadCustomersData() {
   // Special Filters
   const [specialFilter, setSpecialFilter] = useState(null);
   const handleSpecialFilterChange = (filter) => {
-    // If the filter is already selected, turn it off
     if (specialFilter === filter) {
       setSpecialFilter(null);
     } else {
       setSpecialFilter(filter);
-      // Reset conflicting filters when enabling special filters
-      if (filter === 'incompletePayments') {
+      if (filter === 'subscribersOnly') {
+        return;
+      }
+      if (['incompletePayments', 'abandonedCart'].includes(filter)) {
         setApplyLoyaltyFilter(false);
-      } else if (filter === 'subscribersOnly') {
-        // No need to disable date filters for subscribers
       }
     }
   };
@@ -204,6 +204,11 @@ export default function DownloadCustomersData() {
     minItemsCount: { checked: false, value: 0 },
   });
 
+  const itemsKey = useMemo(() => JSON.stringify(items), [items]);
+  const vehiclesKey = useMemo(() => JSON.stringify(vehicles), [vehicles]);
+  const loyaltyKey = useMemo(() => JSON.stringify(loyaltyFilters), [loyaltyFilters]);
+  const selectedColumnsKey = useMemo(() => selectedColumns.join(','), [selectedColumns]);
+
   // Table & pagination
   const [customers, setCustomers] = useState([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -221,12 +226,22 @@ export default function DownloadCustomersData() {
 
   // Reset page on filter/sort change
   useEffect(() => setPage(0), [
-    mode, activeTag, dateRange.start, dateRange.end,
-    applyItemFilter, JSON.stringify(items),
-    applyVehicleFilter, JSON.stringify(vehicles),
-    applyLoyaltyFilter, JSON.stringify(loyaltyFilters),
-    tags, selectedColumns.join(','), sortConfig.field, sortConfig.order,
-    debouncedCampaign, specialFilter
+    mode,
+    activeTag,
+    dateRange.start,
+    dateRange.end,
+    applyItemFilter,
+    itemsKey,
+    applyVehicleFilter,
+    vehiclesKey,
+    applyLoyaltyFilter,
+    loyaltyKey,
+    tags,
+    selectedColumnsKey,
+    sortConfig.field,
+    sortConfig.order,
+    debouncedCampaign,
+    specialFilter,
   ]);
 
   // Fetch data
@@ -269,7 +284,7 @@ export default function DownloadCustomersData() {
         let res;
         
         // Use the appropriate API based on what we're displaying
-        if (specialFilter === 'incompletePayments') {
+        if (['incompletePayments', 'abandonedCart'].includes(specialFilter)) {
           res = await fetch(
             `/api/admin/analytics/main/abandoned-carts-user?query=${encodeURIComponent(JSON.stringify(baseQuery))}`
           );
@@ -343,6 +358,8 @@ export default function DownloadCustomersData() {
       // Set appropriate filename based on mode and special filter
       if (specialFilter === 'incompletePayments') {
         filename = 'incomplete_payments_users.csv';
+      } else if (specialFilter === 'abandonedCart') {
+        filename = 'abandoned_cart_users.csv';
       } else if (specialFilter === 'subscribersOnly') {
         filename = 'subscribers_only.csv';
       } else if (mode === 'orders') {
@@ -371,6 +388,8 @@ export default function DownloadCustomersData() {
     { label: 'Specific Category', value: 'specificCategory' },
     { label: 'Order Count', value: 'orderCount' },
     { label: 'Is Subscriber Only', value: 'isSubscriberOnly' },
+    { label: 'Funnel Stage', value: 'funnelStage' },
+    { label: 'Last Activity', value: 'lastActivityAt' },
   ], []);
 
   // Default columns on mode change - removed external campaign
@@ -378,7 +397,9 @@ export default function DownloadCustomersData() {
     setSelectedColumns(
       availableColumns
         .filter(c => {
-          if (specialFilter === 'subscribersOnly') {
+          if (['incompletePayments', 'abandonedCart'].includes(specialFilter)) {
+            return ['fullName', 'phoneNumber', 'funnelStage', 'lastActivityAt'].includes(c.value);
+          } else if (specialFilter === 'subscribersOnly') {
             return ['fullName', 'phoneNumber', 'isSubscriberOnly'].includes(c.value);
           } else if (mode === 'orders') {
             return ['orderId', 'fullName', 'phoneNumber'].includes(c.value);
@@ -407,6 +428,7 @@ export default function DownloadCustomersData() {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Typography variant="h4" align="center" gutterBottom>
         {specialFilter === 'incompletePayments' ? 'Users with Incomplete Payments' : 
+          specialFilter === 'abandonedCart' ? 'Users with Abandoned Carts' :
           specialFilter === 'subscribersOnly' ? 'Subscriber-Only Users' :
           mode === 'orders' ? 'Download Orders Data' : 'Download Users Data'}
       </Typography>
@@ -417,7 +439,7 @@ export default function DownloadCustomersData() {
           <Tabs 
             value={mode} 
             onChange={handleModeChange}
-            disabled={specialFilter === 'incompletePayments' || specialFilter === 'subscribersOnly'}
+            disabled={['incompletePayments', 'abandonedCart', 'subscribersOnly'].includes(specialFilter)}
           >
             <Tab label="Users Mode" value="users" />
             <Tab label="Orders Mode" value="orders" />
@@ -598,6 +620,53 @@ export default function DownloadCustomersData() {
                   )}
                 </Card>
 
+                {/* Abandoned Cart Filter */}
+                <Card
+                  elevation={0}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    p: 1.5,
+                    border: '1px solid',
+                    borderColor: specialFilter === 'abandonedCart' ? 'primary.main' : 'divider',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { sm: '200px' },
+                    background: specialFilter === 'abandonedCart'
+                      ? `linear-gradient(135deg, ${theme.palette.primary.light}40, ${theme.palette.primary.light}80)`
+                      : 'transparent',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      boxShadow: theme.shadows[2],
+                      borderColor: specialFilter === 'abandonedCart' ? 'primary.main' : 'primary.light',
+                    }
+                  }}
+                  onClick={() => handleSpecialFilterChange('abandonedCart')}
+                >
+                  <Avatar
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      bgcolor: specialFilter === 'abandonedCart' ? '#2d2d2d' : 'rgb(200, 200, 200)',
+                      color: specialFilter === 'abandonedCart' ? 'white' : '#2d2d2d',
+                      mr: 1.5,
+                    }}
+                  >
+                    <RemoveShoppingCartIcon fontSize="small" />
+                  </Avatar>
+                  <Typography
+                    variant="body1"
+                    fontWeight={specialFilter === 'abandonedCart' ? 600 : 400}
+                    color={specialFilter === 'abandonedCart' ? 'white' : 'rgb(200, 200, 200)'}
+                  >
+                    Abandoned Cart
+                  </Typography>
+                  {specialFilter === 'abandonedCart' && (
+                    <CheckCircleIcon color="primary" sx={{ ml: 'auto' }} />
+                  )}
+                </Card>
+
                 {/* Subscribers Only Filter - improved active state */}
                 <Card
                   elevation={0}
@@ -670,9 +739,11 @@ export default function DownloadCustomersData() {
                     </Button>
                   }
                 >
-                  {specialFilter === 'incompletePayments' 
-                    ? 'Showing users who abandoned their carts during the payment process.'
-                    : `Showing users who are subscribers only and haven't placed any orders.`}
+                  {specialFilter === 'incompletePayments'
+                    ? 'Showing users who reached payment but did not complete their order.'
+                    : specialFilter === 'abandonedCart'
+                      ? 'Showing users who added items to cart but never initiated payment.'
+                      : `Showing users who are subscribers only and haven't placed any orders.`}
                 </Alert>
               )}
             </Grid>
@@ -949,8 +1020,8 @@ export default function DownloadCustomersData() {
                       borderRadius: '12px',
                       height: '100%',
                       transition: 'all 0.2s',
-                      opacity: specialFilter === 'incompletePayments' ? 0.7 : 1,
-                      pointerEvents: specialFilter === 'incompletePayments' ? 'none' : 'auto'
+                      opacity: ['incompletePayments', 'abandonedCart'].includes(specialFilter) ? 0.7 : 1,
+                      pointerEvents: ['incompletePayments', 'abandonedCart'].includes(specialFilter) ? 'none' : 'auto'
                     }}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -1005,8 +1076,8 @@ export default function DownloadCustomersData() {
                       borderRadius: '12px',
                       height: '100%',
                       transition: 'all 0.2s',
-                      opacity: specialFilter === 'incompletePayments' ? 0.7 : 1,
-                      pointerEvents: specialFilter === 'incompletePayments' ? 'none' : 'auto'
+                      opacity: ['incompletePayments', 'abandonedCart'].includes(specialFilter) ? 0.7 : 1,
+                      pointerEvents: ['incompletePayments', 'abandonedCart'].includes(specialFilter) ? 'none' : 'auto'
                     }}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -1130,15 +1201,18 @@ export default function DownloadCustomersData() {
                   {mode === 'orders' && <TableCell>{row['Order ID'] || row.orderId}</TableCell>}
                   {selectedColumns.map(col => {
                     if (mode === 'orders' && col === 'orderId') return null;
-                    
-                    // Special handling for isSubscriberOnly
+
+                    const columnMeta = availableColumns.find(c => c.value === col);
+                    const label = columnMeta?.label;
+                    let val = row[label] ?? row[col];
+
                     if (col === 'isSubscriberOnly') {
-                      const val = row[availableColumns.find(c => c.value === col)?.label] || row[col];
+                      const isSubscriber = val === true;
                       return (
                         <TableCell key={col}>
-                          <Chip 
-                            label={val === true ? "Yes" : "No"}
-                            color={val === true ? "success" : "default"}
+                          <Chip
+                            label={isSubscriber ? 'Yes' : 'No'}
+                            color={isSubscriber ? 'success' : 'default'}
                             size="small"
                             variant="outlined"
                             sx={{ minWidth: 60, justifyContent: 'center' }}
@@ -1146,9 +1220,16 @@ export default function DownloadCustomersData() {
                         </TableCell>
                       );
                     }
-                    
-                    const val = row[availableColumns.find(c => c.value === col)?.label] || row[col];
-                    return <TableCell key={col}>{val != null ? val.toString() : '—'}</TableCell>;
+
+                    if (col === 'lastActivityAt' && val) {
+                      val = dayjs(val).isValid() ? dayjs(val).format('YYYY-MM-DD HH:mm') : val;
+                    }
+
+                    return (
+                      <TableCell key={col}>
+                        {val != null ? val.toString() : '—'}
+                      </TableCell>
+                    );
                   })}
                 </StyledTableRow>
               )) : (

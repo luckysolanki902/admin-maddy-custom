@@ -23,12 +23,14 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import SalesSourcesChart from '@/components/analytics/main/SalesSourcesChart';
 import CartSourcesChart from '@/components/analytics/main/CartSourcesChart';
 import ReturningPayingUsersChart from '@/components/analytics/main/ReturningPayingUsersChart';
+import ReturningUsersChart from '@/components/analytics/main/ReturningUsersChart';
 import VariantSalesChart from '@/components/analytics/main/VariantSalesChart';
 import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
 import AbandonedCartsChart from '@/components/analytics/main/AbandonedCartsChart';
 import DailyRevenueChart from '@/components/analytics/main/DailyRevenueChart';
 import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart';
 import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart';
+// ...FunnelJourneyTree import removed
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import MinimalChartSkeleton from '@/components/analytics/common/MinimalChartSkeleton';
 
@@ -272,13 +274,15 @@ export default function AnalyticsDashboard({ admin = false }) {
   const [error, setError] = useState('');
   const [salesSources, setSalesSources] = useState([]);
   const [cartSources, setCartSources] = useState([]);
-  const [returnUsers, setReturnUsers] = useState([]);
+  const [returningPayingUsers, setReturningPayingUsers] = useState([]);
+  const [returningUsers, setReturningUsers] = useState([]);
   const [variantSales, setVariantSales] = useState([]);
   const [retargeted, setRetargeted] = useState([]);
   const [abandoned, setAbandoned] = useState([]);
   const [dailyRev, setDailyRev] = useState([]);
   const [totalRev, setTotalRev] = useState([]);
   const [monthlyRev, setMonthlyRev] = useState([]);
+  // ...journeyTree state removed
   const [isUpdatingData, setIsUpdatingData] = useState(false);
 
   /* ------------ FETCH HELPERS ------------ */
@@ -289,8 +293,9 @@ export default function AnalyticsDashboard({ admin = false }) {
     if (dateRange.start) q.append('startDate', dateRange.start.toISOString());
     if (dateRange.end) q.append('endDate', dateRange.end.toISOString());
     
-    const fullUrl = `${url}?${q}`;
-    const cacheKey = `${url}_${dateRangeKey}`;
+    const queryString = q.toString();
+    const fullUrl = queryString ? `${url}?${queryString}` : url;
+    const cacheKey = `${url}_${dateRangeKey}_${queryString}`;
     const now = Date.now();
     const cached = dataCache.current[cacheKey];
     if (cached && (now - cached.ts) < FIVE_MIN) return cached.data;
@@ -353,6 +358,7 @@ export default function AnalyticsDashboard({ admin = false }) {
             ]);
             setSalesSources(src.salesSources);
             setCartSources(cs.cartSources);
+            // journeyTree removed
             break;
           }
           case 'products': {
@@ -361,12 +367,14 @@ export default function AnalyticsDashboard({ admin = false }) {
             break;
           }
           case 'traffic': {
-            const [ru, rt, ab] = await Promise.all([
+            const [paying, returning, rt, ab] = await Promise.all([
               ranged('/api/admin/analytics/main/returning-paying-users'),
+              ranged('/api/admin/analytics/main/returning-users'),
               ranged('/api/admin/analytics/main/retargeted-customers'),
               ranged('/api/admin/analytics/main/abandoned-carts')
             ]);
-            setReturnUsers(ru.returningPayingUsers);
+            setReturningPayingUsers(paying.returningPayingUsers);
+            setReturningUsers(returning.returningUsers);
             setRetargeted(rt.retargetedCustomers);
             setAbandoned(ab.abandonedCarts);
             break;
@@ -633,6 +641,7 @@ export default function AnalyticsDashboard({ admin = false }) {
                 <CartSourcesChart data={cartSources} />
               </LazyCard>
             </Grid>
+            {/* FunnelJourneyTree removed */}
           </Grid>
         </Section>
 
@@ -656,16 +665,25 @@ export default function AnalyticsDashboard({ admin = false }) {
           onVisible={() => handleSectionVisible('traffic')}
         >
           <Grid container spacing={4}>
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={6} lg={4}>
               <LazyCard loading={sectionLoading.traffic}>
                 <ReturningPayingUsersChart
-                  data={returnUsers}
+                  data={returningPayingUsers}
                   startDate={dateRange.start}
                   endDate={dateRange.end}
                 />
               </LazyCard>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={6} lg={4}>
+              <LazyCard loading={sectionLoading.traffic}>
+                <ReturningUsersChart
+                  data={returningUsers}
+                  startDate={dateRange.start}
+                  endDate={dateRange.end}
+                />
+              </LazyCard>
+            </Grid>
+            <Grid item xs={12} lg={4}>
               <LazyCard loading={sectionLoading.traffic}>
                 <RetargetedCustomersChart data={retargeted} />
               </LazyCard>

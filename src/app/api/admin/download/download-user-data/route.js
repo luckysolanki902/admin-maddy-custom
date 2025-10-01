@@ -8,6 +8,7 @@ import SpecificCategory from '@/models/SpecificCategory';
 import Product from '@/models/Product';
 import CampaignLog from '@/models/CampaignLog';
 import mongoose from 'mongoose';
+import { getFunnelDropoffDataset } from '@/lib/analytics/funnelDropoffService';
 
 connectToDatabase();
 
@@ -30,11 +31,24 @@ export async function GET(req) {
       applyLoyaltyFilter, loyalty = {},
       utmCampaign = '',       // UTM campaign filter
       specialFilter = null,   // 'incompletePayments' or 'subscribersOnly'
+      sortField,
+      sortOrder,
     } = parsedQuery;
 
     // Special Filter: Incomplete Payments
-    if (specialFilter === 'incompletePayments') {
-      return await getAbandonedCartsData(columns, tags, applyItemFilter, items, activeTag, start, end);
+    if (specialFilter === 'incompletePayments' || specialFilter === 'abandonedCart') {
+      return await getFunnelDownloadResponse({
+        filterType: specialFilter,
+        columns,
+        tags,
+        applyItemFilter,
+        items,
+        start,
+        end,
+        utmCampaign,
+        sortField,
+        sortOrder,
+      });
     }
 
     // Special Filter: Subscribers Only
@@ -372,238 +386,69 @@ export async function GET(req) {
   }
 }
 
-// Helper function for abandoned carts data
-async function getAbandonedCartsData(columns, tags, applyItemFilter, items, activeTag, start, end) {
-  try {
-    // Build pipeline for abandoned carts users
-    const pipeline = [];
+async function normalizeItemsForFunnel(items = []) {
+  if (!Array.isArray(items) || !items.length) return items;
 
-    // Stage 1: Start with the User collection
-    pipeline.push({
-      $lookup: {
-        from: 'orders',
-        localField: '_id',
-        foreignField: 'user',
-        as: 'userOrders',
-      }
-    });
+  const first = items[0];
+  const shouldLookup = typeof first === 'string' && !mongoose.Types.ObjectId.isValid(first);
+  if (!shouldLookup) return items;
 
-    // Stage 2: Add field to identify the most recent order for each user
-    pipeline.push({
-      $addFields: {
-        mostRecentOrder: {
-          $arrayElemAt: [
-            { $sortArray: { input: '$userOrders', sortBy: { createdAt: -1 } } },
-            0,
-          ],
-        }
-      }
-    });
+  const categories = await SpecificCategory.find({ name: { $in: items } })
+    .select('_id')
+    .lean();
+  if (!categories.length) return [];
+  return categories.map((category) => category._id.toString());
+}
 
-    // Stage 3: Match users whose most recent order is not successful
-    pipeline.push({
-      $match: {
-        'mostRecentOrder.paymentStatus': {
-          $in: ['failed', 'pending', 'cancelled']
-        },
-      }
-    });
+async function getFunnelDownloadResponse({
+  filterType,
+  columns,
+  tags,
+  applyItemFilter,
+  items,
+  start,
+  end,
+  utmCampaign,
+  sortField,
+  sortOrder,
+}) {
+  const normalizedItems = await normalizeItemsForFunnel(items);
+  const { formattedRows } = await getFunnelDropoffDataset({
+    filterType: filterType || 'incompletePayments',
+    columns,
+    tags,
+    applyItemFilter,
+    items: normalizedItems,
+    start,
+    end,
+    utmCampaign,
+    sortField,
+    sortOrder,
+    forDownload: true,
+  });
 
-    // Stage 4: Add fields to count total orders
-    pipeline.push({
-      $addFields: {
-        orderCount: {
-          $size: {
-            $filter: {
-              input: '$userOrders',
-              as: 'order',
-              cond: {
-                $in: ['$$order.paymentStatus', ['paidPartially', 'allPaid', 'allToBePaidCod']],
-              },
-            },
-          },
-        },
-      }
-    });
-
-    // Stage 5: Apply Date Filter - Ensure consistent date handling
-    if (activeTag !== 'all' && start && end) {
-      pipeline.push({
-        $match: {
-          'mostRecentOrder.createdAt': { 
-            $gte: new Date(start), 
-            $lte: new Date(end) 
-          }
-        }
-      });
-    }
-
-    // Stage 6: Apply Item Filters if needed
-    if (applyItemFilter && items.length > 0) {
-      const prodIds = await Product.find({ specificCategory: { $in: items } }).distinct('_id');
-      if (prodIds.length > 0) {
-        pipeline.push({
-          $match: {
-            'userOrders.items.product': { $in: prodIds }
-          }
-        });
-      }
-    }
-
-    // Stage 7: Unwind userOrders and items for product lookups
-    pipeline.push({ $unwind: '$userOrders' });
-    pipeline.push({ $unwind: '$userOrders.items' });
-
-    // Stage 8: Lookup product details
-    pipeline.push({
-      $lookup: {
-        from: 'products',
-        localField: 'userOrders.items.product',
-        foreignField: '_id',
-        as: 'userOrders.items.product_details',
-      }
-    });
-    pipeline.push({ $unwind: '$userOrders.items.product_details' });
-
-    // Stage 9: Group by User
-    pipeline.push({
-      $group: {
-        _id: '$_id',
-        fullName: { $first: '$name' },
-        phoneNumber: { $first: '$phoneNumber' },
-        city: { $first: { $ifNull: [{ $arrayElemAt: ['$addresses.city', 0] }, ''] } },
-        orderCount: { $first: '$orderCount' },
-        totalAmountSpent: { $sum: '$userOrders.totalAmount' },
-        itemPurchaseCounts: { $sum: '$userOrders.items.quantity' },
-        utmSource: { $first: '$userOrders.utmDetails.source' },
-        utmMedium: { $first: '$userOrders.utmDetails.medium' },
-        utmCampaign: { $first: '$userOrders.utmDetails.campaign' },
-        specificCategoryIds: { $addToSet: '$userOrders.items.product_details.specificCategory' },
-      }
-    });
-
-    // Stage 10: Lookup Specific Categories
-    pipeline.push({
-      $lookup: {
-        from: 'specificcategories',
-        localField: 'specificCategoryIds',
-        foreignField: '_id',
-        as: 'specificCategories',
-      }
-    });
-
-    // Stage 11: Add Specific Category Names
-    pipeline.push({
-      $addFields: {
-        specificCategory: {
-          $reduce: {
-            input: '$specificCategories.name',
-            initialValue: '',
-            in: {
-              $cond: [
-                { $eq: ['$$value', ''] },
-                '$$this',
-                { $concat: ['$$value', ', ', '$$this'] }
-              ]
-            }
-          }
-        }
-      }
-    });
-
-    // Stage 12: Filter by Tags
-    if (tags) {
-      pipeline.push({
-        $match: {
-          $or: [
-            { fullName: { $regex: tags, $options: 'i' } },
-            { phoneNumber: { $regex: tags, $options: 'i' } },
-            { city: { $regex: tags, $options: 'i' } },
-            { specificCategory: { $regex: tags, $options: 'i' } },
-            { 'utmSource': { $regex: tags, $options: 'i' } },
-            { 'utmMedium': { $regex: tags, $options: 'i' } },
-            { 'utmCampaign': { $regex: tags, $options: 'i' } }
-          ]
-        }
-      });
-    }
-
-    // Stage 13: Project Fields based on selected columns
-    const projectStage = {};
-    if (Array.isArray(columns) && columns.length > 0) {
-      columns.forEach(col => {
-        switch (col) {
-          case 'fullName':
-            projectStage['Full Name'] = '$fullName';
-            break;
-          case 'city':
-            projectStage['City'] = '$city';
-            break;
-          case 'phoneNumber':
-            projectStage['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
-            break;
-          case 'orderCount':
-            projectStage['Order Count'] = '$orderCount';
-            break;
-          case 'itemPurchaseCounts':
-            projectStage['Item Purchase Counts'] = '$itemPurchaseCounts';
-            break;
-          case 'totalAmountSpent':
-            projectStage['Total Amount Spent'] = '$totalAmountSpent';
-            break;
-          case 'utmSource':
-            projectStage['UTM Source'] = '$utmSource';
-            break;
-          case 'utmMedium':
-            projectStage['UTM Medium'] = '$utmMedium';
-            break;
-          case 'utmCampaign':
-            projectStage['UTM Campaign'] = '$utmCampaign';
-            break;
-          case 'specificCategory':
-            projectStage['Specific Category'] = '$specificCategory';
-            break;
-          default:
-            break;
-        }
-      });
-    } else {
-      // Default columns if none selected
-      projectStage['Full Name'] = '$fullName';
-      projectStage['Phone Number'] = { $concat: ['91', { $toString: '$phoneNumber' }] };
-      projectStage['Order Count'] = '$orderCount';
-    }
-
-    pipeline.push({ $project: projectStage });
-
-    // Execute pipeline
-    const data = await User.aggregate(pipeline).exec();
-    
-    if (!data.length) {
-      const emptyFields = ['No Records Found'];
-      const emptyCsv = new Parser({ fields: emptyFields }).parse([{ 'No Records Found': 'No data matches your selected filters' }]);
-      return new NextResponse(emptyCsv, {
-        headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': 'attachment; filename=incomplete_payments_users.csv',
-        },
-      });
-    }
-
-    // Convert to CSV
-    const fields = Object.keys(data[0]);
-    const csv = new Parser({ fields }).parse(data);
-
-    return new NextResponse(csv, {
+  if (!formattedRows.length) {
+    const emptyFields = ['No Records Found'];
+    const emptyCsv = new Parser({ fields: emptyFields }).parse([
+      { 'No Records Found': 'No data matches your selected filters' },
+    ]);
+    return new NextResponse(emptyCsv, {
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename=incomplete_payments_users.csv',
+        'Content-Disposition': `attachment; filename=${filterType === 'abandonedCart' ? 'abandoned_cart_users.csv' : 'incomplete_payments_users.csv'}`,
       },
     });
-  } catch (error) {
-    console.error('Error in getAbandonedCartsData:', error);
-    return NextResponse.json({ message: 'Server error', error: error.message }, { status: 500 });
   }
+
+  const fields = Object.keys(formattedRows[0]);
+  const csv = new Parser({ fields }).parse(formattedRows);
+
+  return new NextResponse(csv, {
+    headers: {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename=${filterType === 'abandonedCart' ? 'abandoned_cart_users.csv' : 'incomplete_payments_users.csv'}`,
+    },
+  });
 }
 
 // Helper function for subscribers only data

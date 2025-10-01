@@ -12,6 +12,7 @@ export async function GET(req) {
 
     let matchStage = {
       paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
+      isTestingOrder: { $ne: true },
     };
 
     let startDate, endDate;
@@ -58,7 +59,7 @@ export async function GET(req) {
             year: { $year: '$createdAt' },
             month: { $month: '$createdAt' },
           },
-          monthlyRevenue: { $sum: '$itemsTotal' },
+          monthlyRevenue: { $sum: '$totalAmount' },
         },
       },
       {

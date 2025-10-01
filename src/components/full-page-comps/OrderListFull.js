@@ -123,12 +123,24 @@ const OrderListFull = ({ isAdmin }) => {
   const [comparisonData, setComparisonData] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
 
-  // Funnel metrics: visits -> form -> address -> payment -> purchase
+  // Funnel metrics: visits -> cart -> view cart -> form -> address -> payment -> purchase
   const [funnelMetrics, setFunnelMetrics] = useState({
-    counts: { visited: 0, openedOrderForm: 0, reachedAddressTab: 0, startedPayment: 0, purchased: 0 },
-    ratios: { visit_to_form: 0, form_to_address: 0, address_to_payment: 0, payment_to_purchase: 0, visit_to_purchase: 0, c2p: 0 },
+    counts: { visited: 0, addedToCart: 0, viewedCart: 0, openedOrderForm: 0, reachedAddressTab: 0, startedPayment: 0, purchased: 0 },
+    ratios: { 
+      visit_to_cart: 0, 
+      cart_to_view_cart: 0, 
+      view_cart_to_form: 0, 
+      cart_to_form: 0, 
+      form_to_address: 0, 
+      address_to_payment: 0, 
+      payment_to_purchase: 0, 
+      visit_to_purchase: 0, 
+      c2p: 0 
+    },
+    dropoffs: {},
   });
   const [funnelLoading, setFunnelLoading] = useState(true);
+  const [landingPageFilter, setLandingPageFilter] = useState('all');
 
   // Variant snackbar
   const [variantSnackbar, setVariantSnackbar] = useState({ open: false, message: '', severity: 'warning' });
@@ -199,8 +211,8 @@ const OrderListFull = ({ isAdmin }) => {
   );
 
   const funnelCacheKey = useMemo(
-    () => JSON.stringify({ startDate: startIso, endDate: endIso }),
-    [startIso, endIso]
+    () => JSON.stringify({ startDate: startIso, endDate: endIso, landingPageFilter }),
+    [startIso, endIso, landingPageFilter]
   );
 
   /*****************************************************
@@ -562,6 +574,7 @@ const OrderListFull = ({ isAdmin }) => {
         body: JSON.stringify({
           startDate: dateRange.start.toISOString(),
           endDate: dateRange.end.toISOString(),
+          landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
           skipCache: forceRefresh,
         })
       });
@@ -575,7 +588,7 @@ const OrderListFull = ({ isAdmin }) => {
     } finally {
       setFunnelLoading(false);
     }
-  }, [dateRange, funnelCacheKey]);
+  }, [dateRange, funnelCacheKey, landingPageFilter]);
 
   const handleClearCaches = useCallback(async () => {
     setCacheClearing(true);
@@ -885,6 +898,8 @@ const OrderListFull = ({ isAdmin }) => {
         comparisonData={comparisonData}
         funnel={funnelMetrics}
         funnelLoading={funnelLoading}
+        landingPageFilter={landingPageFilter}
+        setLandingPageFilter={setLandingPageFilter}
         onClearCache={handleClearCaches}
         cacheClearing={cacheClearing}
       />

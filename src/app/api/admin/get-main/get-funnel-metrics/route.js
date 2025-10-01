@@ -8,11 +8,11 @@ import fetchMetaFunnelSnapshot from '@/lib/analytics/metaFunnel';
 const CACHE_NAMESPACE = 'funnelMetrics';
 const CACHE_TTL = 5 * 60 * 1000;
 const buildCacheKey = (startDate, endDate) => JSON.stringify({ startDate, endDate });
-const FIRST_PARTY_CUTOVER = new Date('2025-10-01T010:30:00.000Z');
+const FIRST_PARTY_CUTOVER = new Date('2025-09-30T10:30:00.000Z');
 
 export async function POST(req) {
   try {
-    const { startDate, endDate, skipCache = false } = await req.json();
+    const { startDate, endDate, skipCache = false, landingPageFilter = null } = await req.json();
     if (!startDate || !endDate) {
       return new Response(JSON.stringify({ message: 'startDate and endDate are required' }), { status: 400 });
     }
@@ -24,7 +24,7 @@ export async function POST(req) {
       return new Response(JSON.stringify({ message: 'Invalid date range provided' }), { status: 400 });
     }
 
-    const cacheKey = buildCacheKey(startDate, endDate);
+    const cacheKey = buildCacheKey(startDate, endDate) + (landingPageFilter ? `_${landingPageFilter}` : '');
     if (!skipCache) {
       const cached = getCachedValue(CACHE_NAMESPACE, cacheKey);
       if (cached) {
@@ -36,7 +36,7 @@ export async function POST(req) {
     }
 
     // Debug: log input range
-    console.info('[funnel-metrics] range', { startDate, endDate });
+    console.info('[funnel-metrics] range', { startDate, endDate, landingPageFilter });
 
     const isFirstPartyWindow = start.getTime() >= FIRST_PARTY_CUTOVER.getTime();
     let snapshot;
@@ -45,7 +45,7 @@ export async function POST(req) {
 
     if (isFirstPartyWindow) {
       await connectToDatabase();
-      snapshot = await computeFunnelSnapshot({ startDate, endDate });
+      snapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
     } else {
       try {
         snapshot = await fetchMetaFunnelSnapshot({ startDate, endDate });
@@ -55,13 +55,14 @@ export async function POST(req) {
         console.error('[funnel-metrics] Meta fallback failed, reverting to first-party data', metaError);
         sourceReasons.push({ reason: 'meta_fetch_failed', message: metaError.message });
         await connectToDatabase();
-        snapshot = await computeFunnelSnapshot({ startDate, endDate });
+        snapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
       }
     }
 
     const {
       counts,
       ratios,
+      dropoffs,
       window: windowMeta,
       generatedAt,
       raw: rawSnapshot,
@@ -70,6 +71,7 @@ export async function POST(req) {
     const measures = {
       visited: 'session_counts',
       addedToCart: 'session_counts',
+      viewedCart: 'session_counts',
       openedOrderForm: 'session_counts',
       reachedAddressTab: 'session_counts',
       startedPayment: 'session_counts',
@@ -87,6 +89,7 @@ export async function POST(req) {
       counts: {
         visited: counts.visited,
         addedToCart: counts.addedToCart,
+        viewedCart: counts.viewedCart || 0,
         openedOrderForm: counts.openedOrderForm,
         reachedAddressTab: counts.reachedAddressTab,
         startedPayment: counts.startedPayment,
@@ -96,6 +99,7 @@ export async function POST(req) {
         uniqueSessions: counts.uniqueSessions,
       },
       ratios,
+      dropoffs: dropoffs || {},
       meta: {
         source: sourceUsed,
         measures,

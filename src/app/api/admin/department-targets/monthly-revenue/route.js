@@ -26,6 +26,7 @@ export async function GET(req) {
     // Build a match stage to filter orders within the month
     const matchStage = {
       paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
+      isTestingOrder: { $ne: true },
       createdAt: {
         $gte: startDate.toDate(),
         $lte: endDate.toDate(),
@@ -38,7 +39,7 @@ export async function GET(req) {
       {
         $group: {
           _id: null,
-          monthlyRevenue: { $sum: '$itemsTotal' },
+          monthlyRevenue: { $sum: '$totalAmount' },
         },
       },
       {

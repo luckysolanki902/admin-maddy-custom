@@ -12,12 +12,16 @@ import {
   AccordionDetails,
   IconButton,
   Button,
+  ToggleButton,
+  ToggleButtonGroup,
+  Chip,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import CachedIcon from '@mui/icons-material/Cached';
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import CustomerCard from '../cards/CustomerCard';
 
 // Minimal styled components for compact design
@@ -309,8 +313,14 @@ const OrdersList = ({
   roas = 0,
   roasWithoutCod = 0,
   comparisonData = null, // New prop for comparison data
-  funnel = { counts: { visited: 0, openedOrderForm: 0, reachedAddressTab: 0, startedPayment: 0, purchased: 0 }, ratios: { c2p: 0 } },
+  funnel = { 
+    counts: { visited: 0, addedToCart: 0, viewedCart: 0, openedOrderForm: 0, reachedAddressTab: 0, startedPayment: 0, purchased: 0 }, 
+    ratios: { c2p: 0 },
+    dropoffs: {}
+  },
   funnelLoading = false,
+  landingPageFilter = 'all',
+  setLandingPageFilter = () => {},
   onClearCache = () => {},
   cacheClearing = false,
 }) => {
@@ -321,6 +331,7 @@ const OrdersList = ({
     return h >= 18 && h <= 23; // 6:00 PM to 11:59:59 PM
   })();
   const invertedMetricKeys = useMemo(() => new Set(['cac', 'totalDiscount', 'discountRate', 'roas', 'roasWithoutCod']), []);
+  const isFirstPartyActive = funnel?.meta?.cutover?.firstPartyActive !== false;
   
   const { spend } = cacData;
   const calculatedOverallCAC = totalOrders > 0 ? (spend / totalOrders).toFixed(2) : 'N/A';
@@ -436,22 +447,26 @@ const OrdersList = ({
   }, [comparisonData]);
 
   // Essential metrics for closed state - updated per requirements
-  const essentialMetrics = useMemo(() => (
-    [
+  const essentialMetrics = useMemo(() => {
+    const metrics = [
       {
         key: 'totalOrders',
         label: 'Orders',
         value: totalOrders?.toLocaleString('en-IN') || '0',
         change: formatPercentageChange('totalOrders', getMetricChange('totalOrders')),
       },
-      ...(isAdmin
-        ? [{
-            key: 'revenue',
-            label: 'Sales',
-            value: `₹${revenue?.toLocaleString('en-IN') || '0'}`,
-            change: formatPercentageChange('revenue', getMetricChange('revenue')),
-          }]
-        : []),
+    ];
+
+    if (isAdmin) {
+      metrics.push({
+        key: 'revenue',
+        label: 'Sales',
+        value: `₹${revenue?.toLocaleString('en-IN') || '0'}`,
+        change: formatPercentageChange('revenue', getMetricChange('revenue')),
+      });
+    }
+
+    metrics.push(
       {
         key: 'aov',
         label: 'AOV',
@@ -469,15 +484,20 @@ const OrdersList = ({
         label: 'ROAS',
         value: `${roas?.toFixed(2) || '0'}`,
         change: formatPercentageChange('roas', getMetricChange('roas')),
-      },
-      {
+      }
+    );
+
+    if (isFirstPartyActive) {
+      metrics.push({
         key: 'c2p',
         label: 'C2P',
         value: `${checkoutToPurchaseRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
         change: formatPercentageChange('c2p', getMetricChange('c2p')),
-      },
-    ]
-  ), [
+      });
+    }
+
+    return metrics;
+  }, [
     totalOrders,
     isAdmin,
     revenue,
@@ -488,6 +508,7 @@ const OrdersList = ({
     c2pSource,
     formatPercentageChange,
     getMetricChange,
+    isFirstPartyActive,
   ]);
 
   const allMetrics = useMemo(() => ([
@@ -720,30 +741,32 @@ const OrdersList = ({
         </>
       ),
     },
-    {
-      key: 'c2p',
-      label: 'C2P Ratio',
-      value: `${checkoutToPurchaseRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
-      category: 'performance',
-      change: formatPercentageChange('c2p', getMetricChange('c2p')),
-      rawChange: getMetricChange('c2p'),
-      tooltip: (
-        <>
-          <Typography variant="subtitle2" sx={{ color: '#f4f4f4', mb: 1, fontWeight: 600 }}>
-            Checkout to Purchase Ratio
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(220,220,220,0.7)', mb: 1, lineHeight: 1.5 }}>
-            Percentage of checkout initiations that convert to actual purchases.
-          </Typography>
-          <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-            Formula: (Purchases ÷ Checkouts) × 100%
-          </Typography>
-          <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', display: 'block', mt: 1 }}>
-            Data source: {c2pSourceDescriptor}
-          </Typography>
-        </>
-      ),
-    },
+    ...(isFirstPartyActive
+      ? [{
+          key: 'c2p',
+          label: 'C2P Ratio',
+          value: `${checkoutToPurchaseRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
+          category: 'performance',
+          change: formatPercentageChange('c2p', getMetricChange('c2p')),
+          rawChange: getMetricChange('c2p'),
+          tooltip: (
+            <>
+              <Typography variant="subtitle2" sx={{ color: '#f4f4f4', mb: 1, fontWeight: 600 }}>
+                Checkout to Purchase Ratio
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'rgba(220,220,220,0.7)', mb: 1, lineHeight: 1.5 }}>
+                Percentage of checkout initiations that convert to actual purchases.
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                Formula: (Purchases ÷ Checkouts) × 100%
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', display: 'block', mt: 1 }}>
+                Data source: {c2pSourceDescriptor}
+              </Typography>
+            </>
+          ),
+        }]
+      : []),
   ]), [
     totalOrders,
     totalItems,
@@ -760,17 +783,21 @@ const OrdersList = ({
     c2pSource,
     c2pSourceDescriptor,
     isAdmin,
+    isFirstPartyActive,
     formatPercentageChange,
     getMetricChange,
   ]);
 
   const summaryLabels = useMemo(() => {
-    const labels = ['Orders', 'AOV', 'CAC', 'ROAS', 'C2P'];
+    const labels = ['Orders', 'AOV', 'CAC', 'ROAS'];
+    if (isFirstPartyActive) {
+      labels.push('C2P');
+    }
     if (isAdmin) {
       labels.splice(1, 0, 'Sales');
     }
     return new Set(labels);
-  }, [isAdmin]);
+  }, [isAdmin, isFirstPartyActive]);
   const groupedMetrics = useMemo(() => {
     return allMetrics
       .filter((metric) => !summaryLabels.has(metric.label))
@@ -784,6 +811,7 @@ const OrdersList = ({
   const funnelSteps = useMemo(() => ([
     { key: 'Visited', value: funnel?.counts?.visited || 0 },
     { key: 'Added to Cart', value: funnel?.counts?.addedToCart || 0 },
+    { key: 'Viewed Cart', value: funnel?.counts?.viewedCart || 0 },
     { key: 'Opened Order Form', value: funnel?.counts?.openedOrderForm || 0 },
     { key: 'Reached Address Tab', value: funnel?.counts?.reachedAddressTab || 0 },
     { key: 'Started Payment', value: funnel?.counts?.startedPayment || 0 },
@@ -792,12 +820,35 @@ const OrdersList = ({
 
   const conversionRatios = useMemo(() => ([
     { label: 'Visit → Cart', value: funnel?.ratios?.visit_to_cart || 0 },
+    { label: 'Cart → View Cart', value: funnel?.ratios?.cart_to_view_cart || 0 },
+    { label: 'View Cart → Form', value: funnel?.ratios?.view_cart_to_form || 0 },
     { label: 'Cart → Form', value: funnel?.ratios?.cart_to_form || 0 },
     { label: 'Form → Address', value: funnel?.ratios?.form_to_address || 0 },
     { label: 'Address → Payment', value: funnel?.ratios?.address_to_payment || 0 },
     { label: 'Payment → Purchase', value: funnel?.ratios?.payment_to_purchase || 0 },
     { label: 'Visit → Purchase', value: funnel?.ratios?.visit_to_purchase || 0 },
   ]), [funnel]);
+
+  const dropoffMetrics = useMemo(() => {
+    const dropoffs = funnel?.dropoffs || {};
+    return {
+      visitedButNoCart: dropoffs.visitedButNoCart || 0,
+      visitedOtherPages: dropoffs.visitedOtherPages || 0,
+      visitedOtherPagesPercentage: dropoffs.visitedOtherPagesPercentage || 0,
+      landingPageDistribution: dropoffs.landingPageDistribution || {
+        home: 0,
+        'product-list-page': 0,
+        'product-id-page': 0,
+        other: 0,
+      },
+      landingPagePercentages: dropoffs.landingPagePercentages || {
+        home: 0,
+        'product-list-page': 0,
+        'product-id-page': 0,
+        other: 0,
+      },
+    };
+  }, [funnel]);
 
   return (
     <Box>
@@ -928,71 +979,199 @@ const OrdersList = ({
         <StatsAccordionDetails>
           {!loading ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <InsightsWrapper>
+              {isFirstPartyActive ? (
+                <InsightsWrapper>
+                  <MinimalSection>
+                    <SectionHeader>
+                      <SectionTitle>Funnel Journey</SectionTitle>
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                        <Chip
+                          label="All Landings"
+                          size="small"
+                          onClick={() => setLandingPageFilter('all')}
+                          color={landingPageFilter === 'all' ? 'primary' : 'default'}
+                          variant={landingPageFilter === 'all' ? 'filled' : 'outlined'}
+                          sx={{ fontSize: '0.7rem', height: 24 }}
+                        />
+                        <Chip
+                          label="Home"
+                          size="small"
+                          onClick={() => setLandingPageFilter('home')}
+                          color={landingPageFilter === 'home' ? 'primary' : 'default'}
+                          variant={landingPageFilter === 'home' ? 'filled' : 'outlined'}
+                          sx={{ fontSize: '0.7rem', height: 24 }}
+                        />
+                        <Chip
+                          label="Product List"
+                          size="small"
+                          onClick={() => setLandingPageFilter('product-list-page')}
+                          color={landingPageFilter === 'product-list-page' ? 'primary' : 'default'}
+                          variant={landingPageFilter === 'product-list-page' ? 'filled' : 'outlined'}
+                          sx={{ fontSize: '0.7rem', height: 24 }}
+                        />
+                        <Chip
+                          label="Product Detail"
+                          size="small"
+                          onClick={() => setLandingPageFilter('product-id-page')}
+                          color={landingPageFilter === 'product-id-page' ? 'primary' : 'default'}
+                          variant={landingPageFilter === 'product-id-page' ? 'filled' : 'outlined'}
+                          sx={{ fontSize: '0.7rem', height: 24 }}
+                        />
+                        <Chip
+                          label="Other"
+                          size="small"
+                          onClick={() => setLandingPageFilter('other')}
+                          color={landingPageFilter === 'other' ? 'primary' : 'default'}
+                          variant={landingPageFilter === 'other' ? 'filled' : 'outlined'}
+                          sx={{ fontSize: '0.7rem', height: 24 }}
+                        />
+                      </Box>
+                    </SectionHeader>
+                    {funnelLoading ? (
+                      <StepList>
+                        {Array.from({ length: funnelSteps.length || 7 }).map((_, idx) => (
+                          <Skeleton
+                            key={idx}
+                            variant="rectangular"
+                            height={58}
+                            sx={{ borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                          />
+                        ))}
+                      </StepList>
+                    ) : (
+                      <StepList>
+                        {funnelSteps.map((step) => (
+                          <FunnelStep key={step.key}>
+                            <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', letterSpacing: 0.18 }}>
+                              {step.key}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600 }}>
+                              {step.value?.toLocaleString('en-IN')}
+                            </Typography>
+                          </FunnelStep>
+                        ))}
+                      </StepList>
+                    )}
+                  </MinimalSection>
+
+                  <MinimalSection>
+                    <SectionHeader>
+                      <SectionTitle>Conversion Ratios</SectionTitle>
+                    </SectionHeader>
+                    {funnelLoading ? (
+                      <ConversionGrid>
+                        {Array.from({ length: conversionRatios.length || 8 }).map((_, idx) => (
+                          <Skeleton
+                            key={idx}
+                            variant="rectangular"
+                            height={72}
+                            sx={{ borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                          />
+                        ))}
+                      </ConversionGrid>
+                    ) : (
+                      <ConversionGrid>
+                        {conversionRatios.map(({ label, value }) => {
+                          const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+                          return (
+                            <ConversionTile key={label}>
+                              <ConversionHeader>
+                                <ConversionLabel>{label}</ConversionLabel>
+                              </ConversionHeader>
+                              <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                              <ConversionProgress percent={safeValue} />
+                            </ConversionTile>
+                          );
+                        })}
+                      </ConversionGrid>
+                    )}
+                  </MinimalSection>
+
+                  <MinimalSection>
+                    <SectionHeader>
+                      <SectionTitle>Drop-off Analysis</SectionTitle>
+                    </SectionHeader>
+                    {funnelLoading ? (
+                      <StepList>
+                        <Skeleton
+                          variant="rectangular"
+                          height={120}
+                          sx={{ borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                        />
+                      </StepList>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box sx={{ 
+                          p: 2, 
+                          borderRadius: '10px', 
+                          background: 'linear-gradient(135deg, rgba(255,99,71,0.08) 0%, rgba(255,69,0,0.05) 100%)',
+                          border: '1px solid rgba(255,99,71,0.12)'
+                        }}>
+                          <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', display: 'block', mb: 1 }}>
+                            Visitors who didn&apos;t add to cart
+                          </Typography>
+                          <Typography variant="h5" sx={{ color: 'rgba(255,99,71,0.95)', fontWeight: 700 }}>
+                            {dropoffMetrics.visitedButNoCart.toLocaleString('en-IN')}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.55)', display: 'block', mt: 1 }}>
+                            {dropoffMetrics.visitedOtherPages.toLocaleString('en-IN')} ({dropoffMetrics.visitedOtherPagesPercentage.toFixed(1)}%) visited other pages
+                          </Typography>
+                        </Box>
+                        
+                        <Box>
+                          <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', display: 'block', mb: 1.5 }}>
+                            Landing Page Distribution (Drop-offs)
+                          </Typography>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 1 }}>
+                            {Object.entries(dropoffMetrics.landingPageDistribution).map(([key, count]) => {
+                              const percentage = dropoffMetrics.landingPagePercentages[key] || 0;
+                              const displayLabel = {
+                                home: 'Home',
+                                'product-list-page': 'Product List',
+                                'product-id-page': 'Product Detail',
+                                other: 'Other'
+                              }[key] || key;
+                              
+                              return (
+                                <Box 
+                                  key={key}
+                                  sx={{ 
+                                    p: 1.5, 
+                                    borderRadius: '8px', 
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.06)',
+                                    textAlign: 'center'
+                                  }}
+                                >
+                                  <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.55)', display: 'block', fontSize: '0.65rem' }}>
+                                    {displayLabel}
+                                  </Typography>
+                                  <Typography variant="body1" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600, my: 0.5 }}>
+                                    {count.toLocaleString('en-IN')}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.48)', fontSize: '0.65rem' }}>
+                                    {percentage.toFixed(1)}%
+                                  </Typography>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        </Box>
+                      </Box>
+                    )}
+                  </MinimalSection>
+                </InsightsWrapper>
+              ) : (
                 <MinimalSection>
                   <SectionHeader>
                     <SectionTitle>Funnel Journey</SectionTitle>
                   </SectionHeader>
-                  {funnelLoading ? (
-                    <StepList>
-                      {Array.from({ length: funnelSteps.length || 6 }).map((_, idx) => (
-                        <Skeleton
-                          key={idx}
-                          variant="rectangular"
-                          height={58}
-                          sx={{ borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.06)' }}
-                        />
-                      ))}
-                    </StepList>
-                  ) : (
-                    <StepList>
-                      {funnelSteps.map((step) => (
-                        <FunnelStep key={step.key}>
-                          <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', letterSpacing: 0.18 }}>
-                            {step.key}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600 }}>
-                            {step.value?.toLocaleString('en-IN')}
-                          </Typography>
-                        </FunnelStep>
-                      ))}
-                    </StepList>
-                  )}
+                  <Typography variant="body2" sx={{ color: 'rgba(235,235,235,0.72)', lineHeight: 1.6 }}>
+                    Funnel journey and conversion ratios are available for first-party tracking windows starting 1 October 2025.
+                    Pick a date range on or after that to explore the new insights.
+                  </Typography>
                 </MinimalSection>
-
-                <MinimalSection>
-                  <SectionHeader>
-                    <SectionTitle>Conversion Ratios</SectionTitle>
-                  </SectionHeader>
-                  {funnelLoading ? (
-                    <ConversionGrid>
-                      {Array.from({ length: conversionRatios.length || 5 }).map((_, idx) => (
-                        <Skeleton
-                          key={idx}
-                          variant="rectangular"
-                          height={72}
-                          sx={{ borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.06)' }}
-                        />
-                      ))}
-                    </ConversionGrid>
-                  ) : (
-                    <ConversionGrid>
-                      {conversionRatios.map(({ label, value }) => {
-                        const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
-                        return (
-                          <ConversionTile key={label}>
-                            <ConversionHeader>
-                              <ConversionLabel>{label}</ConversionLabel>
-                            </ConversionHeader>
-                              <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
-                            <ConversionProgress percent={safeValue} />
-                          </ConversionTile>
-                        );
-                      })}
-                    </ConversionGrid>
-                  )}
-                </MinimalSection>
-              </InsightsWrapper>
+              )}
 
               <MinimalSection>
                 <SectionHeader>

@@ -14,6 +14,7 @@ export async function GET(req) {
 
     let matchStage = {
       paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] }, // Successful payments
+      isTestingOrder: { $ne: true },
     };
 
     let startDate, endDate;
@@ -65,7 +66,7 @@ export async function GET(req) {
             month: { $month: '$createdAt' },
             day: { $dayOfMonth: '$createdAt' },
           },
-          dailyRevenue: { $sum: '$itemsTotal' }, // Adjust field name if different
+          dailyRevenue: { $sum: '$totalAmount' },
         },
       },
       {

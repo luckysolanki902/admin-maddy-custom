@@ -70,7 +70,9 @@ const AbandonedCartsData = () => {
         { label: 'UTM Medium', value: 'utmMedium' },
         { label: 'UTM Campaign', value: 'utmCampaign' },
         { label: 'Specific Category', value: 'specificCategory' },
-        { label: 'Order Count', value: 'orderCount' }
+        { label: 'Order Count', value: 'orderCount' },
+        { label: 'Funnel Stage', value: 'funnelStage', default: true },
+        { label: 'Last Activity', value: 'lastActivityAt' }
         // 'Order Count' is not applicable here as all users have zero successful orders
     ];
 
@@ -203,6 +205,8 @@ const AbandonedCartsData = () => {
             // Selected Columns
             query.columns = selectedColumns;
 
+            query.specialFilter = 'abandonedCart';
+
             // Tags
             if (tags.trim() !== '') {
                 query.tags = tags.trim();
@@ -285,8 +289,10 @@ const AbandonedCartsData = () => {
             }
         }
 
-        // Selected Columns
-        query.columns = selectedColumns;
+    // Selected Columns
+    query.columns = selectedColumns;
+
+    query.specialFilter = 'abandonedCart';
 
         // Tags
         if (tags.trim() !== '') {
@@ -667,11 +673,21 @@ const AbandonedCartsData = () => {
                                     <TableBody>
                                         {customers.map((customer, index) => (
                                             <TableRow hover role="checkbox" tabIndex={-1} key={index}>
-                                                {selectedColumns.map((col) => (
-                                                    <TableCell key={col}>
-                                                    {customer[availableColumns.find((ele)=>ele.value==col).label] !== undefined ? customer[availableColumns.find((ele)=>ele.value==col).label] !==null?customer[availableColumns.find((ele)=>ele.value==col).label].toString():' - ' : ''}
-                                                    </TableCell>
-                                                ))}
+                                                {selectedColumns.map((col) => {
+                                                    const columnMeta = availableColumns.find((ele) => ele.value === col);
+                                                    const label = columnMeta?.label;
+                                                    let value = label ? customer[label] : customer[col];
+
+                                                    if (col === 'lastActivityAt' && value) {
+                                                        value = dayjs(value).isValid() ? dayjs(value).format('YYYY-MM-DD HH:mm') : value;
+                                                    }
+
+                                                    return (
+                                                        <TableCell key={col}>
+                                                            {value !== undefined && value !== null ? value.toString() : ' - '}
+                                                        </TableCell>
+                                                    );
+                                                })}
                                             </TableRow>
                                         ))}
                                         {customers.length === 0 && (

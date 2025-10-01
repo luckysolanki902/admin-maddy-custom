@@ -30,6 +30,7 @@ export async function GET(req) {
 
     const matchStage = {
       paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
+      isTestingOrder: { $ne: true },
       createdAt: {
         $gte: startDate.toDate(),
         $lte: endDate.toDate(),
@@ -41,7 +42,7 @@ export async function GET(req) {
       {
         $group: {
           _id: null,
-          currentRevenue: { $sum: '$itemsTotal' },
+          currentRevenue: { $sum: '$totalAmount' },
         },
       },
     ];

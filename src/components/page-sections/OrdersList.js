@@ -305,7 +305,6 @@ const OrdersList = ({
   },
   cacLoading = false,
   cacError = null,
-  utmCounts = {},
   rat = 0,
   roas = 0,
   roasWithoutCod = 0,
@@ -768,9 +767,7 @@ const OrdersList = ({
           mb: 1.25,
         }}
       >
-        <Typography variant="h6" sx={{ color: '#ffffff', fontWeight: 600 }}>
-          Analytics Dashboard
-        </Typography>
+
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Tooltip title="Flush cached analytics & refetch live data">
             <span>

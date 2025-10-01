@@ -1110,9 +1110,14 @@ const OrdersList = ({
                           <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', display: 'block', mb: 1 }}>
                             Visitors who didn&apos;t add to cart
                           </Typography>
-                          <Typography variant="h5" sx={{ color: 'rgba(255,99,71,0.95)', fontWeight: 700 }}>
-                            {dropoffMetrics.visitedButNoCart.toLocaleString('en-IN')}
-                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
+                            <Typography variant="h5" sx={{ color: 'rgba(255,99,71,0.95)', fontWeight: 700 }}>
+                              {dropoffMetrics.visitedButNoCart.toLocaleString('en-IN')}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,99,71,0.75)', fontWeight: 600 }}>
+                              ({((dropoffMetrics.visitedButNoCart / (funnel?.counts?.visited || 1)) * 100).toFixed(1)}%)
+                            </Typography>
+                          </Box>
                           <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.55)', display: 'block', mt: 1 }}>
                             {dropoffMetrics.visitedOtherPages.toLocaleString('en-IN')} ({dropoffMetrics.visitedOtherPagesPercentage.toFixed(1)}%) visited other pages
                           </Typography>

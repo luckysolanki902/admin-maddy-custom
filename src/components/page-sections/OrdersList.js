@@ -819,10 +819,9 @@ const OrdersList = ({
   ]), [funnel]);
 
   const conversionRatios = useMemo(() => ([
-    { label: 'Visit → Cart', value: funnel?.ratios?.visit_to_cart || 0 },
-    { label: 'Cart → View Cart', value: funnel?.ratios?.cart_to_view_cart || 0 },
-    // { label: 'View Cart → Form', value: funnel?.ratios?.view_cart_to_form || 0 },
-    { label: 'Cart → Form', value: funnel?.ratios?.cart_to_form || 0 },
+    { label: 'Visit → AddToCart', value: funnel?.ratios?.visit_to_cart || 0 },
+    { label: 'AddToCart → View Cart', value: funnel?.ratios?.cart_to_view_cart || 0 },
+    { label: 'View Cart → Form', value: funnel?.ratios?.view_cart_to_form || 0 },
     { label: 'Form → Address', value: funnel?.ratios?.form_to_address || 0 },
     { label: 'Address → Payment', value: funnel?.ratios?.address_to_payment || 0 },
     { label: 'Payment → Purchase', value: funnel?.ratios?.payment_to_purchase || 0 },

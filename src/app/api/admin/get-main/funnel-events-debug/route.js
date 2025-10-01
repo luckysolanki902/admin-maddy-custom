@@ -1,7 +1,7 @@
 // /app/api/admin/get-main/funnel-events-debug/route.js
 
 import { connectToDatabase } from '@/lib/db';
-import FunnelEvent from '@/models/FunnelEvent';
+import FunnelEvent from '@/models/analytics/FunnelEvent';
 
 export async function GET(req) {
   try {

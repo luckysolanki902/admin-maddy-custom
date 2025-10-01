@@ -1,7 +1,7 @@
 // /app/api/meta/conversion-api/route.js
 
 import { connectToDatabase } from '@/lib/db';
-import FunnelEvent from '@/models/FunnelEvent';
+import FunnelEvent from '@/models/analytics/FunnelEvent';
 
 const ALLOWED_EVENTS = new Set([
   'PageView',

@@ -161,6 +161,14 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
     other: 0,
   };
 
+  // Compute total sessions per landing page category within the window (denominator)
+  const landingPageVisitTotals = {
+    home: 0,
+    'product-list-page': 0,
+    'product-id-page': 0,
+    other: 0,
+  };
+
   if (dropoffSessionIds.length > 0) {
     const landingPageData = await FunnelSession.aggregate([
       {
@@ -187,11 +195,43 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
     });
   }
 
+  // Total sessions per landing page category within the window
+  const landingTotalsAgg = await FunnelSession.aggregate([
+    {
+      $match: {
+        firstActivityAt: { $gte: start, $lte: end },
+      },
+    },
+    {
+      $group: {
+        _id: '$landingPage.pageCategory',
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  landingTotalsAgg.forEach((item) => {
+    const category = item._id || 'other';
+    if (Object.prototype.hasOwnProperty.call(landingPageVisitTotals, category)) {
+      landingPageVisitTotals[category] = item.count;
+    } else {
+      landingPageVisitTotals.other += item.count;
+    }
+  });
+
   // Calculate percentages
   const total = visitedButNoCart || 1;
   const landingPagePercentages = {};
   Object.keys(landingPageDistribution).forEach(key => {
     landingPagePercentages[key] = Number(((landingPageDistribution[key] / total) * 100).toFixed(2));
+  });
+
+  // Individual dropoff rates per landing page (dropoffs among visitors of that landing page)
+  const landingPageDropoffRates = {};
+  Object.keys(landingPageDistribution).forEach((key) => {
+    const denom = landingPageVisitTotals[key] || 0;
+    const numer = landingPageDistribution[key] || 0;
+    landingPageDropoffRates[key] = denom > 0 ? Number(((numer / denom) * 100).toFixed(2)) : 0;
   });
 
   return {
@@ -202,6 +242,8 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
       : 0,
     landingPageDistribution,
     landingPagePercentages,
+    landingPageVisitTotals,
+    landingPageDropoffRates,
   };
 }
 

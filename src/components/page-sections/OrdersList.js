@@ -421,6 +421,75 @@ const DarkTooltip = styled(({ className, ...props }) => (
   },
 });
 
+// Definitions/Descriptions for tooltips
+const FUNNEL_STEP_TOOLTIPS = {
+  'Visited': {
+    title: 'Visited',
+    desc: 'Unique sessions that landed anywhere on the site within the selected window.'
+  },
+  'Added to Cart': {
+    title: 'Added to Cart',
+    desc: 'Visitors who added at least one product to the cart.'
+  },
+  'Viewed Cart': {
+    title: 'Viewed Cart',
+    desc: 'Sessions that opened the cart to review items.'
+  },
+  'Applied Offer': {
+    title: 'Applied Offer',
+    desc: 'Sessions that applied a discount or offer during the journey.'
+  },
+  'Opened Order Form': {
+    title: 'Opened Order Form',
+    desc: 'Visitors who reached the checkout/order form.'
+  },
+  'Reached Address Tab': {
+    title: 'Reached Address Tab',
+    desc: 'Visitors who proceeded to the address details step in checkout.'
+  },
+  'Started Payment': {
+    title: 'Started Payment',
+    desc: 'Visitors who initiated the payment step after entering details.'
+  },
+  'Purchased': {
+    title: 'Purchased',
+    desc: 'Completed orders within the selected time range (aligned with Orders count).'
+  },
+};
+
+const CONVERSION_RATIO_TOOLTIPS = {
+  'Visit → AddToCart': {
+    title: 'Visit → AddToCart',
+    desc: 'Percent of visits that resulted in at least one add-to-cart action.',
+    formula: 'Added to Cart ÷ Visited × 100%'
+  },
+  'AddToCart → View Cart': {
+    title: 'AddToCart → View Cart',
+    desc: 'Percent of add-to-cart sessions that went on to view the cart.',
+    formula: 'Viewed Cart ÷ Added to Cart × 100%'
+  },
+  'View Cart → Form': {
+    title: 'View Cart → Form',
+    desc: 'Percent of cart viewers who opened the checkout form.',
+    formula: 'Opened Order Form ÷ Viewed Cart × 100%'
+  },
+  'Form → Address': {
+    title: 'Form → Address',
+    desc: 'Percent of checkout starters who reached the address step.',
+    formula: 'Reached Address Tab ÷ Opened Order Form × 100%'
+  },
+  'Address → Pay Now': {
+    title: 'Address → Pay Now',
+    desc: 'Percent of address-step visitors who started payment.',
+    formula: 'Started Payment ÷ Reached Address Tab × 100%'
+  },
+  'Pay Now → Purchase': {
+    title: 'Pay Now → Purchase',
+    desc: 'Percent of payment starters who completed purchase.',
+    formula: 'Purchased ÷ Started Payment × 100%'
+  },
+};
+
 const OrdersList = ({
   orders = [],
   loading = false,
@@ -1149,6 +1218,14 @@ const OrdersList = ({
         'product-id-page': 0,
         other: 0,
       },
+      // New backend fields (safe fallbacks)
+      landingPageVisitTotals: dropoffs.landingPageVisitTotals || {
+        home: 0,
+        'product-list-page': 0,
+        'product-id-page': 0,
+        other: 0,
+      },
+      landingPageDropoffRates: dropoffs.landingPageDropoffRates || null,
     };
   }, [funnel]);
 
@@ -1553,39 +1630,61 @@ const OrdersList = ({
                         
                         <Box>
                           <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', display: 'block', mb: 1.5 }}>
-                            Landing Page Distribution (Drop-offs)
+                            Landing Page Drop-off Rates (Per Page)
                           </Typography>
-                          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 1 }}>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 1 }}>
                             {Object.entries(dropoffMetrics.landingPageDistribution).map(([key, count]) => {
-                              const percentage = dropoffMetrics.landingPagePercentages[key] || 0;
                               const displayLabel = {
                                 home: 'Home',
                                 'product-list-page': 'Product List',
                                 'product-id-page': 'Product Detail',
                                 other: 'Other'
                               }[key] || key;
-                              
+
+                              const visits = Number(dropoffMetrics.landingPageVisitTotals?.[key] || 0);
+                              const backendRate = dropoffMetrics.landingPageDropoffRates?.[key];
+                              const computedRate = visits > 0 ? (Number(count) / visits) * 100 : 0;
+                              const rate = Number.isFinite(Number(backendRate)) ? Number(backendRate) : computedRate;
+
+                              const tooltip = (
+                                <>
+                                  <Typography variant="subtitle2" sx={{ color: '#f4f4f4', mb: 1, fontWeight: 600 }}>
+                                    {displayLabel}: Individual Drop-off Rate
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ color: 'rgba(220,220,220,0.75)' }}>
+                                    Percentage of visitors who dropped off on this landing page without adding to cart.
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.7)', mt: 1, display: 'block', fontFamily: 'monospace' }}>
+                                    Formula: Drop-offs on this page ÷ Total visits to this page × 100%
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.7)', mt: 0.75, display: 'block' }}>
+                                    Numbers: {count.toLocaleString('en-IN')} drop-offs out of {visits.toLocaleString('en-IN')} visits
+                                  </Typography>
+                                </>
+                              );
+
                               return (
-                                <Box 
-                                  key={key}
-                                  sx={{ 
-                                    p: 1.5, 
-                                    borderRadius: '8px', 
-                                    background: 'rgba(255,255,255,0.03)',
-                                    border: '1px solid rgba(255,255,255,0.06)',
-                                    textAlign: 'center'
-                                  }}
-                                >
-                                  <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.55)', display: 'block', fontSize: '0.65rem' }}>
-                                    {displayLabel}
-                                  </Typography>
-                                  <Typography variant="body1" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600, my: 0.5 }}>
-                                    {count.toLocaleString('en-IN')}
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.48)', fontSize: '0.65rem' }}>
-                                    {percentage.toFixed(1)}%
-                                  </Typography>
-                                </Box>
+                                <DarkTooltip key={key} title={tooltip} arrow placement="bottom">
+                                  <Box 
+                                    sx={{ 
+                                      p: 1.5, 
+                                      borderRadius: '8px', 
+                                      background: 'rgba(255,255,255,0.03)',
+                                      border: '1px solid rgba(255,255,255,0.06)',
+                                      textAlign: 'center'
+                                    }}
+                                  >
+                                    <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.55)', display: 'block', fontSize: '0.65rem' }}>
+                                      {displayLabel}
+                                    </Typography>
+                                    <Typography variant="h6" sx={{ color: 'rgba(250,250,250,0.9)', fontWeight: 700, my: 0.25 }}>
+                                      {rate.toFixed(1)}%
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.48)', fontSize: '0.65rem' }}>
+                                      {count.toLocaleString('en-IN')} drop-offs • {visits.toLocaleString('en-IN')} visits
+                                    </Typography>
+                                  </Box>
+                                </DarkTooltip>
                               );
                             })}
                           </Box>

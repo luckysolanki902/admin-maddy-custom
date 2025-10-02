@@ -1462,16 +1462,31 @@ const OrdersList = ({
                       </StepList>
                     ) : (
                       <StepList>
-                        {funnelSteps.map((step) => (
-                          <FunnelStep key={step.key}>
-                            <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', letterSpacing: 0.18 }}>
-                              {step.key}
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600 }}>
-                              {step.value?.toLocaleString('en-IN')}
-                            </Typography>
-                          </FunnelStep>
-                        ))}
+                        {funnelSteps.map((step) => {
+                          const tip = FUNNEL_STEP_TOOLTIPS[step.key] || { title: step.key, desc: 'Count of sessions for this step within the selected range.' };
+                          const tooltip = (
+                            <>
+                              <Typography variant="subtitle2" sx={{ color: '#f4f4f4', mb: 1, fontWeight: 600 }}>
+                                {tip.title}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: 'rgba(220,220,220,0.75)' }}>
+                                {tip.desc}
+                              </Typography>
+                            </>
+                          );
+                          return (
+                            <DarkTooltip key={step.key} title={tooltip} arrow placement="bottom">
+                              <FunnelStep>
+                                <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', letterSpacing: 0.18 }}>
+                                  {step.key}
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600 }}>
+                                  {step.value?.toLocaleString('en-IN')}
+                                </Typography>
+                              </FunnelStep>
+                            </DarkTooltip>
+                          );
+                        })}
                       </StepList>
                     )}
                   </MinimalSection>
@@ -1495,14 +1510,32 @@ const OrdersList = ({
                       <ConversionGrid>
                         {conversionRatios.map(({ label, value }) => {
                           const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+                          const tip = CONVERSION_RATIO_TOOLTIPS[label] || { title: label, desc: 'Conversion rate between the two funnel steps.', formula: null };
+                          const tooltip = (
+                            <>
+                              <Typography variant="subtitle2" sx={{ color: '#f4f4f4', mb: 1, fontWeight: 600 }}>
+                                {tip.title}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: 'rgba(220,220,220,0.75)' }}>
+                                {tip.desc}
+                              </Typography>
+                              {tip.formula ? (
+                                <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.7)', mt: 1, display: 'block', fontFamily: 'monospace' }}>
+                                  Formula: {tip.formula}
+                                </Typography>
+                              ) : null}
+                            </>
+                          );
                           return (
-                            <ConversionTile key={label}>
-                              <ConversionHeader>
-                                <ConversionLabel>{label}</ConversionLabel>
-                              </ConversionHeader>
-                              <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
-                              <ConversionProgress percent={safeValue} />
-                            </ConversionTile>
+                            <DarkTooltip key={label} title={tooltip} arrow placement="bottom">
+                              <ConversionTile>
+                                <ConversionHeader>
+                                  <ConversionLabel>{label}</ConversionLabel>
+                                </ConversionHeader>
+                                <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                                <ConversionProgress percent={safeValue} />
+                              </ConversionTile>
+                            </DarkTooltip>
                           );
                         })}
                       </ConversionGrid>

@@ -30,6 +30,7 @@ const StatusContainer = () => {
 
   const [lastFetched, setLastFetched] = useState(null);
   const [fetchError, setFetchError] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Metric threshold definitions for tooltips
   const metricThresholds = {
@@ -100,7 +101,7 @@ const StatusContainer = () => {
       
       if (cached && cacheTimestamp) {
         const timeDiff = Date.now() - parseInt(cacheTimestamp);
-        const CACHE_DURATION = 4 * 60 * 60 * 1000; // 4 hours
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
         
         if (timeDiff < CACHE_DURATION) {
           const parsedData = JSON.parse(cached);
@@ -197,6 +198,37 @@ const StatusContainer = () => {
     fetchMarketingData();
     fetchProductionData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle refresh button click
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setFetchError(false);
+    
+    // Clear client-side cache
+    localStorage.removeItem('departmentStatus');
+    localStorage.removeItem('departmentStatusTimestamp');
+    
+    // Call server-side cache purge API
+    try {
+      await fetch('/api/admin/cache/purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          cacheKeys: ['facebook-cac', 'orders', 'shipment-delays'] 
+        }),
+      });
+    } catch (error) {
+      console.error('Server cache purge error:', error);
+    }
+    
+    // Fetch fresh data
+    await Promise.all([
+      fetchMarketingData(),
+      fetchProductionData()
+    ]);
+    
+    setIsRefreshing(false);
+  };
 
   // Calculate department statuses
   const departmentStatus = useMemo(() => {
@@ -467,6 +499,14 @@ const StatusContainer = () => {
       {lastFetched && (
         <div className={styles.cacheInfo}>
           <span>Last updated: {lastFetched.toLocaleTimeString()}</span>
+          <button 
+            className={styles.refreshButton}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Clear cache and refresh data"
+          >
+            {isRefreshing ? '🔄' : '↻'}
+          </button>
         </div>
       )}
     </div>

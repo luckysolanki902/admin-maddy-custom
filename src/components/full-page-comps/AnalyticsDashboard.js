@@ -23,7 +23,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import SalesSourcesChart from '@/components/analytics/main/SalesSourcesChart';
 import CartSourcesChart from '@/components/analytics/main/CartSourcesChart';
 import ReturningPayingUsersChart from '@/components/analytics/main/ReturningPayingUsersChart';
-import ReturningUsersChart from '@/components/analytics/main/ReturningUsersChart';
+import ReturningUsersChart from '@/components/analytics/ReturningUsersChart';
 import VariantSalesChart from '@/components/analytics/main/VariantSalesChart';
 import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
 import AbandonedCartsChart from '@/components/analytics/main/AbandonedCartsChart';
@@ -275,7 +275,7 @@ export default function AnalyticsDashboard({ admin = false }) {
   const [salesSources, setSalesSources] = useState([]);
   const [cartSources, setCartSources] = useState([]);
   const [returningPayingUsers, setReturningPayingUsers] = useState([]);
-  const [returningUsers, setReturningUsers] = useState([]);
+  const [returningUsersMetrics, setReturningUsersMetrics] = useState(null);
   const [variantSales, setVariantSales] = useState([]);
   const [retargeted, setRetargeted] = useState([]);
   const [abandoned, setAbandoned] = useState([]);
@@ -367,16 +367,16 @@ export default function AnalyticsDashboard({ admin = false }) {
             break;
           }
           case 'traffic': {
-            const [paying, returning, rt, ab] = await Promise.all([
+            const [paying, rt, ab, returningMetrics] = await Promise.all([
               ranged('/api/admin/analytics/main/returning-paying-users'),
-              ranged('/api/admin/analytics/main/returning-users'),
               ranged('/api/admin/analytics/main/retargeted-customers'),
-              ranged('/api/admin/analytics/main/abandoned-carts')
+              ranged('/api/admin/analytics/main/abandoned-carts'),
+              ranged('/api/admin/analytics/main/returning-users-metrics')
             ]);
-            setReturningPayingUsers(paying.returningPayingUsers);
-            setReturningUsers(returning.returningUsers);
-            setRetargeted(rt.retargetedCustomers);
-            setAbandoned(ab.abandonedCarts);
+            setReturningPayingUsers(paying?.returningPayingUsers || []);
+            setRetargeted(rt?.retargetedCustomers || []);
+            setAbandoned(ab?.abandonedCarts || []);
+            setReturningUsersMetrics(returningMetrics || null);
             break;
           }
           case 'revenue': {
@@ -661,12 +661,20 @@ export default function AnalyticsDashboard({ admin = false }) {
         <Section 
           id="panel-traffic" 
           title="Traffic & Engagement" 
-          subtitle="Returning users, retargeting impact & abandonment"
+          subtitle="Returning users, multi-purchase customers, retargeting & abandonment analysis"
           onVisible={() => handleSectionVisible('traffic')}
         >
           <Grid container spacing={4}>
-            <Grid item xs={12} md={6} lg={4}>
-              <LazyCard loading={sectionLoading.traffic}>
+            {/* Full Row: Comprehensive Returning Users Analytics */}
+            <Grid item xs={12}>
+              <LazyCard height={520} loading={sectionLoading.traffic}>
+                <ReturningUsersChart data={returningUsersMetrics} loading={sectionLoading.traffic} />
+              </LazyCard>
+            </Grid>
+
+            {/* Second Row: 3 smaller charts side by side */}
+            <Grid item xs={12} md={4}>
+              <LazyCard height={420} loading={sectionLoading.traffic}>
                 <ReturningPayingUsersChart
                   data={returningPayingUsers}
                   startDate={dateRange.start}
@@ -674,22 +682,13 @@ export default function AnalyticsDashboard({ admin = false }) {
                 />
               </LazyCard>
             </Grid>
-            <Grid item xs={12} md={6} lg={4}>
-              <LazyCard loading={sectionLoading.traffic}>
-                <ReturningUsersChart
-                  data={returningUsers}
-                  startDate={dateRange.start}
-                  endDate={dateRange.end}
-                />
-              </LazyCard>
-            </Grid>
-            <Grid item xs={12} lg={4}>
-              <LazyCard loading={sectionLoading.traffic}>
+            <Grid item xs={12} md={4}>
+              <LazyCard height={420} loading={sectionLoading.traffic}>
                 <RetargetedCustomersChart data={retargeted} />
               </LazyCard>
             </Grid>
-            <Grid item xs={12}>
-              <LazyCard height={500} loading={sectionLoading.traffic}>
+            <Grid item xs={12} md={4}>
+              <LazyCard height={420} loading={sectionLoading.traffic}>
                 <AbandonedCartsChart data={abandoned} />
               </LazyCard>
             </Grid>

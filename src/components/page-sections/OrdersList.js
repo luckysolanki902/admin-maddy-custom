@@ -15,6 +15,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -22,6 +23,7 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import CachedIcon from '@mui/icons-material/Cached';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CustomerCard from '../cards/CustomerCard';
 
 // Minimal styled components for compact design
@@ -204,6 +206,140 @@ const ConversionProgress = styled(Box)(({ percent }) => ({
   },
 }));
 
+const AISummarySection = styled(MinimalSection)({
+  background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.08) 0%, rgba(79, 70, 229, 0.05) 100%)',
+  border: '1px solid rgba(147, 51, 234, 0.15)',
+  position: 'relative',
+  overflow: 'hidden',
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '2px',
+    background: 'linear-gradient(90deg, rgba(147, 51, 234, 0.4), rgba(79, 70, 229, 0.3))',
+  },
+});
+
+const RegenerateButton = styled(Button)({
+  position: 'absolute',
+  top: '12px',
+  right: '12px',
+  padding: '4px 12px',
+  fontSize: '0.7rem',
+  textTransform: 'none',
+  backgroundColor: 'rgba(147, 51, 234, 0.15)',
+  color: 'rgba(147, 51, 234, 0.95)',
+  border: '1px solid rgba(147, 51, 234, 0.25)',
+  borderRadius: '6px',
+  fontWeight: 600,
+  minWidth: 'auto',
+  '&:hover': {
+    backgroundColor: 'rgba(147, 51, 234, 0.25)',
+    border: '1px solid rgba(147, 51, 234, 0.4)',
+  },
+  '&:disabled': {
+    backgroundColor: 'rgba(147, 51, 234, 0.08)',
+    color: 'rgba(147, 51, 234, 0.4)',
+    border: '1px solid rgba(147, 51, 234, 0.12)',
+  },
+});
+
+const CacheInfoText = styled(Typography)({
+  fontSize: '0.65rem',
+  color: 'rgba(235,235,235,0.45)',
+  fontStyle: 'italic',
+  marginTop: '8px',
+  textAlign: 'right',
+});
+
+const AISummaryHeader = styled(Box)({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  marginBottom: '12px',
+});
+
+const AISummaryTitle = styled(Typography)({
+  fontSize: '0.75rem',
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'rgba(235,235,235,0.75)',
+  fontWeight: 700,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+});
+
+const AISummaryContent = styled(Box)({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+});
+
+const InsightBlock = styled(Box)({
+  padding: '12px',
+  borderRadius: '8px',
+  backgroundColor: 'rgba(255,255,255,0.03)',
+  border: '1px solid rgba(255,255,255,0.08)',
+});
+
+const InsightTitle = styled(Typography)({
+  fontSize: '0.7rem',
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'rgba(147, 51, 234, 0.85)',
+  fontWeight: 600,
+  marginBottom: '8px',
+});
+
+const InsightText = styled(Typography)({
+  fontSize: '0.875rem',
+  lineHeight: 1.6,
+  color: 'rgba(245,245,245,0.88)',
+  fontWeight: 400,
+});
+
+const ActionList = styled('ul')({
+  margin: '8px 0 0 0',
+  paddingLeft: '20px',
+  listStyleType: 'disc',
+  '& li': {
+    fontSize: '0.875rem',
+    lineHeight: 1.65,
+    color: 'rgba(240,240,240,0.85)',
+    marginBottom: '6px',
+    '&:last-child': {
+      marginBottom: 0,
+    },
+    '&::marker': {
+      color: 'rgba(147, 51, 234, 0.6)',
+    },
+  },
+});
+
+const LoadingStateWrapper = styled(Box)({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '32px 16px',
+  gap: '16px',
+});
+
+const LoadingText = styled(Typography)({
+  fontSize: '0.875rem',
+  color: 'rgba(235,235,235,0.7)',
+  fontWeight: 500,
+  letterSpacing: '0.02em',
+  animation: 'pulse 2s ease-in-out infinite',
+  '@keyframes pulse': {
+    '0%, 100%': { opacity: 0.6 },
+    '50%': { opacity: 1 },
+  },
+});
+
 const CATEGORY_THEMES = {
   basic: { accent: '#9e9e9e', glow: 'rgba(158,158,158,0.2)', soft: 'rgba(120,120,120,0.08)', label: 'Snapshot' },
   admin: { accent: '#bdbdbd', glow: 'rgba(189,189,189,0.22)', soft: 'rgba(140,140,140,0.09)', label: 'Financial Pulse' },
@@ -326,6 +462,66 @@ const OrdersList = ({
 }) => {
   const [statsExpanded, setStatsExpanded] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
+  const [aiSummary, setAiSummary] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [aiCacheInfo, setAiCacheInfo] = useState(null);
+  const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes, must mirror server TTL
+  
+  // Markdown formatter for AI responses (handles ** for bold, _ for italic)
+  const formatMarkdown = (text) => {
+    if (!text) return text;
+    
+    const parts = [];
+    let currentIndex = 0;
+    
+    // Combined regex to find both bold and italic
+    const markdownRegex = /(\*\*(.+?)\*\*)|(_(.+?)_)/g;
+    
+    let match;
+    while ((match = markdownRegex.exec(text)) !== null) {
+      // Add text before this match
+      if (match.index > currentIndex) {
+        parts.push(text.substring(currentIndex, match.index));
+      }
+      
+      // Add formatted text
+      if (match[1]) {
+        // Bold match (**text**)
+        parts.push(<strong key={`b-${match.index}`}>{match[2]}</strong>);
+      } else if (match[3]) {
+        // Italic match (_text_)
+        parts.push(<em key={`i-${match.index}`}>{match[4]}</em>);
+      }
+      
+      currentIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text
+    if (currentIndex < text.length) {
+      parts.push(text.substring(currentIndex));
+    }
+    
+    // Return Fragment if we have parts, otherwise return original text
+    return parts.length > 0 ? <>{parts}</> : text;
+  };
+
+  // Safe Markdown -> HTML converter for robust rendering in Typography and list items
+  // Escapes HTML first to prevent injection, then applies simple **bold** and _italic_ replacements
+  const renderMarkdownHTML = (text) => {
+    if (!text) return { __html: '' };
+    // Escape existing HTML to avoid injection
+    const escaped = String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // Apply markdown replacements
+    const withBold = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    const withItalic = withBold.replace(/_(.+?)_/g, '<em>$1</em>');
+    const withLineBreaks = withItalic.replace(/\n/g, '<br/>');
+    return { __html: withLineBreaks };
+  };
+  
   const isEveningWindow = (() => {
     const h = dayjs().hour();
     return h >= 18 && h <= 23; // 6:00 PM to 11:59:59 PM
@@ -812,6 +1008,7 @@ const OrdersList = ({
     { key: 'Visited', value: funnel?.counts?.visited || 0 },
     { key: 'Added to Cart', value: funnel?.counts?.addedToCart || 0 },
     { key: 'Viewed Cart', value: funnel?.counts?.viewedCart || 0 },
+    { key: 'Applied Offer', value: funnel?.counts?.appliedOffers || 0 },
     { key: 'Opened Order Form', value: funnel?.counts?.openedOrderForm || 0 },
     { key: 'Reached Address Tab', value: funnel?.counts?.reachedAddressTab || 0 },
     { key: 'Started Payment', value: funnel?.counts?.startedPayment || 0 },
@@ -823,10 +1020,116 @@ const OrdersList = ({
     { label: 'AddToCart → View Cart', value: funnel?.ratios?.cart_to_view_cart || 0 },
     { label: 'View Cart → Form', value: funnel?.ratios?.view_cart_to_form || 0 },
     { label: 'Form → Address', value: funnel?.ratios?.form_to_address || 0 },
-    { label: 'Address → Payment', value: funnel?.ratios?.address_to_payment || 0 },
-    { label: 'Payment → Purchase', value: funnel?.ratios?.payment_to_purchase || 0 },
-    { label: 'Visit → Purchase', value: funnel?.ratios?.visit_to_purchase || 0 },
+    { label: 'Address → Pay Now', value: funnel?.ratios?.address_to_payment || 0 },
+    { label: 'Pay Now → Purchase', value: funnel?.ratios?.payment_to_purchase || 0 },
   ]), [funnel]);
+
+  const purchaseConversionBreakdown = useMemo(() => {
+    const counts = funnel?.counts || {};
+    const ratios = funnel?.ratios || {};
+    const purchases = counts.purchased || 0;
+
+    return [
+      {
+        label: 'Visit → Purchase',
+        value: ratios.visit_to_purchase ?? 0,
+        baseCount: counts.visited || 0,
+        purchases,
+      },
+      {
+        label: 'AddToCart → Purchase',
+        value: (ratios.cart_to_purchase ?? ratios.c2p) ?? 0,
+        baseCount: counts.addedToCart || 0,
+        purchases,
+      },
+      {
+        label: 'View Cart → Purchase',
+        value: ratios.view_cart_to_purchase ?? 0,
+        baseCount: counts.viewedCart || 0,
+        purchases,
+      },
+      {
+        label: 'Offer Applied → Purchase',
+        value: ratios.applied_offer_to_purchase ?? 0,
+        baseCount: counts.appliedOffers || 0,
+        purchases,
+      },
+      {
+        label: 'Form → Purchase',
+        value: ratios.form_to_purchase ?? 0,
+        baseCount: counts.openedOrderForm || 0,
+        purchases,
+      },
+      {
+        label: 'Address → Purchase',
+        value: ratios.address_to_purchase ?? 0,
+        baseCount: counts.reachedAddressTab || 0,
+        purchases,
+      },
+      {
+        label: 'Pay Now → Purchase',
+        value: ratios.payment_to_purchase ?? 0,
+        baseCount: counts.startedPayment || 0,
+        purchases,
+      },
+    ];
+  }, [funnel]);
+
+  // Auto-expire AI insights after cache window: clears UI so button re-appears
+  useEffect(() => {
+    if (!aiCacheInfo?.timestamp || !aiSummary) return;
+    const baseTs = new Date(aiCacheInfo.timestamp).getTime();
+    const expireAt = baseTs + CACHE_TTL_MS;
+    const delay = expireAt - Date.now();
+    if (delay <= 0) {
+      setAiSummary(null);
+      setAiCacheInfo(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      setAiSummary(null);
+      setAiCacheInfo(null);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [aiCacheInfo, aiSummary, CACHE_TTL_MS]);
+
+  // Manual generate AI summary
+  const handleGenerateAI = useCallback(async () => {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const response = await fetch('/api/admin/analytics/ai-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metrics: {
+            totalOrders,
+            aov,
+            totalItems,
+            discountRate,
+            roas,
+            roasWithoutCod,
+          },
+          funnel,
+          cacData,
+          comparisonData,
+          skipCache: false,
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to generate AI summary');
+      const data = await response.json();
+      setAiSummary(data.insights);
+      setAiCacheInfo({
+        fromCache: data.fromCache,
+        timestamp: data.fromCache ? data.cachedAt : data.generatedAt,
+      });
+    } catch (error) {
+      console.error('AI summary error:', error);
+      setAiError('Unable to generate insights');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [totalOrders, aov, totalItems, discountRate, roas, roasWithoutCod, funnel, cacData, comparisonData]);
 
   const dropoffMetrics = useMemo(() => {
     const dropoffs = funnel?.dropoffs || {};
@@ -848,6 +1151,49 @@ const OrdersList = ({
       },
     };
   }, [funnel]);
+
+  // Regenerate AI summary function (available outside useEffect)
+  const handleRegenerateAI = useCallback(async () => {
+    setAiLoading(true);
+    setAiError(null);
+    
+    try {
+      const response = await fetch('/api/admin/analytics/ai-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metrics: {
+            totalOrders,
+            aov,
+            totalItems,
+            discountRate,
+            roas,
+            roasWithoutCod,
+          },
+          funnel,
+          cacData,
+          comparisonData,
+          skipCache: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate AI summary');
+      }
+
+      const data = await response.json();
+      setAiSummary(data.insights);
+      setAiCacheInfo({
+        fromCache: data.fromCache,
+        timestamp: data.fromCache ? data.cachedAt : data.generatedAt,
+      });
+    } catch (error) {
+      console.error('AI summary error:', error);
+      setAiError('Unable to generate insights');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [totalOrders, aov, totalItems, discountRate, roas, roasWithoutCod, funnel, cacData, comparisonData]);
 
   return (
     <Box>
@@ -1088,6 +1434,43 @@ const OrdersList = ({
 
                   <MinimalSection>
                     <SectionHeader>
+                      <SectionTitle>Purchase Conversion Sources</SectionTitle>
+                    </SectionHeader>
+                    {funnelLoading ? (
+                      <ConversionGrid>
+                        {Array.from({ length: purchaseConversionBreakdown.length || 7 }).map((_, idx) => (
+                          <Skeleton
+                            key={idx}
+                            variant="rectangular"
+                            height={88}
+                            sx={{ borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                          />
+                        ))}
+                      </ConversionGrid>
+                    ) : (
+                      <ConversionGrid>
+                        {purchaseConversionBreakdown.map(({ label, value, baseCount, purchases }) => {
+                          const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+                          const base = Number.isFinite(Number(baseCount)) ? Number(baseCount) : 0;
+                          const purchaseCount = Number.isFinite(Number(purchases)) ? Number(purchases) : 0;
+                          const hasBase = base > 0;
+
+                          return (
+                            <ConversionTile key={label}>
+                              <ConversionHeader>
+                                <ConversionLabel>{label}</ConversionLabel>
+                              </ConversionHeader>
+                              <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                              <ConversionProgress percent={safeValue} />
+                            </ConversionTile>
+                          );
+                        })}
+                      </ConversionGrid>
+                    )}
+                  </MinimalSection>
+
+                  <MinimalSection>
+                    <SectionHeader>
                       <SectionTitle>Drop-off Analysis</SectionTitle>
                     </SectionHeader>
                     {funnelLoading ? (
@@ -1210,6 +1593,95 @@ const OrdersList = ({
                       </Box>
                     )}
                   </MinimalSection>
+
+                  {/* AI-Generated Insights Section - Manual trigger only */}
+                  {isFirstPartyActive && (
+                    <AISummarySection>
+                      {aiSummary && !aiLoading ? (
+                        <RegenerateButton
+                          onClick={handleRegenerateAI}
+                          disabled={aiLoading}
+                          startIcon={<CachedIcon sx={{ fontSize: '0.85rem' }} />}
+                        >
+                          Regenerate
+                        </RegenerateButton>
+                      ) : null}
+                      
+                      <AISummaryHeader>
+                        <AutoAwesomeIcon sx={{ fontSize: '1rem', color: 'rgba(147, 51, 234, 0.85)' }} />
+                        <AISummaryTitle>
+                          AI-Generated Insights
+                        </AISummaryTitle>
+                      </AISummaryHeader>
+                      
+                      {aiLoading ? (
+                        <LoadingStateWrapper>
+                          <CircularProgress 
+                            size={32} 
+                            thickness={3}
+                            sx={{ 
+                              color: 'rgba(147, 51, 234, 0.75)',
+                              '& .MuiCircularProgress-circle': {
+                                strokeLinecap: 'round',
+                              }
+                            }} 
+                          />
+                          <LoadingText>
+                            Analyzing funnel patterns deeply...
+                          </LoadingText>
+                        </LoadingStateWrapper>
+                      ) : aiError ? (
+                        <InsightBlock>
+                          <InsightText sx={{ color: 'rgba(235,235,235,0.6)', textAlign: 'center' }}>
+                            {aiError}. Please review metrics manually.
+                          </InsightText>
+                        </InsightBlock>
+                      ) : aiSummary ? (
+                        <>
+                          <AISummaryContent>
+                            <InsightBlock>
+                              <InsightTitle>Quick Insights</InsightTitle>
+                              <InsightText component="div" dangerouslySetInnerHTML={renderMarkdownHTML(aiSummary.summary)} />
+                            </InsightBlock>
+                            
+                            <InsightBlock>
+                              <InsightTitle>Action Focus</InsightTitle>
+                              <ActionList>
+                                {aiSummary.actions.map((action, idx) => (
+                                  <li key={idx} dangerouslySetInnerHTML={renderMarkdownHTML(action)} />
+                                ))}
+                              </ActionList>
+                            </InsightBlock>
+                          </AISummaryContent>
+                          
+                          {aiCacheInfo && (
+                            <CacheInfoText>
+                              {aiCacheInfo.fromCache 
+                                ? `📦 Cached result from ${new Date(aiCacheInfo.timestamp).toLocaleString()} (valid for 30 min)`
+                                : `✨ Fresh analysis generated at ${new Date(aiCacheInfo.timestamp).toLocaleString()}`
+                              }
+                            </CacheInfoText>
+                          )}
+                        </>
+                      ) : (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
+                          <Button
+                            variant="contained"
+                            onClick={handleGenerateAI}
+                            disabled={aiLoading}
+                            startIcon={<AutoAwesomeIcon />}
+                            sx={{
+                              textTransform: 'none',
+                              fontWeight: 700,
+                              letterSpacing: '0.02em',
+                            }}
+                          >
+                            Generate AI Insights
+                          </Button>
+                        </Box>
+                      )}
+                    </AISummarySection>
+                  )}
                 </InsightsWrapper>
               ) : (
                 <MinimalSection>

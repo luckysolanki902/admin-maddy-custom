@@ -1,10 +1,12 @@
 import FunnelEvent from '@/models/analytics/FunnelEvent';
 import FunnelSession from '@/models/analytics/FunnelSession';
+import Order from '@/models/Order';
 
 const CORE_STEP_CONFIG = [
   { event: 'visit', key: 'visited' },
   { event: 'add_to_cart', key: 'addedToCart' },
   { event: 'view_cart_drawer', key: 'viewedCart' },
+  { event: 'apply_offer', key: 'appliedOffers' },
   { event: 'open_order_form', key: 'openedOrderForm' },
   { event: 'address_tab_open', key: 'reachedAddressTab' },
   { event: 'payment_initiated', key: 'startedPayment' },
@@ -27,24 +29,46 @@ const buildDefaultCounts = () => {
   defaults.initiatedCheckout = 0;
   defaults.contactInfo = 0;
   defaults.uniqueSessions = 0;
+  defaults.appliedOffers = 0;
   return defaults;
 };
 
 const buildDefaultRatios = (counts) => {
   const pct = (num, den) => (den > 0 ? Number(((num / den) * 100).toFixed(2)) : 0);
-  
+
+  const visitToCart = pct(counts.addedToCart, counts.visited);
+  const cartToViewCart = pct(counts.viewedCart, counts.addedToCart);
+  const viewCartToForm = pct(counts.openedOrderForm, counts.viewedCart);
+  const cartToForm = pct(counts.openedOrderForm, counts.addedToCart);
+  const visitToForm = pct(counts.openedOrderForm, counts.visited);
+  const formToAddress = pct(counts.reachedAddressTab, counts.openedOrderForm);
+  const addressToPayment = pct(counts.startedPayment, counts.reachedAddressTab);
+  const paymentToPurchase = pct(counts.purchased, counts.startedPayment);
+  const visitToPurchase = pct(counts.purchased, counts.visited);
+  const cartToPurchase = pct(counts.purchased, counts.addedToCart);
+  const viewCartToPurchase = pct(counts.purchased, counts.viewedCart);
+  const appliedOfferToPurchase = pct(counts.purchased, counts.appliedOffers);
+  const formToPurchase = pct(counts.purchased, counts.openedOrderForm);
+  const addressToPurchase = pct(counts.purchased, counts.reachedAddressTab);
+  const checkoutToPurchase = pct(counts.purchased, counts.initiatedCheckout || counts.startedPayment);
+
   return {
-    visit_to_cart: pct(counts.addedToCart, counts.visited),
-    cart_to_view_cart: pct(counts.viewedCart, counts.addedToCart),
-    view_cart_to_form: pct(counts.openedOrderForm, counts.viewedCart),
-    cart_to_form: pct(counts.openedOrderForm, counts.addedToCart),
-    visit_to_form: pct(counts.openedOrderForm, counts.visited),
-    form_to_address: pct(counts.reachedAddressTab, counts.openedOrderForm),
-    address_to_payment: pct(counts.startedPayment, counts.reachedAddressTab),
-    payment_to_purchase: pct(counts.purchased, counts.startedPayment),
-    visit_to_purchase: pct(counts.purchased, counts.visited),
-    c2p: pct(counts.purchased, counts.addedToCart),
-    checkout_to_purchase: pct(counts.purchased, counts.initiatedCheckout || counts.startedPayment),
+    visit_to_cart: visitToCart,
+    cart_to_view_cart: cartToViewCart,
+    view_cart_to_form: viewCartToForm,
+    cart_to_form: cartToForm,
+    visit_to_form: visitToForm,
+    form_to_address: formToAddress,
+    address_to_payment: addressToPayment,
+    payment_to_purchase: paymentToPurchase,
+    visit_to_purchase: visitToPurchase,
+    cart_to_purchase: cartToPurchase,
+    view_cart_to_purchase: viewCartToPurchase,
+    applied_offer_to_purchase: appliedOfferToPurchase,
+    form_to_purchase: formToPurchase,
+    address_to_purchase: addressToPurchase,
+    c2p: cartToPurchase,
+    checkout_to_purchase: checkoutToPurchase,
   };
 };
 
@@ -142,7 +166,7 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
       {
         $match: {
           sessionId: { $in: dropoffSessionIds },
-          firstActivityAt: { $gte: start, $lte: end },
+          firstActivityAt: { $gte: start, $lte: end }, // inclusive window
         },
       },
       {
@@ -225,7 +249,7 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
   }
 
   const matchStage = {
-    timestamp: { $gte: start, $lte: end },
+    timestamp: { $gte: start, $lte: end }, // inclusive range just like orders createdAt
     step: { $in: SUPPORTED_EVENT_STEPS },
   };
 
@@ -285,6 +309,39 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
     filteredSessionIds,
     counts,
   });
+
+  // Align purchases with Orders table for exact parity on date filters and grouping
+  // Only apply this alignment when not filtering by landing page (i.e., global view)
+  try {
+    if (!landingPageFilter || landingPageFilter === 'all') {
+      const purchaseAgg = await Order.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: start, $lte: end },
+            // Match get-orders default: exclude only 'pending' and 'failed'
+            paymentStatus: { $nin: ['pending', 'failed'] },
+          },
+        },
+        // Count only standalone or main orders to avoid double counting grouped shipments
+        {
+          $match: {
+            $or: [
+              { orderGroupId: { $exists: false } },
+              { orderGroupId: null },
+              { isMainOrder: true },
+            ],
+          },
+        },
+        { $count: 'total' },
+      ]);
+
+      const purchaseOrderCount = Array.isArray(purchaseAgg) && purchaseAgg.length > 0 ? purchaseAgg[0].total : 0;
+      counts.purchased = purchaseOrderCount;
+    }
+  } catch (alignErr) {
+    // Non-fatal: keep event-derived purchase count if alignment fails
+    console.warn('[funnelMetrics] purchase alignment skipped due to error:', alignErr?.message);
+  }
 
   const ratios = buildDefaultRatios(counts);
 

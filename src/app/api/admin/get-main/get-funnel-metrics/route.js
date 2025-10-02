@@ -7,6 +7,7 @@ import fetchMetaFunnelSnapshot from '@/lib/analytics/metaFunnel';
 
 const CACHE_NAMESPACE = 'funnelMetrics';
 const CACHE_TTL = 5 * 60 * 1000;
+// Include landingPageFilter separately when building the final key to avoid collisions across filters
 const buildCacheKey = (startDate, endDate) => JSON.stringify({ startDate, endDate });
 const FIRST_PARTY_CUTOVER = new Date('2025-09-30T10:30:00.000Z');
 
@@ -72,6 +73,7 @@ export async function POST(req) {
       visited: 'session_counts',
       addedToCart: 'session_counts',
       viewedCart: 'session_counts',
+  appliedOffers: 'session_counts',
       openedOrderForm: 'session_counts',
       reachedAddressTab: 'session_counts',
       startedPayment: 'session_counts',
@@ -90,6 +92,7 @@ export async function POST(req) {
         visited: counts.visited,
         addedToCart: counts.addedToCart,
         viewedCart: counts.viewedCart || 0,
+  appliedOffers: counts.appliedOffers || 0,
         openedOrderForm: counts.openedOrderForm,
         reachedAddressTab: counts.reachedAddressTab,
         startedPayment: counts.startedPayment,

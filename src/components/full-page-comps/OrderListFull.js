@@ -560,6 +560,7 @@ const OrderListFull = ({ isAdmin }) => {
       const cached = getClientCache(FUNNEL_CACHE_NS, funnelCacheKey);
       if (cached) {
         setFunnelMetrics(cached);
+        console.log('Purchased funnel counts', cached?.counts?.purchased);
         setFunnelLoading(false);
         return;
       }

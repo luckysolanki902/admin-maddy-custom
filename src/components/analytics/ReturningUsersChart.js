@@ -112,27 +112,130 @@ const StatCard = ({ title, value, subtitle, icon: Icon, color, tooltip }) => {
   );
 };
 
-export default function ReturningUsersChart({ data, loading }) {
+export default function ReturningUsersChart({ data, loading, startDate, endDate }) {
   const theme = useTheme();
 
-  const chartData = useMemo(() => {
-    if (!data?.returningSessionsTimeSeries) return [];
+  // Build multiple series: returningVisitors18h, firstPurchaseAfter18h, reorders18h, sameDayVisitors1h, plus gap buckets stacked
+  const {
+    series18h,
+    sameDay1h,
+    firstPurchaseAfter18h,
+    reorders18h,
+    gapBuckets
+  } = useMemo(() => {
+    const adv = data?.advancedTrends || {};
+    const normalize = (arr) =>
+      (arr || []).map(d => ({ date: format(new Date(d.date), 'yyyy-MM-dd'), displayDate: format(new Date(d.date), 'MMM dd'), count: d.count || 0 }));
 
-    // Use returning sessions time series as base
-    const dateMap = new Map();
-
-    data.returningSessionsTimeSeries.forEach(item => {
-      const dateKey = format(new Date(item.date), 'yyyy-MM-dd');
-      dateMap.set(dateKey, {
-        date: dateKey,
-        displayDate: format(new Date(item.date), 'MMM dd'),
-        returningVisitors: item.uniqueReturningVisitors || 0,
-        returningSessions: item.returningSessionsCount || 0,
-      });
-    });
-
-    return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    return {
+      series18h: normalize(adv.returningVisitors18hDaily),
+      sameDay1h: normalize(adv.sameDayVisitors1hDaily),
+      firstPurchaseAfter18h: normalize(adv.firstPurchaseAfter18hDaily),
+      reorders18h: normalize(adv.reorders18hDaily),
+      gapBuckets: (adv.gapBucketsDaily || []).map(d => ({
+        date: format(new Date(d.date), 'yyyy-MM-dd'),
+        displayDate: format(new Date(d.date), 'MMM dd'),
+        bucket: d.bucket,
+        count: d.count || 0
+      }))
+    };
   }, [data]);
+
+  // Join multiple series on date for combined chart views
+  const timeline = useMemo(() => {
+    const map = new Map();
+    const add = (arr, key) => {
+      (arr || []).forEach(d => {
+        const curr = map.get(d.date) || { date: d.date, displayDate: d.displayDate };
+        curr[key] = d.count;
+        map.set(d.date, curr);
+      });
+    };
+    add(series18h, 'returningVisitors18h');
+    add(sameDay1h, 'sameDayVisitors1h');
+    add(firstPurchaseAfter18h, 'firstPurchaseAfter18h');
+    add(reorders18h, 'reorders18h');
+    let rows = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+    // Zero-fill across [startDate, endDate) if provided
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const dayMs = 24 * 60 * 60 * 1000;
+      const skeleton = new Map();
+      for (let t = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+           t < Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+           t += dayMs) {
+        const d = new Date(t);
+        const key = format(d, 'yyyy-MM-dd');
+        skeleton.set(key, { date: key, displayDate: format(d, 'MMM dd'), returningVisitors18h: 0, sameDayVisitors1h: 0, firstPurchaseAfter18h: 0, reorders18h: 0 });
+      }
+      rows.forEach(r => {
+        const curr = skeleton.get(r.date) || { date: r.date, displayDate: r.displayDate, returningVisitors18h: 0, sameDayVisitors1h: 0, firstPurchaseAfter18h: 0, reorders18h: 0 };
+        skeleton.set(r.date, { ...curr, ...r });
+      });
+      rows = Array.from(skeleton.values()).sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    return rows;
+  }, [series18h, sameDay1h, firstPurchaseAfter18h, reorders18h, startDate, endDate]);
+
+  // Legacy baseline: unique returning visitors from returningSessionsTimeSeries (if advanced series is empty)
+  const legacyBaseline = useMemo(() => {
+    const legacy = data?.returningSessionsTimeSeries || [];
+    return (legacy || []).map(d => ({
+      date: format(new Date(d.date), 'yyyy-MM-dd'),
+      displayDate: format(new Date(d.date), 'MMM dd'),
+      uniqueReturningVisitors: d.uniqueReturningVisitors || 0
+    }));
+  }, [data]);
+
+  // Prepare stacked data for gap buckets
+  const bucketTimeline = useMemo(() => {
+    const map = new Map();
+    const toSafeKey = (bucket) => {
+      if (bucket === 'same-day-1h+') return 'sameDay1h';
+      return bucket; // g18h_3d, gt3d, gt7d, gt30d are already safe keys
+    };
+    (gapBuckets || []).forEach(d => {
+      const curr = map.get(d.date) || { date: d.date, displayDate: d.displayDate };
+      const key = toSafeKey(d.bucket);
+      curr[key] = (curr[key] || 0) + d.count;
+      map.set(d.date, curr);
+    });
+    let rows = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+    // Zero-fill buckets across range
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const dayMs = 24 * 60 * 60 * 1000;
+      const skeleton = new Map();
+      for (let t = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+           t < Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+           t += dayMs) {
+        const d = new Date(t);
+        const key = format(d, 'yyyy-MM-dd');
+        skeleton.set(key, { date: key, displayDate: format(d, 'MMM dd'), sameDay1h: 0, g18h_3d: 0, gt3d: 0, gt7d: 0, gt30d: 0 });
+      }
+      rows.forEach(r => {
+        const curr = skeleton.get(r.date) || { date: r.date, displayDate: r.displayDate, sameDay1h: 0, g18h_3d: 0, gt3d: 0, gt7d: 0, gt30d: 0 };
+        skeleton.set(r.date, { ...curr, ...r });
+      });
+      rows = Array.from(skeleton.values()).sort((a, b) => a.date.localeCompare(b.date));
+    }
+    return rows;
+  }, [gapBuckets, startDate, endDate]);
+
+  // Empty-state detection
+  const hasTimelineData = useMemo(() => {
+    if (!timeline.length) return false;
+    return timeline.some(d => (d.returningVisitors18h || d.sameDayVisitors1h || d.firstPurchaseAfter18h || d.reorders18h) > 0);
+  }, [timeline]);
+  const hasBucketData = useMemo(() => {
+    if (!bucketTimeline.length) return false;
+    const keys = ['sameDay1h', 'g18h_3d', 'gt3d', 'gt7d', 'gt30d'];
+    return bucketTimeline.some(d => keys.some(k => (d[k] || 0) > 0));
+  }, [bucketTimeline]);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
@@ -181,12 +284,17 @@ export default function ReturningUsersChart({ data, loading }) {
   }
 
   // Calculate useful metrics first (before any checks)
-  const totalReturningVisitors = data?.summary?.totalUniqueReturningVisitors || 0;
+  const advReturning = data?.advancedSummary?.totalReturningVisitors18h ?? 0;
+  const summaryReturning = data?.summary?.totalUniqueReturningVisitors ?? 0;
+  const totalReturningVisitors = advReturning > 0 ? advReturning : summaryReturning;
   const totalReturningSessions = data?.summary?.totalReturningSessionsCount || 0;
   const totalRepeatBuyers = data?.summary?.totalRepeatBuyers || 0;
   const avgSessionsPerReturningUser = data?.summary?.avgSessionsPerReturningVisitor || 0;
   const repeatPurchaseRate = data?.summary?.repeatPurchaseRate || 0;
   const avgDaysBetweenPurchases = data?.repeatBuyersData?.summary?.avgDaysBetweenPurchases || 0;
+  const totalSameDayVisitors1h = data?.advancedSummary?.totalSameDayVisitors1h || 0;
+  const totalFirstPurchaseAfter18h = data?.advancedSummary?.totalFirstPurchaseAfter18h || 0;
+  const totalReorders18h = data?.advancedSummary?.totalReorders18h || 0;
 
   return (
     <Box>
@@ -213,6 +321,15 @@ export default function ReturningUsersChart({ data, loading }) {
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
           Track how many users return after their first visit and which ones make multiple purchases
         </Typography>
+        {totalReturningVisitors === 0 && (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontSize: '0.72rem', display: 'block', mt: 0.75, fontStyle: 'italic' }}
+          >
+            No returning visitors detected for the selected window. A visitor counts as returning if they had any session before the window and at least one session within it. Try widening the date range.
+          </Typography>
+        )}
       </Box>
 
       {/* Stats Grid */}
@@ -272,10 +389,10 @@ export default function ReturningUsersChart({ data, loading }) {
         }}
       >
         <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, fontSize: '0.9rem' }}>
-          Daily Trends
+          Daily Returning Visitors (18h+ gap) vs Key Outcomes
         </Typography>
         <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={chartData}>
+          <ComposedChart data={hasTimelineData ? timeline : legacyBaseline}>
             <defs>
               <linearGradient id="returningVisitorsGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.2} />
@@ -306,24 +423,59 @@ export default function ReturningUsersChart({ data, loading }) {
               }}
               iconSize={10}
             />
-            <Area
-              type="monotone"
-              dataKey="returningVisitors"
-              name="Returning Visitors"
-              fill="url(#returningVisitorsGradient)"
-              stroke={theme.palette.primary.main}
-              strokeWidth={2}
-            />
-            <Line
-              type="monotone"
-              dataKey="returningSessions"
-              name="Return Sessions"
-              stroke={theme.palette.info.main}
-              strokeWidth={2}
-              dot={{ r: 3, fill: theme.palette.info.main }}
-            />
+            {hasTimelineData ? (
+              <>
+                <Area type="monotone" dataKey="returningVisitors18h" name="Returning Visitors (18h+)" fill="url(#returningVisitorsGradient)" stroke={theme.palette.primary.main} strokeWidth={2} />
+                <Line type="monotone" dataKey="firstPurchaseAfter18h" name="First Purchase After 18h" stroke={theme.palette.success.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.success.main }} />
+                <Line type="monotone" dataKey="reorders18h" name="Reorders (18h+)" stroke={theme.palette.warning.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.warning.main }} />
+                <Line type="monotone" dataKey="sameDayVisitors1h" name="Same‑day Visitors (1h+)" stroke={theme.palette.info.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.info.main }} />
+              </>
+            ) : (
+              <Line type="monotone" dataKey="uniqueReturningVisitors" name="Returning Visitors (baseline)" stroke={alpha(theme.palette.text.primary, 0.6)} strokeDasharray="4 3" strokeWidth={2} dot={{ r: 2, fill: alpha(theme.palette.text.primary, 0.6) }} />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
+        {!hasTimelineData && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            No 18h-gap data for the selected range. Showing baseline returning visitors instead. Try Last 30 Days for more signal.
+          </Typography>
+        )}
+      </Paper>
+
+      {/* Gap Bucket Stacked Bars */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          background: alpha(theme.palette.background.paper, 0.6),
+          backdropFilter: 'blur(10px)',
+          border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+          borderRadius: 2,
+          mb: 2,
+        }}
+      >
+        <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, fontSize: '0.9rem' }}>
+          Visit Gap Segments (unique persons per day)
+        </Typography>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={bucketTimeline}>
+            <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.1)} vertical={false} />
+            <XAxis dataKey="displayDate" stroke={theme.palette.text.secondary} style={{ fontSize: '0.7rem' }} height={40} />
+            <YAxis stroke={theme.palette.text.secondary} style={{ fontSize: '0.7rem' }} width={35} />
+            <RechartsTooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '0.75rem' }} iconSize={10} />
+            <Bar dataKey="sameDay1h" stackId="a" name="Same-day (≥1h)" fill={alpha(theme.palette.info.main, 0.8)} hide={!hasBucketData} />
+            <Bar dataKey="g18h_3d" stackId="a" name=">=18h to 3d" fill={alpha(theme.palette.primary.main, 0.7)} hide={!hasBucketData} />
+            <Bar dataKey="gt3d" stackId="a" name=">3 days" fill={alpha(theme.palette.warning.main, 0.7)} hide={!hasBucketData} />
+            <Bar dataKey="gt7d" stackId="a" name=">7 days" fill={alpha(theme.palette.error.main, 0.7)} hide={!hasBucketData} />
+            <Bar dataKey="gt30d" stackId="a" name=">30 days" fill={alpha('#9c27b0', 0.7)} hide={!hasBucketData} />
+          </BarChart>
+        </ResponsiveContainer>
+        {!hasBucketData && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            No gap segments for the selected range. These require at least two sessions per person and may be sparse over short windows.
+          </Typography>
+        )}
       </Paper>
 
       {/* Explanation Cards */}
@@ -343,7 +495,7 @@ export default function ReturningUsersChart({ data, loading }) {
               What is &quot;Returning Visitors&quot;?
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.4, fontSize: '0.7rem' }}>
-              Users who visited your site, left, and came back later. This shows if your brand is memorable and if marketing retargeting works.
+              Returning = came back after a gap (default 18h+) or longer; we also show same‑day revisits with ≥1h gap separately.
             </Typography>
           </Paper>
         </Grid>
@@ -362,7 +514,7 @@ export default function ReturningUsersChart({ data, loading }) {
               What is &quot;Repeat Buyers&quot;?
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.4, fontSize: '0.7rem' }}>
-              Customers who made 2+ purchases on different days. High repeat buyers = good product quality, customer satisfaction, and brand loyalty.
+              First purchase after 18h shows delayed conversions; Reorders (18h+) shows loyalty. Both count unique people, deduped via userId when available.
             </Typography>
           </Paper>
         </Grid>
@@ -381,7 +533,7 @@ export default function ReturningUsersChart({ data, loading }) {
               Why Does This Matter?
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.4, fontSize: '0.7rem' }}>
-              Returning customers cost 5-7× less to acquire than new ones. If this number is low, focus on remarketing, email campaigns, and improving product quality.
+              Returning customers cost 5–7× less to acquire. Use these segments (same‑day, 18h+, 3d+, 7d+, 30d+) to tailor campaigns and content cadence.
             </Typography>
           </Paper>
         </Grid>

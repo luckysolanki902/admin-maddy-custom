@@ -33,6 +33,7 @@ import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart
 // ...FunnelJourneyTree import removed
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import MinimalChartSkeleton from '@/components/analytics/common/MinimalChartSkeleton';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 
 /* ---------- 1.  Minimal sticky navbar (theme-aligned) ---------- */
 const GlassAppBar = styled(Box)(({ theme }) => ({
@@ -539,31 +540,7 @@ export default function AnalyticsDashboard({ admin = false }) {
   }, [activeKey, scrollTo]);
 
   /* ------------ ERROR ------------ */
-  if (error) {
-    return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box sx={{ 
-          p: 4, 
-          borderRadius: 3, 
-          bgcolor: 'rgba(220, 38, 38, 0.1)', 
-          textAlign: 'center',
-          border: '1px solid rgba(220, 38, 38, 0.2)'
-        }}>
-          <Typography variant="h5" color="error" sx={{ mb: 2 }}>
-            {error}
-          </Typography>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={() => loadVisibleSections()}
-            sx={{ mt: 1 }}
-          >
-            Retry
-          </Button>
-        </Box>
-      </Container>
-    );
-  }
+  // Note: Do NOT block the whole UI if one widget fails; show per-widget fallback instead.
 
   /* ------------ RENDER ------------ */
   return (
@@ -633,12 +610,34 @@ export default function AnalyticsDashboard({ admin = false }) {
           <Grid container spacing={4}>
             <Grid item xs={12} md={6}>
               <LazyCard loading={sectionLoading.snapshot}>
-                <SalesSourcesChart data={salesSources} />
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Sales Sources failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <SalesSourcesChart data={salesSources} />
+                </ErrorBoundary>
               </LazyCard>
             </Grid>
             <Grid item xs={12} md={6}>
               <LazyCard loading={sectionLoading.snapshot}>
-                <CartSourcesChart data={cartSources} />
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Cart Sources failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <CartSourcesChart data={cartSources} />
+                </ErrorBoundary>
               </LazyCard>
             </Grid>
             {/* FunnelJourneyTree removed */}
@@ -653,7 +652,18 @@ export default function AnalyticsDashboard({ admin = false }) {
           onVisible={() => handleSectionVisible('products')}
         >
           <LazyCard height={520} loading={sectionLoading.products}>
-            <VariantSalesChart data={variantSales} />
+            <ErrorBoundary
+              resetKeys={[dateRangeKey]}
+              fallbackRender={({ error, resetErrorBoundary }) => (
+                <GlassChartCard>
+                  <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Variant Sales failed to load</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                  <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                </GlassChartCard>
+              )}
+            >
+              <VariantSalesChart data={variantSales} />
+            </ErrorBoundary>
           </LazyCard>
         </Section>
 
@@ -668,28 +678,77 @@ export default function AnalyticsDashboard({ admin = false }) {
             {/* Full Row: Comprehensive Returning Users Analytics */}
             <Grid item xs={12}>
               <LazyCard height={520} loading={sectionLoading.traffic}>
-                <ReturningUsersChart data={returningUsersMetrics} loading={sectionLoading.traffic} />
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Returning Users failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <ReturningUsersChart 
+                    data={returningUsersMetrics} 
+                    loading={sectionLoading.traffic}
+                    startDate={dateRange.start}
+                    endDate={dateRange.end}
+                  />
+                </ErrorBoundary>
               </LazyCard>
             </Grid>
 
             {/* Second Row: 3 smaller charts side by side */}
             <Grid item xs={12} md={4}>
               <LazyCard height={420} loading={sectionLoading.traffic}>
-                <ReturningPayingUsersChart
-                  data={returningPayingUsers}
-                  startDate={dateRange.start}
-                  endDate={dateRange.end}
-                />
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Returning Paying Users failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <ReturningPayingUsersChart
+                    data={returningPayingUsers}
+                    startDate={dateRange.start}
+                    endDate={dateRange.end}
+                  />
+                </ErrorBoundary>
               </LazyCard>
             </Grid>
             <Grid item xs={12} md={4}>
               <LazyCard height={420} loading={sectionLoading.traffic}>
-                <RetargetedCustomersChart data={retargeted} />
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Retargeted Customers failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <RetargetedCustomersChart data={retargeted} />
+                </ErrorBoundary>
               </LazyCard>
             </Grid>
             <Grid item xs={12} md={4}>
               <LazyCard height={420} loading={sectionLoading.traffic}>
-                <AbandonedCartsChart data={abandoned} />
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Abandoned Carts failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <AbandonedCartsChart data={abandoned} />
+                </ErrorBoundary>
               </LazyCard>
             </Grid>
           </Grid>

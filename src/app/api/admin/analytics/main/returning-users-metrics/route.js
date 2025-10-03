@@ -1,10 +1,9 @@
-// /api/admin/analytics/main/returning-users-metrics.js
-// Comprehensive returning users analysis using funnel tracking data
+// /api/admin/analytics/main/returning-users-metrics
+// Implements window-anchored Returning & Repeat Buyer analytics per REVISIT-AND-REORDER-ANALYTICS.md
 
 import { connectToDatabase } from '@/lib/db';
 import FunnelSession from '@/models/analytics/FunnelSession';
 import FunnelEvent from '@/models/analytics/FunnelEvent';
-import Order from '@/models/Order';
 
 export async function GET(req) {
   try {
@@ -14,247 +13,446 @@ export async function GET(req) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    const dateFilter = {};
-    if (startDate && endDate) {
-      dateFilter.lastActivityAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+
+    if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return new Response(
+        JSON.stringify({ message: 'Invalid or missing startDate/endDate' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    // 1. Returning Sessions Analysis (users who visited more than once)
-    const returningSessionsAgg = await FunnelSession.aggregate([
-      { $match: { revisits: { $gt: 0 }, ...dateFilter } },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$lastActivityAt' },
-            month: { $month: '$lastActivityAt' },
-            day: { $dayOfMonth: '$lastActivityAt' }
-          },
-          count: { $sum: 1 },
-          uniqueVisitors: { $addToSet: '$visitorId' }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          date: {
-            $dateFromParts: {
-              year: '$_id.year',
-              month: '$_id.month',
-              day: '$_id.day'
-            }
-          },
-          returningSessionsCount: '$count',
-          uniqueReturningVisitors: { $size: '$uniqueVisitors' }
-        }
-      },
-      { $sort: { date: 1 } }
-    ]);
-
-    // 2. Users who purchased more than once on DIFFERENT DAYS (true repeat buyers)
-    // This uses visitorId from funnel tracking to identify the same customer
-    const paymentStatuses = ['allPaid', 'paidPartially', 'allToBePaidCod'];
-    
-    // First, get all orders with their dates
-    const allOrdersQuery = {
-      paymentStatus: { $in: paymentStatuses },
-      visitorId: { $exists: true, $ne: null } // Must have visitorId from funnel tracking
-    };
-    
-    if (startDate && endDate) {
-      allOrdersQuery.createdAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
-    }
-
-    // Find users who purchased on multiple DIFFERENT days
-    const repeatBuyersAgg = await Order.aggregate([
-      { $match: allOrdersQuery },
-      {
-        $addFields: {
-          orderDate: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
-          }
-        }
-      },
+    // 1) Returning visitors + return sessions (window-anchored), end-exclusive
+    // Summary (counts + avg)
+    const [returningSummary = { returningVisitors: 0, returnSessions: 0, avgReturnSessionsPerVisitor: 0 }] = await FunnelSession.aggregate([
+      { $match: { lastActivityAt: { $lt: end } } },
       {
         $group: {
           _id: '$visitorId',
-          uniqueDays: { $addToSet: '$orderDate' },
-          orders: {
-            $push: {
-              date: '$createdAt',
-              amount: '$totalAmount',
-              orderId: '$_id'
-            }
-          },
-          totalOrders: { $sum: 1 },
-          totalSpent: { $sum: '$totalAmount' }
-        }
-      },
-      {
-        $addFields: {
-          uniqueDaysCount: { $size: '$uniqueDays' },
-          daysBetweenFirstAndLast: {
-            $cond: {
-              if: { $gt: [{ $size: '$orders' }, 1] },
-              then: {
-                $divide: [
-                  {
-                    $subtract: [
-                      { $max: { $map: { input: '$orders', as: 'o', in: '$$o.date' } } },
-                      { $min: { $map: { input: '$orders', as: 'o', in: '$$o.date' } } }
-                    ]
-                  },
-                  86400000 // milliseconds in a day
-                ]
-              },
-              else: 0
+          sessionsBefore: { $sum: { $cond: [{ $lt: ['$lastActivityAt', start] }, 1, 0] } },
+          sessionsWithin: {
+            $sum: {
+              $cond: [
+                { $and: [{ $gte: ['$lastActivityAt', start] }, { $lt: ['$lastActivityAt', end] }] },
+                1,
+                0
+              ]
             }
           }
         }
       },
-      // Only include users who purchased on at least 2 different days
-      { $match: { uniqueDaysCount: { $gte: 2 } } },
+      { $project: { _id: 0, isReturning: { $gt: ['$sessionsBefore', 0] }, sessionsWithin: 1 } },
+      { $match: { isReturning: true, sessionsWithin: { $gt: 0 } } },
       {
-        $project: {
-          visitorId: '$_id',
-          uniqueDaysCount: 1,
-          totalOrders: 1,
-          totalSpent: 1,
-          daysBetweenFirstAndLast: 1,
-          firstOrderDate: { $min: { $map: { input: '$orders', as: 'o', in: '$$o.date' } } },
-          lastOrderDate: { $max: { $map: { input: '$orders', as: 'o', in: '$$o.date' } } },
-          _id: 0
+        $group: {
+          _id: null,
+          returningVisitors: { $sum: 1 },
+          returnSessions: { $sum: '$sessionsWithin' }
         }
-      }
-    ]);
-
-    // Group by date for time series (based on their last purchase date)
-    const repeatBuyersTimeSeries = await Order.aggregate([
-      { $match: allOrdersQuery },
+      },
       {
         $addFields: {
-          orderDate: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+          avgReturnSessionsPerVisitor: {
+            $cond: [
+              { $gt: ['$returningVisitors', 0] },
+              { $divide: ['$returnSessions', '$returningVisitors'] },
+              0
+            ]
           }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            visitorId: '$visitorId',
-            date: '$orderDate'
-          },
-          ordersOnThisDay: { $sum: 1 }
-        }
-      },
-      {
-        $group: {
-          _id: '$_id.visitorId',
-          uniqueDays: { $addToSet: '$_id.date' }
-        }
-      },
-      { $match: { $expr: { $gte: [{ $size: '$uniqueDays' }, 2] } } },
-      {
-        $project: {
-          _id: 0,
-          visitorId: '$_id',
-          uniqueDaysCount: { $size: '$uniqueDays' }
         }
       }
     ]);
 
-    // Calculate summary stats
-    const totalRepeatBuyers = repeatBuyersAgg.length;
-    const avgDaysBetween = totalRepeatBuyers > 0
-      ? repeatBuyersAgg.reduce((sum, u) => sum + u.daysBetweenFirstAndLast, 0) / totalRepeatBuyers
-      : 0;
-    const avgOrdersPerRepeatBuyer = totalRepeatBuyers > 0
-      ? repeatBuyersAgg.reduce((sum, u) => sum + u.totalOrders, 0) / totalRepeatBuyers
-      : 0;
-    
-    // Calculate repeat purchase rate (repeat buyers / total unique buyers)
-    const totalUniqueBuyers = await Order.distinct('visitorId', {
-      ...allOrdersQuery,
-      visitorId: { $exists: true, $ne: null }
-    }).then(ids => ids.length);
-
-    const repeatPurchaseRate = totalUniqueBuyers > 0 
-      ? (totalRepeatBuyers / totalUniqueBuyers) * 100 
-      : 0;
-
-    // 3. REMOVED - Returning purchasers calculation (redundant with repeat buyers above)
-    
-    // 4. Funnel metrics for returning users
-    const returningUserFunnelAgg = await FunnelEvent.aggregate([
-      { 
-        $match: { 
-          timestamp: dateFilter.lastActivityAt || { $exists: true }
-        } 
-      },
+    // Time series per day for returning visitors and return sessions (6A)
+    const returningDaily = await FunnelSession.aggregate([
+      { $match: { lastActivityAt: { $gte: start, $lt: end } } },
+      { $addFields: { day: { $dateTrunc: { date: '$lastActivityAt', unit: 'day' } } } },
       {
         $lookup: {
           from: 'funnelsessions',
-          localField: 'sessionId',
-          foreignField: 'sessionId',
-          as: 'session'
+          let: { v: '$visitorId' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$visitorId', '$$v'] }, { $lt: ['$lastActivityAt', end] }] } } },
+            { $group: { _id: '$visitorId', firstSeen: { $min: '$firstActivityAt' } } }
+          ],
+          as: 'firsts'
         }
       },
-      { $unwind: '$session' },
-      { $match: { 'session.revisits': { $gt: 0 } } }, // Only returning sessions
+      { $set: { firstSeen: { $ifNull: [{ $first: '$firsts.firstSeen' }, '$firstActivityAt'] } } },
+      { $unset: 'firsts' },
+      { $set: { isReturningDay: { $lt: ['$firstSeen', '$day'] } } },
       {
         $group: {
-          _id: '$step',
-          count: { $sum: 1 },
-          uniqueSessions: { $addToSet: '$sessionId' }
+          _id: { day: '$day', visitorId: '$visitorId' },
+          sessionsOnDay: { $sum: 1 },
+          isReturningDay: { $first: '$isReturningDay' }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id.day',
+          returningVisitors: { $sum: { $cond: ['$isReturningDay', 1, 0] } },
+          returnSessions: { $sum: { $cond: ['$isReturningDay', '$sessionsOnDay', 0] } }
+        }
+      },
+      { $project: { _id: 0, day: '$_id', returningVisitors: 1, returnSessions: 1 } },
+      { $sort: { day: 1 } }
+    ]);
+
+    const returningSessionsTimeSeries = returningDaily.map(d => ({
+      date: d.day,
+      uniqueReturningVisitors: d.returningVisitors,
+      returningSessionsCount: d.returnSessions
+    }));
+
+    // Also compute returningVisitorIds for optional funnel metrics scoping
+    const visitorsInWindow = await FunnelSession.distinct('visitorId', { lastActivityAt: { $gte: start, $lt: end } });
+    const returningVisitorIds = visitorsInWindow.length
+      ? await FunnelSession.distinct('visitorId', { visitorId: { $in: visitorsInWindow }, lastActivityAt: { $lt: start } })
+      : [];
+
+    // 2) Repeat Buyers (window-anchored) from events
+    const [repeatBuyersSummary = { repeatBuyers: 0, buyersInWindow: 0, repeatBuyerRate: 0 }] = await FunnelEvent.aggregate([
+      { $match: { step: 'purchase', timestamp: { $lt: end } } },
+      {
+        $group: {
+          _id: '$visitorId',
+          purchasesBefore: { $sum: { $cond: [{ $lt: ['$timestamp', start] }, 1, 0] } },
+          purchasesWithin: {
+            $sum: {
+              $cond: [
+                { $and: [{ $gte: ['$timestamp', start] }, { $lt: ['$timestamp', end] }] },
+                1,
+                0
+              ]
+            }
+          }
         }
       },
       {
         $project: {
-          step: '$_id',
-          count: 1,
-          uniqueSessions: { $size: '$uniqueSessions' },
-          _id: 0
+          _id: 0,
+          isRepeatBuyer: { $and: [{ $gt: ['$purchasesBefore', 0] }, { $gt: ['$purchasesWithin', 0] }] },
+          isBuyerInWindow: { $gt: ['$purchasesWithin', 0] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          repeatBuyers: { $sum: { $cond: ['$isRepeatBuyer', 1, 0] } },
+          buyersInWindow: { $sum: { $cond: ['$isBuyerInWindow', 1, 0] } }
+        }
+      },
+      {
+        $addFields: {
+          repeatBuyerRate: {
+            $cond: [{ $gt: ['$buyersInWindow', 0] }, { $multiply: [{ $divide: ['$repeatBuyers', '$buyersInWindow'] }, 100] }, 0]
+          }
         }
       }
     ]);
 
-    // 5. Summary statistics
-    const totalReturningSessionsCount = returningSessionsAgg.reduce((sum, d) => sum + d.returningSessionsCount, 0);
-    const totalUniqueReturningVisitors = new Set(
-      returningSessionsAgg.flatMap(d => d.uniqueReturningVisitors || [])
-    ).size;
+    // Optional: daily repeat buyer trend for future charts (not consumed by current UI)
+    const repeatBuyersTimeSeries = [];
+
+    // 3) Average days between purchases (lifetime consecutive-gap average)
+    const [gapsSummary = { avgDaysBetweenPurchases: 0, gapsCount: 0 }] = await FunnelEvent.aggregate([
+      { $match: { step: 'purchase' } },
+      { $sort: { visitorId: 1, timestamp: 1 } },
+      { $group: { _id: '$visitorId', purchases: { $push: '$timestamp' } } },
+      {
+        $project: {
+          purchaseCount: { $size: '$purchases' },
+          gapsMs: {
+            $map: {
+              input: { $range: [1, { $size: '$purchases' }] },
+              as: 'idx',
+              in: {
+                $subtract: [
+                  { $arrayElemAt: ['$purchases', '$$idx'] },
+                  { $arrayElemAt: ['$purchases', { $subtract: ['$$idx', 1] }] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      { $match: { purchaseCount: { $gte: 2 } } },
+      { $unwind: '$gapsMs' },
+      {
+        $group: {
+          _id: null,
+          avgDaysBetweenPurchases: { $avg: { $divide: ['$gapsMs', 1000 * 60 * 60 * 24] } },
+          gapsCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // 4) Funnel metrics for returning users (events within window for sessions of returningVisitorIds)
+    const returningUserFunnelAgg = start && end && returningVisitorIds.length
+      ? await FunnelEvent.aggregate([
+          { $match: { timestamp: { $gte: start, $lt: end }, visitorId: { $in: returningVisitorIds } } },
+          {
+            $group: {
+              _id: '$step',
+              count: { $sum: 1 },
+              uniqueSessions: { $addToSet: '$sessionId' }
+            }
+          },
+          { $project: { step: '$_id', count: 1, uniqueSessions: { $size: '$uniqueSessions' }, _id: 0 } }
+        ])
+      : [];
+
+    // 4b) Advanced trends using gap rules and canonical personId
+    // Build session-based gap features with personId = userId (if present) else visitorId
+    const sessionsGapAgg = await FunnelSession.aggregate([
+      { $match: { lastActivityAt: { $lt: end } } },
+      {
+        $addFields: {
+          personId: {
+            $cond: [
+              { $ne: ['$userId', null] },
+              { $toString: '$userId' },
+              '$visitorId'
+            ]
+          }
+        }
+      },
+      {
+        $setWindowFields: {
+          partitionBy: '$personId',
+          sortBy: { lastActivityAt: 1 },
+          output: {
+            prevAt: { $shift: { output: '$lastActivityAt', by: 1 } }
+          }
+        }
+      },
+      {
+        $addFields: {
+          gapMs: {
+            $cond: [
+              { $and: [{ $ne: ['$prevAt', null] }, { $ne: ['$prevAt', undefined] }] },
+              { $subtract: ['$lastActivityAt', '$prevAt'] },
+              null
+            ]
+          },
+          day: { $dateTrunc: { date: '$lastActivityAt', unit: 'day' } },
+          prevDay: {
+            $cond: [
+              { $and: [{ $ne: ['$prevAt', null] }, { $ne: ['$prevAt', undefined] }] },
+              { $dateTrunc: { date: '$prevAt', unit: 'day' } },
+              null
+            ]
+          }
+        }
+      },
+      { $match: { lastActivityAt: { $gte: start, $lt: end } } },
+      {
+        $addFields: {
+          gapHours: { $cond: [{ $ne: ['$gapMs', null] }, { $divide: ['$gapMs', 1000 * 60 * 60] }, null] },
+          gapDays: { $cond: [{ $ne: ['$gapMs', null] }, { $divide: ['$gapMs', 1000 * 60 * 60 * 24] }, null] }
+        }
+      },
+      {
+        $addFields: {
+          isReturning18h: { $and: [{ $ne: ['$gapHours', null] }, { $gte: ['$gapHours', 18] }] },
+          isSameDay1h: { $and: [{ $ne: ['$gapHours', null] }, { $gte: ['$gapHours', 1] }, { $eq: ['$day', '$prevDay'] }] },
+          gapBucket: {
+            $switch: {
+              branches: [
+                { case: { $and: [{ $ne: ['$gapHours', null] }, { $gte: ['$gapHours', 1] }, { $eq: ['$day', '$prevDay'] }] }, then: 'same-day-1h+' },
+                { case: { $gt: ['$gapDays', 30] }, then: 'gt30d' },
+                { case: { $gt: ['$gapDays', 7] }, then: 'gt7d' },
+                { case: { $gt: ['$gapDays', 3] }, then: 'gt3d' },
+                { case: { $and: [{ $ne: ['$gapHours', null] }, { $gte: ['$gapHours', 18] }] }, then: 'g18h_3d' }
+              ],
+              default: null
+            }
+          }
+        }
+      }
+    ]);
+
+    // returningVisitors18hDaily
+    const returningVisitors18hDaily = await (async () => {
+      if (!sessionsGapAgg.length) return [];
+      const res = await FunnelSession.aggregate([
+        { $match: { lastActivityAt: { $lt: end } } },
+        { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] } } },
+        {
+          $setWindowFields: {
+            partitionBy: '$personId',
+            sortBy: { lastActivityAt: 1 },
+            output: { prevAt: { $shift: { output: '$lastActivityAt', by: 1 } } }
+          }
+        },
+        { $addFields: { day: { $dateTrunc: { date: '$lastActivityAt', unit: 'day' } }, gapHours: { $cond: [{ $and: [{ $ne: ['$prevAt', null] }, { $ne: ['$prevAt', undefined] }] }, { $divide: [{ $subtract: ['$lastActivityAt', '$prevAt'] }, 1000 * 60 * 60] }, null] } } },
+        { $match: { lastActivityAt: { $gte: start, $lt: end }, gapHours: { $ne: null, $gte: 18 } } },
+        { $group: { _id: { day: '$day', personId: '$personId' } } },
+        { $group: { _id: '$_id.day', count: { $sum: 1 } } },
+        { $project: { _id: 0, date: '$_id', count: 1 } },
+        { $sort: { date: 1 } }
+      ]);
+      return res;
+    })();
+
+    // sameDayVisitors1hDaily
+    const sameDayVisitors1hDaily = await FunnelSession.aggregate([
+      { $match: { lastActivityAt: { $lt: end } } },
+      { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] } } },
+      {
+        $setWindowFields: {
+          partitionBy: '$personId', sortBy: { lastActivityAt: 1 },
+          output: { prevAt: { $shift: { output: '$lastActivityAt', by: 1 } } }
+        }
+      },
+      { $addFields: { day: { $dateTrunc: { date: '$lastActivityAt', unit: 'day' } }, prevDay: { $cond: [{ $ne: ['$prevAt', null] }, { $dateTrunc: { date: '$prevAt', unit: 'day' } }, null] }, gapHours: { $cond: [{ $ne: ['$prevAt', null] }, { $divide: [{ $subtract: ['$lastActivityAt', '$prevAt'] }, 1000 * 60 * 60] }, null] } } },
+      { $match: { lastActivityAt: { $gte: start, $lt: end }, gapHours: { $ne: null, $gte: 1 } } },
+      { $match: { $expr: { $eq: ['$day', '$prevDay'] } } },
+      { $group: { _id: { day: '$day', personId: '$personId' } } },
+      { $group: { _id: '$_id.day', count: { $sum: 1 } } },
+      { $project: { _id: 0, date: '$_id', count: 1 } },
+      { $sort: { date: 1 } }
+    ]);
+
+    // gapBucketsDaily
+    const gapBucketsDaily = await FunnelSession.aggregate([
+      { $match: { lastActivityAt: { $lt: end } } },
+      { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] } } },
+      { $setWindowFields: { partitionBy: '$personId', sortBy: { lastActivityAt: 1 }, output: { prevAt: { $shift: { output: '$lastActivityAt', by: 1 } } } } },
+      { $addFields: { day: { $dateTrunc: { date: '$lastActivityAt', unit: 'day' } }, prevDay: { $cond: [{ $ne: ['$prevAt', null] }, { $dateTrunc: { date: '$prevAt', unit: 'day' } }, null] }, gapMs: { $cond: [{ $ne: ['$prevAt', null] }, { $subtract: ['$lastActivityAt', '$prevAt'] }, null] } } },
+      { $match: { lastActivityAt: { $gte: start, $lt: end }, gapMs: { $ne: null } } },
+      { $addFields: { gapHours: { $divide: ['$gapMs', 1000 * 60 * 60] }, gapDays: { $divide: ['$gapMs', 1000 * 60 * 60 * 24] } } },
+      { $addFields: { bucket: { $switch: { branches: [ { case: { $and: [{ $gte: ['$gapHours', 1] }, { $eq: ['$day', '$prevDay'] }] }, then: 'same-day-1h+' }, { case: { $gt: ['$gapDays', 30] }, then: 'gt30d' }, { case: { $gt: ['$gapDays', 7] }, then: 'gt7d' }, { case: { $gt: ['$gapDays', 3] }, then: 'gt3d' }, { case: { $gte: ['$gapHours', 18] }, then: 'g18h_3d' } ], default: null } } } },
+      { $match: { bucket: { $ne: null } } },
+      { $group: { _id: { day: '$day', bucket: '$bucket' }, persons: { $addToSet: '$personId' } } },
+      { $project: { _id: 0, date: '$_id.day', bucket: '$_id.bucket', count: { $size: '$persons' } } },
+      { $sort: { date: 1, bucket: 1 } }
+    ]);
+
+    // firstPurchaseAfter18hDaily (didn't order on first visit, purchased later with >=18h gap)
+    const firstPurchaseAfter18hDaily = await FunnelEvent.aggregate([
+      { $match: { step: 'purchase', timestamp: { $lt: end } } },
+      { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] }, day: { $dateTrunc: { date: '$timestamp', unit: 'day' } } } },
+      {
+        $lookup: {
+          from: 'funnelsessions',
+          let: { evUserId: '$userId', evVisitorId: '$visitorId' },
+          pipeline: [
+            { $match: { $expr: { $and: [ { $lt: ['$lastActivityAt', end] }, { $or: [ { $and: [ { $ne: ['$$evUserId', null] }, { $eq: ['$userId', '$$evUserId'] } ] }, { $eq: ['$visitorId', '$$evVisitorId'] } ] } ] } } },
+            { $group: { _id: null, firstSeen: { $min: '$firstActivityAt' } } }
+          ],
+          as: 'firsts'
+        }
+      },
+      { $set: { firstSeen: { $first: '$firsts.firstSeen' } } },
+      { $unset: 'firsts' },
+      { $addFields: { gapHours: { $cond: [{ $ne: ['$firstSeen', null] }, { $divide: [{ $subtract: ['$timestamp', '$firstSeen'] }, 1000 * 60 * 60] }, null] } } },
+      { $match: { timestamp: { $gte: start, $lt: end }, gapHours: { $ne: null, $gte: 18 } } },
+      { $group: { _id: { day: '$day', personId: '$personId' } } },
+      { $group: { _id: '$_id.day', count: { $sum: 1 } } },
+      { $project: { _id: 0, date: '$_id', count: 1 } },
+      { $sort: { date: 1 } }
+    ]);
+
+    // reorders18hDaily (unique persons with previous purchase >=18h prior)
+    const reorders18hDaily = await FunnelEvent.aggregate([
+      { $match: { step: 'purchase', timestamp: { $lt: end } } },
+      { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] }, day: { $dateTrunc: { date: '$timestamp', unit: 'day' } } } },
+      { $setWindowFields: { partitionBy: '$personId', sortBy: { timestamp: 1 }, output: { prevPurchaseAt: { $shift: { output: '$timestamp', by: 1 } } } } },
+      { $addFields: { gapHours: { $cond: [{ $ne: ['$prevPurchaseAt', null] }, { $divide: [{ $subtract: ['$timestamp', '$prevPurchaseAt'] }, 1000 * 60 * 60] }, null] } } },
+      { $match: { timestamp: { $gte: start, $lt: end }, gapHours: { $ne: null, $gte: 18 } } },
+      { $group: { _id: { day: '$day', personId: '$personId' } } },
+      { $group: { _id: '$_id.day', count: { $sum: 1 } } },
+      { $project: { _id: 0, date: '$_id', count: 1 } },
+      { $sort: { date: 1 } }
+    ]);
+
+    // Advanced summary totals (unique persons across window)
+    const [returning18hTotal] = await FunnelSession.aggregate([
+      { $match: { lastActivityAt: { $lt: end } } },
+      { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] } } },
+      { $setWindowFields: { partitionBy: '$personId', sortBy: { lastActivityAt: 1 }, output: { prevAt: { $shift: { output: '$lastActivityAt', by: 1 } } } } },
+      { $addFields: { gapHours: { $cond: [{ $ne: ['$prevAt', null] }, { $divide: [{ $subtract: ['$lastActivityAt', '$prevAt'] }, 1000 * 60 * 60] }, null] } } },
+      { $match: { lastActivityAt: { $gte: start, $lt: end }, gapHours: { $ne: null, $gte: 18 } } },
+      { $group: { _id: null, persons: { $addToSet: '$personId' } } },
+      { $project: { _id: 0, total: { $size: '$persons' } } }
+    ]);
+
+    const [sameDay1hTotal] = await FunnelSession.aggregate([
+      { $match: { lastActivityAt: { $lt: end } } },
+      { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] } } },
+      { $setWindowFields: { partitionBy: '$personId', sortBy: { lastActivityAt: 1 }, output: { prevAt: { $shift: { output: '$lastActivityAt', by: 1 } } } } },
+      { $addFields: { day: { $dateTrunc: { date: '$lastActivityAt', unit: 'day' } }, prevDay: { $cond: [{ $ne: ['$prevAt', null] }, { $dateTrunc: { date: '$prevAt', unit: 'day' } }, null] }, gapHours: { $cond: [{ $ne: ['$prevAt', null] }, { $divide: [{ $subtract: ['$lastActivityAt', '$prevAt'] }, 1000 * 60 * 60] }, null] } } },
+      { $match: { lastActivityAt: { $gte: start, $lt: end } } },
+      { $match: { $expr: { $and: [{ $eq: ['$day', '$prevDay'] }, { $gte: ['$gapHours', 1] }] } } },
+      { $group: { _id: null, persons: { $addToSet: '$personId' } } },
+      { $project: { _id: 0, total: { $size: '$persons' } } }
+    ]);
+
+    const [firstPurchaseAfter18hTotal] = await FunnelEvent.aggregate([
+      { $match: { step: 'purchase', timestamp: { $lt: end } } },
+      { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] } } },
+      { $lookup: { from: 'funnelsessions', let: { evUserId: '$userId', evVisitorId: '$visitorId' }, pipeline: [ { $match: { $expr: { $and: [ { $lt: ['$lastActivityAt', end] }, { $or: [ { $and: [ { $ne: ['$$evUserId', null] }, { $eq: ['$userId', '$$evUserId'] } ] }, { $eq: ['$visitorId', '$$evVisitorId'] } ] } ] } } }, { $group: { _id: null, firstSeen: { $min: '$firstActivityAt' } } } ], as: 'firsts' } },
+      { $set: { firstSeen: { $first: '$firsts.firstSeen' } } },
+      { $addFields: { gapHours: { $cond: [{ $ne: ['$firstSeen', null] }, { $divide: [{ $subtract: ['$timestamp', '$firstSeen'] }, 1000 * 60 * 60] }, null] } } },
+      { $match: { timestamp: { $gte: start, $lt: end }, gapHours: { $ne: null, $gte: 18 } } },
+      { $group: { _id: null, persons: { $addToSet: '$personId' } } },
+      { $project: { _id: 0, total: { $size: '$persons' } } }
+    ]);
+
+    const [reorders18hTotal] = await FunnelEvent.aggregate([
+      { $match: { step: 'purchase', timestamp: { $lt: end } } },
+      { $addFields: { personId: { $cond: [{ $ne: ['$userId', null] }, { $toString: '$userId' }, '$visitorId'] } } },
+      { $setWindowFields: { partitionBy: '$personId', sortBy: { timestamp: 1 }, output: { prevPurchaseAt: { $shift: { output: '$timestamp', by: 1 } } } } },
+      { $addFields: { gapHours: { $cond: [{ $ne: ['$prevPurchaseAt', null] }, { $divide: [{ $subtract: ['$timestamp', '$prevPurchaseAt'] }, 1000 * 60 * 60] }, null] } } },
+      { $match: { timestamp: { $gte: start, $lt: end }, gapHours: { $ne: null, $gte: 18 } } },
+      { $group: { _id: null, persons: { $addToSet: '$personId' } } },
+      { $project: { _id: 0, total: { $size: '$persons' } } }
+    ]);
+
+    // 5) Summary statistics
+    const totalReturningSessionsCount = returningSummary.returnSessions || 0;
+    const totalUniqueReturningVisitors = returningSummary.returningVisitors || 0;
 
     // Calculate average sessions per returning visitor
-    const avgSessionsPerReturningVisitor = totalUniqueReturningVisitors > 0
-      ? totalReturningSessionsCount / totalUniqueReturningVisitors
-      : 0;
+    const avgSessionsPerReturningVisitor = returningSummary.avgReturnSessionsPerVisitor || 0;
 
     return new Response(
       JSON.stringify({
-        returningSessionsTimeSeries: returningSessionsAgg,
+        returningSessionsTimeSeries,
+        advancedTrends: {
+          returningVisitors18hDaily,
+          sameDayVisitors1hDaily,
+          gapBucketsDaily,
+          firstPurchaseAfter18hDaily,
+          reorders18hDaily
+        },
         repeatBuyersData: {
           timeSeries: repeatBuyersTimeSeries,
-          details: repeatBuyersAgg,
+          details: [],
           summary: {
-            totalRepeatBuyers,
-            avgDaysBetweenPurchases: Math.round(avgDaysBetween),
-            avgOrdersPerRepeatBuyer: Math.round(avgOrdersPerRepeatBuyer * 100) / 100,
-            repeatPurchaseRate: Math.round(repeatPurchaseRate * 100) / 100,
-            totalUniqueBuyers
+            totalRepeatBuyers: repeatBuyersSummary.repeatBuyers || 0,
+            avgDaysBetweenPurchases: Math.round((gapsSummary.avgDaysBetweenPurchases || 0)),
+            avgOrdersPerRepeatBuyer: 0,
+            repeatPurchaseRate: Math.round(((repeatBuyersSummary.repeatBuyerRate || 0) * 100)) / 100,
+            totalUniqueBuyers: repeatBuyersSummary.buyersInWindow || 0
           }
         },
         returningUserFunnelMetrics: returningUserFunnelAgg,
         summary: {
           totalReturningSessionsCount,
           totalUniqueReturningVisitors,
-          avgSessionsPerReturningVisitor: Math.round(avgSessionsPerReturningVisitor * 100) / 100,
-          totalRepeatBuyers,
-          repeatPurchaseRate: Math.round(repeatPurchaseRate * 100) / 100
+          avgSessionsPerReturningVisitor: Math.round((avgSessionsPerReturningVisitor || 0) * 100) / 100,
+          totalRepeatBuyers: repeatBuyersSummary.repeatBuyers || 0,
+          repeatPurchaseRate: Math.round(((repeatBuyersSummary.repeatBuyerRate || 0) * 100)) / 100
+        },
+        advancedSummary: {
+          totalReturningVisitors18h: (returning18hTotal && returning18hTotal.total) || 0,
+          totalSameDayVisitors1h: (sameDay1hTotal && sameDay1hTotal.total) || 0,
+          totalFirstPurchaseAfter18h: (firstPurchaseAfter18hTotal && firstPurchaseAfter18hTotal.total) || 0,
+          totalReorders18h: (reorders18hTotal && reorders18hTotal.total) || 0
         }
       }),
       {

@@ -121,7 +121,8 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
     sameDay1h,
     firstPurchaseAfter18h,
     reorders18h,
-    gapBuckets
+    gapBuckets,
+    reordersOrdersDaily
   } = useMemo(() => {
     const adv = data?.advancedTrends || {};
     const normalize = (arr) =>
@@ -132,6 +133,7 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
       sameDay1h: normalize(adv.sameDayVisitors1hDaily),
       firstPurchaseAfter18h: normalize(adv.firstPurchaseAfter18hDaily),
       reorders18h: normalize(adv.reorders18hDaily),
+      reordersOrdersDaily: normalize(adv.reordersOrdersDaily),
       gapBuckets: (adv.gapBucketsDaily || []).map(d => ({
         date: format(new Date(d.date), 'yyyy-MM-dd'),
         displayDate: format(new Date(d.date), 'MMM dd'),
@@ -139,6 +141,16 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
         count: d.count || 0
       }))
     };
+  }, [data]);
+
+  // Legacy baseline: unique returning visitors from returningSessionsTimeSeries
+  const legacyBaseline = useMemo(() => {
+    const legacy = data?.returningSessionsTimeSeries || [];
+    return (legacy || []).map(d => ({
+      date: format(new Date(d.date), 'yyyy-MM-dd'),
+      displayDate: format(new Date(d.date), 'MMM dd'),
+      uniqueReturningVisitors: d.uniqueReturningVisitors || 0
+    }));
   }, [data]);
 
   // Join multiple series on date for combined chart views
@@ -155,6 +167,7 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
     add(sameDay1h, 'sameDayVisitors1h');
     add(firstPurchaseAfter18h, 'firstPurchaseAfter18h');
     add(reorders18h, 'reorders18h');
+    add(reordersOrdersDaily, 'reordersOrders');
     let rows = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
 
     // Zero-fill across [startDate, endDate) if provided
@@ -168,27 +181,28 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
            t += dayMs) {
         const d = new Date(t);
         const key = format(d, 'yyyy-MM-dd');
-        skeleton.set(key, { date: key, displayDate: format(d, 'MMM dd'), returningVisitors18h: 0, sameDayVisitors1h: 0, firstPurchaseAfter18h: 0, reorders18h: 0 });
+        skeleton.set(key, { date: key, displayDate: format(d, 'MMM dd'), returningVisitors18h: 0, sameDayVisitors1h: 0, firstPurchaseAfter18h: 0, reorders18h: 0, reordersOrders: 0 });
       }
       rows.forEach(r => {
-        const curr = skeleton.get(r.date) || { date: r.date, displayDate: r.displayDate, returningVisitors18h: 0, sameDayVisitors1h: 0, firstPurchaseAfter18h: 0, reorders18h: 0 };
+        const curr = skeleton.get(r.date) || { date: r.date, displayDate: r.displayDate, returningVisitors18h: 0, sameDayVisitors1h: 0, firstPurchaseAfter18h: 0, reorders18h: 0, reordersOrders: 0 };
         skeleton.set(r.date, { ...curr, ...r });
       });
       rows = Array.from(skeleton.values()).sort((a, b) => a.date.localeCompare(b.date));
     }
 
-    return rows;
-  }, [series18h, sameDay1h, firstPurchaseAfter18h, reorders18h, startDate, endDate]);
+    // Merge legacy baseline uniqueReturningVisitors always (so chart never visually empty)
+    if (legacyBaseline.length) {
+      const baselineMap = new Map(rows.map(r => [r.date, r]));
+      legacyBaseline.forEach(b => {
+        const existing = baselineMap.get(b.date) || { date: b.date, displayDate: b.displayDate };
+        existing.uniqueReturningVisitors = b.uniqueReturningVisitors;
+        baselineMap.set(b.date, existing);
+      });
+      rows = Array.from(baselineMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    }
 
-  // Legacy baseline: unique returning visitors from returningSessionsTimeSeries (if advanced series is empty)
-  const legacyBaseline = useMemo(() => {
-    const legacy = data?.returningSessionsTimeSeries || [];
-    return (legacy || []).map(d => ({
-      date: format(new Date(d.date), 'yyyy-MM-dd'),
-      displayDate: format(new Date(d.date), 'MMM dd'),
-      uniqueReturningVisitors: d.uniqueReturningVisitors || 0
-    }));
-  }, [data]);
+    return rows;
+  }, [series18h, sameDay1h, firstPurchaseAfter18h, reorders18h, reordersOrdersDaily, startDate, endDate, legacyBaseline]);
 
   // Prepare stacked data for gap buckets
   const bucketTimeline = useMemo(() => {
@@ -226,20 +240,21 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
     return rows;
   }, [gapBuckets, startDate, endDate]);
 
-  // Empty-state detection
-  const hasTimelineData = useMemo(() => {
-    if (!timeline.length) return false;
-    return timeline.some(d => (d.returningVisitors18h || d.sameDayVisitors1h || d.firstPurchaseAfter18h || d.reorders18h) > 0);
-  }, [timeline]);
+  // Series presence flags (length OR any positive count) so lines render even if counts are small
+  const showReturning18h = useMemo(() => series18h.length && series18h.some(d => d.count > 0), [series18h]);
+  const showSameDay1h = useMemo(() => sameDay1h.length && sameDay1h.some(d => d.count > 0), [sameDay1h]);
+  const showFirstPurchaseAfter18h = useMemo(() => firstPurchaseAfter18h.length && firstPurchaseAfter18h.some(d => d.count > 0), [firstPurchaseAfter18h]);
+  const showReorders18h = useMemo(() => reorders18h.length && reorders18h.some(d => d.count > 0), [reorders18h]);
+  const showReordersOrders = useMemo(() => reordersOrdersDaily.length && reordersOrdersDaily.some(d => d.count > 0), [reordersOrdersDaily]);
+  const hasAnyAdvanced = showReturning18h || showSameDay1h || showFirstPurchaseAfter18h || showReorders18h || showReordersOrders;
   const hasBucketData = useMemo(() => {
     if (!bucketTimeline.length) return false;
-    const keys = ['sameDay1h', 'g18h_3d', 'gt3d', 'gt7d', 'gt30d'];
+  const keys = ['sameDay1h', 'g1h_18h', 'g18h_3d', 'gt3d', 'gt7d', 'gt30d'];
     return bucketTimeline.some(d => keys.some(k => (d[k] || 0) > 0));
   }, [bucketTimeline]);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
-
     return (
       <Paper
         elevation={4}
@@ -251,11 +266,17 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
           borderRadius: 1.5,
         }}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, mb: 0.5, display: 'block', fontSize: '0.75rem' }}>
+        <Typography
+          variant="caption"
+          sx={{ fontWeight: 600, mb: 0.5, display: 'block', fontSize: '0.75rem' }}
+        >
           {label}
         </Typography>
         {payload.map((entry, index) => (
-          <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}>
+          <Box
+            key={index}
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}
+          >
             <Box
               sx={{
                 width: 8,
@@ -264,7 +285,10 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
                 backgroundColor: entry.color,
               }}
             />
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+            <Typography
+              variant="caption"
+              sx={{ color: 'text.secondary', fontSize: '0.7rem' }}
+            >
               {entry.name}: <strong>{entry.value}</strong>
             </Typography>
           </Box>
@@ -295,6 +319,29 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
   const totalSameDayVisitors1h = data?.advancedSummary?.totalSameDayVisitors1h || 0;
   const totalFirstPurchaseAfter18h = data?.advancedSummary?.totalFirstPurchaseAfter18h || 0;
   const totalReorders18h = data?.advancedSummary?.totalReorders18h || 0;
+
+  // Client-side debug flag (?ruDebug=1)
+  const debug = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ruDebug') === '1';
+  if (debug) {
+    // eslint-disable-next-line no-console
+    console.log('[RUChartDebug] Props:', { startDate, endDate });
+    // eslint-disable-next-line no-console
+    console.log('[RUChartDebug] Series lengths:', {
+      returningSessionsTimeSeries: data?.returningSessionsTimeSeries?.length,
+      returningVisitors18hDaily: series18h.length,
+      firstPurchaseAfter18hDaily: firstPurchaseAfter18h.length,
+      reorders18hDaily: reorders18h.length,
+      sameDayVisitors1hDaily: sameDay1h.length,
+      gapBucketsDaily: gapBuckets.length,
+      timeline: timeline.length,
+      legacyBaseline: legacyBaseline.length,
+      hasAnyAdvanced
+    });
+    if (timeline.length) {
+      // eslint-disable-next-line no-console
+      console.log('[RUChartDebug] Timeline sample:', timeline.slice(0, 5));
+    }
+  }
 
   return (
     <Box>
@@ -392,7 +439,7 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
           Daily Returning Visitors (18h+ gap) vs Key Outcomes
         </Typography>
         <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={hasTimelineData ? timeline : legacyBaseline}>
+          <ComposedChart data={timeline}>
             <defs>
               <linearGradient id="returningVisitorsGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.2} />
@@ -423,22 +470,43 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
               }}
               iconSize={10}
             />
-            {hasTimelineData ? (
-              <>
-                <Area type="monotone" dataKey="returningVisitors18h" name="Returning Visitors (18h+)" fill="url(#returningVisitorsGradient)" stroke={theme.palette.primary.main} strokeWidth={2} />
-                <Line type="monotone" dataKey="firstPurchaseAfter18h" name="First Purchase After 18h" stroke={theme.palette.success.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.success.main }} />
-                <Line type="monotone" dataKey="reorders18h" name="Reorders (18h+)" stroke={theme.palette.warning.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.warning.main }} />
-                <Line type="monotone" dataKey="sameDayVisitors1h" name="Same‑day Visitors (1h+)" stroke={theme.palette.info.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.info.main }} />
-              </>
-            ) : (
-              <Line type="monotone" dataKey="uniqueReturningVisitors" name="Returning Visitors (baseline)" stroke={alpha(theme.palette.text.primary, 0.6)} strokeDasharray="4 3" strokeWidth={2} dot={{ r: 2, fill: alpha(theme.palette.text.primary, 0.6) }} />
+            {/* Always show baseline unique visitors (dashed) */}
+            <Line type="monotone" dataKey="uniqueReturningVisitors" name="Returning Visitors (baseline)" stroke={alpha(theme.palette.text.primary, 0.6)} strokeDasharray="4 3" strokeWidth={2} dot={{ r: 1.5, fill: alpha(theme.palette.text.primary, 0.6) }} />
+            {showReturning18h && (
+              <Area type="monotone" dataKey="returningVisitors18h" name="Returning Visitors (18h+)" fill="url(#returningVisitorsGradient)" stroke={theme.palette.primary.main} strokeWidth={2} />
+            )}
+            {showFirstPurchaseAfter18h && (
+              <Line type="monotone" dataKey="firstPurchaseAfter18h" name="First Purchase After 18h" stroke={theme.palette.success.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.success.main }} />
+            )}
+            {showReorders18h && (
+              <Line type="monotone" dataKey="reorders18h" name="Reorders (18h+ gap events)" stroke={theme.palette.warning.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.warning.main }} />
+            )}
+            {showReordersOrders && (
+              <Line type="monotone" dataKey="reordersOrders" name="Reorders (Orders)" stroke={theme.palette.secondary ? theme.palette.secondary.main : '#9c27b0'} strokeWidth={2} dot={{ r: 2, fill: theme.palette.secondary ? theme.palette.secondary.main : '#9c27b0' }} />
+            )}
+            {showSameDay1h && (
+              <Line type="monotone" dataKey="sameDayVisitors1h" name="Same‑day Visitors (1h+)" stroke={theme.palette.info.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.info.main }} />
             )}
           </ComposedChart>
         </ResponsiveContainer>
-        {!hasTimelineData && (
+        {!hasAnyAdvanced && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
             No 18h-gap data for the selected range. Showing baseline returning visitors instead. Try Last 30 Days for more signal.
           </Typography>
+        )}
+        {debug && (
+          <Box sx={{ mt: 1.5, p: 1, border: `1px solid ${alpha(theme.palette.warning.main,0.3)}`, borderRadius: 1 }}>
+            <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 600, display: 'block', mb: 0.5 }}>Debug Snapshot</Typography>
+            <Typography variant="caption" sx={{ display: 'block', fontSize: '0.6rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+              {JSON.stringify({
+                baselineDays: legacyBaseline.length,
+                timelineDays: timeline.length,
+                firstTimeline: timeline[0]?.date,
+                lastTimeline: timeline[timeline.length-1]?.date,
+                sample: timeline.slice(0,3)
+              }, null, 2)}
+            </Typography>
+          </Box>
         )}
       </Paper>
 
@@ -465,6 +533,7 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
             <RechartsTooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '0.75rem' }} iconSize={10} />
             <Bar dataKey="sameDay1h" stackId="a" name="Same-day (≥1h)" fill={alpha(theme.palette.info.main, 0.8)} hide={!hasBucketData} />
+            <Bar dataKey="g1h_18h" stackId="a" name=">=1h cross-day <18h" fill={alpha(theme.palette.success.main, 0.6)} hide={!hasBucketData} />
             <Bar dataKey="g18h_3d" stackId="a" name=">=18h to 3d" fill={alpha(theme.palette.primary.main, 0.7)} hide={!hasBucketData} />
             <Bar dataKey="gt3d" stackId="a" name=">3 days" fill={alpha(theme.palette.warning.main, 0.7)} hide={!hasBucketData} />
             <Bar dataKey="gt7d" stackId="a" name=">7 days" fill={alpha(theme.palette.error.main, 0.7)} hide={!hasBucketData} />

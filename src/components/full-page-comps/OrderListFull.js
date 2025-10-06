@@ -123,6 +123,10 @@ const OrderListFull = ({ isAdmin }) => {
   const [comparisonData, setComparisonData] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
 
+  // Funnel comparison data state
+  const [funnelComparisonData, setFunnelComparisonData] = useState(null);
+  const [funnelComparisonLoading, setFunnelComparisonLoading] = useState(false);
+
   // Funnel metrics: visits -> cart -> view cart -> form -> address -> payment -> purchase
   const [funnelMetrics, setFunnelMetrics] = useState({
     counts: { visited: 0, addedToCart: 0, viewedCart: 0, openedOrderForm: 0, reachedAddressTab: 0, startedPayment: 0, purchased: 0 },
@@ -551,6 +555,68 @@ const OrderListFull = ({ isAdmin }) => {
   ]);
 
   /*****************************************************
+   * Fetch Funnel Comparison Data
+   *****************************************************/
+  const fetchFunnelComparisonData = useCallback(async () => {
+    if (!dateRange.start || !dateRange.end) {
+      setFunnelComparisonData(null);
+      return;
+    }
+
+    setFunnelComparisonLoading(true);
+    
+    try {
+      // Build cache key parameters
+      const cacheParams = {
+        startDate: dateRange.start.toISOString(),
+        endDate: dateRange.end.toISOString(),
+        activeTag,
+        landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
+      };
+
+      // Try to get from cache first
+      const cachedData = comparisonCache.getFunnel(cacheParams);
+      if (cachedData) {
+        setFunnelComparisonData(cachedData);
+        setFunnelComparisonLoading(false);
+        return;
+      }
+
+      // Fetch from API
+      const res = await fetch('/api/admin/get-main/get-funnel-comparison', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate: dateRange.start.toISOString(),
+          endDate: dateRange.end.toISOString(),
+          activeTag,
+          landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
+          skipCache: false,
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setFunnelComparisonData(data);
+        comparisonCache.setFunnel(cacheParams, data);
+      } else {
+        console.error('Failed to fetch funnel comparison data:', data.message);
+        setFunnelComparisonData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching funnel comparison data:', error);
+      setFunnelComparisonData(null);
+    } finally {
+      setFunnelComparisonLoading(false);
+    }
+  }, [
+    dateRange,
+    activeTag,
+    landingPageFilter,
+  ]);
+
+  /*****************************************************
    * Fetch Funnel Metrics
    *****************************************************/
   const fetchFunnelMetrics = useCallback(async ({ forceRefresh = false } = {}) => {
@@ -610,10 +676,12 @@ const OrderListFull = ({ isAdmin }) => {
     await Promise.allSettled([
       fetchOrders({ forceRefresh: true }),
       fetchFunnelMetrics({ forceRefresh: true }),
+      fetchComparisonData(),
+      fetchFunnelComparisonData(),
     ]);
 
     setCacheClearing(false);
-  }, [fetchOrders, fetchFunnelMetrics]);
+  }, [fetchOrders, fetchFunnelMetrics, fetchComparisonData, fetchFunnelComparisonData]);
 
   /*****************************************************
    * Trigger Fetches on Dependency Changes
@@ -628,12 +696,14 @@ const OrderListFull = ({ isAdmin }) => {
     fetchCacData();
     fetchProblematicOrders();
     fetchComparisonData();
+    fetchFunnelComparisonData();
   }, [
     fetchOrders,
     fetchCacData,
     fetchProblematicOrders,
     fetchComparisonData,
     fetchFunnelMetrics,
+    fetchFunnelComparisonData,
     selectedProblematicFilter,
   ]);
 
@@ -899,6 +969,8 @@ const OrderListFull = ({ isAdmin }) => {
         comparisonData={comparisonData}
         funnel={funnelMetrics}
         funnelLoading={funnelLoading}
+        funnelComparisonData={funnelComparisonData}
+        funnelComparisonLoading={funnelComparisonLoading}
         landingPageFilter={landingPageFilter}
         setLandingPageFilter={setLandingPageFilter}
         onClearCache={handleClearCaches}

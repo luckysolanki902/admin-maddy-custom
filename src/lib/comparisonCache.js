@@ -6,6 +6,7 @@ class ComparisonCache {
 	constructor() {
 		this.cache = new Map();
 		this.PREFIX = 'comparison_cache_';
+		this.FUNNEL_PREFIX = 'funnel_comparison_cache_';
 	}
 
 	generateKey(params) {
@@ -16,6 +17,16 @@ class ComparisonCache {
 				return acc;
 			}, {});
 		return this.PREFIX + JSON.stringify(sortedParams);
+	}
+
+	generateFunnelKey(params) {
+		const sortedParams = Object.keys(params)
+			.sort()
+			.reduce((acc, key) => {
+				acc[key] = params[key];
+				return acc;
+			}, {});
+		return this.FUNNEL_PREFIX + JSON.stringify(sortedParams);
 	}
 
 	getCacheDuration(startDate, endDate) {
@@ -46,6 +57,24 @@ class ComparisonCache {
 		}
 	}
 
+	setFunnel(params, data) {
+		try {
+			const key = this.generateFunnelKey(params);
+			const duration = this.getCacheDuration(params.startDate, params.endDate);
+			const entry = { data, expiry: Date.now() + duration, timestamp: Date.now() };
+			this.cache.set(key, entry);
+			try {
+				if (this.cache.size < 100) {
+					localStorage.setItem(key, JSON.stringify(entry));
+				}
+			} catch (e) {
+				console.warn('funnelComparisonCache: localStorage set failed', e);
+			}
+		} catch (err) {
+			console.warn('funnelComparisonCache: set error', err);
+		}
+	}
+
 	get(params) {
 		try {
 			const key = this.generateKey(params);
@@ -73,6 +102,33 @@ class ComparisonCache {
 		}
 	}
 
+	getFunnel(params) {
+		try {
+			const key = this.generateFunnelKey(params);
+			let entry = this.cache.get(key);
+			if (!entry) {
+				try {
+					const stored = localStorage.getItem(key);
+					if (stored) {
+						entry = JSON.parse(stored);
+						this.cache.set(key, entry);
+					}
+				} catch (e) {
+					console.warn('funnelComparisonCache: localStorage get failed', e);
+				}
+			}
+			if (!entry) return null;
+			if (Date.now() > entry.expiry) {
+				this.deleteFunnel(params);
+				return null;
+			}
+			return entry.data;
+		} catch (err) {
+			console.warn('funnelComparisonCache: get error', err);
+			return null;
+		}
+	}
+
 		delete(params) {
 		try {
 			const key = this.generateKey(params);
@@ -87,6 +143,20 @@ class ComparisonCache {
 		}
 	}
 
+	deleteFunnel(params) {
+		try {
+			const key = this.generateFunnelKey(params);
+			this.cache.delete(key);
+			try { 
+				localStorage.removeItem(key); 
+			} catch (e) {
+				// ignore storage removal errors
+			}
+		} catch (err) {
+			console.warn('funnelComparisonCache: delete error', err);
+		}
+	}
+
 		clear() {
 		try {
 			this.cache.clear();
@@ -94,7 +164,7 @@ class ComparisonCache {
 				const keys = [];
 				for (let i = 0; i < localStorage.length; i++) {
 					const k = localStorage.key(i);
-					if (k && k.startsWith(this.PREFIX)) keys.push(k);
+					if (k && (k.startsWith(this.PREFIX) || k.startsWith(this.FUNNEL_PREFIX))) keys.push(k);
 				}
 				keys.forEach(k => localStorage.removeItem(k));
 				} catch (e) {
@@ -115,7 +185,7 @@ class ComparisonCache {
 				const toRemove = [];
 				for (let i = 0; i < localStorage.length; i++) {
 					const k = localStorage.key(i);
-					if (k && k.startsWith(this.PREFIX)) {
+					if (k && (k.startsWith(this.PREFIX) || k.startsWith(this.FUNNEL_PREFIX))) {
 						try {
 							const v = JSON.parse(localStorage.getItem(k));
 							if (!v || v.expiry < now) toRemove.push(k);
@@ -141,7 +211,7 @@ class ComparisonCache {
 					let n = 0;
 					for (let i = 0; i < localStorage.length; i++) {
 						const k = localStorage.key(i);
-						if (k && k.startsWith(this.PREFIX)) n++;
+						if (k && (k.startsWith(this.PREFIX) || k.startsWith(this.FUNNEL_PREFIX))) n++;
 					}
 					return n;
 				} catch {

@@ -4,14 +4,17 @@
 import { connectToDatabase } from '@/lib/db';
 import FunnelSession from '@/models/analytics/FunnelSession';
 import FunnelEvent from '@/models/analytics/FunnelEvent';
+import Order from '@/models/Order';
 
 export async function GET(req) {
   try {
     await connectToDatabase();
 
     const { searchParams } = new URL(req.url);
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
+  const debugFlag = searchParams.get('debug');
+  const debug = debugFlag === '1' || debugFlag === 'true';
 
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
@@ -21,6 +24,11 @@ export async function GET(req) {
         JSON.stringify({ message: 'Invalid or missing startDate/endDate' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
+    }
+
+    if (debug) {
+      console.log('[ReturningMetricsDebug] ---- START DEBUG LOG ----');
+      console.log('[ReturningMetricsDebug] Raw params:', { startDate, endDate, startISO: start.toISOString(), endISO: end.toISOString() });
     }
 
     // 1) Returning visitors + return sessions (window-anchored), end-exclusive
@@ -106,11 +114,21 @@ export async function GET(req) {
       returningSessionsCount: d.returnSessions
     }));
 
+    if (debug) {
+      console.log('[ReturningMetricsDebug] Returning summary:', returningSummary);
+      console.log('[ReturningMetricsDebug] returningSessionsTimeSeries length:', returningSessionsTimeSeries.length);
+    }
+
     // Also compute returningVisitorIds for optional funnel metrics scoping
     const visitorsInWindow = await FunnelSession.distinct('visitorId', { lastActivityAt: { $gte: start, $lt: end } });
     const returningVisitorIds = visitorsInWindow.length
       ? await FunnelSession.distinct('visitorId', { visitorId: { $in: visitorsInWindow }, lastActivityAt: { $lt: start } })
       : [];
+
+    if (debug) {
+      console.log('[ReturningMetricsDebug] Distinct visitors in window:', visitorsInWindow.length);
+      console.log('[ReturningMetricsDebug] ReturningVisitorIds (intersection) count:', returningVisitorIds.length);
+    }
 
     // 2) Repeat Buyers (window-anchored) from events
     const [repeatBuyersSummary = { repeatBuyers: 0, buyersInWindow: 0, repeatBuyerRate: 0 }] = await FunnelEvent.aggregate([
@@ -152,6 +170,10 @@ export async function GET(req) {
         }
       }
     ]);
+
+    if (debug) {
+      console.log('[ReturningMetricsDebug] Repeat buyers summary:', repeatBuyersSummary);
+    }
 
     // Optional: daily repeat buyer trend for future charts (not consumed by current UI)
     const repeatBuyersTimeSeries = [];
@@ -262,6 +284,7 @@ export async function GET(req) {
             $switch: {
               branches: [
                 { case: { $and: [{ $ne: ['$gapHours', null] }, { $gte: ['$gapHours', 1] }, { $eq: ['$day', '$prevDay'] }] }, then: 'same-day-1h+' },
+                { case: { $and: [{ $ne: ['$gapHours', null] }, { $gte: ['$gapHours', 1] }, { $lt: ['$gapHours', 18] }, { $ne: ['$day', '$prevDay'] }] }, then: 'g1h_18h' },
                 { case: { $gt: ['$gapDays', 30] }, then: 'gt30d' },
                 { case: { $gt: ['$gapDays', 7] }, then: 'gt7d' },
                 { case: { $gt: ['$gapDays', 3] }, then: 'gt3d' },
@@ -273,6 +296,17 @@ export async function GET(req) {
         }
       }
     ]);
+
+    let gapDebugStats = null;
+    if (debug) {
+      gapDebugStats = sessionsGapAgg.reduce((acc, doc) => {
+        if (doc.isReturning18h) acc.returning18hSessions++;
+        if (doc.isSameDay1h) acc.sameDay1hSessions++;
+        if (doc.gapBucket) acc.gapBuckets[doc.gapBucket] = (acc.gapBuckets[doc.gapBucket] || 0) + 1;
+        return acc;
+      }, { totalEvaluated: sessionsGapAgg.length, returning18hSessions: 0, sameDay1hSessions: 0, gapBuckets: {} });
+      console.log('[ReturningMetricsDebug] Gap pipeline stats:', gapDebugStats);
+    }
 
     // returningVisitors18hDaily
     const returningVisitors18hDaily = await (async () => {
@@ -324,11 +358,28 @@ export async function GET(req) {
       { $addFields: { day: { $dateTrunc: { date: '$lastActivityAt', unit: 'day' } }, prevDay: { $cond: [{ $ne: ['$prevAt', null] }, { $dateTrunc: { date: '$prevAt', unit: 'day' } }, null] }, gapMs: { $cond: [{ $ne: ['$prevAt', null] }, { $subtract: ['$lastActivityAt', '$prevAt'] }, null] } } },
       { $match: { lastActivityAt: { $gte: start, $lt: end }, gapMs: { $ne: null } } },
       { $addFields: { gapHours: { $divide: ['$gapMs', 1000 * 60 * 60] }, gapDays: { $divide: ['$gapMs', 1000 * 60 * 60 * 24] } } },
-      { $addFields: { bucket: { $switch: { branches: [ { case: { $and: [{ $gte: ['$gapHours', 1] }, { $eq: ['$day', '$prevDay'] }] }, then: 'same-day-1h+' }, { case: { $gt: ['$gapDays', 30] }, then: 'gt30d' }, { case: { $gt: ['$gapDays', 7] }, then: 'gt7d' }, { case: { $gt: ['$gapDays', 3] }, then: 'gt3d' }, { case: { $gte: ['$gapHours', 18] }, then: 'g18h_3d' } ], default: null } } } },
+      { $addFields: { bucket: { $switch: { branches: [ { case: { $and: [{ $gte: ['$gapHours', 1] }, { $eq: ['$day', '$prevDay'] }] }, then: 'same-day-1h+' }, { case: { $and: [{ $gte: ['$gapHours', 1] }, { $lt: ['$gapHours', 18] }, { $ne: ['$day', '$prevDay'] }] }, then: 'g1h_18h' }, { case: { $gt: ['$gapDays', 30] }, then: 'gt30d' }, { case: { $gt: ['$gapDays', 7] }, then: 'gt7d' }, { case: { $gt: ['$gapDays', 3] }, then: 'gt3d' }, { case: { $gte: ['$gapHours', 18] }, then: 'g18h_3d' } ], default: null } } } },
       { $match: { bucket: { $ne: null } } },
       { $group: { _id: { day: '$day', bucket: '$bucket' }, persons: { $addToSet: '$personId' } } },
       { $project: { _id: 0, date: '$_id.day', bucket: '$_id.bucket', count: { $size: '$persons' } } },
       { $sort: { date: 1, bucket: 1 } }
+    ]);
+
+    // 4c) Reorders based on Orders collection (not funnel events)
+    const paymentStatuses = ['allPaid', 'paidPartially', 'allToBePaidCod'];
+    const reordersOrdersDaily = await Order.aggregate([
+      { $match: { createdAt: { $lt: end }, paymentStatus: { $in: paymentStatuses }, user: { $ne: null } } },
+      { $sort: { user: 1, createdAt: 1 } },
+      { $group: { _id: '$user', orders: { $push: '$createdAt' } } },
+      { $project: { reorders: { $map: { input: { $range: [1, { $size: '$orders' }] }, as: 'idx', in: { current: { $arrayElemAt: ['$orders', '$$idx'] }, prev: { $arrayElemAt: ['$orders', { $subtract: ['$$idx', 1] }] } } } } } },
+      { $unwind: '$reorders' },
+      { $project: { user: '$_id', reorderAt: '$reorders.current', prevAt: '$reorders.prev' } },
+      { $match: { reorderAt: { $gte: start, $lt: end } } },
+      { $addFields: { day: { $dateTrunc: { date: '$reorderAt', unit: 'day' } } } },
+      { $group: { _id: { day: '$day', user: '$user' } } },
+      { $group: { _id: '$_id.day', count: { $sum: 1 } } },
+      { $project: { _id: 0, date: '$_id', count: 1 } },
+      { $sort: { date: 1 } }
     ]);
 
     // firstPurchaseAfter18hDaily (didn't order on first visit, purchased later with >=18h gap)
@@ -413,11 +464,71 @@ export async function GET(req) {
     ]);
 
     // 5) Summary statistics
-    const totalReturningSessionsCount = returningSummary.returnSessions || 0;
+  const totalReturningSessionsCount = returningSummary.returnSessions || 0;
     const totalUniqueReturningVisitors = returningSummary.returningVisitors || 0;
 
     // Calculate average sessions per returning visitor
     const avgSessionsPerReturningVisitor = returningSummary.avgReturnSessionsPerVisitor || 0;
+
+    // Debug info assembly (only if debug flag is set)
+    let debugInfo = undefined;
+    if (debug) {
+      // Raw counts (independent quick queries)
+      const [totalSessions, sessionsBeforeWindow, sessionsInWindow, purchasesTotal, purchasesBeforeWindow, purchasesInWindow] = await Promise.all([
+        FunnelSession.countDocuments({ lastActivityAt: { $lt: end } }),
+        FunnelSession.countDocuments({ lastActivityAt: { $lt: start } }),
+        FunnelSession.countDocuments({ lastActivityAt: { $gte: start, $lt: end } }),
+        FunnelEvent.countDocuments({ step: 'purchase', timestamp: { $lt: end } }),
+        FunnelEvent.countDocuments({ step: 'purchase', timestamp: { $lt: start } }),
+        FunnelEvent.countDocuments({ step: 'purchase', timestamp: { $gte: start, $lt: end } })
+      ]);
+
+      const [distinctVisitorsBefore, distinctVisitorsInWindow, distinctBuyersBefore, distinctBuyersInWindow] = await Promise.all([
+        FunnelSession.distinct('visitorId', { lastActivityAt: { $lt: start } }).then(a => a.length),
+        FunnelSession.distinct('visitorId', { lastActivityAt: { $gte: start, $lt: end } }).then(a => a.length),
+        FunnelEvent.distinct('visitorId', { step: 'purchase', timestamp: { $lt: start } }).then(a => a.length),
+        FunnelEvent.distinct('visitorId', { step: 'purchase', timestamp: { $gte: start, $lt: end } }).then(a => a.length)
+      ]);
+
+      const potentialReturningVisitors = returningVisitorIds.length;
+      const repeatBuyerCandidates = repeatBuyersSummary.repeatBuyers || 0;
+
+      // Sample visitor IDs (anonymized) that appear in both before and window
+      const sampleReturning = returningVisitorIds.slice(0, 5).map(v => ({ idTail: v.slice(-6) }));
+
+      debugInfo = {
+        generatedAt: new Date().toISOString(),
+        params: { start: start.toISOString(), end: end.toISOString(), debug: true },
+        rawCounts: {
+          totalSessions,
+            sessionsBeforeWindow,
+            sessionsInWindow,
+            distinctVisitorsBefore,
+            distinctVisitorsInWindow,
+            potentialReturningVisitors,
+            purchasesTotal,
+            purchasesBeforeWindow,
+            purchasesInWindow,
+            distinctBuyersBefore,
+            distinctBuyersInWindow,
+            repeatBuyerCandidates
+        },
+        timeSeries: {
+          returningDays: returningSessionsTimeSeries.length,
+          firstReturningDay: returningSessionsTimeSeries[0]?.date || null,
+          lastReturningDay: returningSessionsTimeSeries[returningSessionsTimeSeries.length - 1]?.date || null
+        },
+        advancedGaps: gapDebugStats,
+        sampleReturningVisitors: sampleReturning,
+        notes: [
+          'If distinctVisitorsInWindow == 0 you simply have no sessions in the chosen range.',
+          'If potentialReturningVisitors == 0 but sessionsInWindow > 0: nobody with a prior session fell inside this window.',
+          'For repeat buyers, purchasesBeforeWindow must be >0 AND purchasesInWindow >0 for same visitorId.'
+        ]
+      };
+      console.log('[ReturningMetricsDebug] Summary rawCounts:', debugInfo.rawCounts);
+      console.log('[ReturningMetricsDebug] ---- END DEBUG LOG ----');
+    }
 
     return new Response(
       JSON.stringify({
@@ -427,7 +538,8 @@ export async function GET(req) {
           sameDayVisitors1hDaily,
           gapBucketsDaily,
           firstPurchaseAfter18hDaily,
-          reorders18hDaily
+          reorders18hDaily,
+          reordersOrdersDaily
         },
         repeatBuyersData: {
           timeSeries: repeatBuyersTimeSeries,
@@ -452,8 +564,10 @@ export async function GET(req) {
           totalReturningVisitors18h: (returning18hTotal && returning18hTotal.total) || 0,
           totalSameDayVisitors1h: (sameDay1hTotal && sameDay1hTotal.total) || 0,
           totalFirstPurchaseAfter18h: (firstPurchaseAfter18hTotal && firstPurchaseAfter18hTotal.total) || 0,
-          totalReorders18h: (reorders18hTotal && reorders18hTotal.total) || 0
-        }
+          totalReorders18h: (reorders18hTotal && reorders18hTotal.total) || 0,
+          totalReordersOrders: reordersOrdersDaily.length ? reordersOrdersDaily.reduce((a,b)=>a+b.count,0) : 0
+        },
+        debugInfo
       }),
       {
         status: 200,

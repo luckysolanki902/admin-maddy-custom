@@ -524,6 +524,8 @@ const OrdersList = ({
     dropoffs: {}
   },
   funnelLoading = false,
+  funnelComparisonData = null, // New prop for funnel comparison data
+  funnelComparisonLoading = false,
   landingPageFilter = 'all',
   setLandingPageFilter = () => {},
   onClearCache = () => {},
@@ -710,6 +712,62 @@ const OrdersList = ({
   const getMetricChange = useCallback((metricKey) => {
     return comparisonData?.comparison?.[metricKey]?.change;
   }, [comparisonData]);
+
+  // Helper function to get funnel count comparison change
+  const getFunnelCountChange = useCallback((countKey) => {
+    return funnelComparisonData?.counts?.[countKey]?.change;
+  }, [funnelComparisonData]);
+
+  // Helper function to get funnel ratio comparison change
+  const getFunnelRatioChange = useCallback((ratioKey) => {
+    return funnelComparisonData?.ratios?.[ratioKey]?.change;
+  }, [funnelComparisonData]);
+
+  // Helper function to format funnel metric percentage change (always higher is better for funnel metrics)
+  const formatFunnelPercentageChange = useCallback((change) => {
+    if (!funnelComparisonData || change === undefined || change === null) return null;
+
+    const isPositive = change > 0;
+    const formattedChange = Math.abs(change).toFixed(1);
+    
+    if (change === 0) return null;
+    
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          ml: 0.5,
+          px: 0.6,
+          py: 0.25,
+          borderRadius: '10px',
+          backgroundColor: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          minWidth: 'auto',
+          height: '20px',
+          gap: 0.25,
+        }}
+      >
+        {isPositive ? (
+          <TrendingUpIcon sx={{ fontSize: '12px', color: 'rgba(240,240,240,0.75)' }} />
+        ) : (
+          <TrendingDownIcon sx={{ fontSize: '12px', color: 'rgba(240,240,240,0.6)' }} />
+        )}
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            color: 'rgba(240,240,240,0.75)',
+            fontSize: '0.62rem',
+            fontWeight: 600,
+            lineHeight: 1,
+          }}
+        >
+          {formattedChange}%
+        </Typography>
+      </Box>
+    );
+  }, [funnelComparisonData]);
 
   // Essential metrics for closed state - updated per requirements
   const essentialMetrics = useMemo(() => {
@@ -1074,24 +1132,80 @@ const OrdersList = ({
   }, [allMetrics, summaryLabels]);
 
   const funnelSteps = useMemo(() => ([
-    { key: 'Visited', value: funnel?.counts?.visited || 0 },
-    { key: 'Added to Cart', value: funnel?.counts?.addedToCart || 0 },
-    { key: 'Viewed Cart', value: funnel?.counts?.viewedCart || 0 },
-    { key: 'Applied Offer', value: funnel?.counts?.appliedOffers || 0 },
-    { key: 'Opened Order Form', value: funnel?.counts?.openedOrderForm || 0 },
-    { key: 'Reached Address Tab', value: funnel?.counts?.reachedAddressTab || 0 },
-    { key: 'Started Payment', value: funnel?.counts?.startedPayment || 0 },
-    { key: 'Purchased', value: funnel?.counts?.purchased || 0 },
-  ]), [funnel]);
+    { 
+      key: 'Visited', 
+      value: funnel?.counts?.visited || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('visited'))
+    },
+    { 
+      key: 'Added to Cart', 
+      value: funnel?.counts?.addedToCart || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('addedToCart'))
+    },
+    { 
+      key: 'Viewed Cart', 
+      value: funnel?.counts?.viewedCart || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('viewedCart'))
+    },
+    { 
+      key: 'Applied Offer', 
+      value: funnel?.counts?.appliedOffers || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('appliedOffers'))
+    },
+    { 
+      key: 'Opened Order Form', 
+      value: funnel?.counts?.openedOrderForm || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('openedOrderForm'))
+    },
+    { 
+      key: 'Reached Address Tab', 
+      value: funnel?.counts?.reachedAddressTab || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('reachedAddressTab'))
+    },
+    { 
+      key: 'Started Payment', 
+      value: funnel?.counts?.startedPayment || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('startedPayment'))
+    },
+    { 
+      key: 'Purchased', 
+      value: funnel?.counts?.purchased || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('purchased'))
+    },
+  ]), [funnel, formatFunnelPercentageChange, getFunnelCountChange]);
 
   const conversionRatios = useMemo(() => ([
-    { label: 'Visit → AddToCart', value: funnel?.ratios?.visit_to_cart || 0 },
-    { label: 'AddToCart → View Cart', value: funnel?.ratios?.cart_to_view_cart || 0 },
-    { label: 'View Cart → Form', value: funnel?.ratios?.view_cart_to_form || 0 },
-    { label: 'Form → Address', value: funnel?.ratios?.form_to_address || 0 },
-    { label: 'Address → Pay Now', value: funnel?.ratios?.address_to_payment || 0 },
-    { label: 'Pay Now → Purchase', value: funnel?.ratios?.payment_to_purchase || 0 },
-  ]), [funnel]);
+    { 
+      label: 'Visit → AddToCart', 
+      value: funnel?.ratios?.visit_to_cart || 0,
+      change: formatFunnelPercentageChange(getFunnelRatioChange('visit_to_cart'))
+    },
+    { 
+      label: 'AddToCart → View Cart', 
+      value: funnel?.ratios?.cart_to_view_cart || 0,
+      change: formatFunnelPercentageChange(getFunnelRatioChange('cart_to_view_cart'))
+    },
+    { 
+      label: 'View Cart → Form', 
+      value: funnel?.ratios?.view_cart_to_form || 0,
+      change: formatFunnelPercentageChange(getFunnelRatioChange('view_cart_to_form'))
+    },
+    { 
+      label: 'Form → Address', 
+      value: funnel?.ratios?.form_to_address || 0,
+      change: formatFunnelPercentageChange(getFunnelRatioChange('form_to_address'))
+    },
+    { 
+      label: 'Address → Pay Now', 
+      value: funnel?.ratios?.address_to_payment || 0,
+      change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_payment'))
+    },
+    { 
+      label: 'Pay Now → Purchase', 
+      value: funnel?.ratios?.payment_to_purchase || 0,
+      change: formatFunnelPercentageChange(getFunnelRatioChange('payment_to_purchase'))
+    },
+  ]), [funnel, formatFunnelPercentageChange, getFunnelRatioChange]);
 
   const purchaseConversionBreakdown = useMemo(() => {
     const counts = funnel?.counts || {};
@@ -1104,45 +1218,52 @@ const OrdersList = ({
         value: ratios.visit_to_purchase ?? 0,
         baseCount: counts.visited || 0,
         purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('visit_to_purchase'))
       },
       {
         label: 'AddToCart → Purchase',
         value: (ratios.cart_to_purchase ?? ratios.c2p) ?? 0,
         baseCount: counts.addedToCart || 0,
         purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('c2p'))
       },
       {
         label: 'View Cart → Purchase',
         value: ratios.view_cart_to_purchase ?? 0,
         baseCount: counts.viewedCart || 0,
         purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('view_cart_to_purchase'))
       },
       {
         label: 'Offer Applied → Purchase',
         value: ratios.applied_offer_to_purchase ?? 0,
         baseCount: counts.appliedOffers || 0,
         purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('applied_offer_to_purchase'))
       },
       {
         label: 'Form → Purchase',
         value: ratios.form_to_purchase ?? 0,
         baseCount: counts.openedOrderForm || 0,
         purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('form_to_purchase'))
       },
       {
         label: 'Address → Purchase',
         value: ratios.address_to_purchase ?? 0,
         baseCount: counts.reachedAddressTab || 0,
         purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_purchase'))
       },
       {
         label: 'Pay Now → Purchase',
         value: ratios.payment_to_purchase ?? 0,
         baseCount: counts.startedPayment || 0,
         purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('payment_to_purchase'))
       },
     ];
-  }, [funnel]);
+  }, [funnel, formatFunnelPercentageChange, getFunnelRatioChange]);
 
   // Auto-expire AI insights after cache window: clears UI so button re-appears
   useEffect(() => {
@@ -1480,9 +1601,12 @@ const OrdersList = ({
                                 <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', letterSpacing: 0.18 }}>
                                   {step.key}
                                 </Typography>
-                                <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600 }}>
-                                  {step.value?.toLocaleString('en-IN')}
-                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600 }}>
+                                    {step.value?.toLocaleString('en-IN')}
+                                  </Typography>
+                                  {step.change}
+                                </Box>
                               </FunnelStep>
                             </DarkTooltip>
                           );
@@ -1508,7 +1632,7 @@ const OrdersList = ({
                       </ConversionGrid>
                     ) : (
                       <ConversionGrid>
-                        {conversionRatios.map(({ label, value }) => {
+                        {conversionRatios.map(({ label, value, change }) => {
                           const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
                           const tip = CONVERSION_RATIO_TOOLTIPS[label] || { title: label, desc: 'Conversion rate between the two funnel steps.', formula: null };
                           const tooltip = (
@@ -1532,7 +1656,10 @@ const OrdersList = ({
                                 <ConversionHeader>
                                   <ConversionLabel>{label}</ConversionLabel>
                                 </ConversionHeader>
-                                <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                                  {change}
+                                </Box>
                                 <ConversionProgress percent={safeValue} />
                               </ConversionTile>
                             </DarkTooltip>
@@ -1559,7 +1686,7 @@ const OrdersList = ({
                       </ConversionGrid>
                     ) : (
                       <ConversionGrid>
-                        {purchaseConversionBreakdown.map(({ label, value, baseCount, purchases }) => {
+                        {purchaseConversionBreakdown.map(({ label, value, baseCount, purchases, change }) => {
                           const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
                           const base = Number.isFinite(Number(baseCount)) ? Number(baseCount) : 0;
                           const purchaseCount = Number.isFinite(Number(purchases)) ? Number(purchases) : 0;
@@ -1570,7 +1697,10 @@ const OrdersList = ({
                               <ConversionHeader>
                                 <ConversionLabel>{label}</ConversionLabel>
                               </ConversionHeader>
-                              <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                                {change}
+                              </Box>
                               <ConversionProgress percent={safeValue} />
                             </ConversionTile>
                           );

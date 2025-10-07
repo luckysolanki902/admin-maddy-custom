@@ -33,7 +33,15 @@ export async function POST(req) {
 		}
 
 		const currentStart = dayjs(startDate);
-		const currentEnd = dayjs(endDate);
+		let currentEnd = dayjs(endDate);
+
+		// Smart clamp for 'today' similar to orders comparison: ensure end time is now if endOf day passed
+		if (activeTag === 'today') {
+			const now = dayjs();
+			if (currentEnd.isAfter(now)) {
+				currentEnd = now;
+			}
+		}
 
 		// Calculate previous period based on activeTag (same logic as orders comparison)
 		let previousStart, previousEnd;
@@ -192,17 +200,24 @@ export async function POST(req) {
 			};
 		}
 
-		// Compare funnel ratios
+		// Compare funnel ratios (extended list so UI always has previous values)
 		const ratiosComparison = {};
 		const ratioKeys = [
 			'visit_to_cart',
 			'cart_to_view_cart',
 			'view_cart_to_form',
 			'cart_to_form',
+			'visit_to_form',
 			'form_to_address',
 			'address_to_payment',
 			'payment_to_purchase',
 			'visit_to_purchase',
+			'cart_to_purchase',
+			'view_cart_to_purchase',
+			'applied_offer_to_purchase',
+			'form_to_purchase',
+			'address_to_purchase',
+			'checkout_to_purchase',
 			'c2p'
 		];
 
@@ -235,6 +250,10 @@ export async function POST(req) {
 			counts: countsComparison,
 			ratios: ratiosComparison,
 			dropoffs: dropoffsComparison,
+			ratioBases: {
+				current: currentFunnel.ratioBases || {},
+				previous: previousFunnel.ratioBases || {},
+			},
 			currentPeriod: {
 				start: currentStart.toISOString(),
 				end: currentEnd.toISOString(),

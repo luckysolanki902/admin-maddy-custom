@@ -43,7 +43,8 @@ const OrderListFull = ({ isAdmin }) => {
   // Date range
   const [dateRange, setDateRange] = useState({
     start: dayjs().startOf('day'),
-    end: dayjs().endOf('day'),
+    // Use current time (not endOf day) so comparisons use elapsed portion only
+    end: dayjs(),
   });
   const [activeTag, setActiveTag] = useState('today');
 
@@ -672,6 +673,20 @@ const OrderListFull = ({ isAdmin }) => {
     } catch (err) {
       console.warn('Failed to clear server caches', err);
     }
+    // For 'today' ensure we advance the end timestamp to "now" so refreshed comparisons show latest window
+    if (activeTag === 'today') {
+      const now = dayjs();
+      setDateRange(prev => {
+        if (!prev.start) {
+          return { start: dayjs().startOf('day'), end: now };
+        }
+        // If end already within last 30s keep it; else bump
+        if (prev.end && now.diff(prev.end, 'second') < 30) return prev;
+        return { ...prev, end: now };
+      });
+      // allow state to commit before fetching (next microtask)
+      await new Promise(r => setTimeout(r, 0));
+    }
 
     await Promise.allSettled([
       fetchOrders({ forceRefresh: true }),
@@ -681,7 +696,7 @@ const OrderListFull = ({ isAdmin }) => {
     ]);
 
     setCacheClearing(false);
-  }, [fetchOrders, fetchFunnelMetrics, fetchComparisonData, fetchFunnelComparisonData]);
+  }, [fetchOrders, fetchFunnelMetrics, fetchComparisonData, fetchFunnelComparisonData, activeTag]);
 
   /*****************************************************
    * Trigger Fetches on Dependency Changes
@@ -805,7 +820,8 @@ const OrderListFull = ({ isAdmin }) => {
     setCurrentPage(1);
     setProblematicCurrentPage(1);
     setActiveTag('today');
-    setDateRange({ start: dayjs().startOf('day'), end: dayjs().endOf('day') });
+    // Reset to today with live current time end (smart comparison)
+    setDateRange({ start: dayjs().startOf('day'), end: dayjs() });
     setSelectedVariants([]);
     setSelectedSpecificCategories([]);
     setOnlyIncludeSelectedVariants(false);
@@ -975,6 +991,7 @@ const OrderListFull = ({ isAdmin }) => {
         setLandingPageFilter={setLandingPageFilter}
         onClearCache={handleClearCaches}
         cacheClearing={cacheClearing}
+        activeTag={activeTag}
       />
 
       {/* Orders Pagination */}

@@ -45,7 +45,8 @@ const DateRangeChips = ({
   const handleChipClick = useCallback((tag) => {
     switch (tag) {
       case 'today': {
-        handlePredefinedRange('today', dayjs().startOf('day'), dayjs().endOf('day'));
+        // Use current time instead of endOf('day') for smart partial-period comparison
+        handlePredefinedRange('today', dayjs().startOf('day'), dayjs());
         break;
       }
       case 'yesterday': {
@@ -71,11 +72,13 @@ const DateRangeChips = ({
         break;
       }
       case 'last7days': {
-        handlePredefinedRange('last7days', dayjs().subtract(6, 'day').startOf('day'), dayjs().endOf('day'));
+        // Rolling 7 day window ending now (smart duration)
+        handlePredefinedRange('last7days', dayjs().subtract(6, 'day').startOf('day'), dayjs());
         break;
       }
       case 'last30days': {
-        handlePredefinedRange('last30days', dayjs().subtract(29, 'day').startOf('day'), dayjs().endOf('day'));
+        // Rolling 30 day window ending now
+        handlePredefinedRange('last30days', dayjs().subtract(29, 'day').startOf('day'), dayjs());
         break;
       }
       case 'all': {

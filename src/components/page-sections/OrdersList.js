@@ -518,6 +518,7 @@ const OrdersList = ({
   roas = 0,
   roasWithoutCod = 0,
   comparisonData = null, // New prop for comparison data
+  activeTag = 'today',
   funnel = { 
     counts: { visited: 0, addedToCart: 0, viewedCart: 0, openedOrderForm: 0, reachedAddressTab: 0, startedPayment: 0, purchased: 0 }, 
     ratios: { c2p: 0 },
@@ -667,7 +668,16 @@ const OrdersList = ({
     const inverted = invertedMetricKeys.has(metricKey);
     const isPositive = inverted ? change < 0 : change > 0;
     const isNegative = inverted ? change > 0 : change < 0;
-    const formattedChange = Math.abs(change).toFixed(1);
+    // Convert percent delta to multiplier: +40% => 1.4x, -20% => 0.8x
+    const rawMultiplier = (100 + change) / 100; // change already in percent units
+    const safeMultiplier = rawMultiplier < 0 ? 0 : rawMultiplier; // clamp below 0
+    let multiplierDisplay;
+    if (safeMultiplier >= 10) {
+      multiplierDisplay = Math.round(safeMultiplier).toString();
+    } else {
+      multiplierDisplay = safeMultiplier.toFixed(1);
+    }
+    if (multiplierDisplay.endsWith('.0')) multiplierDisplay = multiplierDisplay.slice(0, -2);
     
     if (change === 0) return null;
     
@@ -702,7 +712,7 @@ const OrdersList = ({
             lineHeight: 1,
           }}
         >
-          {formattedChange}%
+          {multiplierDisplay}x
         </Typography>
       </Box>
     );
@@ -713,9 +723,20 @@ const OrdersList = ({
     return comparisonData?.comparison?.[metricKey]?.change;
   }, [comparisonData]);
 
+  // Helper: previous value for metric
+  const getMetricPrevious = useCallback((metricKey) => {
+    const prev = comparisonData?.comparison?.[metricKey]?.previous;
+    return typeof prev === 'number' ? prev : null;
+  }, [comparisonData]);
+
   // Helper function to get funnel count comparison change
   const getFunnelCountChange = useCallback((countKey) => {
     return funnelComparisonData?.counts?.[countKey]?.change;
+  }, [funnelComparisonData]);
+
+  const getFunnelCountPrevious = useCallback((countKey) => {
+    const prev = funnelComparisonData?.counts?.[countKey]?.previous;
+    return typeof prev === 'number' ? prev : null;
   }, [funnelComparisonData]);
 
   // Helper function to get funnel ratio comparison change
@@ -723,12 +744,26 @@ const OrdersList = ({
     return funnelComparisonData?.ratios?.[ratioKey]?.change;
   }, [funnelComparisonData]);
 
+  const getFunnelRatioPrevious = useCallback((ratioKey) => {
+    const prev = funnelComparisonData?.ratios?.[ratioKey]?.previous;
+    return typeof prev === 'number' ? prev : null;
+  }, [funnelComparisonData]);
+
   // Helper function to format funnel metric percentage change (always higher is better for funnel metrics)
   const formatFunnelPercentageChange = useCallback((change) => {
     if (!funnelComparisonData || change === undefined || change === null) return null;
 
     const isPositive = change > 0;
-    const formattedChange = Math.abs(change).toFixed(1);
+    // Convert to multiplier: +25% -> 1.3x (rounded), -40% -> 0.6x
+    const rawMultiplier = (100 + change) / 100;
+    const safeMultiplier = rawMultiplier < 0 ? 0 : rawMultiplier;
+    let multiplierDisplay;
+    if (safeMultiplier >= 10) {
+      multiplierDisplay = Math.round(safeMultiplier).toString();
+    } else {
+      multiplierDisplay = safeMultiplier.toFixed(1);
+    }
+    if (multiplierDisplay.endsWith('.0')) multiplierDisplay = multiplierDisplay.slice(0, -2);
     
     if (change === 0) return null;
     
@@ -763,7 +798,7 @@ const OrdersList = ({
             lineHeight: 1,
           }}
         >
-          {formattedChange}%
+          {multiplierDisplay}x
         </Typography>
       </Box>
     );
@@ -777,15 +812,23 @@ const OrdersList = ({
         label: 'Orders',
         value: totalOrders?.toLocaleString('en-IN') || '0',
         change: formatPercentageChange('totalOrders', getMetricChange('totalOrders')),
+        previous: (() => {
+          const prev = getMetricPrevious('totalOrders');
+          return prev != null ? prev.toLocaleString('en-IN') : null;
+        })(),
       },
     ];
 
     if (isAdmin) {
       metrics.push({
         key: 'revenue',
-        label: 'Sales',
+        label: 'Revenue',
         value: `₹${revenue?.toLocaleString('en-IN') || '0'}`,
         change: formatPercentageChange('revenue', getMetricChange('revenue')),
+        previous: (() => {
+          const prev = getMetricPrevious('revenue');
+          return prev != null ? `₹${prev.toLocaleString('en-IN')}` : null;
+        })(),
       });
     }
 
@@ -795,6 +838,10 @@ const OrdersList = ({
         label: 'AOV',
         value: `₹${aov?.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}`,
         change: formatPercentageChange('aov', getMetricChange('aov')),
+        previous: (() => {
+          const prev = getMetricPrevious('aov');
+          return prev != null ? `₹${prev.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : null;
+        })(),
       },
       {
         key: 'cac',
@@ -831,6 +878,7 @@ const OrdersList = ({
     c2pSource,
     formatPercentageChange,
     getMetricChange,
+  getMetricPrevious,
     isFirstPartyActive,
   ]);
 
@@ -1135,77 +1183,96 @@ const OrdersList = ({
     { 
       key: 'Visited', 
       value: funnel?.counts?.visited || 0,
-      change: formatFunnelPercentageChange(getFunnelCountChange('visited'))
+      change: formatFunnelPercentageChange(getFunnelCountChange('visited')),
+      previous: getFunnelCountPrevious('visited')
     },
     { 
       key: 'Added to Cart', 
       value: funnel?.counts?.addedToCart || 0,
-      change: formatFunnelPercentageChange(getFunnelCountChange('addedToCart'))
+      change: formatFunnelPercentageChange(getFunnelCountChange('addedToCart')),
+      previous: getFunnelCountPrevious('addedToCart')
     },
     { 
       key: 'Viewed Cart', 
       value: funnel?.counts?.viewedCart || 0,
-      change: formatFunnelPercentageChange(getFunnelCountChange('viewedCart'))
+      change: formatFunnelPercentageChange(getFunnelCountChange('viewedCart')),
+      previous: getFunnelCountPrevious('viewedCart')
     },
     { 
       key: 'Applied Offer', 
       value: funnel?.counts?.appliedOffers || 0,
-      change: formatFunnelPercentageChange(getFunnelCountChange('appliedOffers'))
+      change: formatFunnelPercentageChange(getFunnelCountChange('appliedOffers')),
+      previous: getFunnelCountPrevious('appliedOffers')
     },
     { 
       key: 'Opened Order Form', 
       value: funnel?.counts?.openedOrderForm || 0,
-      change: formatFunnelPercentageChange(getFunnelCountChange('openedOrderForm'))
+      change: formatFunnelPercentageChange(getFunnelCountChange('openedOrderForm')),
+      previous: getFunnelCountPrevious('openedOrderForm')
     },
     { 
       key: 'Reached Address Tab', 
       value: funnel?.counts?.reachedAddressTab || 0,
-      change: formatFunnelPercentageChange(getFunnelCountChange('reachedAddressTab'))
+      change: formatFunnelPercentageChange(getFunnelCountChange('reachedAddressTab')),
+      previous: getFunnelCountPrevious('reachedAddressTab')
     },
     { 
       key: 'Started Payment', 
       value: funnel?.counts?.startedPayment || 0,
-      change: formatFunnelPercentageChange(getFunnelCountChange('startedPayment'))
+      change: formatFunnelPercentageChange(getFunnelCountChange('startedPayment')),
+      previous: getFunnelCountPrevious('startedPayment')
     },
     { 
       key: 'Purchased', 
       value: funnel?.counts?.purchased || 0,
-      change: formatFunnelPercentageChange(getFunnelCountChange('purchased'))
+      change: formatFunnelPercentageChange(getFunnelCountChange('purchased')),
+      previous: getFunnelCountPrevious('purchased')
     },
-  ]), [funnel, formatFunnelPercentageChange, getFunnelCountChange]);
+  ]), [funnel, formatFunnelPercentageChange, getFunnelCountChange, getFunnelCountPrevious]);
 
   const conversionRatios = useMemo(() => ([
     { 
       label: 'Visit → AddToCart', 
       value: funnel?.ratios?.visit_to_cart || 0,
-      change: formatFunnelPercentageChange(getFunnelRatioChange('visit_to_cart'))
+      change: formatFunnelPercentageChange(getFunnelRatioChange('visit_to_cart')),
+      previous: getFunnelRatioPrevious('visit_to_cart')
     },
     { 
       label: 'AddToCart → View Cart', 
       value: funnel?.ratios?.cart_to_view_cart || 0,
-      change: formatFunnelPercentageChange(getFunnelRatioChange('cart_to_view_cart'))
+      change: formatFunnelPercentageChange(getFunnelRatioChange('cart_to_view_cart')),
+      previous: getFunnelRatioPrevious('cart_to_view_cart')
     },
     { 
       label: 'View Cart → Form', 
       value: funnel?.ratios?.view_cart_to_form || 0,
-      change: formatFunnelPercentageChange(getFunnelRatioChange('view_cart_to_form'))
+      change: formatFunnelPercentageChange(getFunnelRatioChange('view_cart_to_form')),
+      previous: getFunnelRatioPrevious('view_cart_to_form')
     },
     { 
       label: 'Form → Address', 
       value: funnel?.ratios?.form_to_address || 0,
-      change: formatFunnelPercentageChange(getFunnelRatioChange('form_to_address'))
+      change: formatFunnelPercentageChange(getFunnelRatioChange('form_to_address')),
+      previous: getFunnelRatioPrevious('form_to_address')
     },
     { 
       label: 'Address → Pay Now', 
       value: funnel?.ratios?.address_to_payment || 0,
-      change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_payment'))
+      change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_payment')),
+      previous: getFunnelRatioPrevious('address_to_payment')
     },
     { 
       label: 'Pay Now → Purchase', 
       value: funnel?.ratios?.payment_to_purchase || 0,
-      change: formatFunnelPercentageChange(getFunnelRatioChange('payment_to_purchase'))
+      change: formatFunnelPercentageChange(getFunnelRatioChange('payment_to_purchase')),
+      previous: getFunnelRatioPrevious('payment_to_purchase')
     },
-  ]), [funnel, formatFunnelPercentageChange, getFunnelRatioChange]);
+  ]), [funnel, formatFunnelPercentageChange, getFunnelRatioChange, getFunnelRatioPrevious]);
+
+  // Helper to fetch ratio base info
+  const getRatioBase = useCallback((key) => {
+    return funnelComparisonData?.ratioBases?.current?.[key] || null;
+  }, [funnelComparisonData]);
 
   const purchaseConversionBreakdown = useMemo(() => {
     const counts = funnel?.counts || {};
@@ -1218,52 +1285,59 @@ const OrdersList = ({
         value: ratios.visit_to_purchase ?? 0,
         baseCount: counts.visited || 0,
         purchases,
-        change: formatFunnelPercentageChange(getFunnelRatioChange('visit_to_purchase'))
+        change: formatFunnelPercentageChange(getFunnelRatioChange('visit_to_purchase')),
+        previous: getFunnelRatioPrevious('visit_to_purchase')
       },
       {
         label: 'AddToCart → Purchase',
         value: (ratios.cart_to_purchase ?? ratios.c2p) ?? 0,
         baseCount: counts.addedToCart || 0,
         purchases,
-        change: formatFunnelPercentageChange(getFunnelRatioChange('c2p'))
+        change: formatFunnelPercentageChange(getFunnelRatioChange('c2p')),
+        previous: getFunnelRatioPrevious('c2p')
       },
       {
         label: 'View Cart → Purchase',
         value: ratios.view_cart_to_purchase ?? 0,
         baseCount: counts.viewedCart || 0,
         purchases,
-        change: formatFunnelPercentageChange(getFunnelRatioChange('view_cart_to_purchase'))
+        change: formatFunnelPercentageChange(getFunnelRatioChange('view_cart_to_purchase')),
+        previous: getFunnelRatioPrevious('view_cart_to_purchase')
       },
       {
         label: 'Offer Applied → Purchase',
         value: ratios.applied_offer_to_purchase ?? 0,
         baseCount: counts.appliedOffers || 0,
         purchases,
-        change: formatFunnelPercentageChange(getFunnelRatioChange('applied_offer_to_purchase'))
+        change: formatFunnelPercentageChange(getFunnelRatioChange('applied_offer_to_purchase')),
+        previous: getFunnelRatioPrevious('applied_offer_to_purchase')
       },
       {
         label: 'Form → Purchase',
         value: ratios.form_to_purchase ?? 0,
         baseCount: counts.openedOrderForm || 0,
         purchases,
-        change: formatFunnelPercentageChange(getFunnelRatioChange('form_to_purchase'))
+        change: formatFunnelPercentageChange(getFunnelRatioChange('form_to_purchase')),
+        previous: getFunnelRatioPrevious('form_to_purchase')
       },
       {
         label: 'Address → Purchase',
         value: ratios.address_to_purchase ?? 0,
         baseCount: counts.reachedAddressTab || 0,
         purchases,
-        change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_purchase'))
+        change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_purchase')),
+        previous: getFunnelRatioPrevious('address_to_purchase')
       },
       {
         label: 'Pay Now → Purchase',
         value: ratios.payment_to_purchase ?? 0,
         baseCount: counts.startedPayment || 0,
         purchases,
-        change: formatFunnelPercentageChange(getFunnelRatioChange('payment_to_purchase'))
+        change: formatFunnelPercentageChange(getFunnelRatioChange('payment_to_purchase')),
+        previous: getFunnelRatioPrevious('payment_to_purchase')
       },
     ];
-  }, [funnel, formatFunnelPercentageChange, getFunnelRatioChange]);
+  }, [funnel, formatFunnelPercentageChange, getFunnelRatioChange, getFunnelRatioPrevious]);
 
   // Auto-expire AI insights after cache window: clears UI so button re-appears
   useEffect(() => {
@@ -1508,6 +1582,23 @@ const OrdersList = ({
                           {metric.change}
                         </Box>
                       )}
+                      {isEveningWindow && compareMode && metric.previous && (
+                        <Box
+                          sx={{
+                            fontSize: '0.55rem',
+                            lineHeight: 1,
+                            px: 0.5,
+                            py: 0.25,
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(255,255,255,0.05)',
+                            color: 'rgba(235,235,235,0.65)',
+                            fontWeight: 500,
+                            letterSpacing: '0.05em'
+                          }}
+                        >
+                          Prev {metric.previous}
+                        </Box>
+                      )}
                     </Box>
                   </SummaryMetricChip>
                 );
@@ -1522,6 +1613,83 @@ const OrdersList = ({
         <StatsAccordionDetails>
           {!loading ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Comparison Period Descriptor */}
+              {comparisonData?.currentPeriod && comparisonData?.previousPeriod && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 0.75,
+                    p: 1.5,
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    position: 'relative'
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontSize: '0.6rem',
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      color: 'rgba(235,235,235,0.55)',
+                      fontWeight: 600
+                    }}
+                  >
+                    Comparison Window
+                  </Typography>
+                  {(() => {
+                    const curStart = dayjs(comparisonData.currentPeriod.start);
+                    const curEnd = dayjs(comparisonData.currentPeriod.end);
+                    const prevStart = dayjs(comparisonData.previousPeriod.start);
+                    const prevEnd = dayjs(comparisonData.previousPeriod.end);
+                    const sameDay = curStart.isSame(curEnd, 'day');
+                    const durationMinutes = curEnd.diff(curStart, 'minute');
+                    const humanDuration = (() => {
+                      if (durationMinutes < 60) return `${durationMinutes} min`;
+                      const hours = Math.floor(durationMinutes / 60);
+                      const mins = durationMinutes % 60;
+                      if (hours < 24) return `${hours}h${mins ? ` ${mins}m` : ''}`;
+                      const days = curEnd.diff(curStart, 'day') + 1; // inclusive feel
+                      return `${days} day${days > 1 ? 's' : ''}`;
+                    })();
+                    const formatTime = t => t.format('hh:mm A');
+                    const formatDate = t => t.format('MMM D');
+                    const formatDateFull = t => t.format('MMM D, YYYY');
+                    const isTodayTag = (comparisonData?.activeTag || activeTag) === 'today' || (sameDay && curStart.isSame(dayjs(), 'day'));
+                    // Build primary line
+                    let primary;
+                    if (isTodayTag) {
+                      primary = `Today ${formatTime(curStart)} – ${formatTime(curEnd)} (${humanDuration})`;
+                    } else if (sameDay) {
+                      primary = `${formatDateFull(curStart)} • ${formatTime(curStart)} – ${formatTime(curEnd)} (${humanDuration})`;
+                    } else {
+                      primary = `${formatDate(curStart)} ${formatTime(curStart)} → ${formatDate(curEnd)} ${formatTime(curEnd)} (${humanDuration})`;
+                    }
+                    // Previous descriptor
+                    const prevDescriptor = isTodayTag
+                      ? `Comparing with yesterday up to ${formatTime(curEnd)}`
+                      : `Previous period: ${formatDate(prevStart)} ${formatTime(prevStart)} → ${formatDate(prevEnd)} ${formatTime(prevEnd)}`;
+                    return (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: '0.75rem', color: 'rgba(250,250,250,0.88)', fontWeight: 600 }}
+                        >
+                          {primary}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ fontSize: '0.62rem', color: 'rgba(235,235,235,0.58)', letterSpacing: '0.05em' }}
+                        >
+                          {prevDescriptor}
+                        </Typography>
+                      </Box>
+                    );
+                  })()}
+                </Box>
+              )}
               {isFirstPartyActive ? (
                 <InsightsWrapper>
                   <MinimalSection>
@@ -1593,6 +1761,11 @@ const OrdersList = ({
                               <Typography variant="body2" sx={{ color: 'rgba(220,220,220,0.75)' }}>
                                 {tip.desc}
                               </Typography>
+                              {typeof step.previous === 'number' && (
+                                <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.6)', mt: 1, display: 'block' }}>
+                                  Previous: {step.previous.toLocaleString('en-IN')}
+                                </Typography>
+                              )}
                             </>
                           );
                           return (
@@ -1601,11 +1774,18 @@ const OrdersList = ({
                                 <Typography variant="caption" sx={{ color: 'rgba(235,235,235,0.62)', letterSpacing: 0.18 }}>
                                   {step.key}
                                 </Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.86)', fontWeight: 600 }}>
-                                    {step.value?.toLocaleString('en-IN')}
-                                  </Typography>
-                                  {step.change}
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.9)', fontWeight: 600 }}>
+                                      {step.value?.toLocaleString('en-IN')}
+                                    </Typography>
+                                    {step.change}
+                                  </Box>
+                                  {typeof step.previous === 'number' && (
+                                    <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
+                                      Prev {step.previous.toLocaleString('en-IN')}
+                                    </Typography>
+                                  )}
                                 </Box>
                               </FunnelStep>
                             </DarkTooltip>
@@ -1632,9 +1812,19 @@ const OrdersList = ({
                       </ConversionGrid>
                     ) : (
                       <ConversionGrid>
-                        {conversionRatios.map(({ label, value, change }) => {
+                        {conversionRatios.map(({ label, value, change, previous }) => {
                           const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
                           const tip = CONVERSION_RATIO_TOOLTIPS[label] || { title: label, desc: 'Conversion rate between the two funnel steps.', formula: null };
+                          // Map label back to ratio key
+                          const ratioKeyMap = {
+                            'Visit → AddToCart': 'visit_to_cart',
+                            'AddToCart → View Cart': 'cart_to_view_cart',
+                            'View Cart → Form': 'view_cart_to_form',
+                            'Form → Address': 'form_to_address',
+                            'Address → Pay Now': 'address_to_payment',
+                            'Pay Now → Purchase': 'payment_to_purchase',
+                          };
+                          const baseInfo = getRatioBase(ratioKeyMap[label]);
                           const tooltip = (
                             <>
                               <Typography variant="subtitle2" sx={{ color: '#f4f4f4', mb: 1, fontWeight: 600 }}>
@@ -1648,6 +1838,16 @@ const OrdersList = ({
                                   Formula: {tip.formula}
                                 </Typography>
                               ) : null}
+                              {baseInfo && (
+                                <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', mt: 1, display: 'block', fontFamily: 'monospace' }}>
+                                  Base: {baseInfo.numer}/{baseInfo.denom} ({baseInfo.rawPercent.toFixed(2)}% raw{baseInfo.adjusted ? ' • adjusted' : ''})
+                                </Typography>
+                              )}
+                              {typeof previous === 'number' && (
+                                <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.6)', mt: 1, display: 'block' }}>
+                                  Previous: {previous.toFixed(1)}%
+                                </Typography>
+                              )}
                             </>
                           );
                           return (
@@ -1656,9 +1856,16 @@ const OrdersList = ({
                                 <ConversionHeader>
                                   <ConversionLabel>{label}</ConversionLabel>
                                 </ConversionHeader>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
-                                  {change}
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                                    {change}
+                                  </Box>
+                                  {typeof previous === 'number' && (
+                                    <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
+                                      Prev {previous.toFixed(1)}%
+                                    </Typography>
+                                  )}
                                 </Box>
                                 <ConversionProgress percent={safeValue} />
                               </ConversionTile>
@@ -1686,23 +1893,73 @@ const OrdersList = ({
                       </ConversionGrid>
                     ) : (
                       <ConversionGrid>
-                        {purchaseConversionBreakdown.map(({ label, value, baseCount, purchases, change }) => {
+                        {purchaseConversionBreakdown.map(({ label, value, baseCount, purchases, change, previous }) => {
                           const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
                           const base = Number.isFinite(Number(baseCount)) ? Number(baseCount) : 0;
                           const purchaseCount = Number.isFinite(Number(purchases)) ? Number(purchases) : 0;
                           const hasBase = base > 0;
+                          const pcsTooltip = (
+                            <>
+                              <Typography variant="subtitle2" sx={{ color: '#f4f4f4', mb: 1, fontWeight: 600 }}>
+                                {label}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: 'rgba(220,220,220,0.75)' }}>
+                                Percentage of {label.split('→')[0].trim()} stage sessions that resulted in a purchase.
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.7)', mt: 1, display: 'block', fontFamily: 'monospace' }}>
+                                Formula: (Purchases ÷ {label.split('→')[0].trim()} Count) × 100%
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', mt: 0.75, display: 'block' }}>
+                                Current: {safeValue.toFixed(1)}% ({purchaseCount.toLocaleString('en-IN')} / {base.toLocaleString('en-IN') || 0})
+                              </Typography>
+                              {/* Show underlying base if available */}
+                              {(() => {
+                                const keyMap = {
+                                  'Visit → Purchase': 'visit_to_purchase',
+                                  'AddToCart → Purchase': 'cart_to_purchase',
+                                  'View Cart → Purchase': 'view_cart_to_purchase',
+                                  'Offer Applied → Purchase': 'applied_offer_to_purchase',
+                                  'Form → Purchase': 'form_to_purchase',
+                                  'Address → Purchase': 'address_to_purchase',
+                                  'Pay Now → Purchase': 'payment_to_purchase',
+                                };
+                                const k = keyMap[label];
+                                const baseInfo = k ? funnelComparisonData?.ratioBases?.current?.[k] : null;
+                                if (!baseInfo) return null;
+                                return (
+                                  <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.55)', mt: 0.75, display: 'block', fontFamily: 'monospace' }}>
+                                    Raw Base: {baseInfo.numer}/{baseInfo.denom} ({baseInfo.rawPercent.toFixed(2)}%{baseInfo.adjusted ? ' adj' : ''})
+                                  </Typography>
+                                );
+                              })()}
+                              {typeof previous === 'number' && (
+                                <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.6)', mt: 0.75, display: 'block' }}>
+                                  Previous: {previous.toFixed(1)}%
+                                </Typography>
+                              )}
+                            </>
+                          );
 
                           return (
-                            <ConversionTile key={label}>
-                              <ConversionHeader>
-                                <ConversionLabel>{label}</ConversionLabel>
-                              </ConversionHeader>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
-                                {change}
-                              </Box>
-                              <ConversionProgress percent={safeValue} />
-                            </ConversionTile>
+                            <DarkTooltip key={label} title={pcsTooltip} arrow placement="bottom">
+                              <ConversionTile>
+                                <ConversionHeader>
+                                  <ConversionLabel>{label}</ConversionLabel>
+                                </ConversionHeader>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
+                                    {change}
+                                  </Box>
+                                  {typeof previous === 'number' && (
+                                    <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
+                                      Prev {previous.toFixed(1)}%
+                                    </Typography>
+                                  )}
+                                </Box>
+                                <ConversionProgress percent={safeValue} />
+                              </ConversionTile>
+                            </DarkTooltip>
                           );
                         })}
                       </ConversionGrid>

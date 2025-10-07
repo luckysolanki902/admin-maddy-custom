@@ -34,7 +34,8 @@ const buildDefaultCounts = () => {
 };
 
 const buildDefaultRatios = (counts) => {
-  const pct = (num, den) => (den > 0 ? Number(((num / den) * 100).toFixed(2)) : 0);
+  // Clamp ratios at 100% and gracefully handle sparse denominators
+  const pct = (num, den) => (den > 0 ? Number((Math.min(100, (num / den) * 100)).toFixed(2)) : 0);
 
   const visitToCart = pct(counts.addedToCart, counts.visited);
   const cartToViewCart = pct(counts.viewedCart, counts.addedToCart);
@@ -385,12 +386,100 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
     console.warn('[funnelMetrics] purchase alignment skipped due to error:', alignErr?.message);
   }
 
-  const ratios = buildDefaultRatios(counts);
+  // --- Normalization Pass (soft) ------------------------------------------
+  // Keep original counts for raw ratio denominators (especially payment_to_purchase)
+  const originalCounts = { ...counts };
+  const soft = { ...counts };
+  const chain = [
+    'visited',
+    'addedToCart',
+    'viewedCart',
+    'openedOrderForm',
+    'reachedAddressTab',
+    'startedPayment',
+    'purchased'
+  ];
+  for (let i = chain.length - 2; i >= 0; i--) {
+    const cur = chain[i];
+    const next = chain[i + 1];
+    if (soft[cur] < soft[next]) soft[cur] = soft[next];
+  }
+  if (soft.appliedOffers > soft.addedToCart) soft.appliedOffers = soft.addedToCart;
+
+  // Ratios based on original raw funnel movement except those that conceptually require monotonic upstream counts (cart_to_view_cart etc).
+  const ratioInput = {
+    ...originalCounts,
+    // For stage-to-stage ratios ensure denominator is at least numerator to avoid >100 UI noise
+    visited: soft.visited,
+    addedToCart: soft.addedToCart,
+    viewedCart: soft.viewedCart,
+    openedOrderForm: soft.openedOrderForm,
+    reachedAddressTab: soft.reachedAddressTab,
+    startedPayment: originalCounts.startedPayment, // keep genuine for payment_to_purchase
+    purchased: originalCounts.purchased,
+    appliedOffers: soft.appliedOffers,
+  };
+
+  const ratios = buildDefaultRatios(ratioInput);
+
+  // --- Additional targeted adjustment for payment_to_purchase -------------
+  // Compute purchases that actually followed a payment_initiated event (session-level correlation)
+  let purchaseAfterPaymentCount = null;
+  try {
+    const paymentSessionIds = await FunnelEvent.distinct('sessionId', { step: 'payment_initiated', timestamp: { $gte: start, $lte: end } });
+    if (paymentSessionIds.length) {
+      purchaseAfterPaymentCount = await FunnelEvent.countDocuments({ step: 'purchase', sessionId: { $in: paymentSessionIds }, timestamp: { $gte: start, $lte: end } });
+    } else {
+      purchaseAfterPaymentCount = 0;
+    }
+  } catch (e) {
+    purchaseAfterPaymentCount = null; // preserve existing ratio if failure
+  }
+
+  const ratioBases = {};
+  const addBase = (key, numer, denom, raw) => {
+    ratioBases[key] = { numer, denom, rawPercent: raw, adjusted: false };
+  };
+
+  // Build bases for core ratios using originalCounts (pre-soft normalization where meaningful)
+  const safePctRaw = (n, d) => (d > 0 ? (n / d) * 100 : 0);
+  addBase('visit_to_cart', originalCounts.addedToCart, originalCounts.visited, safePctRaw(originalCounts.addedToCart, originalCounts.visited));
+  addBase('cart_to_view_cart', originalCounts.viewedCart, originalCounts.addedToCart, safePctRaw(originalCounts.viewedCart, originalCounts.addedToCart));
+  addBase('view_cart_to_form', originalCounts.openedOrderForm, originalCounts.viewedCart, safePctRaw(originalCounts.openedOrderForm, originalCounts.viewedCart));
+  addBase('cart_to_form', originalCounts.openedOrderForm, originalCounts.addedToCart, safePctRaw(originalCounts.openedOrderForm, originalCounts.addedToCart));
+  addBase('visit_to_form', originalCounts.openedOrderForm, originalCounts.visited, safePctRaw(originalCounts.openedOrderForm, originalCounts.visited));
+  addBase('form_to_address', originalCounts.reachedAddressTab, originalCounts.openedOrderForm, safePctRaw(originalCounts.reachedAddressTab, originalCounts.openedOrderForm));
+  addBase('address_to_payment', originalCounts.startedPayment, originalCounts.reachedAddressTab, safePctRaw(originalCounts.startedPayment, originalCounts.reachedAddressTab));
+  // Payment to purchase uses adjusted numerator if available
+  if (purchaseAfterPaymentCount !== null) {
+    const rawBeforeClamp = safePctRaw(originalCounts.purchased, originalCounts.startedPayment);
+    const adjustedRaw = safePctRaw(purchaseAfterPaymentCount, originalCounts.startedPayment);
+    ratios.payment_to_purchase = Number((Math.min(100, adjustedRaw)).toFixed(2));
+    ratioBases['payment_to_purchase'] = {
+      numer: purchaseAfterPaymentCount,
+      denom: originalCounts.startedPayment,
+      rawPercent: adjustedRaw,
+      adjusted: originalCounts.purchased !== purchaseAfterPaymentCount || originalCounts.purchased > originalCounts.startedPayment,
+      originalNumer: originalCounts.purchased,
+      originalRawPercent: rawBeforeClamp
+    };
+  } else {
+    addBase('payment_to_purchase', originalCounts.purchased, originalCounts.startedPayment, safePctRaw(originalCounts.purchased, originalCounts.startedPayment));
+  }
+  addBase('visit_to_purchase', originalCounts.purchased, originalCounts.visited, safePctRaw(originalCounts.purchased, originalCounts.visited));
+  addBase('cart_to_purchase', originalCounts.purchased, originalCounts.addedToCart, safePctRaw(originalCounts.purchased, originalCounts.addedToCart));
+  addBase('view_cart_to_purchase', originalCounts.purchased, originalCounts.viewedCart, safePctRaw(originalCounts.purchased, originalCounts.viewedCart));
+  addBase('applied_offer_to_purchase', originalCounts.purchased, originalCounts.appliedOffers, safePctRaw(originalCounts.purchased, originalCounts.appliedOffers));
+  addBase('form_to_purchase', originalCounts.purchased, originalCounts.openedOrderForm, safePctRaw(originalCounts.purchased, originalCounts.openedOrderForm));
+  addBase('address_to_purchase', originalCounts.purchased, originalCounts.reachedAddressTab, safePctRaw(originalCounts.purchased, originalCounts.reachedAddressTab));
+  addBase('checkout_to_purchase', originalCounts.purchased, (originalCounts.initiatedCheckout || originalCounts.startedPayment || 0), safePctRaw(originalCounts.purchased, (originalCounts.initiatedCheckout || originalCounts.startedPayment || 0)));
+  addBase('c2p', originalCounts.purchased, originalCounts.addedToCart, safePctRaw(originalCounts.purchased, originalCounts.addedToCart));
 
   return {
     counts,
     ratios,
     dropoffs,
+  ratioBases,
     window: {
       start: start.toISOString(),
       end: end.toISOString(),

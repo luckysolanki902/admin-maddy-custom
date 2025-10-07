@@ -20,11 +20,22 @@ export async function GET(req) {
 		}
 
 		const currentStart = dayjs(startDate);
-		const currentEnd = dayjs(endDate);
+		let currentEnd = dayjs(endDate);
+
+		// Smart clamp: if activeTag is 'today' and endDate was sent as endOf('day'),
+		// replace with "now" so we only compare elapsed portion vs same elapsed window yesterday.
+		if (activeTag === 'today') {
+			const now = dayjs();
+			// If provided end is after now (e.g. endOf day), clamp
+			if (currentEnd.isAfter(now)) {
+				currentEnd = now;
+			}
+		}
 
 		let previousStart, previousEnd;
 		switch (activeTag) {
 			case 'today': {
+				// duration is elapsed milliseconds since start of today up to *clamped* currentEnd
 				const duration = currentEnd.diff(currentStart);
 				previousStart = currentStart.subtract(1, 'day');
 				previousEnd = previousStart.add(duration, 'milliseconds');

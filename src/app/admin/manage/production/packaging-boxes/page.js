@@ -15,7 +15,9 @@ import {
   DialogActions,
   Button,
   TextField,
+  MenuItem,
   Table,
+  TableHead,
   TableBody,
   TableRow,
   TableCell,
@@ -37,12 +39,20 @@ import InventoryIcon from '@mui/icons-material/Inventory2';
 export default function PackagingBoxesPage() {
   const [boxes, setBoxes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [variants, setVariants] = useState([]);
+  const [variantsLoading, setVariantsLoading] = useState(true);
   const [snackbar, setSnackbar] = useState(null);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(null); // original doc
   const [draft, setDraft] = useState(null); // mutable copy
   const [confirmMode, setConfirmMode] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingVariantId, setEditingVariantId] = useState(null);
+  const [variantDraft, setVariantDraft] = useState(null); // { boxId, productWeight }
+  const [savingVariantId, setSavingVariantId] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmVariant, setConfirmVariant] = useState(null);
+  const [confirmData, setConfirmData] = useState(null); // { prevBox, nextBox, prevWeight, nextWeight, changedBox, changedWeight }
 
   useEffect(() => {
     let active = true;
@@ -51,12 +61,42 @@ export default function PackagingBoxesPage() {
         const res = await fetch('/api/packaging-boxes');
         const json = await res.json();
         if (active) {
-          if (json.success) setBoxes(json.data);
-          else setSnackbar({ severity: 'error', message: json.error || 'Failed to load boxes' });
+          // support multiple response shapes: { success, data } or { boxes }
+          if (json.success && json.data) {
+            setBoxes(json.data);
+          } else if (json.boxes) {
+            setBoxes(json.boxes);
+          } else {
+            setSnackbar({ severity: 'error', message: json.error || 'Failed to load boxes' });
+          }
         }
       } catch (e) {
         if (active) setSnackbar({ severity: 'error', message: 'Network error loading boxes' });
       } finally { if (active) setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  // Load variants for mapping section (only available variants whose category is available)
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/manage/variants-with-packaging');
+        const json = await res.json();
+        if (!active) return;
+        if (res.ok && json?.variants) {
+          // defensive client-side filter: ensure variant.available && variant.specificCategory.available
+          const filtered = json.variants.filter(v => v.available && v.specificCategory && v.specificCategory.available !== false);
+          setVariants(filtered);
+        } else {
+          setSnackbar({ severity: 'error', message: json?.message || 'Failed to load variants' });
+        }
+      } catch (e) {
+        if (active) setSnackbar({ severity: 'error', message: 'Network error loading variants' });
+      } finally {
+        if (active) setVariantsLoading(false);
+      }
     })();
     return () => { active = false; };
   }, []);
@@ -134,6 +174,87 @@ export default function PackagingBoxesPage() {
     setConfirmMode(false);
   };
 
+  // Helpers for Variant ↔ Box Mapping
+  const getVariantBoxId = (variant) => {
+    if (!variant || !variant.packagingDetails) return '';
+    const bid = variant.packagingDetails.boxId;
+    if (!bid) return '';
+    // If populated, it will be an object with _id
+    if (typeof bid === 'object' && bid._id) return String(bid._id);
+    return String(bid);
+  };
+
+  const getVariantBoxLabel = (variant) => {
+    if (!variant || !variant.packagingDetails) return 'Unassigned';
+    const bid = variant.packagingDetails.boxId;
+    if (!bid) return 'Unassigned';
+    if (typeof bid === 'object' && bid.name) return bid.name;
+    // fallback to lookup in boxes
+    const found = boxes.find(b => String(b._id) === String(bid));
+    return found ? found.name : 'Unassigned';
+  };
+  const startEditVariant = (variant) => {
+    const currentBoxId = getVariantBoxId(variant) || '';
+    const currentWeight = variant?.packagingDetails?.productWeight ?? '';
+    setEditingVariantId(variant._id);
+    setVariantDraft({ boxId: currentBoxId ? String(currentBoxId) : '', productWeight: currentWeight === 0 ? 0 : currentWeight });
+  };
+
+  const cancelEditVariant = () => {
+    setEditingVariantId(null);
+    setVariantDraft(null);
+  };
+
+  const saveVariantPackaging = async (variant) => {
+    if (!variant || !variantDraft) return;
+    const variantId = variant._id;
+    setSavingVariantId(variantId);
+    const payload = {
+      packagingDetails: {
+        boxId: variantDraft.boxId || null,
+        productWeight: variantDraft.productWeight === '' ? null : Number(variantDraft.productWeight),
+      }
+    };
+    try {
+      const res = await fetch(`/api/admin/manage/variants-with-packaging/${variantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json?.variant) {
+        // update local state
+        setVariants(prev => prev.map(v => v._id === variantId ? json.variant : v));
+        setSnackbar({ severity: 'success', message: 'Mapping updated' });
+        cancelEditVariant();
+        setConfirmOpen(false);
+        setConfirmVariant(null);
+        setConfirmData(null);
+      } else {
+        setSnackbar({ severity: 'error', message: json?.message || 'Failed to update mapping' });
+      }
+    } catch (e) {
+      setSnackbar({ severity: 'error', message: 'Network error updating mapping' });
+    } finally { setSavingVariantId(null); }
+  };
+
+  // Build and open confirmation dialog
+  const openConfirmDialog = (variant) => {
+    if (!variant || !variantDraft) return;
+    const prevBoxObj = variant?.packagingDetails?.boxId && typeof variant.packagingDetails.boxId === 'object' ? variant.packagingDetails.boxId : null;
+    const prevBoxId = prevBoxObj ? String(prevBoxObj._id) : (variant?.packagingDetails?.boxId ? String(variant.packagingDetails.boxId) : '');
+    const nextBoxId = variantDraft?.boxId ? String(variantDraft.boxId) : '';
+    const prevBox = prevBoxObj || boxes.find(b => String(b._id) === prevBoxId) || null;
+    const nextBox = boxes.find(b => String(b._id) === nextBoxId) || null;
+    const prevWeight = variant?.packagingDetails?.productWeight ?? '';
+    const nextWeight = variantDraft?.productWeight ?? '';
+    const changedBox = prevBoxId !== nextBoxId;
+    const changedWeight = prevWeight !== nextWeight;
+    setConfirmVariant(variant);
+    setConfirmData({ prevBox, nextBox, prevWeight, nextWeight, changedBox, changedWeight });
+    setConfirmOpen(true);
+  };
+
   return (
     <Box p={3}>
       <Typography variant="h4" fontWeight={600} gutterBottom>Packaging Boxes</Typography>
@@ -176,6 +297,172 @@ export default function PackagingBoxesPage() {
           })}
         </Grid>
       )}
+
+      {/* Variant ↔ Box Mapping Section */}
+      <Box mt={4}>
+        <Divider sx={{ mb: 2 }} />
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} mb={1}>
+          <Typography variant="h5" fontWeight={600}>Variant ↔ Box Mapping</Typography>
+          <Typography variant="body2" color="text.secondary">Assign packaging boxes and set product weight (kg) per variant</Typography>
+        </Stack>
+        {variantsLoading ? (
+          <Box display="flex" alignItems="center" justifyContent="center" minHeight={160}><CircularProgress /></Box>
+        ) : (
+          <Card elevation={0} sx={{ p: 1.5, borderRadius: 2, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Variant</TableCell>
+                  <TableCell>Packaging Box</TableCell>
+                  <TableCell>Product Weight without box weight</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {variants.map(variant => {
+                  const currentBoxId = getVariantBoxId(variant) || '';
+                  const currentWeight = variant?.packagingDetails?.productWeight ?? '';
+                  const boxLabel = getVariantBoxLabel(variant);
+                  const isEditing = editingVariantId === variant._id;
+                  return (
+                    <TableRow key={variant._id} sx={{ '&:hover': { background: 'rgba(255,255,255,0.03)' } }}>
+                      <TableCell sx={{ width: { xs: '100%', md: '35%' } }}>
+                        <Stack spacing={0.5}>
+                          <Typography variant="subtitle2" fontWeight={600}>{variant.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">{typeof variant.specificCategory === 'object' ? variant.specificCategory.name : ''}</Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell sx={{ width: { xs: '100%', md: '35%' } }}>
+                        {isEditing ? (
+                          <TextField
+                            select
+                            fullWidth
+                            size="small"
+                            label="Packaging Box"
+                            value={variantDraft?.boxId ?? ''}
+                            onChange={(e) => setVariantDraft(prev => ({ ...(prev||{}), boxId: e.target.value }))}
+                          >
+                            <MenuItem value=""><em>Unassigned</em></MenuItem>
+                            {boxes.map(b => (
+                              <MenuItem key={b._id} value={String(b._id)}>{b.name}</MenuItem>
+                            ))}
+                          </TextField>
+                        ) : (
+                          <Chip label={boxLabel} size="small" variant="outlined" />
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ width: { xs: '100%', md: '20%' } }}>
+                        {isEditing ? (
+                          <TextField
+                            type="number"
+                            size="small"
+                            label="Product Weight"
+                            value={variantDraft?.productWeight ?? ''}
+                            onChange={(e) => setVariantDraft(prev => ({ ...(prev||{}), productWeight: e.target.value === '' ? '' : Number(e.target.value) }))}
+                            InputProps={{ endAdornment: <Typography variant="caption" ml={0.5}>kg</Typography> }}
+                            sx={{ width: 160, '& input[type=number]': { MozAppearance: 'textfield' }, '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 }, '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 } }}
+                          />
+                        ) : (
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="body2">{currentWeight !== '' && currentWeight !== null ? currentWeight : '—'}</Typography>
+                            <Typography variant="caption" color="text.secondary">kg</Typography>
+                          </Stack>
+                        )}
+                      </TableCell>
+                      <TableCell align="right" sx={{ width: { xs: '100%', md: '10%' } }}>
+                        {isEditing ? (
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button size="small" variant="contained" startIcon={savingVariantId === variant._id ? <CircularProgress size={16} /> : <SaveIcon />} onClick={() => openConfirmDialog(variant)} disabled={!variantDraft || savingVariantId === variant._id}>
+                              Save
+                            </Button>
+                            <Button size="small" color="inherit" startIcon={<CloseIcon />} onClick={cancelEditVariant}>
+                              Cancel
+                            </Button>
+                          </Stack>
+                        ) : (
+                          <Button size="small" variant="outlined" onClick={() => startEditVariant(variant)}>Edit</Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
+      </Box>
+
+      {/* Confirm Save Dialog for Variant Mapping */}
+      <Dialog open={confirmOpen} onClose={() => (savingVariantId ? null : setConfirmOpen(false))} fullWidth maxWidth="sm">
+        <DialogTitle>Confirm Packaging Update</DialogTitle>
+        <DialogContent dividers>
+          {confirmVariant && confirmData && (
+            <Box>
+              <Typography variant="body2" gutterBottom>
+                Are you sure you want to update packaging for <strong>{confirmVariant.name}</strong>?
+              </Typography>
+              <Table size="small" sx={{ mt: 1 }}>
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={{ width: '35%', fontWeight: 600 }}>Box</TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                        <Chip size="small" label={confirmData.prevBox ? confirmData.prevBox.name : 'Unassigned'} variant="outlined" />
+                        <Typography variant="caption" color="text.secondary">→</Typography>
+                        <Chip size="small" color={confirmData.changedBox ? 'warning' : 'default'} label={confirmData.nextBox ? confirmData.nextBox.name : 'Unassigned'} />
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Box Dimensions</TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                        <Typography variant="body2">
+                          {confirmData.prevBox ? `${confirmData.prevBox.dimensions.length}×${confirmData.prevBox.dimensions.breadth}×${confirmData.prevBox.dimensions.height} cm` : '—'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">→</Typography>
+                        <Typography variant="body2" color={confirmData.changedBox ? 'warning.main' : 'text.primary'}>
+                          {confirmData.nextBox ? `${confirmData.nextBox.dimensions.length}×${confirmData.nextBox.dimensions.breadth}×${confirmData.nextBox.dimensions.height} cm` : '—'}
+                        </Typography>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Box Weight</TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                        <Typography variant="body2">{confirmData.prevBox ? confirmData.prevBox.weight : '—'}</Typography>
+                        <Typography variant="caption" color="text.secondary">kg →</Typography>
+                        <Typography variant="body2" color={confirmData.changedBox ? 'warning.main' : 'text.primary'}>{confirmData.nextBox ? confirmData.nextBox.weight : '—'}</Typography>
+                        <Typography variant="caption" color="text.secondary">kg</Typography>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Product Weight (without box)</TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                        <Typography variant="body2">{confirmData.prevWeight !== '' && confirmData.prevWeight !== null ? confirmData.prevWeight : '—'}</Typography>
+                        <Typography variant="caption" color="text.secondary">kg →</Typography>
+                        <Typography variant="body2" color={confirmData.changedWeight ? 'warning.main' : 'text.primary'}>
+                          {confirmData.nextWeight !== '' && confirmData.nextWeight !== null ? confirmData.nextWeight : '—'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">kg</Typography>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)} disabled={Boolean(savingVariantId)}>Cancel</Button>
+          <Button variant="contained" onClick={() => saveVariantPackaging(confirmVariant)} disabled={Boolean(savingVariantId)} startIcon={savingVariantId ? <CircularProgress size={16} /> : <SaveIcon />}>
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={open} onClose={saving ? undefined : closeDialog} fullWidth maxWidth="sm" TransitionComponent={Fade} keepMounted>
         <DialogTitle sx={{ pr: 6 }}>

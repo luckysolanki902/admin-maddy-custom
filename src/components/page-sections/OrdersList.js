@@ -822,7 +822,7 @@ const OrdersList = ({
     if (isAdmin) {
       metrics.push({
         key: 'revenue',
-        label: 'Revenue',
+        label: 'Sales',
         value: `₹${revenue?.toLocaleString('en-IN') || '0'}`,
         change: formatPercentageChange('revenue', getMetricChange('revenue')),
         previous: (() => {

@@ -4,6 +4,7 @@ import NotSignedIn from "@/components/full-page-comps/NotSignedIn";
 import Header from "@/components/page-sections/home/Header";
 import StatusContainer from "@/components/page-sections/home/StatusContainer";
 import DepartmentLinks from "@/components/page-sections/home/DepartmentLinks";
+import SiteUpdatesSection from "@/components/page-sections/home/SiteUpdatesSection";
 import styles from "./page.module.css";
 // import Target from '@/components/page-sections/home/Target';
 // import RecentCommits from "@/components/page-sections/home/RecentCommits";
@@ -37,13 +38,14 @@ export default function Home() {
           <StatusContainer />
           <DepartmentLinks />
           {/* <RecentCommits repoName={"maddycustom-production"} repoOwner={"Maddy-Custom"} /> */}
+          <SiteUpdatesSection />
           <Button
             sx={{ my: 2 }}
             onClick={() => {
               router.push("/my-account");
             }}
             variant="contained"
-            color="primary"
+            color="white"
           >
             My Account
           </Button>

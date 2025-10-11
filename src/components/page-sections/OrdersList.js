@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import {
   Box,
@@ -25,6 +26,7 @@ import CachedIcon from '@mui/icons-material/Cached';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CustomerCard from '../cards/CustomerCard';
+import { fetchSiteUpdates } from '@/redux/slices/siteUpdatesSlice';
 
 // Minimal styled components for compact design
 const StatsAccordion = styled(Accordion)({
@@ -340,6 +342,63 @@ const LoadingText = styled(Typography)({
   },
 });
 
+const LatestUpdateCard = styled(Box)({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '10px',
+  padding: '14px 16px',
+  borderRadius: '12px',
+  background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015))',
+  border: '1px solid rgba(255,255,255,0.06)',
+});
+
+const LatestUpdateHeader = styled(Box)({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '12px',
+  flexWrap: 'wrap',
+});
+
+const LatestUpdateLabel = styled(Box)(({ theme }) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '4px 12px',
+  borderRadius: '12px',
+  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  color: '#10b981',
+  fontSize: '0.65rem',
+  letterSpacing: '0.08em',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  border: '1px solid rgba(16, 185, 129, 0.2)',
+}));
+
+const LatestUpdateTimestamp = styled(Typography)({
+  color: 'rgba(235,235,235,0.6)',
+  fontSize: '0.68rem',
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+});
+
+const LatestUpdateTitle = styled(Typography)({
+  color: 'rgba(255,255,255,0.9)',
+  fontSize: '0.95rem',
+  fontWeight: 600,
+  letterSpacing: '0.01em',
+});
+
+const LatestUpdateDescription = styled(Typography)({
+  color: 'rgba(235,235,235,0.75)',
+  lineHeight: 1.6,
+  fontSize: '0.85rem',
+  display: '-webkit-box',
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+});
+
 const CATEGORY_THEMES = {
   basic: { accent: '#9e9e9e', glow: 'rgba(158,158,158,0.2)', soft: 'rgba(120,120,120,0.08)', label: 'Snapshot' },
   admin: { accent: '#bdbdbd', glow: 'rgba(189,189,189,0.22)', soft: 'rgba(140,140,140,0.09)', label: 'Financial Pulse' },
@@ -539,6 +598,28 @@ const OrdersList = ({
   const [aiError, setAiError] = useState(null);
   const [aiCacheInfo, setAiCacheInfo] = useState(null);
   const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes, must mirror server TTL
+  const dispatch = useDispatch();
+
+  const { items: siteUpdateItems, status: siteUpdateStatus } = useSelector((state) => state.siteUpdates);
+
+  useEffect(() => {
+    if (siteUpdateStatus === 'idle') {
+      dispatch(fetchSiteUpdates());
+    }
+  }, [dispatch, siteUpdateStatus]);
+
+  const latestSiteUpdate = useMemo(() => {
+    if (!siteUpdateItems || siteUpdateItems.length === 0) return null;
+    return [...siteUpdateItems].sort((a, b) => new Date(b.effectiveAt) - new Date(a.effectiveAt))[0];
+  }, [siteUpdateItems]);
+
+  const formattedLatestUpdate = useMemo(() => {
+    if (!latestSiteUpdate) return null;
+    return {
+      ...latestSiteUpdate,
+      formattedTimestamp: dayjs(latestSiteUpdate.effectiveAt).format('DD MMM YYYY · HH:mm'),
+    };
+  }, [latestSiteUpdate]);
   
   // Markdown formatter for AI responses (handles ** for bold, _ for italic)
   const formatMarkdown = (text) => {
@@ -616,45 +697,42 @@ const OrdersList = ({
   }, []);
 
   const derivedC2PRatio = useMemo(() => {
-    const funnelSource = funnel?.meta?.source;
-    const firstPartyC2P = parseRatioValue(funnel?.ratios?.c2p);
+    const formToPurchase = parseRatioValue(funnel?.ratios?.form_to_purchase);
     const checkoutFallback = parseRatioValue(funnel?.ratios?.checkout_to_purchase);
+    const legacyFirstParty = parseRatioValue(funnel?.ratios?.c2p);
     const metaC2P = parseRatioValue(cacData?.checkoutToPurchaseRatio);
 
-    if (funnelSource !== 'meta_ads') {
-      if (firstPartyC2P !== null) {
-        return { value: firstPartyC2P, source: 'first_party' };
-      }
-      if (checkoutFallback !== null) {
-        return { value: checkoutFallback, source: 'first_party' };
-      }
-    }
-
-    if (firstPartyC2P !== null) {
-      return { value: firstPartyC2P, source: funnelSource || 'first_party' };
+    if (formToPurchase !== null) {
+      return { value: formToPurchase, source: 'form_to_purchase' };
     }
 
     if (checkoutFallback !== null) {
-      return { value: checkoutFallback, source: funnelSource || 'first_party' };
+      return { value: checkoutFallback, source: 'checkout_to_purchase' };
+    }
+
+    if (legacyFirstParty !== null) {
+      return { value: legacyFirstParty, source: 'first_party' };
     }
 
     if (metaC2P !== null) {
       return { value: metaC2P, source: 'meta_ads' };
     }
 
-    return { value: 0, source: funnelSource || 'unknown' };
+    return { value: 0, source: funnel?.meta?.source || 'unknown' };
   }, [cacData, funnel, parseRatioValue]);
 
   const c2pValueRaw = derivedC2PRatio.value;
   const c2pSource = derivedC2PRatio.source;
 
-  const checkoutToPurchaseRatio = useMemo(() => {
+  const displayC2PRatio = useMemo(() => {
     const numeric = Number.isFinite(c2pValueRaw) ? c2pValueRaw : 0;
     return numeric.toFixed(2);
   }, [c2pValueRaw]);
 
   const c2pSourceDescriptor = useMemo(() => {
     if (c2pSource === 'meta_ads') return 'Meta Ads';
+    if (c2pSource === 'form_to_purchase') return 'Form → Purchase conversion';
+    if (c2pSource === 'checkout_to_purchase') return 'Checkout → Purchase conversion';
     if (c2pSource === 'first_party') return 'First-party funnel events';
     if (c2pSource === 'unknown') return 'Unknown';
     if (!c2pSource) return 'Unknown';
@@ -861,7 +939,7 @@ const OrdersList = ({
       metrics.push({
         key: 'c2p',
         label: 'C2P',
-        value: `${checkoutToPurchaseRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
+        value: `${displayC2PRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
         change: formatPercentageChange('c2p', getMetricChange('c2p')),
       });
     }
@@ -874,11 +952,11 @@ const OrdersList = ({
     aov,
     calculatedOverallCAC,
     roas,
-    checkoutToPurchaseRatio,
+    displayC2PRatio,
     c2pSource,
     formatPercentageChange,
     getMetricChange,
-  getMetricPrevious,
+    getMetricPrevious,
     isFirstPartyActive,
   ]);
 
@@ -1116,20 +1194,20 @@ const OrdersList = ({
       ? [{
           key: 'c2p',
           label: 'C2P Ratio',
-          value: `${checkoutToPurchaseRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
+          value: `${displayC2PRatio}%${c2pSource === 'meta_ads' ? ' (Meta)' : ''}`,
           category: 'performance',
           change: formatPercentageChange('c2p', getMetricChange('c2p')),
           rawChange: getMetricChange('c2p'),
           tooltip: (
             <>
               <Typography variant="subtitle2" sx={{ color: '#f4f4f4', mb: 1, fontWeight: 600 }}>
-                Checkout to Purchase Ratio
+                Form to Purchase Ratio
               </Typography>
               <Typography variant="body2" sx={{ color: 'rgba(220,220,220,0.7)', mb: 1, lineHeight: 1.5 }}>
-                Percentage of checkout initiations that convert to actual purchases.
+                Percentage of customers who complete purchase after starting the checkout form.
               </Typography>
               <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                Formula: (Purchases ÷ Checkouts) × 100%
+                Formula: (Purchases ÷ Checkout Form Starts) × 100%
               </Typography>
               <Typography variant="caption" sx={{ color: 'rgba(200,200,200,0.65)', display: 'block', mt: 1 }}>
                 Data source: {c2pSourceDescriptor}
@@ -1150,7 +1228,7 @@ const OrdersList = ({
     roasWithoutCod,
     calculatedOverallCAC,
     roas,
-    checkoutToPurchaseRatio,
+    displayC2PRatio,
     c2pSource,
     c2pSourceDescriptor,
     isAdmin,
@@ -1613,6 +1691,38 @@ const OrdersList = ({
         <StatsAccordionDetails>
           {!loading ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {formattedLatestUpdate ? (
+                <LatestUpdateCard>
+                  <LatestUpdateHeader>
+                    <LatestUpdateLabel>
+                      <Box
+                        sx={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          backgroundColor: '#10b981',
+                        }}
+                      />
+                      Latest Update on D2C site
+                    </LatestUpdateLabel>
+                    <LatestUpdateTimestamp>{formattedLatestUpdate.formattedTimestamp}</LatestUpdateTimestamp>
+                  </LatestUpdateHeader>
+                  <LatestUpdateTitle>{formattedLatestUpdate.title}</LatestUpdateTitle>
+                  <LatestUpdateDescription>
+                    {formattedLatestUpdate.description}
+                  </LatestUpdateDescription>
+                </LatestUpdateCard>
+              ) : siteUpdateStatus === 'loading' ? (
+                <Skeleton
+                  variant="rectangular"
+                  height={80}
+                  sx={{
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(255,255,255,0.04)'
+                  }}
+                />
+              ) : null}
+
               {/* Comparison Period Descriptor */}
               {comparisonData?.currentPeriod && comparisonData?.previousPeriod && (
                 <Box

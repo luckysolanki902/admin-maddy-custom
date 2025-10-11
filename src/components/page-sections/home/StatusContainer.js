@@ -497,7 +497,7 @@ const StatusContainer = () => {
       </div>
       
       {lastFetched && (
-        <div className={styles.cacheInfo}>
+        <div className={styles.cacheInfo} >
           <span>Last updated: {lastFetched.toLocaleTimeString()}</span>
           <button 
             className={styles.refreshButton}

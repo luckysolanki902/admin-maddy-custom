@@ -16,5 +16,13 @@
       "path": "/api/inventory-management/daily-report",
       "schedule": "0 23 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 60
+    },
+    "api/**/*.ts": {
+      "maxDuration": 60
+    }
+  }
 }

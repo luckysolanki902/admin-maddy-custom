@@ -9,7 +9,8 @@ const openai = new OpenAI({
 const summaryCache = new Map();
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 const PROMPT_VERSION = 'v7.8-gpt5-mini-simple-json-in-prompt'; // Update this when prompt changes significantly
-
+// vercel max timeout for api
+const 
 export async function POST(request) {
   try {
     const body = await request.json();

@@ -422,20 +422,7 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
 
   const ratios = buildDefaultRatios(ratioInput);
 
-  // --- Additional targeted adjustment for payment_to_purchase -------------
-  // Compute purchases that actually followed a payment_initiated event (session-level correlation)
-  let purchaseAfterPaymentCount = null;
-  try {
-    const paymentSessionIds = await FunnelEvent.distinct('sessionId', { step: 'payment_initiated', timestamp: { $gte: start, $lte: end } });
-    if (paymentSessionIds.length) {
-      purchaseAfterPaymentCount = await FunnelEvent.countDocuments({ step: 'purchase', sessionId: { $in: paymentSessionIds }, timestamp: { $gte: start, $lte: end } });
-    } else {
-      purchaseAfterPaymentCount = 0;
-    }
-  } catch (e) {
-    purchaseAfterPaymentCount = null; // preserve existing ratio if failure
-  }
-
+  // --- Build ratio bases for debugging and transparency ---
   const ratioBases = {};
   const addBase = (key, numer, denom, raw) => {
     ratioBases[key] = { numer, denom, rawPercent: raw, adjusted: false };
@@ -450,22 +437,13 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
   addBase('visit_to_form', originalCounts.openedOrderForm, originalCounts.visited, safePctRaw(originalCounts.openedOrderForm, originalCounts.visited));
   addBase('form_to_address', originalCounts.reachedAddressTab, originalCounts.openedOrderForm, safePctRaw(originalCounts.reachedAddressTab, originalCounts.openedOrderForm));
   addBase('address_to_payment', originalCounts.startedPayment, originalCounts.reachedAddressTab, safePctRaw(originalCounts.startedPayment, originalCounts.reachedAddressTab));
-  // Payment to purchase uses adjusted numerator if available
-  if (purchaseAfterPaymentCount !== null) {
-    const rawBeforeClamp = safePctRaw(originalCounts.purchased, originalCounts.startedPayment);
-    const adjustedRaw = safePctRaw(purchaseAfterPaymentCount, originalCounts.startedPayment);
-    ratios.payment_to_purchase = Number((Math.min(100, adjustedRaw)).toFixed(2));
-    ratioBases['payment_to_purchase'] = {
-      numer: purchaseAfterPaymentCount,
-      denom: originalCounts.startedPayment,
-      rawPercent: adjustedRaw,
-      adjusted: originalCounts.purchased !== purchaseAfterPaymentCount || originalCounts.purchased > originalCounts.startedPayment,
-      originalNumer: originalCounts.purchased,
-      originalRawPercent: rawBeforeClamp
-    };
-  } else {
-    addBase('payment_to_purchase', originalCounts.purchased, originalCounts.startedPayment, safePctRaw(originalCounts.purchased, originalCounts.startedPayment));
-  }
+  
+  // Payment to purchase: direct ratio using accurate aggregated counts
+  // No session correlation needed - both counts are already accurate from the main pipeline
+  const rawPaymentToPurchase = safePctRaw(originalCounts.purchased, originalCounts.startedPayment);
+  ratios.payment_to_purchase = Number((Math.min(100, rawPaymentToPurchase)).toFixed(2));
+  addBase('payment_to_purchase', originalCounts.purchased, originalCounts.startedPayment, rawPaymentToPurchase);
+  
   addBase('visit_to_purchase', originalCounts.purchased, originalCounts.visited, safePctRaw(originalCounts.purchased, originalCounts.visited));
   addBase('cart_to_purchase', originalCounts.purchased, originalCounts.addedToCart, safePctRaw(originalCounts.purchased, originalCounts.addedToCart));
   addBase('view_cart_to_purchase', originalCounts.purchased, originalCounts.viewedCart, safePctRaw(originalCounts.purchased, originalCounts.viewedCart));

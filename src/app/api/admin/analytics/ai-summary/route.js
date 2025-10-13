@@ -5,11 +5,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+export const maxDuration = 55; // seconds
 // In-memory cache with 30-minute expiry
 const summaryCache = new Map();
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 const PROMPT_VERSION = 'v7.8-gpt5-mini-simple-json-in-prompt'; // Update this when prompt changes significantly
-const maxDuration = 55; // seconds
 export async function POST(request) {
   try {
     const body = await request.json();

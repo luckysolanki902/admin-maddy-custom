@@ -21,9 +21,9 @@ export async function GET(request) {
 
     const orders = await Order.find({
       deliveryStatus: {
-        $nin: ['cancelled', 'pending', 'returnInitiated', 'returned', 'lost', 'unknown'],
+        $in: ['deliivered'],
       },
-      paymentStatus: { $in: ['allPaid', 'paidPartially'] },
+      paymentStatus: { $in: ['allPaid', 'paidPartially', 'allToBePaidCod'] },
       createdAt: { $gte: startDate, $lte: endDate },
     }).sort({ createdAt: 1 });
 

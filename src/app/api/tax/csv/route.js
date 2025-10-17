@@ -21,7 +21,7 @@ export async function GET(request) {
 
     const orders = await Order.find({
       deliveryStatus: {
-        $in: ['deliivered'],
+        $in: ['delivered'],
       },
       paymentStatus: { $in: ['allPaid', 'paidPartially', 'allToBePaidCod'] },
       createdAt: { $gte: startDate, $lte: endDate },
@@ -67,7 +67,6 @@ export async function GET(request) {
         fmt(bill),
       ].join(','));
     });
-
     const fileName = `orders_${startDate.toISOString().slice(0,10)}_to_${endDate.toISOString().slice(0,10)}.csv`;
     return new NextResponse(rows.join('\n'), {
       status: 200,

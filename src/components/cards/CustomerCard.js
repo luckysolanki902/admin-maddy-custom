@@ -145,6 +145,32 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
 
   const groupedTotals = calculateGroupedTotals();
 
+  // Calculate grouped payment totals (sum across shipments) to show correct amounts
+  const calculateGroupedPaymentTotals = () => {
+    if (!isGroupedOrder) {
+      return {
+        amountPaidOnline: order.paymentDetails?.amountPaidOnline || 0,
+        amountDueOnline: order.paymentDetails?.amountDueOnline || 0,
+        amountPaidCod: order.paymentDetails?.amountPaidCod || 0,
+        amountDueCod: order.paymentDetails?.amountDueCod || 0,
+      };
+    }
+
+    return order.shipmentBreakdown.reduce(
+      (acc, shipment) => {
+        const pd = shipment.orderData.paymentDetails || {};
+        acc.amountPaidOnline += pd.amountPaidOnline || 0;
+        acc.amountDueOnline += pd.amountDueOnline || 0;
+        acc.amountPaidCod += pd.amountPaidCod || 0;
+        acc.amountDueCod += pd.amountDueCod || 0;
+        return acc;
+      },
+      { amountPaidOnline: 0, amountDueOnline: 0, amountPaidCod: 0, amountDueCod: 0 }
+    );
+  };
+
+  const groupedPaymentTotals = calculateGroupedPaymentTotals();
+
   // Calculate item totals (for single orders, use existing logic)
   const itemsTotal = isGroupedOrder ? groupedTotals.itemsTotal : order.items.reduce((acc, item) => acc + (item.priceAtPurchase * item.quantity), 0);
 
@@ -1170,7 +1196,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                       Amount Paid Online
                     </Typography>
                     <Typography variant="body1" sx={{ color: '#34C759', fontWeight: 'bold' }}>
-                      ₹{order.paymentDetails?.amountPaidOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      ₹{(isGroupedOrder ? groupedPaymentTotals.amountPaidOnline : (order.paymentDetails?.amountPaidOnline || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </Typography>
                   </Grid>
 
@@ -1178,35 +1204,35 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
 
                   {order.paymentDetails?.mode?.name.toLowerCase() !== 'online' && (
                     <>
-                      {order.paymentDetails?.amountDueOnline > 0 && (
+                      {(isGroupedOrder ? groupedPaymentTotals.amountDueOnline : (order.paymentDetails?.amountDueOnline || 0)) > 0 && (
                         <Grid item xs={6} sx={{ p: 1.5, borderRight: '1px solid rgba(255,255,255,0.05)' }}>
                           <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
                             Amount Due Online
                           </Typography>
                           <Typography variant="body1" sx={{ color: '#FF3B30', fontWeight: 'bold' }}>
-                            ₹{order.paymentDetails?.amountDueOnline.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            ₹{(isGroupedOrder ? groupedPaymentTotals.amountDueOnline : (order.paymentDetails?.amountDueOnline || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </Typography>
                         </Grid>
                       )}
 
-                      {order.paymentDetails?.amountPaidCod === 0 && order.paymentDetails?.amountDueCod > 0 && (
+                      {(isGroupedOrder ? groupedPaymentTotals.amountPaidCod : (order.paymentDetails?.amountPaidCod || 0)) === 0 && (isGroupedOrder ? groupedPaymentTotals.amountDueCod : (order.paymentDetails?.amountDueCod || 0)) > 0 && (
                         <Grid item xs={6} sx={{ p: 1.5 }}>
                           <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
                             Amount Due COD
                           </Typography>
                           <Typography variant="body1" sx={{ color: '#FF3B30', fontWeight: 'bold' }}>
-                            ₹{order.paymentDetails?.amountDueCod.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            ₹{(isGroupedOrder ? groupedPaymentTotals.amountDueCod : (order.paymentDetails?.amountDueCod || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </Typography>
                         </Grid>
                       )}
 
-                      {order.paymentDetails?.amountPaidCod > 0 && (
+                      {(isGroupedOrder ? groupedPaymentTotals.amountPaidCod : (order.paymentDetails?.amountPaidCod || 0)) > 0 && (
                         <Grid item xs={6} sx={{ p: 1.5 }}>
                           <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mb: 0.5 }}>
                             Amount Paid COD
                           </Typography>
                           <Typography variant="body1" sx={{ color: '#34C759', fontWeight: 'bold' }}>
-                            ₹{order.paymentDetails?.amountPaidCod.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            ₹{(isGroupedOrder ? groupedPaymentTotals.amountPaidCod : (order.paymentDetails?.amountPaidCod || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </Typography>
                         </Grid>
                       )}

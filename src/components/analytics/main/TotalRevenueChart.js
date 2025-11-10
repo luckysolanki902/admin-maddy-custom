@@ -69,113 +69,139 @@ const CustomTooltip = ({ active, payload, label }) => {
   const vsAverage = calculateGrowth(currentValue, payload[0].payload.averageRevenue);
 
   return (
-    <Box
-      sx={{
-        background: 'rgba(17,24,39,0.8)',
-        backdropFilter: 'blur(12px)',
-        p: 2,
-        borderRadius: 2,
-        border: '1px solid rgba(255,255,255,0.12)',
-        boxShadow: '0 4px 28px -4px rgba(0,0,0,0.5)',
-        color: 'white',
-        minWidth: 260,
-        position: 'relative',
-        '&:before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 2,
-          background: `linear-gradient(90deg, transparent, ${alpha(LINE_COLOR,0.6)}, transparent)`
-        }
-      }}
-    >
+    <Box sx={{
+      background: 'rgba(17,24,39,0.95)',
+      backdropFilter: 'blur(20px)',
+      p: 2.5,
+      borderRadius: 2.5,
+      border: `1px solid ${alpha(LINE_COLOR, 0.3)}`,
+      boxShadow: `0 8px 32px -8px ${alpha(LINE_COLOR, 0.4)}`,
+      color: 'white',
+      minWidth: 280,
+      position: 'relative',
+      '&:before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        borderRadius: '10px 10px 0 0',
+        background: `linear-gradient(90deg, ${LINE_COLOR}, ${alpha(LINE_COLOR,0.4)})`
+      }
+    }}>
       <Typography 
         variant="subtitle2" 
         sx={{ 
-          mb: 1.2,
+          mb: 1.5,
           color: '#FFF',
           fontSize: '.95rem',
           fontWeight: 600,
-          borderBottom: '1px solid rgba(255,255,255,0.12)',
-          pb: .6,
+          borderBottom: `1px solid ${alpha('#fff', 0.12)}`,
+          pb: .8,
           letterSpacing: '.3px'
         }}
       >
-        {dayjs(label).format('MMMM YYYY')}
+        {label}
       </Typography>
 
       {/* Current Month Revenue */}
-  <Box sx={{ mb: 1.4 }}>
-        <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5 }}>
+      <Box sx={{ 
+        mb: 2, 
+        p: 1.5, 
+        borderRadius: 1.5,
+        background: `linear-gradient(135deg, ${alpha(LINE_COLOR, 0.15)} 0%, ${alpha(LINE_COLOR, 0.05)} 100%)`,
+        border: `1px solid ${alpha(LINE_COLOR, 0.2)}`
+      }}>
+        <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5, fontSize: '.75rem', textTransform: 'uppercase', letterSpacing: '.5px' }}>
           Monthly Revenue
         </Typography>
-        <Typography variant="h6" sx={{ color: '#FFF', fontWeight: 600 }}>
+        <Typography variant="h6" sx={{ color: LINE_COLOR, fontWeight: 700, fontSize: '1.4rem' }}>
           ₹{currentValue.toLocaleString('en-IN')}
         </Typography>
       </Box>
 
       {/* Monthly Growth */}
       <Box sx={{ 
-        mb: 1.4,
+        mb: 1.5,
         display: 'flex',
         alignItems: 'center',
-        gap: .8,
-        backgroundColor: monthlyGrowth >= 0 ? alpha(POSITIVE_COLOR, 0.12) : alpha(NEGATIVE_COLOR, 0.12),
-        p: .75,
-        borderRadius: 1
+        gap: 1,
+        backgroundColor: monthlyGrowth >= 0 ? alpha(POSITIVE_COLOR, 0.15) : alpha(NEGATIVE_COLOR, 0.15),
+        p: 1,
+        borderRadius: 1.5,
+        border: `1px solid ${monthlyGrowth >= 0 ? alpha(POSITIVE_COLOR, 0.3) : alpha(NEGATIVE_COLOR, 0.3)}`
       }}>
         {monthlyGrowth >= 0 ? (
-          <TrendingUpIcon sx={{ color: POSITIVE_COLOR }} />
+          <TrendingUpIcon sx={{ color: POSITIVE_COLOR, fontSize: 20 }} />
         ) : (
-          <TrendingDownIcon sx={{ color: NEGATIVE_COLOR }} />
+          <TrendingDownIcon sx={{ color: NEGATIVE_COLOR, fontSize: 20 }} />
         )}
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            color: monthlyGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
-            fontWeight: 600
-          }}
-        >
-          {Math.abs(monthlyGrowth).toFixed(1)}% vs last month
-        </Typography>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="caption" sx={{ color: alpha('#fff', 0.7), fontSize: '.7rem', display: 'block', mb: 0.3 }}>
+            vs Last Month
+          </Typography>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              color: monthlyGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
+              fontWeight: 700,
+              fontSize: '.95rem'
+            }}
+          >
+            {monthlyGrowth >= 0 ? '+' : ''}{Math.abs(monthlyGrowth).toFixed(1)}%
+          </Typography>
+        </Box>
       </Box>
 
       {/* Performance Metrics */}
       <Box sx={{ 
         display: 'grid', 
         gridTemplateColumns: '1fr 1fr',
-        gap: 1.6,
-        pt: 1.2,
-        borderTop: '1px solid rgba(255,255,255,0.12)'
+        gap: 1.2,
+        pt: 1.5,
+        borderTop: `1px solid ${alpha('#fff', 0.12)}`
       }}>
-        <Box>
-          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5 }}>
+        <Box sx={{
+          p: 1,
+          borderRadius: 1,
+          background: quarterlyGrowth >= 0 
+            ? `linear-gradient(135deg, ${alpha(POSITIVE_COLOR, 0.1)} 0%, transparent 100%)`
+            : `linear-gradient(135deg, ${alpha(NEGATIVE_COLOR, 0.1)} 0%, transparent 100%)`
+        }}>
+          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5, fontSize: '.7rem' }}>
             Quarterly Trend
           </Typography>
           <Typography 
             variant="body1" 
             sx={{ 
               color: quarterlyGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
-              fontWeight: 500 
+              fontWeight: 600,
+              fontSize: '.85rem'
             }}
           >
-            {quarterlyGrowth ? `${quarterlyGrowth.toFixed(1)}%` : 'N/A'}
+            {quarterlyGrowth ? `${quarterlyGrowth >= 0 ? '+' : ''}${quarterlyGrowth.toFixed(1)}%` : 'N/A'}
           </Typography>
         </Box>
-        <Box>
-          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5 }}>
+        <Box sx={{
+          p: 1,
+          borderRadius: 1,
+          background: vsAverage >= 0 
+            ? `linear-gradient(135deg, ${alpha(POSITIVE_COLOR, 0.1)} 0%, transparent 100%)`
+            : `linear-gradient(135deg, ${alpha(NEGATIVE_COLOR, 0.1)} 0%, transparent 100%)`
+        }}>
+          <Typography variant="body2" sx={{ color: '#94A3B8', mb: 0.5, fontSize: '.7rem' }}>
             vs Average
           </Typography>
           <Typography 
             variant="body1" 
             sx={{ 
               color: vsAverage >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
-              fontWeight: 500 
+              fontWeight: 600,
+              fontSize: '.85rem'
             }}
           >
-            {vsAverage.toFixed(1)}%
+            {vsAverage >= 0 ? '+' : ''}{vsAverage.toFixed(1)}%
           </Typography>
         </Box>
       </Box>
@@ -186,7 +212,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 const TotalRevenueChart = ({ data }) => {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
-  const [chartType, setChartType] = useState('area'); // 'line' or 'area'
+  const [chartType, setChartType] = useState('line'); // 'line' or 'area'
 
   // Format data for Recharts with additional metrics
   const formattedData = useMemo(() => {
@@ -258,7 +284,7 @@ const TotalRevenueChart = ({ data }) => {
           Total Revenue
         </Typography>
         
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        {/* <Box sx={{ display: 'flex', gap: 1 }}>
           <Chip
             label="Area"
             size="small"
@@ -291,7 +317,7 @@ const TotalRevenueChart = ({ data }) => {
               }
             }}
           />
-        </Box>
+        </Box> */}
       </Box>
 
       <ResponsiveContainer width="100%" height={350}>
@@ -430,22 +456,28 @@ const TotalRevenueChart = ({ data }) => {
             pt: 3,
             borderTop: '1px solid rgba(255, 255, 255, 0.1)',
             display: 'grid',
-            gridTemplateColumns: isSmallScreen ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: isSmallScreen ? '1fr' : 'repeat(3, 1fr)',
             gap: 2
           }}
         >
           
           {/* Latest Month */}
           <Box sx={{ 
-            p: 2, 
+            p: 2.5, 
             borderRadius: 2,
-            backgroundColor: alpha(theme.palette.background.paper, 0.1),
-            backdropFilter: 'blur(10px)'
+            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+            backdropFilter: 'blur(10px)',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`
+            }
           }}>
-            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7) }}>
+            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7), textTransform: 'uppercase', fontSize: '.7rem', letterSpacing: '.5px', mb: 1, display: 'block' }}>
               Latest Month
             </Typography>
-            <Typography variant="h6" sx={{ color: '#FFF', fontWeight: 'bold' }}>
+            <Typography variant="h5" sx={{ color: theme.palette.primary.main, fontWeight: 700 }}>
               {formattedData.length > 0 && (
                 <AnimatedNumber value={formattedData[formattedData.length - 1].totalRevenue} />
               )}
@@ -454,62 +486,88 @@ const TotalRevenueChart = ({ data }) => {
           
           {/* Overall Growth */}
           <Box sx={{ 
-            p: 2, 
+            p: 2.5, 
             borderRadius: 2,
-            backgroundColor: overallGrowth >= 0 
-              ? alpha(POSITIVE_COLOR, 0.1) 
-              : alpha(NEGATIVE_COLOR, 0.1),
-            backdropFilter: 'blur(10px)'
+            background: overallGrowth >= 0 
+              ? `linear-gradient(135deg, ${alpha(POSITIVE_COLOR, 0.15)} 0%, ${alpha(POSITIVE_COLOR, 0.05)} 100%)`
+              : `linear-gradient(135deg, ${alpha(NEGATIVE_COLOR, 0.15)} 0%, ${alpha(NEGATIVE_COLOR, 0.05)} 100%)`,
+            border: overallGrowth >= 0 
+              ? `1px solid ${alpha(POSITIVE_COLOR, 0.3)}`
+              : `1px solid ${alpha(NEGATIVE_COLOR, 0.3)}`,
+            backdropFilter: 'blur(10px)',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: overallGrowth >= 0 
+                ? `0 8px 24px ${alpha(POSITIVE_COLOR, 0.3)}`
+                : `0 8px 24px ${alpha(NEGATIVE_COLOR, 0.3)}`
+            }
           }}>
-            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7) }}>
+            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7), textTransform: 'uppercase', fontSize: '.7rem', letterSpacing: '.5px', mb: 1, display: 'block' }}>
               Overall Growth
             </Typography>
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                color: overallGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR
-              }}
-            >
-              {overallGrowth >= 0 ? <TrendingUpIcon fontSize="small" /> : <TrendingDownIcon fontSize="small" />}
-              {Math.abs(overallGrowth).toFixed(1)}%
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {overallGrowth >= 0 ? (
+                <TrendingUpIcon sx={{ fontSize: 28, color: POSITIVE_COLOR }} />
+              ) : (
+                <TrendingDownIcon sx={{ fontSize: 28, color: NEGATIVE_COLOR }} />
+              )}
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700,
+                  color: overallGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR
+                }}
+              >
+                {Math.abs(overallGrowth).toFixed(1)}%
+              </Typography>
+            </Box>
           </Box>
           
           {/* Recent Trend */}
           <Box sx={{ 
-            p: 2, 
+            p: 2.5, 
             borderRadius: 2,
-            backgroundColor: recentGrowth >= 0 
-              ? alpha(POSITIVE_COLOR, 0.1) 
-              : alpha(NEGATIVE_COLOR, 0.1),
-            backdropFilter: 'blur(10px)'
+            background: recentGrowth >= 0 
+              ? `linear-gradient(135deg, ${alpha(POSITIVE_COLOR, 0.15)} 0%, ${alpha(POSITIVE_COLOR, 0.05)} 100%)`
+              : `linear-gradient(135deg, ${alpha(NEGATIVE_COLOR, 0.15)} 0%, ${alpha(NEGATIVE_COLOR, 0.05)} 100%)`,
+            border: recentGrowth >= 0 
+              ? `1px solid ${alpha(POSITIVE_COLOR, 0.3)}`
+              : `1px solid ${alpha(NEGATIVE_COLOR, 0.3)}`,
+            backdropFilter: 'blur(10px)',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: recentGrowth >= 0 
+                ? `0 8px 24px ${alpha(POSITIVE_COLOR, 0.3)}`
+                : `0 8px 24px ${alpha(NEGATIVE_COLOR, 0.3)}`
+            }
           }}>
-            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7) }}>
-              Recent Trend (3mo)
+            <Typography variant="caption" sx={{ color: alpha('#fff', 0.7), textTransform: 'uppercase', fontSize: '.7rem', letterSpacing: '.5px', mb: 1, display: 'block' }}>
+              Recent Trend (Q3M)
             </Typography>
-            <Typography 
-              variant="h6" 
-              sx={{ 
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                color: recentGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR
-              }}
-            >
-              {recentGrowth !== null ? (
-                <>
-                  {recentGrowth >= 0 ? <TrendingUpIcon fontSize="small" /> : <TrendingDownIcon fontSize="small" />}
+            {recentGrowth !== null ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {recentGrowth >= 0 ? (
+                  <TrendingUpIcon sx={{ fontSize: 28, color: POSITIVE_COLOR }} />
+                ) : (
+                  <TrendingDownIcon sx={{ fontSize: 28, color: NEGATIVE_COLOR }} />
+                )}
+                <Typography 
+                  variant="h5" 
+                  sx={{ 
+                    fontWeight: 700,
+                    color: recentGrowth >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR
+                  }}
+                >
                   {Math.abs(recentGrowth).toFixed(1)}%
-                </>
-              ) : (
-                'N/A'
-              )}
-            </Typography>
+                </Typography>
+              </Box>
+            ) : (
+              <Typography variant="h5" sx={{ color: alpha('#fff', 0.5), fontWeight: 700 }}>
+                N/A
+              </Typography>
+            )}
           </Box>
         </Box>
       </animated.div>

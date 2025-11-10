@@ -27,19 +27,27 @@ const CustomTooltip = ({ active, payload, label }) => {
   // Find data for tooltip
   const actualData = payload.find(p => p.dataKey === 'actualRevenue');
   const predictedData = payload.find(p => p.dataKey === 'predictedRevenue');
-  const actualValue = actualData?.value || 0;
+  
+  // Check if this is current month
+  const currentPayload = payload[0]?.payload;
+  const isCurrentMonth = currentPayload?.isCurrentMonth || false;
+  
+  // Use predicted revenue for current month, actual for others
+  const displayValue = isCurrentMonth && currentPayload?.predictedRevenue 
+    ? currentPayload.predictedRevenue 
+    : (actualData?.value || 0);
   
   // Calculate percentage difference if both actual and predicted exist
   let percentDiff = null;
-  if (predictedData?.value && actualValue) {
-    percentDiff = ((actualValue - predictedData.value) / predictedData.value) * 100;
+  if (predictedData?.value && actualData?.value && !isCurrentMonth) {
+    percentDiff = ((actualData.value - predictedData.value) / predictedData.value) * 100;
   }
   
   // Get previous month's revenue for comparison
-  const prevMonthData = payload[0]?.payload?.previousMonthRevenue;
+  const prevMonthData = currentPayload?.previousMonthRevenue;
   let growthRate = null;
-  if (prevMonthData && actualValue) {
-    growthRate = ((actualValue - prevMonthData) / prevMonthData) * 100;
+  if (prevMonthData && displayValue) {
+    growthRate = ((displayValue - prevMonthData) / prevMonthData) * 100;
   }
   
   return (
@@ -105,9 +113,9 @@ const CustomTooltip = ({ active, payload, label }) => {
               width: 8,
               height: 8,
               borderRadius: '50%',
-              backgroundColor: ACTUAL_LINE_COLOR,
+              backgroundColor: isCurrentMonth ? PREDICTED_LINE_COLOR : ACTUAL_LINE_COLOR,
               mr: 1.4,
-              boxShadow: `0 0 0 3px ${ACTUAL_LINE_COLOR}22`
+              boxShadow: `0 0 0 3px ${isCurrentMonth ? PREDICTED_LINE_COLOR : ACTUAL_LINE_COLOR}22`
             }}
           />
           <Typography 
@@ -117,7 +125,7 @@ const CustomTooltip = ({ active, payload, label }) => {
               color: '#EEE'
             }}
           >
-            Actual Revenue
+            {isCurrentMonth ? 'Predicted Revenue' : 'Actual Revenue'}
           </Typography>
         </Box>
         <Typography 
@@ -128,7 +136,7 @@ const CustomTooltip = ({ active, payload, label }) => {
             color: '#FFF'
           }}
         >
-          ₹{actualValue?.toLocaleString('en-IN') || 'N/A'}
+          ₹{displayValue?.toLocaleString('en-IN') || 'N/A'}
         </Typography>
       </Box>
       
@@ -241,7 +249,8 @@ const MonthlyRevenueChart = ({ data }) => {
         actualRevenue: entry.monthlyRevenue,
         predictedRevenue: isPrediction ? entry.predictedRevenue : null,
         previousMonthRevenue,
-        formattedDate: currentDate.format('MMMM YYYY')
+        formattedDate: currentDate.format('MMMM YYYY'),
+        isCurrentMonth: isCurrentMonth
       };
     });
   }, [data]);

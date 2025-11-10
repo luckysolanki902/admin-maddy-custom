@@ -22,15 +22,17 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import SalesSourcesChart from '@/components/analytics/main/SalesSourcesChart';
 import CartSourcesChart from '@/components/analytics/main/CartSourcesChart';
-import ReturningPayingUsersChart from '@/components/analytics/main/ReturningPayingUsersChart';
-import ReturningUsersChart from '@/components/analytics/ReturningUsersChart';
 import VariantSalesChart from '@/components/analytics/main/VariantSalesChart';
-import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
-import AbandonedCartsChart from '@/components/analytics/main/AbandonedCartsChart';
 import DailyRevenueChart from '@/components/analytics/main/DailyRevenueChart';
 import TotalRevenueChart from '@/components/analytics/main/TotalRevenueChart';
 import MonthlyRevenueChart from '@/components/analytics/main/MonthlyRevenueChart';
-// ...FunnelJourneyTree import removed
+import AbandonedCartsChart from '@/components/analytics/main/AbandonedCartsChart';
+import RetargetedCustomersChart from '@/components/analytics/main/RetargetedCustomersChart';
+// User Behavior Analytics
+import TimeToPurchaseChart from '@/components/analytics/user-behavior/TimeToPurchaseChart';
+import RepeatOrdersChart from '@/components/analytics/user-behavior/RepeatOrdersChart';
+import RevisitTimingChart from '@/components/analytics/user-behavior/RevisitTimingChart';
+import FunnelTimingChart from '@/components/analytics/user-behavior/FunnelTimingChart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import MinimalChartSkeleton from '@/components/analytics/common/MinimalChartSkeleton';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
@@ -149,11 +151,14 @@ function LazyCard({ children, height = 480, loading = false }) {
 function Section({ id, title, children, onVisible, subtitle }) {
   const { ref, inView } = useInView({
     threshold: 0.1,
-    triggerOnce: false
+    triggerOnce: true // Only trigger once to prevent infinite re-renders
   });
+  
+  const hasCalledOnVisible = useRef(false);
 
   useEffect(() => {
-    if (inView && onVisible) {
+    if (inView && onVisible && !hasCalledOnVisible.current) {
+      hasCalledOnVisible.current = true;
       onVisible();
     }
   }, [inView, onVisible]);
@@ -275,15 +280,13 @@ export default function AnalyticsDashboard({ admin = false }) {
   const [error, setError] = useState('');
   const [salesSources, setSalesSources] = useState([]);
   const [cartSources, setCartSources] = useState([]);
-  const [returningPayingUsers, setReturningPayingUsers] = useState([]);
-  const [returningUsersMetrics, setReturningUsersMetrics] = useState(null);
+  const [userBehaviorTiming, setUserBehaviorTiming] = useState(null);
   const [variantSales, setVariantSales] = useState([]);
-  const [retargeted, setRetargeted] = useState([]);
-  const [abandoned, setAbandoned] = useState([]);
   const [dailyRev, setDailyRev] = useState([]);
   const [totalRev, setTotalRev] = useState([]);
   const [monthlyRev, setMonthlyRev] = useState([]);
-  // ...journeyTree state removed
+  const [abandonedCarts, setAbandonedCarts] = useState([]);
+  const [retargetedCustomers, setRetargetedCustomers] = useState([]);
   const [isUpdatingData, setIsUpdatingData] = useState(false);
 
   /* ------------ FETCH HELPERS ------------ */
@@ -368,16 +371,15 @@ export default function AnalyticsDashboard({ admin = false }) {
             break;
           }
           case 'traffic': {
-            const [paying, rt, ab, returningMetrics] = await Promise.all([
-              ranged('/api/admin/analytics/main/returning-paying-users'),
-              ranged('/api/admin/analytics/main/retargeted-customers'),
-              ranged('/api/admin/analytics/main/abandoned-carts'),
-              ranged('/api/admin/analytics/main/returning-users-metrics')
+            // Fetch user behavior timing and cart analytics
+            const [userBehavior, abandonedCartsData, retargetedData] = await Promise.all([
+              ranged('/api/admin/analytics/main/user-behavior-timing'),
+              ranged('/api/admin/analytics/main/abandoned-carts-funnel'),
+              ranged('/api/admin/analytics/main/retargeted-customers')
             ]);
-            setReturningPayingUsers(paying?.returningPayingUsers || []);
-            setRetargeted(rt?.retargetedCustomers || []);
-            setAbandoned(ab?.abandonedCarts || []);
-            setReturningUsersMetrics(returningMetrics || null);
+            setUserBehaviorTiming(userBehavior || null);
+            setAbandonedCarts(abandonedCartsData?.abandonedCarts || []);
+            setRetargetedCustomers(retargetedData?.retargetedCustomers || []);
             break;
           }
           case 'revenue': {
@@ -671,72 +673,67 @@ export default function AnalyticsDashboard({ admin = false }) {
         <Section 
           id="panel-traffic" 
           title="Traffic & Engagement" 
-          subtitle="Returning users, multi-purchase customers, retargeting & abandonment analysis"
+          subtitle="User behavior timing, purchase patterns, and conversion funnel analysis"
           onVisible={() => handleSectionVisible('traffic')}
         >
           <Grid container spacing={4}>
-            {/* Full Row: Comprehensive Returning Users Analytics */}
+            {/* Time to Purchase Analysis */}
             <Grid item xs={12}>
-              <LazyCard height={520} loading={sectionLoading.traffic}>
+              <LazyCard height={480} loading={sectionLoading.traffic}>
                 <ErrorBoundary
                   resetKeys={[dateRangeKey]}
                   fallbackRender={({ error, resetErrorBoundary }) => (
                     <GlassChartCard>
-                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Returning Users failed to load</Typography>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Time to Purchase failed to load</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
                       <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
                     </GlassChartCard>
                   )}
                 >
-                  <ReturningUsersChart 
-                    data={returningUsersMetrics} 
-                    loading={sectionLoading.traffic}
-                    startDate={dateRange.start}
-                    endDate={dateRange.end}
-                  />
+                  <TimeToPurchaseChart data={userBehaviorTiming} loading={sectionLoading.traffic} />
                 </ErrorBoundary>
               </LazyCard>
             </Grid>
 
-            {/* Second Row: 3 smaller charts side by side */}
-            <Grid item xs={12} md={4}>
-              <LazyCard height={420} loading={sectionLoading.traffic}>
+            {/* Repeat Orders Analysis */}
+            <Grid item xs={12} >
+              <LazyCard height={460} loading={sectionLoading.traffic}>
                 <ErrorBoundary
                   resetKeys={[dateRangeKey]}
                   fallbackRender={({ error, resetErrorBoundary }) => (
                     <GlassChartCard>
-                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Returning Paying Users failed to load</Typography>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Repeat Orders failed to load</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
                       <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
                     </GlassChartCard>
                   )}
                 >
-                  <ReturningPayingUsersChart
-                    data={returningPayingUsers}
-                    startDate={dateRange.start}
-                    endDate={dateRange.end}
-                  />
+                  <RepeatOrdersChart data={userBehaviorTiming} loading={sectionLoading.traffic} />
                 </ErrorBoundary>
               </LazyCard>
             </Grid>
-            <Grid item xs={12} md={4}>
-              <LazyCard height={420} loading={sectionLoading.traffic}>
+
+            {/* Revisit Timing Analysis */}
+            <Grid item xs={12} >
+              <LazyCard height={460} loading={sectionLoading.traffic}>
                 <ErrorBoundary
                   resetKeys={[dateRangeKey]}
                   fallbackRender={({ error, resetErrorBoundary }) => (
                     <GlassChartCard>
-                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Retargeted Customers failed to load</Typography>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Revisit Timing failed to load</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
                       <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
                     </GlassChartCard>
                   )}
                 >
-                  <RetargetedCustomersChart data={retargeted} />
+                  <RevisitTimingChart data={userBehaviorTiming} loading={sectionLoading.traffic} />
                 </ErrorBoundary>
               </LazyCard>
             </Grid>
-            <Grid item xs={12} md={4}>
-              <LazyCard height={420} loading={sectionLoading.traffic}>
+
+            {/* Abandoned Carts Analysis */}
+            <Grid item xs={12} >
+              <LazyCard height={460} loading={sectionLoading.traffic}>
                 <ErrorBoundary
                   resetKeys={[dateRangeKey]}
                   fallbackRender={({ error, resetErrorBoundary }) => (
@@ -747,7 +744,43 @@ export default function AnalyticsDashboard({ admin = false }) {
                     </GlassChartCard>
                   )}
                 >
-                  <AbandonedCartsChart data={abandoned} />
+                  <AbandonedCartsChart data={abandonedCarts} />
+                </ErrorBoundary>
+              </LazyCard>
+            </Grid>
+
+            {/* Retargeted Customers (Cart Recovery) */}
+            <Grid item xs={12} >
+              <LazyCard height={460} loading={sectionLoading.traffic}>
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Cart Recovery failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <RetargetedCustomersChart data={retargetedCustomers} />
+                </ErrorBoundary>
+              </LazyCard>
+            </Grid>
+
+            {/* Funnel Timing Chart - Full Width */}
+            <Grid item xs={12}>
+              <LazyCard height={440} loading={sectionLoading.traffic}>
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Funnel Timing failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <FunnelTimingChart data={userBehaviorTiming} loading={sectionLoading.traffic} />
                 </ErrorBoundary>
               </LazyCard>
             </Grid>
@@ -763,12 +796,12 @@ export default function AnalyticsDashboard({ admin = false }) {
             onVisible={() => handleSectionVisible('revenue')}
           >
             <Grid container spacing={4}>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12}>
                 <LazyCard loading={sectionLoading.revenue}>
                   <DailyRevenueChart data={dailyRev} />
                 </LazyCard>
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12}>
                 <LazyCard loading={sectionLoading.revenue}>
                   <TotalRevenueChart data={totalRev} />
                 </LazyCard>

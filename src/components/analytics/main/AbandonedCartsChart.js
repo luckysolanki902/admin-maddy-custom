@@ -22,14 +22,14 @@ const CustomTooltip = ({ active, payload, label }) => {
 
   const current = payload[0].payload;
   const value = current.abandonedCartsCount;
+  const cartValue = current.cartValue || 0;
+  const recoverableValue = current.recoverableValue || 0;
+  const recoverableCarts = current.recoverableCarts || 0;
 
   // Calculate percentage change from previous day
   let percentChange = null;
   let dayOfWeekAverage = null;
   let vsAverage = null;
-  let recovery = null;
-  let weekComparison = null;
-  let monthComparison = null;
   const dataArray = payload[0]?.payload?.dataArray;
 
   if (dataArray) {
@@ -53,37 +53,6 @@ const CustomTooltip = ({ active, payload, label }) => {
         day: date.format('dddd'),
         avg: dayOfWeekAverage,
         percentage: weekdayComparison
-      };
-    }
-    
-    // Calculate week-over-week comparison
-    if (dataArray.length > 7 && currentIndex >= 7) {
-      const lastWeekValue = dataArray[currentIndex - 7].abandonedCartsCount;
-      if (lastWeekValue > 0) {
-        weekComparison = {
-          value: lastWeekValue,
-          percentage: ((value - lastWeekValue) / lastWeekValue) * 100
-        };
-      }
-    }
-    
-    // Calculate month-over-month comparison
-    if (dataArray.length > 30 && currentIndex >= 30) {
-      const lastMonthValue = dataArray[currentIndex - 30].abandonedCartsCount;
-      if (lastMonthValue > 0) {
-        monthComparison = {
-          value: lastMonthValue,
-          percentage: ((value - lastMonthValue) / lastMonthValue) * 100
-        };
-      }
-    }
-
-    // Recovery potential
-    if (current.cartValue && value > 0) {
-      recovery = {
-        perCart: current.cartValue / value,
-        potentialRecovery: current.cartValue * 0.4, // Assuming 40% potential recovery rate
-        recoveryCarts: Math.round(value * 0.4) // Assuming 40% potential recovery rate
       };
     }
   }
@@ -142,115 +111,9 @@ const CustomTooltip = ({ active, payload, label }) => {
         />
       </Typography>
       
-      {/* Main analytics section */}
-  <Box sx={{ backgroundColor: 'rgba(255,255,255,0.03)', p: 1.4, borderRadius: 1.5, mb: 2 }}>
-        <Typography 
-          variant="subtitle2" 
-          sx={{
-            color: 'rgba(255, 255, 255, 0.7)',
-            fontSize: '0.8rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            mb: 0.5
-          }}
-        >
-          Performance Analysis
-        </Typography>
-        
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-          {/* Daily comparison */}
-          {percentChange !== null && (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
-                vs Previous Day
-              </Typography>
-              <Chip
-                label={`${percentChange > 0 ? '+' : ''}${percentChange.toFixed(1)}%`}
-                size="small"
-                sx={{
-                  backgroundColor: percentChange < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
-                  color: percentChange < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
-                  fontWeight: 600,
-                  fontSize: '0.7rem',
-                  height: 22
-                }}
-              />
-            </Box>
-          )}
-          
-          {/* Day of week average */}
-          {vsAverage && (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
-                vs Avg {vsAverage.day} ({Math.round(vsAverage.avg)})
-              </Typography>
-              <Chip
-                label={`${vsAverage.percentage > 0 ? '+' : ''}${vsAverage.percentage.toFixed(1)}%`}
-                size="small"
-                sx={{
-                  backgroundColor: vsAverage.percentage < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
-                  color: vsAverage.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
-                  fontWeight: 600,
-                  fontSize: '0.7rem',
-                  height: 22
-                }}
-              />
-            </Box>
-          )}
-          
-          {/* Week over week comparison */}
-          {weekComparison && (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
-                vs Last Week ({weekComparison.value})
-              </Typography>
-              <Chip
-                label={`${weekComparison.percentage > 0 ? '+' : ''}${weekComparison.percentage.toFixed(1)}%`}
-                size="small"
-                sx={{
-                  backgroundColor: weekComparison.percentage < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
-                  color: weekComparison.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
-                  fontWeight: 600,
-                  fontSize: '0.7rem',
-                  height: 22
-                }}
-              />
-            </Box>
-          )}
-          
-          {/* Month over month comparison */}
-          {monthComparison && (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
-                vs Last Month ({monthComparison.value})
-              </Typography>
-              <Chip
-                label={`${monthComparison.percentage > 0 ? '+' : ''}${monthComparison.percentage.toFixed(1)}%`}
-                size="small"
-                sx={{
-                  backgroundColor: monthComparison.percentage < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
-                  color: monthComparison.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
-                  fontWeight: 600,
-                  fontSize: '0.7rem',
-                  height: 22
-                }}
-              />
-            </Box>
-          )}
-        </Box>
-      </Box>
-      
-      {/* Revenue impact section */}
-      {current.cartValue !== undefined && (
-        <Box 
-          sx={{ 
-            mb: 2,
-            p: 1.5,
-            borderRadius: 1.5,
-            background: `linear-gradient(135deg, ${analyticsPalette.orange}26 0%, ${analyticsPalette.orange}0A 100%)`,
-            border: `1px solid ${analyticsPalette.orange}1A`,
-          }}
-        >
+      {/* Performance Analysis */}
+      {(percentChange !== null || vsAverage) && (
+        <Box sx={{ backgroundColor: 'rgba(255,255,255,0.03)', p: 1.4, borderRadius: 1.5, mb: 2 }}>
           <Typography 
             variant="subtitle2" 
             sx={{
@@ -261,38 +124,99 @@ const CustomTooltip = ({ active, payload, label }) => {
               mb: 0.5
             }}
           >
-            Revenue Impact
+            Performance Analysis
           </Typography>
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
-                Unrealized Revenue
-              </Typography>
-              <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600, fontSize: '1.05rem' }}>
-                ₹{typeof current.cartValue === 'number' ? 
-                  current.cartValue.toLocaleString('en-IN') : 
-                  'N/A'}
-              </Typography>
-            </Box>
-            
-            {recovery && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {percentChange !== null && (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
-                  Avg. Cart Value
+                  vs Previous Day
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.85rem' }}>
-                  ₹{Math.round(recovery.perCart).toLocaleString('en-IN')}
-                </Typography>
+                <Chip
+                  label={`${percentChange > 0 ? '+' : ''}${percentChange.toFixed(1)}%`}
+                  size="small"
+                  sx={{
+                    backgroundColor: percentChange < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
+                    color: percentChange < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
+                    fontWeight: 600,
+                    fontSize: '0.7rem',
+                    height: 22
+                  }}
+                />
               </Box>
             )}
             
-            {/* Recovery potential stats */}
-            {recovery && (
+            {vsAverage && (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
+                  vs Avg {vsAverage.day} ({Math.round(vsAverage.avg)})
+                </Typography>
+                <Chip
+                  label={`${vsAverage.percentage > 0 ? '+' : ''}${vsAverage.percentage.toFixed(1)}%`}
+                  size="small"
+                  sx={{
+                    backgroundColor: vsAverage.percentage < 0 ? `${analyticsPalette.positive}22` : `${analyticsPalette.accentPink}22`,
+                    color: vsAverage.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
+                    fontWeight: 600,
+                    fontSize: '0.7rem',
+                    height: 22
+                  }}
+                />
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
+      
+      {/* Revenue Impact Section */}
+      <Box 
+        sx={{ 
+          mb: 2,
+          p: 1.5,
+          borderRadius: 1.5,
+          background: `linear-gradient(135deg, ${analyticsPalette.orange}26 0%, ${analyticsPalette.orange}0A 100%)`,
+          border: `1px solid ${analyticsPalette.orange}1A`,
+        }}
+      >
+        <Typography 
+          variant="subtitle2" 
+          sx={{
+            color: 'rgba(255, 255, 255, 0.7)',
+            fontSize: '0.8rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            mb: 1
+          }}
+        >
+          Revenue Metrics
+        </Typography>
+        
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
+              Potential Revenue
+            </Typography>
+            <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600, fontSize: '1.05rem' }}>
+              ₹{cartValue.toLocaleString('en-IN')}
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" sx={{ color: '#EEE', fontSize: '0.85rem' }}>
+              Avg. Cart Value
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.85rem' }}>
+              ₹{value > 0 ? Math.round(cartValue / value).toLocaleString('en-IN') : '0'}
+            </Typography>
+          </Box>
+          
+          {recoverableCarts > 0 && (
+            <>
               <Box sx={{ 
-                mt: 1, 
-                pt: 1, 
-                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                mt: 0.5, 
+                pt: 1.2, 
+                borderTop: '1px solid rgba(255, 255, 255, 0.15)',
                 display: 'flex',
                 justifyContent: 'space-between'
               }}>
@@ -307,7 +231,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                       letterSpacing: '.5px'
                     }}
                   >
-                    Recovery Potential
+                    Recoverable Revenue
                   </Typography>
                   <Typography 
                     variant="body2" 
@@ -317,7 +241,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                       fontWeight: 600
                     }}
                   >
-                    ₹{Math.round(recovery.potentialRecovery).toLocaleString('en-IN')}
+                    ₹{Math.round(recoverableValue).toLocaleString('en-IN')}
                   </Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
@@ -341,111 +265,27 @@ const CustomTooltip = ({ active, payload, label }) => {
                       fontWeight: 600
                     }}
                   >
-                    {recovery.recoveryCarts} carts
+                    {recoverableCarts} carts
                   </Typography>
                 </Box>
               </Box>
-            )}
-          </Box>
-        </Box>
-      )}
-      
-      {/* Customer analysis section */}
-      {current.customerInsight && (
-        <Box 
-          sx={{ 
-            mb: 2,
-            p: 1.5,
-            borderRadius: 1.5,
-            background: `linear-gradient(135deg, ${analyticsPalette.primary}26 0%, ${analyticsPalette.primary}0A 100%)`,
-            border: `1px solid ${analyticsPalette.primary}1A`,
-          }}
-        >
-          <Typography 
-            variant="subtitle2" 
-            sx={{
-              color: 'rgba(255, 255, 255, 0.7)',
-              fontSize: '0.8rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              mb: 0.5
-            }}
-          >
-            Customer Analysis
-          </Typography>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              color: '#EEE',
-              fontSize: '0.85rem',
-              mt: 1
-            }}
-          >
-            {current.customerInsight}
-          </Typography>
-        </Box>
-      )}
-      
-      {/* Intelligent Insights */}
-      <Box sx={{ pb: 0.5 }}>
-        <Typography 
-          variant="subtitle2" 
-          sx={{
-            color: 'rgba(255, 255, 255, 0.7)',
-            fontSize: '0.8rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            mb: 0.5
-          }}
-        >
-          Key Insight
-        </Typography>
-        
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            color: '#FFF',
-            fontSize: '0.85rem',
-            lineHeight: 1.5,
-            fontWeight: 500
-          }}
-        >
-          {(percentChange && percentChange > 20) ? (
-            <>
-              <Box component="span" sx={{ color: analyticsPalette.accentPink, fontWeight: 600 }}>
-                {Math.abs(Math.round(percentChange))}% increase
-              </Box> from previous day, significantly above historical patterns. High correlation with {vsAverage && vsAverage.day} traffic spikes.
-            </>
-          ) : (percentChange && percentChange < -20) ? (
-            <>
-              <Box component="span" sx={{ color: analyticsPalette.positive, fontWeight: 600 }}>
-                {Math.abs(Math.round(percentChange))}% decrease
-              </Box> compared to previous day, showing better conversion efficiency than average {vsAverage ? `${vsAverage.day}s` : 'days'}.
-            </>
-          ) : (recovery && recovery.potentialRecovery > 10000) ? (
-            <>
-              High-value abandonment pattern detected with <Box component="span" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
-                ₹{Math.round(recovery.perCart).toLocaleString('en-IN')}
-              </Box> per cart, {Math.round((recovery.perCart / dataArray?.reduce((sum, i) => sum + (i.cartValue || 0) / i.abandonedCartsCount, 0) * dataArray?.length) * 100 - 100)}% above average.
-            </>
-          ) : (value > (dataArray?.reduce((sum, i) => sum + i.abandonedCartsCount, 0) / dataArray?.length * 1.5)) ? (
-            <>
-              Statistically significant <Box component="span" sx={{ color: analyticsPalette.accentPink, fontWeight: 600 }}>
-                {Math.round((value / (dataArray?.reduce((sum, i) => sum + i.abandonedCartsCount, 0) / dataArray?.length) * 100) - 100)}% higher
-              </Box> than period average, suggesting checkout friction during peak traffic periods.
-            </>
-          ) : (weekComparison && Math.abs(weekComparison.percentage) > 15) ? (
-            <>
-              <Box component="span" sx={{ color: weekComparison.percentage < 0 ? analyticsPalette.positive : analyticsPalette.accentPink, fontWeight: 600 }}>
-                {Math.abs(Math.round(weekComparison.percentage))}% {weekComparison.percentage < 0 ? 'lower' : 'higher'}
-              </Box> than same day last week, reflecting {weekComparison.percentage < 0 ? 'improved checkout experience' : 'increased abandonment patterns'}.
-            </>
-          ) : (
-            <>
-              Within normal fluctuation range (<Box component="span" sx={{ color: analyticsPalette.primary, fontWeight: 600 }}>±{Math.round((value / (dataArray?.reduce((sum, i) => sum + i.abandonedCartsCount, 0) / dataArray?.length) * 100) - 100)}%</Box> from average). Consistent with historical {vsAverage ? vsAverage.day : 'daily'} patterns.
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '0.68rem',
+                  fontStyle: 'italic',
+                  display: 'block',
+                  textAlign: 'center',
+                  mt: 0.5,
+                  lineHeight: 1.3
+                }}
+              >
+                {((recoverableCarts / value) * 100).toFixed(1)}% have phone numbers (recoverable)
+              </Typography>
             </>
           )}
-        </Typography>
+        </Box>
       </Box>
     </Box>
   );
@@ -542,6 +382,16 @@ const AbandonedCartsChart = ({ data }) => {
   
   const totalRevenueLoss = useMemo(() => 
     data.reduce((sum, item) => sum + (item.cartValue || 0), 0),
+    [data]
+  );
+
+  const totalRecoverableRevenue = useMemo(() => 
+    data.reduce((sum, item) => sum + (item.recoverableValue || 0), 0),
+    [data]
+  );
+
+  const totalRecoverableCarts = useMemo(() => 
+    data.reduce((sum, item) => sum + (item.recoverableCarts || 0), 0),
     [data]
   );
 
@@ -685,12 +535,12 @@ const AbandonedCartsChart = ({ data }) => {
           pt: 2,
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',
           display: 'grid',
-          gridTemplateColumns: isSmallScreen ? '1fr' : 'repeat(3, 1fr)',
+          gridTemplateColumns: isSmallScreen ? '1fr' : 'repeat(4, 1fr)',
           gap: 2
         }}
       >
         <Box sx={{ textAlign: 'center', p: 1 }}>
-          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.7rem' }}>
             Average Per Day
           </Typography>
           <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
@@ -700,10 +550,10 @@ const AbandonedCartsChart = ({ data }) => {
         
         {maxCartsDay && (
           <Box sx={{ textAlign: 'center', p: 1 }}>
-            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.7rem' }}>
               Peak Day
             </Typography>
-            <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600, fontSize: '1rem' }}>
               {dayjs(maxCartsDay.date).format('MMM D')} ({maxCartsDay.abandonedCartsCount})
             </Typography>
           </Box>
@@ -711,15 +561,87 @@ const AbandonedCartsChart = ({ data }) => {
         
         {totalRevenueLoss > 0 && (
           <Box sx={{ textAlign: 'center', p: 1 }}>
-            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-              Est. Revenue Loss
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.7rem' }}>
+              Potential Revenue
             </Typography>
-            <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ color: analyticsPalette.orange, fontWeight: 600, fontSize: '1rem' }}>
               ₹{totalRevenueLoss.toLocaleString('en-IN')}
             </Typography>
           </Box>
         )}
+
+        {totalRecoverableCarts > 0 && (
+          <Box 
+            sx={{ 
+              textAlign: 'center', 
+              p: 1.5,
+              backgroundColor: `${analyticsPalette.positive}15`,
+              borderRadius: '8px',
+              border: `1px solid ${analyticsPalette.positive}30`
+            }}
+          >
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                color: analyticsPalette.positive, 
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                display: 'block',
+                mb: 0.5
+              }}
+            >
+              Recoverable Revenue
+            </Typography>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: '#FFF', 
+                fontWeight: 700,
+                fontSize: '1.1rem'
+              }}
+            >
+              ₹{Math.round(totalRecoverableRevenue).toLocaleString('en-IN')}
+            </Typography>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.5)', 
+                fontSize: '0.65rem',
+                fontStyle: 'italic',
+                display: 'block',
+                mt: 0.25
+              }}
+            >
+              {totalRecoverableCarts} carts with phone
+            </Typography>
+          </Box>
+        )}
       </Box>
+
+      {/* Recoverable Info Box */}
+      {totalRecoverableCarts > 0 && (
+        <Box
+          sx={{
+            mt: 2,
+            p: 1.5,
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            textAlign: 'center'
+          }}
+        >
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              color: 'rgba(255, 255, 255, 0.6)', 
+              fontSize: '0.75rem',
+              display: 'block'
+            }}
+          >
+            💡 <strong style={{ color: analyticsPalette.positive }}>Recoverable carts</strong> are those where we have customer phone numbers in our funnel data, enabling retargeting campaigns
+          </Typography>
+        </Box>
+      )}
       </Box>
   );
 };

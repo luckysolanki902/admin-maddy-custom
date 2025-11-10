@@ -4,18 +4,22 @@
 
 import React, { useMemo } from 'react';
 import {
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  Area,
+  ComposedChart,
 } from 'recharts';
-import { Box, Typography, useMediaQuery, useTheme, alpha } from '@mui/material';
+import { Box, Typography, useMediaQuery, useTheme, alpha, Chip } from '@mui/material';
 import { analyticsPalette } from '../common/palette';
 import dayjs from '@/lib/dayjsConfig';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
 const CustomTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -28,13 +32,13 @@ const CustomTooltip = ({ active, payload }) => {
 
   return (
     <Box sx={{
-      background: 'rgba(17,24,39,0.78)',
-      backdropFilter: 'blur(12px)',
-      p: 2,
-      borderRadius: 2,
-      minWidth: 240,
-      border: '1px solid rgba(255,255,255,0.12)',
-      boxShadow: '0 4px 28px -4px rgba(0,0,0,0.45)',
+      background: 'rgba(17,24,39,0.95)',
+      backdropFilter: 'blur(20px)',
+      p: 2.5,
+      borderRadius: 2.5,
+      minWidth: 280,
+      border: `1px solid ${alpha(analyticsPalette.primary, 0.3)}`,
+      boxShadow: `0 8px 32px -8px ${alpha(analyticsPalette.primary, 0.4)}`,
       position: 'relative',
       '&:before': {
         content: '""',
@@ -42,31 +46,112 @@ const CustomTooltip = ({ active, payload }) => {
         top: 0,
         left: 0,
         right: 0,
-        height: 2,
-        background: `linear-gradient(90deg, transparent, ${analyticsPalette.primary}66, transparent)`
+        height: 3,
+        borderRadius: '10px 10px 0 0',
+        background: `linear-gradient(90deg, ${analyticsPalette.primary}, ${alpha(analyticsPalette.primary, 0.4)})`
       }
     }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#fff', fontSize: '.9rem', letterSpacing: '.3px' }}>{p.fullLabel}</Typography>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.2 }}>
-        <Typography sx={{ fontSize: '.75rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', letterSpacing: '.6px' }}>Revenue</Typography>
-        <Typography sx={{ fontWeight: 600, color: '#fff', fontSize: '.95rem' }}>₹{dailyRevenue.toLocaleString('en-IN')}</Typography>
-      </Box>
-      {prev > 0 && (
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: .6 }}>
-          <Typography sx={{ fontSize: '.7rem', color: 'rgba(255,255,255,0.55)' }}>vs Prev Day</Typography>
-          <Typography sx={{ fontSize: '.7rem', fontWeight: 600, color: prevChange >=0 ? analyticsPalette.positive : analyticsPalette.accentPink }}>
-            {prevChange >=0 ? '+' : ''}{prevChange?.toFixed(1)}%
-          </Typography>
-        </Box>
-      )}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: .6 }}>
-        <Typography sx={{ fontSize: '.7rem', color: 'rgba(255,255,255,0.55)' }}>vs Avg</Typography>
-        <Typography sx={{ fontSize: '.7rem', fontWeight: 600, color: avgDev >=0 ? analyticsPalette.positive : analyticsPalette.accentPink }}>
-          {avgDev >=0 ? '+' : ''}{avgDev?.toFixed(1)}%
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5, color: '#fff', fontSize: '.95rem', letterSpacing: '.3px' }}>
+        {p.fullLabel}
+      </Typography>
+      
+      {/* Main Revenue Display */}
+      <Box sx={{ 
+        mb: 2, 
+        p: 1.5, 
+        borderRadius: 1.5,
+        background: `linear-gradient(135deg, ${alpha(analyticsPalette.primary, 0.15)} 0%, ${alpha(analyticsPalette.primary, 0.05)} 100%)`,
+        border: `1px solid ${alpha(analyticsPalette.primary, 0.2)}`
+      }}>
+        <Typography sx={{ fontSize: '.7rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', letterSpacing: '.6px', mb: 0.5 }}>
+          Daily Revenue
+        </Typography>
+        <Typography sx={{ fontWeight: 700, color: analyticsPalette.primary, fontSize: '1.4rem' }}>
+          ₹{dailyRevenue.toLocaleString('en-IN')}
         </Typography>
       </Box>
+
+      {/* Performance Metrics */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {prev > 0 && (
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            p: 1,
+            borderRadius: 1,
+            background: prevChange >= 0 
+              ? `linear-gradient(135deg, ${alpha(analyticsPalette.positive, 0.1)} 0%, transparent 100%)`
+              : `linear-gradient(135deg, ${alpha(analyticsPalette.accentPink, 0.1)} 0%, transparent 100%)`
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              {prevChange >= 0 ? (
+                <TrendingUpIcon sx={{ fontSize: 14, color: analyticsPalette.positive }} />
+              ) : (
+                <TrendingDownIcon sx={{ fontSize: 14, color: analyticsPalette.accentPink }} />
+              )}
+              <Typography sx={{ fontSize: '.75rem', color: 'rgba(255,255,255,0.7)' }}>
+                vs Previous Day
+              </Typography>
+            </Box>
+            <Chip
+              label={`${prevChange >= 0 ? '+' : ''}${prevChange?.toFixed(1)}%`}
+              size="small"
+              sx={{
+                backgroundColor: prevChange >= 0 ? alpha(analyticsPalette.positive, 0.2) : alpha(analyticsPalette.accentPink, 0.2),
+                color: prevChange >= 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
+                fontWeight: 700,
+                fontSize: '.7rem',
+                height: 24
+              }}
+            />
+          </Box>
+        )}
+        
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          p: 1,
+          borderRadius: 1,
+          background: avgDev >= 0 
+            ? `linear-gradient(135deg, ${alpha(analyticsPalette.positive, 0.1)} 0%, transparent 100%)`
+            : `linear-gradient(135deg, ${alpha(analyticsPalette.accentPink, 0.1)} 0%, transparent 100%)`
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {avgDev >= 0 ? (
+              <TrendingUpIcon sx={{ fontSize: 14, color: analyticsPalette.positive }} />
+            ) : (
+              <TrendingDownIcon sx={{ fontSize: 14, color: analyticsPalette.accentPink }} />
+            )}
+            <Typography sx={{ fontSize: '.75rem', color: 'rgba(255,255,255,0.7)' }}>
+              vs Period Avg
+            </Typography>
+          </Box>
+          <Chip
+            label={`${avgDev >= 0 ? '+' : ''}${avgDev?.toFixed(1)}%`}
+            size="small"
+            sx={{
+              backgroundColor: avgDev >= 0 ? alpha(analyticsPalette.positive, 0.2) : alpha(analyticsPalette.accentPink, 0.2),
+              color: avgDev >= 0 ? analyticsPalette.positive : analyticsPalette.accentPink,
+              fontWeight: 700,
+              fontSize: '.7rem',
+              height: 24
+            }}
+          />
+        </Box>
+      </Box>
+
       {p.dayContext && (
-        <Typography sx={{ mt: 1, fontSize: '.65rem', color: 'rgba(255,255,255,0.55)', fontStyle: 'italic' }}>{p.dayContext}</Typography>
+        <Box sx={{ 
+          mt: 1.5, 
+          pt: 1.5, 
+          borderTop: `1px solid ${alpha('#fff', 0.1)}`,
+        }}>
+          <Typography sx={{ fontSize: '.7rem', color: alpha(analyticsPalette.info, 0.8), fontStyle: 'italic', fontWeight: 500 }}>
+            {p.dayContext}
+          </Typography>
+        </Box>
       )}
     </Box>
   )
@@ -80,8 +165,14 @@ const DailyRevenueChart = ({ data }) => {
   const processedData = useMemo(() => {
     if (!data?.length) return [];
 
+    // Sort and normalize dates to UTC midnight to avoid timezone issues
     const sortedData = [...data]
-      .map(d => ({ ...d, date: dayjs(d.date).startOf('day').toISOString() }))
+      .map(d => ({
+        ...d,
+        // Ensure we use the original date value without timezone conversion issues
+        dailyRevenue: Number(d.dailyRevenue) || 0, // Ensure it's a number
+        date: dayjs(d.date).format('YYYY-MM-DD') // Normalize to YYYY-MM-DD format
+      }))
       .sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
     
     // Calculate daily average
@@ -102,8 +193,9 @@ const DailyRevenueChart = ({ data }) => {
 
       return {
         ...item,
+        dailyRevenue: item.dailyRevenue, // Use the normalized number
         date: date.format('MMM D'),
-  fullLabel: date.format('dddd, MMM D YYYY'),
+        fullLabel: date.format('dddd, MMM D YYYY'),
         previousDayRevenue: index > 0 ? sortedData[index - 1].dailyRevenue : null,
         averageDailyRevenue,
         dayContext
@@ -149,7 +241,7 @@ const DailyRevenueChart = ({ data }) => {
       </Typography>
 
       <ResponsiveContainer width="100%" height={350}>
-        <BarChart
+        <ComposedChart
           data={processedData}
           margin={{
             top: 20,
@@ -159,10 +251,21 @@ const DailyRevenueChart = ({ data }) => {
           }}
         >
           <defs>
-            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={analyticsPalette.primary} stopOpacity={0.8} />
-              <stop offset="95%" stopColor={analyticsPalette.primary} stopOpacity={0.3} />
+            <linearGradient id="dailyRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={analyticsPalette.primary} stopOpacity={0.4} />
+              <stop offset="95%" stopColor={analyticsPalette.primary} stopOpacity={0.05} />
             </linearGradient>
+            <filter id="shadow-daily" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+              <feOffset dx="0" dy="2" result="offsetblur" />
+              <feComponentTransfer>
+                <feFuncA type="linear" slope="0.3" />
+              </feComponentTransfer>
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
 
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" vertical={false} />
@@ -185,7 +288,7 @@ const DailyRevenueChart = ({ data }) => {
           
           <Tooltip
             content={<CustomTooltip />}
-            cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+            cursor={{ stroke: alpha(analyticsPalette.primary, 0.3), strokeWidth: 2 }}
           />
 
           <ReferenceLine
@@ -200,13 +303,36 @@ const DailyRevenueChart = ({ data }) => {
             }}
           />
 
-          <Bar
+          {/* Area fill */}
+          <Area
+            type="monotone"
             dataKey="dailyRevenue"
-            fill="url(#barGradient)"
-            radius={[4, 4, 0, 0]}
-            maxBarSize={50}
+            stroke="none"
+            fill="url(#dailyRevenueGradient)"
+            fillOpacity={1}
           />
-        </BarChart>
+
+          {/* Line on top */}
+          <Line
+            type="monotone"
+            dataKey="dailyRevenue"
+            stroke={analyticsPalette.primary}
+            strokeWidth={3}
+            dot={{
+              r: 4,
+              fill: '#fff',
+              stroke: analyticsPalette.primary,
+              strokeWidth: 2
+            }}
+            activeDot={{
+              r: 6,
+              fill: analyticsPalette.primary,
+              stroke: '#fff',
+              strokeWidth: 2,
+              filter: 'url(#shadow-daily)'
+            }}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
 
       {/* Performance Summary */}
@@ -220,35 +346,73 @@ const DailyRevenueChart = ({ data }) => {
           gap: 2
         }}
       >
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-            Peak Day
-          </Typography>
+        <Box 
+          sx={{ 
+            textAlign: 'center',
+            p: 2,
+            borderRadius: 2,
+            background: `linear-gradient(135deg, ${alpha(analyticsPalette.positive, 0.1)} 0%, ${alpha(analyticsPalette.positive, 0.03)} 100%)`,
+            border: `1px solid ${alpha(analyticsPalette.positive, 0.2)}`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 0.5 }}>
+            <TrendingUpIcon sx={{ fontSize: 16, color: analyticsPalette.positive, mr: 0.5 }} />
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+              Peak Day
+            </Typography>
+          </Box>
           <Typography variant="h6" sx={{ color: analyticsPalette.positive, fontWeight: 'bold' }}>
             ₹{Math.max(...processedData.map(d => d.dailyRevenue)).toLocaleString('en-IN')}
           </Typography>
         </Box>
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+        <Box 
+          sx={{ 
+            textAlign: 'center',
+            p: 2,
+            borderRadius: 2,
+            background: `linear-gradient(135deg, ${alpha(analyticsPalette.primary, 0.1)} 0%, ${alpha(analyticsPalette.primary, 0.03)} 100%)`,
+            border: `1px solid ${alpha(analyticsPalette.primary, 0.2)}`,
+          }}
+        >
+          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px', mb: 0.5, display: 'block' }}>
             Daily Average
           </Typography>
           <Typography variant="h6" sx={{ color: analyticsPalette.primary, fontWeight: 'bold' }}>
             ₹{Math.round(stats.avg).toLocaleString('en-IN')}
           </Typography>
         </Box>
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-            Worst Day
-          </Typography>
+        <Box 
+          sx={{ 
+            textAlign: 'center',
+            p: 2,
+            borderRadius: 2,
+            background: `linear-gradient(135deg, ${alpha(analyticsPalette.accentPink, 0.1)} 0%, ${alpha(analyticsPalette.accentPink, 0.03)} 100%)`,
+            border: `1px solid ${alpha(analyticsPalette.accentPink, 0.2)}`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 0.5 }}>
+            <TrendingDownIcon sx={{ fontSize: 16, color: analyticsPalette.accentPink, mr: 0.5 }} />
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+              Worst Day
+            </Typography>
+          </Box>
           <Typography variant="h6" sx={{ color: analyticsPalette.accentPink, fontWeight: 'bold' }}>
             ₹{stats.min.toLocaleString('en-IN')}
           </Typography>
         </Box>
-        <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+        <Box 
+          sx={{ 
+            textAlign: 'center',
+            p: 2,
+            borderRadius: 2,
+            background: `linear-gradient(135deg, ${alpha(analyticsPalette.info, 0.1)} 0%, ${alpha(analyticsPalette.info, 0.03)} 100%)`,
+            border: `1px solid ${alpha(analyticsPalette.info, 0.2)}`,
+          }}
+        >
+          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px', mb: 0.5, display: 'block' }}>
             Period Total
           </Typography>
-          <Typography variant="h6" sx={{ color: analyticsPalette.primary, fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ color: analyticsPalette.info, fontWeight: 'bold' }}>
             ₹{processedData.reduce((sum, d) => sum + d.dailyRevenue, 0).toLocaleString('en-IN')}
           </Typography>
         </Box>

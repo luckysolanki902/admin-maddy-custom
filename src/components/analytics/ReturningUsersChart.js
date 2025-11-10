@@ -255,12 +255,49 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
+    
+    // Better formatting for tooltip values
+    const formatValue = (value, key) => {
+      if (key === 'uniqueReturningVisitors') return `${value} unique visitors`;
+      if (key === 'returningVisitors18h') return `${value} visitors (came back after 18h+)`;
+      if (key === 'sameDayVisitors1h') return `${value} visitors (same-day returns)`;
+      if (key === 'firstPurchaseAfter18h') return `${value} first-time buyers (after 18h)`;
+      if (key === 'reorders18h') return `${value} repeat purchases (18h+ gap)`;
+      if (key === 'reordersOrders') return `${value} total repeat orders`;
+      // Gap bucket keys
+      if (key === 'sameDay1h') return `${value} visitors`;
+      if (key === 'g1h_18h') return `${value} visitors`;
+      if (key === 'g18h_3d') return `${value} visitors`;
+      if (key === 'gt3d') return `${value} visitors`;
+      if (key === 'gt7d') return `${value} visitors`;
+      if (key === 'gt30d') return `${value} visitors`;
+      return `${value}`;
+    };
+
+    const getLabel = (name) => {
+      if (name === 'Returning Visitors (baseline)' || name === 'All Returning Visitors') return 'All Returning Visitors';
+      if (name === 'Returning Visitors (18h+)' || name === 'Returned After 18+ Hours') return 'Came Back After 18+ Hours';
+      if (name === 'Same‑day Visitors (1h+)' || name === 'Same-Day Returns (1h+)') return 'Returned Same Day (1h+ gap)';
+      if (name === 'First Purchase After 18h' || name === 'First Purchase (Delayed)') return 'First Purchase (Delayed 18h+)';
+      if (name === 'Reorders (18h+ gap events)' || name === 'Repeat Purchases') return 'Repeat Purchases (18h+ gap)';
+      if (name === 'Reorders (Orders)' || name === 'Total Repeat Orders') return 'Total Repeat Orders';
+      // Gap bucket names
+      if (name === 'Same-day (≥1h)') return 'Same Day (1+ hours apart)';
+      if (name === '>=1h cross-day <18h') return 'Next Day (under 18 hours)';
+      if (name === '>=18h to 3d') return 'Returned After 18h-3 Days';
+      if (name === '>3 days') return 'Returned After 3+ Days';
+      if (name === '>7 days') return 'Returned After 7+ Days';
+      if (name === '>30 days') return 'Returned After 30+ Days';
+      return name;
+    };
+
     return (
       <Paper
         elevation={4}
         sx={{
           p: 1.5,
-          background: alpha(theme.palette.background.paper, 0.95),
+          minWidth: 200,
+          background: alpha(theme.palette.background.paper, 0.98),
           backdropFilter: 'blur(10px)',
           border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
           borderRadius: 1.5,
@@ -268,29 +305,55 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
       >
         <Typography
           variant="caption"
-          sx={{ fontWeight: 600, mb: 0.5, display: 'block', fontSize: '0.75rem' }}
+          sx={{ 
+            fontWeight: 700, 
+            mb: 1, 
+            display: 'block', 
+            fontSize: '0.8rem',
+            color: theme.palette.primary.main 
+          }}
         >
-          {label}
+          📅 {label}
         </Typography>
         {payload.map((entry, index) => (
           <Box
             key={index}
-            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}
+            sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mt: 0.5 }}
           >
             <Box
               sx={{
-                width: 8,
-                height: 8,
+                width: 10,
+                height: 10,
                 borderRadius: '50%',
                 backgroundColor: entry.color,
+                mt: 0.3,
+                flexShrink: 0,
               }}
             />
-            <Typography
-              variant="caption"
-              sx={{ color: 'text.secondary', fontSize: '0.7rem' }}
-            >
-              {entry.name}: <strong>{entry.value}</strong>
-            </Typography>
+            <Box sx={{ flex: 1 }}>
+              <Typography
+                variant="caption"
+                sx={{ 
+                  color: 'text.primary', 
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  display: 'block',
+                  lineHeight: 1.3,
+                }}
+              >
+                {getLabel(entry.name)}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ 
+                  color: 'text.secondary', 
+                  fontSize: '0.7rem',
+                  display: 'block',
+                }}
+              >
+                {formatValue(entry.value, entry.dataKey)}
+              </Typography>
+            </Box>
           </Box>
         ))}
       </Paper>
@@ -435,8 +498,16 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
           mb: 2,
         }}
       >
-        <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600, fontSize: '0.9rem' }}>
-          Daily Returning Visitors (18h+ gap) vs Key Outcomes
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
+            Daily Returning Visitor Trends
+          </Typography>
+          <Tooltip title="Shows visitors who returned to your site after their first visit, broken down by time gap" arrow>
+            <InfoOutlinedIcon sx={{ fontSize: 16, color: 'text.disabled', cursor: 'help' }} />
+          </Tooltip>
+        </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2, fontSize: '0.72rem' }}>
+          Track how many users came back and when they converted. Hover over the lines for detailed breakdowns.
         </Typography>
         <ResponsiveContainer width="100%" height={280}>
           <ComposedChart data={timeline}>
@@ -471,28 +542,31 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
               iconSize={10}
             />
             {/* Always show baseline unique visitors (dashed) */}
-            <Line type="monotone" dataKey="uniqueReturningVisitors" name="Returning Visitors (baseline)" stroke={alpha(theme.palette.text.primary, 0.6)} strokeDasharray="4 3" strokeWidth={2} dot={{ r: 1.5, fill: alpha(theme.palette.text.primary, 0.6) }} />
+            <Line type="monotone" dataKey="uniqueReturningVisitors" name="All Returning Visitors" stroke={alpha(theme.palette.text.primary, 0.6)} strokeDasharray="4 3" strokeWidth={2} dot={{ r: 1.5, fill: alpha(theme.palette.text.primary, 0.6) }} />
             {showReturning18h && (
-              <Area type="monotone" dataKey="returningVisitors18h" name="Returning Visitors (18h+)" fill="url(#returningVisitorsGradient)" stroke={theme.palette.primary.main} strokeWidth={2} />
+              <Area type="monotone" dataKey="returningVisitors18h" name="Returned After 18+ Hours" fill="url(#returningVisitorsGradient)" stroke={theme.palette.primary.main} strokeWidth={2} />
             )}
             {showFirstPurchaseAfter18h && (
-              <Line type="monotone" dataKey="firstPurchaseAfter18h" name="First Purchase After 18h" stroke={theme.palette.success.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.success.main }} />
+              <Line type="monotone" dataKey="firstPurchaseAfter18h" name="First Purchase (Delayed)" stroke={theme.palette.success.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.success.main }} />
             )}
             {showReorders18h && (
-              <Line type="monotone" dataKey="reorders18h" name="Reorders (18h+ gap events)" stroke={theme.palette.warning.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.warning.main }} />
+              <Line type="monotone" dataKey="reorders18h" name="Repeat Purchases" stroke={theme.palette.warning.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.warning.main }} />
             )}
             {showReordersOrders && (
-              <Line type="monotone" dataKey="reordersOrders" name="Reorders (Orders)" stroke={theme.palette.secondary ? theme.palette.secondary.main : '#9c27b0'} strokeWidth={2} dot={{ r: 2, fill: theme.palette.secondary ? theme.palette.secondary.main : '#9c27b0' }} />
+              <Line type="monotone" dataKey="reordersOrders" name="Total Repeat Orders" stroke={theme.palette.secondary ? theme.palette.secondary.main : '#9c27b0'} strokeWidth={2} dot={{ r: 2, fill: theme.palette.secondary ? theme.palette.secondary.main : '#9c27b0' }} />
             )}
             {showSameDay1h && (
-              <Line type="monotone" dataKey="sameDayVisitors1h" name="Same‑day Visitors (1h+)" stroke={theme.palette.info.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.info.main }} />
+              <Line type="monotone" dataKey="sameDayVisitors1h" name="Same-Day Returns (1h+)" stroke={theme.palette.info.main} strokeWidth={2} dot={{ r: 2, fill: theme.palette.info.main }} />
             )}
           </ComposedChart>
         </ResponsiveContainer>
         {!hasAnyAdvanced && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            No 18h-gap data for the selected range. Showing baseline returning visitors instead. Try Last 30 Days for more signal.
-          </Typography>
+          <Box sx={{ mt: 1.5, p: 1.5, background: alpha(theme.palette.info.main, 0.05), borderRadius: 1, border: `1px solid ${alpha(theme.palette.info.main, 0.2)}` }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+              Showing baseline data only. For detailed time-gap analysis (18h+, same-day returns, etc.), try selecting &quot;Last 30 Days&quot; to capture more visitor patterns.
+            </Typography>
+          </Box>
         )}
         {debug && (
           <Box sx={{ mt: 1.5, p: 1, border: `1px solid ${alpha(theme.palette.warning.main,0.3)}`, borderRadius: 1 }}>
@@ -561,10 +635,10 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
           >
             <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.primary.main, display: 'block', mb: 0.5, fontSize: '0.75rem' }}>
               <PeopleIcon sx={{ fontSize: 14, verticalAlign: 'text-bottom', mr: 0.5 }} />
-              What is &quot;Returning Visitors&quot;?
+              What Are &quot;Returning Visitors&quot;?
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.4, fontSize: '0.7rem' }}>
-              Returning = came back after a gap (default 18h+) or longer; we also show same‑day revisits with ≥1h gap separately.
+              People who visited your site before and came back. We track different time gaps: same-day returns (1+ hours apart), returns after 18+ hours, 3+ days, 7+ days, and 30+ days.
             </Typography>
           </Paper>
         </Grid>
@@ -580,10 +654,10 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
           >
             <Typography variant="caption" sx={{ fontWeight: 600, color: theme.palette.success.main, display: 'block', mb: 0.5, fontSize: '0.75rem' }}>
               <ShoppingCartIcon sx={{ fontSize: 14, verticalAlign: 'text-bottom', mr: 0.5 }} />
-              What is &quot;Repeat Buyers&quot;?
+              What Are &quot;Repeat Buyers&quot;?
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.4, fontSize: '0.7rem' }}>
-              First purchase after 18h shows delayed conversions; Reorders (18h+) shows loyalty. Both count unique people, deduped via userId when available.
+              Customers who made multiple purchases. &quot;First Purchase (Delayed)&quot; shows people who bought 18+ hours after first visit. &quot;Repeat Purchases&quot; shows customers who ordered again after 18+ hours.
             </Typography>
           </Paper>
         </Grid>
@@ -602,7 +676,7 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
               Why Does This Matter?
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.4, fontSize: '0.7rem' }}>
-              Returning customers cost 5–7× less to acquire. Use these segments (same‑day, 18h+, 3d+, 7d+, 30d+) to tailor campaigns and content cadence.
+              Returning customers cost 5-7× less to acquire than new ones. Understanding when people return helps you optimize retargeting campaigns and measure brand loyalty.
             </Typography>
           </Paper>
         </Grid>

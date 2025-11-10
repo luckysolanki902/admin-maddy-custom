@@ -210,7 +210,8 @@ const DownloadInventoryOrders = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 8, px: { xs: 2, sm: 3 } }}>
       <Typography variant="h4" align="center" gutterBottom>
-        Inventory-Based Product Orders
+        
+        d Product Orders
       </Typography>
 
       {/* Summary Section */}
@@ -248,7 +249,7 @@ const DownloadInventoryOrders = () => {
           handleMonthSelection={handleMonthSelection}
           handleCustomDateChange={(start, end) => {
             setActiveTag('customRange');
-            setDateRange({ 
+            handleDateRangeChange({ 
               start: start,
               end: end 
             });

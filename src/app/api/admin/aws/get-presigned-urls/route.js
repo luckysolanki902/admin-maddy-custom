@@ -76,11 +76,40 @@ async function handleGetPresignedUrls(request) {
         }
       },
       { $unwind: "$product" },
+      // join specific category via variant to allow filtering for wraps
+      {
+        $lookup: {
+          from: "specificcategoryvariants",
+          localField: "product.specificCategoryVariant",
+          foreignField: "_id",
+          as: "specificCategoryVariant"
+        }
+      },
+      { $unwind: "$specificCategoryVariant" },
+      {
+        $lookup: {
+          from: "specificcategories",
+          localField: "specificCategoryVariant.specificCategory",
+          foreignField: "_id",
+          as: "specificCategory"
+        }
+      },
+      { $unwind: { path: "$specificCategory", preserveNullAndEmptyArrays: false } },
       {
         $match: {
-          $or: [
-            { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
-            { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
+          $and: [
+            {
+              $or: [
+                { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
+                { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
+              ]
+            },
+            {
+              $or: [
+                { "specificCategory.isVenylWrap": true },
+                { "specificCategory.pageSlug": { $regex: '^/wraps' } }
+              ]
+            }
           ]
         }
       },
@@ -133,12 +162,41 @@ async function handleGetPresignedUrls(request) {
         }
       },
       { $unwind: "$product" },
+        // join variant -> category to filter wraps
+        {
+          $lookup: {
+            from: "specificcategoryvariants",
+            localField: "product.specificCategoryVariant",
+            foreignField: "_id",
+            as: "specificCategoryVariant"
+          }
+        },
+        { $unwind: "$specificCategoryVariant" },
+        {
+          $lookup: {
+            from: "specificcategories",
+            localField: "specificCategoryVariant.specificCategory",
+            foreignField: "_id",
+            as: "specificCategory"
+          }
+        },
+        { $unwind: { path: "$specificCategory", preserveNullAndEmptyArrays: false } },
       {
         $match: {
-          $or: [
-            { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
-            { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
-          ]
+            $and: [
+              {
+                $or: [
+                  { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
+                  { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
+                ]
+              },
+              {
+                $or: [
+                  { "specificCategory.isVenylWrap": true },
+                  { "specificCategory.pageSlug": { $regex: '^/wraps' } }
+                ]
+              }
+            ],
         }
       },
       { $group: { _id: null, totalItems: { $sum: "$items.quantity" } } },
@@ -168,11 +226,30 @@ async function handleGetPresignedUrls(request) {
       },
       { $unwind: "$specificCategoryVariant" },
       {
+        $lookup: {
+          from: "specificcategories",
+          localField: "specificCategoryVariant.specificCategory",
+          foreignField: "_id",
+          as: "specificCategory"
+        }
+      },
+      { $unwind: { path: "$specificCategory", preserveNullAndEmptyArrays: false } },
+      {
         $match: {
-          $or: [
-            { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
-            { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
-          ],
+          $and: [
+            {
+              $or: [
+                { "product.designTemplate.imageUrl": { $exists: true, $ne: "" } },
+                { "product.designTemplates": { $exists: true, $type: "array", $ne: [] } },
+              ]
+            },
+            {
+              $or: [
+                { "specificCategory.isVenylWrap": true },
+                { "specificCategory.pageSlug": { $regex: '^/wraps' } }
+              ]
+            }
+          ]
         },
       },
       {

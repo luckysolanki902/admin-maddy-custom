@@ -105,17 +105,17 @@ async function handleDownload(request) {
         },
       },
       { $unwind: '$specificCategoryVariant' },
-      // Lookup parent SpecificCategory for the variant so we can filter by its properties
+      // Join the parent SpecificCategory so we can filter by its attributes
       {
         $lookup: {
           from: 'specificcategories',
           localField: 'specificCategoryVariant.specificCategory',
           foreignField: '_id',
-          as: 'specificCategory'
-        }
+          as: 'specificCategory',
+        },
       },
-      { $unwind: { path: '$specificCategory', preserveNullAndEmptyArrays: true } },
-      // Keep only those where the specific category is a vinyl wrap or its pageSlug starts with /wraps
+      { $unwind: { path: '$specificCategory', preserveNullAndEmptyArrays: false } },
+      // Only include products whose specific category is a vinyl wrap or whose pageSlug starts with /wraps
       {
         $match: {
           $or: [
@@ -128,8 +128,12 @@ async function handleDownload(request) {
         $group: {
           _id: {
             sku: '$product.sku',
+            productName: '$product.name',
             specificCategoryVariant: '$specificCategoryVariant.name',
             designTemplateImageUrl: '$product.designTemplate.imageUrl',
+            // include the specific category flags so we can log/filter later
+            isVenylWrap: '$specificCategory.isVenylWrap',
+            specificCategoryPageSlug: '$specificCategory.pageSlug'
           },
           count: { $sum: '$items.quantity' },
         },
@@ -152,8 +156,18 @@ async function handleDownload(request) {
 
     // Function to fetch image from S3 and add to zip
     const fetchAndAddToZip = async (sticker) => {
-      const { sku, specificCategoryVariant, designTemplateImageUrl } = sticker._id;
+      const {
+        sku,
+        productName,
+        specificCategoryVariant,
+        designTemplateImageUrl,
+        isVenylWrap,
+        specificCategoryPageSlug
+      } = sticker._id;
       const { count } = sticker;
+
+      // Log the category/wrap status for tracing
+      console.log(`[DownloadRawDesigns] SKU=${sku} productName="${productName || ''}" isVenylWrap=${!!isVenylWrap} pageSlug=${specificCategoryPageSlug} count=${count}`);
 
       if (!designTemplateImageUrl) {
         console.error(`No designTemplate.imageUrl found for SKU ${sku}.`);
@@ -172,8 +186,8 @@ async function handleDownload(request) {
         const fileBuffer = data.Body;
 
         // Sanitize folder and file names
-        const sanitizedSKU = sku.replace(/[/\\?%*:|"<>]/g, '-');
-        const sanitizedCategoryVariant = specificCategoryVariant.replace(/[/\\?%*:|"<>]/g, '-');
+        const sanitizedSKU = (sku || '').replace(/[/\\?%*:|"<>]/g, '-');
+        const sanitizedCategoryVariant = (specificCategoryVariant || '').replace(/[/\\?%*:|"<>]/g, '-');
 
         // Extract file extension from imageUrl
         const fileExtension = path.extname(imageKey) || '.jpg'; // Default to .jpg if no extension

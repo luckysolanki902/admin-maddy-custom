@@ -105,6 +105,25 @@ async function handleDownload(request) {
         },
       },
       { $unwind: '$specificCategoryVariant' },
+      // Lookup parent SpecificCategory for the variant so we can filter by its properties
+      {
+        $lookup: {
+          from: 'specificcategories',
+          localField: 'specificCategoryVariant.specificCategory',
+          foreignField: '_id',
+          as: 'specificCategory'
+        }
+      },
+      { $unwind: { path: '$specificCategory', preserveNullAndEmptyArrays: true } },
+      // Keep only those where the specific category is a vinyl wrap or its pageSlug starts with /wraps
+      {
+        $match: {
+          $or: [
+            { 'specificCategory.isVenylWrap': true },
+            { 'specificCategory.pageSlug': { $regex: '^/wraps' } }
+          ]
+        }
+      },
       {
         $group: {
           _id: {

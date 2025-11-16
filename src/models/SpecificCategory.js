@@ -162,6 +162,10 @@ const SpecificCategorySchema = new mongoose.Schema(
       enum: ['inventory', 'on-demand'],
       default: 'on-demand',
     },
+    isVenylWrap: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

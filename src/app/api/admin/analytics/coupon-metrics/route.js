@@ -30,6 +30,12 @@ export async function GET(req) {
         $gte: startDate,
         $lte: endDate,
       },
+      // Only main orders or standalone orders (to avoid duplicates from linked orders)
+      $or: [
+        { orderGroupId: { $exists: false } },
+        { orderGroupId: null },
+        { isMainOrder: true }
+      ]
     };
 
     const [result] = await Order.aggregate([

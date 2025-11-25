@@ -126,7 +126,12 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
   } = useMemo(() => {
     const adv = data?.advancedTrends || {};
     const normalize = (arr) =>
-      (arr || []).map(d => ({ date: format(new Date(d.date), 'yyyy-MM-dd'), displayDate: format(new Date(d.date), 'MMM dd'), count: d.count || 0 }));
+      (arr || []).map(d => ({ 
+        date: format(new Date(d.date), 'yyyy-MM-dd'), 
+        displayDate: format(new Date(d.date), 'MMM dd'), 
+        count: d.count || 0,
+        phoneNumbers: d.phoneNumbers || []
+      }));
 
     return {
       series18h: normalize(adv.returningVisitors18hDaily),
@@ -160,6 +165,9 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
       (arr || []).forEach(d => {
         const curr = map.get(d.date) || { date: d.date, displayDate: d.displayDate };
         curr[key] = d.count;
+        if (key === 'returningVisitors18h' && d.phoneNumbers) {
+          curr.phoneNumbers = d.phoneNumbers;
+        }
         map.set(d.date, curr);
       });
     };
@@ -291,6 +299,8 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
       return name;
     };
 
+    const phoneNumbers = payload[0]?.payload?.phoneNumbers || [];
+
     return (
       <Paper
         elevation={4}
@@ -356,6 +366,35 @@ export default function ReturningUsersChart({ data, loading, startDate, endDate 
             </Box>
           </Box>
         ))}
+        {phoneNumbers.length > 0 && (
+          <Box sx={{ mt: 1.5, pt: 1, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5, color: theme.palette.text.secondary }}>
+              Users ({phoneNumbers.length}):
+            </Typography>
+            <Box sx={{ maxHeight: 150, overflowY: 'auto', pr: 0.5 }}>
+              {phoneNumbers.map((phone, idx) => (
+                <Typography 
+                  key={idx} 
+                  variant="caption" 
+                  component="a"
+                  href={`/admin/analytics/customer-journey?query=${encodeURIComponent(phone)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ 
+                    display: 'block', 
+                    color: theme.palette.primary.main,
+                    textDecoration: 'none',
+                    fontSize: '0.7rem',
+                    mb: 0.25,
+                    '&:hover': { textDecoration: 'underline' }
+                  }}
+                >
+                  {phone} ↗
+                </Typography>
+              ))}
+            </Box>
+          </Box>
+        )}
       </Paper>
     );
   };

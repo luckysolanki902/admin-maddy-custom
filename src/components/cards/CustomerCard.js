@@ -40,6 +40,7 @@ import { CopyAll, CopyAllOutlined, CopyAllRounded, WhatsApp } from '@mui/icons-m
 import Link from 'next/link';
 import { generateInvoicePdf } from '@/utils/pdfGenerator';
 import Image from 'next/image';
+import TimelineIcon from '@mui/icons-material/Timeline';
 
 // Extend dayjs with plugins
 dayjs.extend(utc);
@@ -111,10 +112,32 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
   const [copied, setCopied] = useState(false);
   const [phoneCopied, setPhoneCopied] = useState(false);
 
+  // Check if customer is a repeated buyer
+  const isRepeatedBuyer = order.loyaltyOrderCount && order.loyaltyOrderCount > 1;
+  const loyaltyCount = order.loyaltyOrderCount || 1;
+
+  // Debug logging - Check first order only
+  if (order._id === '6744291a972b2fda6bca9e97') {
+    console.log('🔍 SPECIAL ORDER DEBUG:', {
+      orderId: order._id,
+      phone: order.address?.receiverPhoneNumber,
+      loyaltyOrderCount: order.loyaltyOrderCount,
+      isRepeatedBuyer,
+      orderKeys: Object.keys(order).join(', ')
+    });
+  }
+
   // Check if this is a grouped order (has shipment breakdown)
   const isGroupedOrder = order.shipmentBreakdown && order.shipmentBreakdown.length > 1;
   const mainShipment = order.shipmentBreakdown ? order.shipmentBreakdown.find(s => s.isMainShipment) : null;
   const linkedShipments = order.shipmentBreakdown ? order.shipmentBreakdown.filter(s => !s.isMainShipment) : [];
+  
+  console.log('CustomerCard Debug:', {
+    orderId: order._id,
+    loyaltyOrderCount: order.loyaltyOrderCount,
+    isRepeatedBuyer,
+    phoneNumber: order.address?.receiverPhoneNumber
+  });
 
   // Calculate totals for grouped orders
   const calculateGroupedTotals = () => {
@@ -235,40 +258,59 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
     return status.replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase());
   };
 
+
   return (
     <Accordion
       expanded={expanded === order._id}
       onChange={handleChange(order._id)}
       sx={{
         marginBottom: '16px',
-        backgroundColor: '#1A1A1A',
-        borderRadius: '10px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+        background: isRepeatedBuyer 
+          ? 'linear-gradient(135deg, rgba(255, 243, 224, 0.03) 0%, rgba(255, 237, 213, 0.02) 100%)'
+          : '#1A1A1A',
+        borderRadius: '12px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
         '&:before': { display: 'none' },
-        overflow: 'hidden',
-        border: '1px solid #333',
-        transition: 'all 0.3s ease',
+        overflow: 'visible',
+        border: isRepeatedBuyer 
+          ? '1px solid rgba(255, 200, 120, 0.15)'
+          : '1px solid #333',
+        transition: 'all 0.2s ease',
         '&:hover': {
-          borderColor: '#444',
-          boxShadow: '0 6px 24px rgba(0, 0, 0, 0.25)',
-        }
+          borderColor: isRepeatedBuyer ? 'rgba(255, 200, 120, 0.25)' : '#444',
+        },
+        position: 'relative',
       }}
     >
       <AccordionSummary
-        expandIcon={<ExpandMoreIcon sx={{ color: 'white', fontSize: '1.2rem' }} />}
+        expandIcon={
+          <ExpandMoreIcon 
+            sx={{ 
+              color: 'white', 
+              fontSize: '1.2rem',
+            }} 
+          />
+        }
         sx={{
           padding: '16px',
           '& .MuiAccordionSummary-content': {
             margin: 0,
           },
-          borderBottom: expanded === order._id ? '1px solid #333' : 'none',
+          borderBottom: expanded === order._id 
+            ? isRepeatedBuyer 
+              ? '1px solid rgba(255, 215, 0, 0.2)'
+              : '1px solid #333'
+            : 'none',
+          ...(isRepeatedBuyer && {
+            background: 'linear-gradient(90deg, rgba(255, 215, 0, 0.02) 0%, transparent 100%)',
+          }),
         }}
       >
         <Grid container spacing={2} alignItems="center">
           {/* Order ID and Date */}
           <Grid item xs={12} sm={6} md={3}>
             <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
                 <Typography
                   variant="body1"
                   component="span"
@@ -282,24 +324,22 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                 >
                   {order._id.slice(0, 10)}...
                 </Typography>
-                {isGroupedOrder && (
+                {/* {isGroupedOrder && (
                   <Chip 
                     label={`${order.shipmentBreakdown.length} shipments`}
                     size="small"
                     sx={{ 
-                      ml: 1, 
                       height: '20px', 
                       fontSize: '0.7rem',
                       backgroundColor: 'rgba(76, 175, 80, 0.2)',
                       color: '#4CAF50'
                     }}
                   />
-                )}
+                )} */}
                 {/* Replace IconButton with Box to avoid button nesting */}
                 <Box
                   onClick={handleCopy}
                   sx={{
-                    ml: 0.5,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -317,7 +357,49 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     <ContentCopyIcon fontSize="small" sx={{ color: '#4f86f7' }} />
                   }
                 </Box>
+                {/* Minimal Customer Journey Button */}
+                <Tooltip title="View Customer Journey" arrow>
+                  <Box
+                    component={Link}
+                    href={`/admin/analytics/customer-journey?query=${encodeURIComponent(order.address?.receiverPhoneNumber || order._id)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        backgroundColor: 'rgba(168, 85, 247, 0.25)',
+                        borderColor: 'rgba(168, 85, 247, 0.5)',
+                        transform: 'scale(1.05)',
+                      }
+                    }}
+                  >
+                    <TimelineIcon sx={{ fontSize: '16px', color: '#a855f7' }} />
+                  </Box>
+                </Tooltip>
               </Box>
+              {isRepeatedBuyer && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: '#FFA726',
+                    fontSize: '0.7rem',
+                    fontWeight: 500,
+                    mt: 0.5,
+                  }}
+                >
+                  {loyaltyCount}{loyaltyCount === 2 ? 'nd' : loyaltyCount === 3 ? 'rd' : 'th'} order on MD
+                </Typography>
+              )}
               <Typography
                 variant="body2"
                 sx={{
@@ -925,7 +1007,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                         fontSize: '0.7rem',
                                         border: '1px solid rgba(255, 255, 255, 0.08)'
                                       }}>
-                                        Component: {item.insertionDetails.component}
+                                        component: {item.insertionDetails.component}
                                       </Typography>
                                     )}
 
@@ -939,7 +1021,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                         fontSize: '0.7rem',
                                         border: '1px solid rgba(255, 255, 255, 0.08)'
                                       }}>
-                                        PageType: {item.insertionDetails.pageType}
+                                        pageType: {item.insertionDetails.pageType}
                                       </Typography>
                                     )}
                                   </Box>
@@ -1892,7 +1974,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
             </Grid>
           )}
 
-          {/* Extra Fields Section */}
+                   {/* Extra Fields Section */}
           {order.extraFields && Object.keys(order.extraFields).length > 0 && (
             <Grid item xs={12}>
               <Paper
@@ -1944,6 +2026,78 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
               </Paper>
             </Grid>
           )}
+
+          {/* Customer Journey Section */}
+          <Grid item xs={12}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.5,
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                }
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: 'white',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <TimelineIcon sx={{ mr: 1, color: '#a855f7' }} />
+                  Customer Journey
+                </Typography>
+                
+                <Button
+                  component={Link}
+                  href={`/admin/analytics/customer-journey?query=${encodeURIComponent(order.address?.receiverPhoneNumber || order._id)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="contained"
+                  startIcon={<TimelineIcon />}
+                  sx={{
+                    background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                    color: 'white',
+                    textTransform: 'none',
+                    borderRadius: '8px',
+                    px: 2.5,
+                    py: 1,
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #9333ea 0%, #6d28d9 100%)',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 6px 16px rgba(168, 85, 247, 0.4)',
+                    }
+                  }}
+                >
+                  View Journey
+                </Button>
+              </Box>
+              
+              <Typography
+                variant="body2"
+                sx={{
+                  mt: 1.5,
+                  color: 'rgba(255, 255, 255, 0.6)',
+                  fontSize: '0.85rem',
+                }}
+              >
+                Explore the complete customer journey including all touchpoints, page visits, and conversion events.
+              </Typography>
+            </Paper>
+          </Grid>
         </Grid>
       </AccordionDetails>
     </Accordion>

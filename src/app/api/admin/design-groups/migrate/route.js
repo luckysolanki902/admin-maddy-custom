@@ -8,7 +8,6 @@ export async function GET(request) {
   try {
     await connectToDatabase();
     
-    console.log('Starting design group migration...');
     
     // Get raw MongoDB collection to bypass Mongoose casting
     const productCollection = mongoose.connection.collection('products');
@@ -18,7 +17,6 @@ export async function GET(request) {
       designGroupId: { $exists: true, $ne: null, $type: 'string' } // Only string types
     });
     
-    console.log(`Found ${uniqueDesignGroups.length} unique design groups:`, uniqueDesignGroups);
     
     if (uniqueDesignGroups.length === 0) {
       return NextResponse.json({
@@ -51,7 +49,6 @@ export async function GET(request) {
         });
         
         const savedGroup = await designGroup.save();
-        console.log(`Created design group: ${savedGroup._id} for ${designGroupId}`);
         
         // Update all products to use the new MongoDB ObjectId using raw collection
         const updateResult = await productCollection.updateMany(
@@ -67,7 +64,6 @@ export async function GET(request) {
           thumbnail: savedGroup.thumbnail
         });
         
-        console.log(`Updated ${updateResult.modifiedCount} products for group ${designGroupId}`);
         
       } catch (error) {
         console.error(`Error processing group ${designGroupId}:`, error);

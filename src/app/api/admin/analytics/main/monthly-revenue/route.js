@@ -13,6 +13,12 @@ export async function GET(req) {
     let matchStage = {
       paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
       isTestingOrder: { $ne: true },
+      // Only main orders or standalone orders (to avoid duplicates from linked orders)
+      $or: [
+        { orderGroupId: { $exists: false } },
+        { orderGroupId: null },
+        { isMainOrder: true }
+      ]
     };
 
     let startDate, endDate;

@@ -89,7 +89,6 @@ export default function ProductivityOverview() {
 
   // Effect for initial load and filter changes with debounce
   useEffect(() => {
-    console.log('useEffect triggered - dateRange or selectedDepts changed');
     
     const timeoutId = setTimeout(() => {
       const loadData = async () => {
@@ -105,7 +104,6 @@ export default function ProductivityOverview() {
             departments: selectedDepts.length > 0 ? selectedDeptsStr : allDepartmentsStr
           });
 
-          console.log('Fetching submissions with params:', params.toString());
 
           const res = await fetch(`/api/productivity/range?${params}`, {
             method: "GET",
@@ -114,7 +112,6 @@ export default function ProductivityOverview() {
           
           if (res.ok) {
             const data = await res.json();
-            console.log('Received submissions data:', data);
             setSubmissions(data.submissions || []);
             setPagination({
               currentPage: 1,
@@ -144,7 +141,6 @@ export default function ProductivityOverview() {
             totalPages: 1
           });
         } finally {
-          console.log('Setting loading to false');
           setLoading(false);
         }
       };
@@ -158,7 +154,6 @@ export default function ProductivityOverview() {
   // Handle date range changes
   const handleDateRangeChange = useCallback((newRange) => {
     if (loading) return; // Prevent change during loading
-    console.log('Date range changed:', newRange);
     setDateRange(newRange);
   }, [loading]);
 
@@ -608,7 +603,6 @@ export default function ProductivityOverview() {
                 </TableHead>
                 <TableBody>
                   {(() => {
-                    console.log('Table render - loading:', loading, 'submissions length:', submissions.length, 'error:', error);
                     if (loading) {
                       return Array.from({ length: 5 }).map((_, index) => (
                         <TableRow key={`skeleton-${index}`}>

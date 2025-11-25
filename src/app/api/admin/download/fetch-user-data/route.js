@@ -42,10 +42,25 @@ export async function GET(req) {
     }
 
     // Regular fetch logic for users and orders
-    // 1) Base match: only "paid" statuses
-    const match = { paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] } };
+    // 1) Base match: only "paid" statuses and main/standalone orders
+    const match = { 
+      paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
+      // Only main orders or standalone orders (to avoid duplicates from linked orders)
+      $or: [
+        { orderGroupId: { $exists: false } },
+        { orderGroupId: null },
+        { isMainOrder: true }
+      ]
+    };
+    
+    // For repeat buyers (loyalty filter with minNumberOfOrders >= 2), 
+    // we need to show users who made a repeat order in the date range,
+    // not just users with multiple orders in the range
+    const isRepeatBuyerMode = applyLoyaltyFilter && loyalty?.minNumberOfOrders >= 2;
+    
     // Ensure consistent date handling
-    if (activeTag !== 'all' && start && end) {
+    // Only apply date filter to the base match if NOT in repeat buyer mode
+    if (!isRepeatBuyerMode && activeTag !== 'all' && start && end) {
       match.createdAt = { $gte: new Date(start), $lte: new Date(end) };
     }
     
@@ -150,7 +165,8 @@ export async function GET(req) {
             utmMedium: { $first: '$utmDetails.medium' },
             utmCampaign: { $first: '$utmDetails.campaign' },
             specificCategoryIdsArr: { $push: '$specificCategoryIds' },
-            productNamesArr: { $push: '$productNames' }
+            productNamesArr: { $push: '$productNames' },
+            orderDates: { $push: '$createdAt' }
           }
         },
         // 6b) Flatten all category-ID arrays into one
@@ -169,7 +185,36 @@ export async function GET(req) {
                 initialValue: [],
                 in: { $setUnion: ['$$value', '$$this'] }
               }
-            }
+            },
+            // For repeat buyer mode: check if any order in date range is NOT the first order
+            hasRepeatOrderInRange: isRepeatBuyerMode && start && end ? {
+              $let: {
+                vars: {
+                  sortedDates: { $sortArray: { input: '$orderDates', sortBy: 1 } },
+                  firstOrderDate: { $arrayElemAt: [{ $sortArray: { input: '$orderDates', sortBy: 1 } }, 0] }
+                },
+                in: {
+                  $gt: [
+                    {
+                      $size: {
+                        $filter: {
+                          input: '$$sortedDates',
+                          as: 'orderDate',
+                          cond: {
+                            $and: [
+                              { $gte: ['$$orderDate', new Date(start)] },
+                              { $lte: ['$$orderDate', new Date(end)] },
+                              { $gt: ['$$orderDate', '$$firstOrderDate'] }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    0
+                  ]
+                }
+              }
+            } : true
           }
         },
         {
@@ -181,6 +226,13 @@ export async function GET(req) {
           }
         }
       );
+      
+      // Filter for users who have a repeat order in the date range
+      if (isRepeatBuyerMode && start && end) {
+        pipeline.push({
+          $match: { hasRepeatOrderInRange: true }
+        });
+      }
 
     } else {
       // 6c) Orders mode: each document stays as an order

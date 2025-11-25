@@ -294,8 +294,17 @@ export default function AnalyticsDashboard({ admin = false }) {
 
   const ranged = useCallback(async (url) => {
     const q = new URLSearchParams();
-    if (dateRange.start) q.append('startDate', dateRange.start.toISOString());
-    if (dateRange.end) q.append('endDate', dateRange.end.toISOString());
+    
+    // Ensure dates are properly converted to ISO strings
+    const startDate = dateRange.start instanceof Date 
+      ? dateRange.start 
+      : dateRange.start?.toDate?.() || null;
+    const endDate = dateRange.end instanceof Date 
+      ? dateRange.end 
+      : dateRange.end?.toDate?.() || null;
+    
+    if (startDate) q.append('startDate', startDate.toISOString());
+    if (endDate) q.append('endDate', endDate.toISOString());
     
     const queryString = q.toString();
     const fullUrl = queryString ? `${url}?${queryString}` : url;
@@ -372,12 +381,34 @@ export default function AnalyticsDashboard({ admin = false }) {
           }
           case 'traffic': {
             // Fetch user behavior timing and cart analytics
-            const [userBehavior, abandonedCartsData, retargetedData] = await Promise.all([
+            // Also fetch repeat orders with user details for the dialog functionality
+            const [userBehavior, abandonedCartsData, retargetedData, repeatOrdersWithUsers] = await Promise.all([
               ranged('/api/admin/analytics/main/user-behavior-timing'),
               ranged('/api/admin/analytics/main/abandoned-carts-funnel'),
-              ranged('/api/admin/analytics/main/retargeted-customers')
+              ranged('/api/admin/analytics/main/retargeted-customers'),
+              // Fetch repeat orders graph data which includes user details
+              (async () => {
+                try {
+                  const startDate = dateRange.start instanceof Date ? dateRange.start : dateRange.start?.toDate?.();
+                  const endDate = dateRange.end instanceof Date ? dateRange.end : dateRange.end?.toDate?.();
+                  if (startDate && endDate) {
+                    const url = `/api/admin/download/repeat-orders-graph?start=${startDate.toISOString()}&end=${endDate.toISOString()}`;
+                    const res = await fetch(url);
+                    return res.json();
+                  }
+                  return null;
+                } catch (e) {
+                  console.error('Repeat orders fetch error:', e);
+                  return null;
+                }
+              })()
             ]);
-            setUserBehaviorTiming(userBehavior || null);
+            // Merge the repeat orders data with user details into userBehavior
+            const mergedUserBehavior = userBehavior ? {
+              ...userBehavior,
+              repeatOrders: repeatOrdersWithUsers?.repeatOrders || userBehavior.repeatOrders
+            } : null;
+            setUserBehaviorTiming(mergedUserBehavior);
             setAbandonedCarts(abandonedCartsData?.abandonedCarts || []);
             setRetargetedCustomers(retargetedData?.retargetedCustomers || []);
             break;
@@ -403,6 +434,7 @@ export default function AnalyticsDashboard({ admin = false }) {
         setSectionLoading(prev => ({ ...prev, [section]: false }));
       }
     }, 300); // 300ms debounce
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ranged, fetchCached, dateRangeKey, shouldUpdateSection]);
 
   // Load all visible sections
@@ -677,23 +709,6 @@ export default function AnalyticsDashboard({ admin = false }) {
           onVisible={() => handleSectionVisible('traffic')}
         >
           <Grid container spacing={4}>
-            {/* Time to Purchase Analysis */}
-            <Grid item xs={12}>
-              <LazyCard height={480} loading={sectionLoading.traffic}>
-                <ErrorBoundary
-                  resetKeys={[dateRangeKey]}
-                  fallbackRender={({ error, resetErrorBoundary }) => (
-                    <GlassChartCard>
-                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>Time to Purchase failed to load</Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
-                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
-                    </GlassChartCard>
-                  )}
-                >
-                  <TimeToPurchaseChart data={userBehaviorTiming} loading={sectionLoading.traffic} />
-                </ErrorBoundary>
-              </LazyCard>
-            </Grid>
 
             {/* Repeat Orders Analysis */}
             <Grid item xs={12} >

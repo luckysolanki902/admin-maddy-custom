@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
+import DownloadIcon from '@mui/icons-material/Download';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
@@ -1004,6 +1005,40 @@ const OrderListFull = ({ isAdmin }) => {
           shape="rounded"
           sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}
         />
+      )}
+
+      {/* Download Customer Data Link */}
+      {!loading && orderData.orders.length > 0 && (
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            mt: 3,
+            mb: 2,
+          }}
+        >
+          <Button
+            component="a"
+            href="/admin/download/download-customer-data"
+            startIcon={<DownloadIcon />}
+            variant="outlined"
+            sx={{
+              color: 'rgba(240,240,240,0.85)',
+              borderColor: 'rgba(255,255,255,0.15)',
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              px: 3,
+              py: 1,
+              '&:hover': {
+                borderColor: 'rgba(255,255,255,0.25)',
+                backgroundColor: 'rgba(255,255,255,0.05)',
+              },
+            }}
+          >
+            Download Customer Data
+          </Button>
+        </Box>
       )}
 
       {/* Problematic Orders Section */}

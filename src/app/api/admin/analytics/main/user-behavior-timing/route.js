@@ -238,7 +238,13 @@ async function fetchRepeatOrdersData(start, end) {
     {
       $match: {
         createdAt: { $gte: start, $lte: end },
-        paymentStatus: { $in: ['allPaid', 'paidPartially', 'allToBePaidCod'] }
+        paymentStatus: { $in: ['allPaid', 'paidPartially', 'allToBePaidCod'] },
+        // Only main orders or standalone orders (to avoid duplicates from linked orders)
+        $or: [
+          { orderGroupId: { $exists: false } },
+          { orderGroupId: null },
+          { isMainOrder: true }
+        ]
       }
     },
     { $sort: { user: 1, createdAt: 1 } },
@@ -802,7 +808,7 @@ export async function GET(req) {
       FunnelEvent.collection.createIndex({ timestamp: 1, step: 1, visitorId: 1 }),
       FunnelSession.collection.createIndex({ visitorId: 1, firstActivityAt: 1, lastActivityAt: 1 }),
       Order.collection.createIndex({ createdAt: 1, user: 1, paymentStatus: 1 })
-    ]).catch((err) => console.log('[UserBehaviorTiming] Index creation skipped:', err.message));
+    ]).catch((err) => console.error('[UserBehaviorTiming] Index creation skipped:', err.message));
 
     const [
       timeToPurchaseEvents,

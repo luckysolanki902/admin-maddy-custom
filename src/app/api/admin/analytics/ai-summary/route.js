@@ -36,7 +36,6 @@ export async function POST(request) {
     if (!skipCache && summaryCache.has(cacheKey)) {
       const cached = summaryCache.get(cacheKey);
       if (Date.now() - cached.timestamp < CACHE_DURATION) {
-        console.log('✅ Returning cached AI summary');
         return NextResponse.json({
           ...cached.data,
           fromCache: true,
@@ -511,7 +510,6 @@ STRICT RESPONSE RULES:
 - Do not wrap the JSON in backticks.
 `;
 
-    console.log('🤖 Requesting AI analysis from OpenAI...');
 
   const systemInstructions = `You are a senior e-commerce conversion optimization consultant with deep expertise in technical implementation, marketing campaigns, UX design, and analytics. Your role is to provide EXTREMELY SPECIFIC, IMPLEMENTATION-READY recommendations with exact technical details, not generic advice.
 
@@ -593,7 +591,6 @@ Output Constraints:
       summaryCache.delete(firstKey);
     }
 
-    console.log('✅ AI analysis complete, cached for 30 minutes');
     return NextResponse.json(result);
 
   } catch (error) {

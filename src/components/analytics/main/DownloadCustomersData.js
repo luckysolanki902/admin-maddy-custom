@@ -28,6 +28,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InfoIcon from '@mui/icons-material/Info';
 import RemoveShoppingCartIcon from '@mui/icons-material/RemoveShoppingCart';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import RepeatOrdersChart from '@/components/analytics/user-behavior/RepeatOrdersChart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import * as FileSaver from 'file-saver';
 import dayjs from 'dayjs';
@@ -197,10 +199,10 @@ export default function DownloadCustomersData() {
   const [items, setItems] = useState([]);
   const [applyVehicleFilter, setApplyVehicleFilter] = useState(false);
   const [vehicles, setVehicles] = useState([]);
-  const [applyLoyaltyFilter, setApplyLoyaltyFilter] = useState(false);
+  const [applyLoyaltyFilter, setApplyLoyaltyFilter] = useState(true);
   const [loyaltyFilters, setLoyaltyFilters] = useState({
     minAmountSpent: { checked: false, value: 0 },
-    minNumberOfOrders: { checked: false, value: 0 },
+    minNumberOfOrders: { checked: true, value: 2 },
     minItemsCount: { checked: false, value: 0 },
   });
 
@@ -216,6 +218,7 @@ export default function DownloadCustomersData() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [repeatOrdersData, setRepeatOrdersData] = useState(null);
 
   // Sorting
   const [sortConfig, setSortConfig] = useState({ field: '', order: 'asc' });
@@ -316,6 +319,18 @@ export default function DownloadCustomersData() {
     debouncedCampaign, specialFilter
   ]);
 
+  // Fetch repeat orders graph data
+  useEffect(() => {
+    if (dateRange.start && dateRange.end) {
+      fetch(`/api/admin/download/repeat-orders-graph?start=${dateRange.start.toISOString()}&end=${dateRange.end.toISOString()}`)
+        .then(res => res.json())
+        .then(data => setRepeatOrdersData(data))
+        .catch(err => console.error('Error fetching repeat orders:', err));
+    } else {
+      setRepeatOrdersData(null);
+    }
+  }, [dateRange]);
+
   // Download CSV
   const handleDownloadCSV = async () => {
     setDownloading(true);
@@ -390,6 +405,7 @@ export default function DownloadCustomersData() {
     { label: 'Is Subscriber Only', value: 'isSubscriberOnly' },
     { label: 'Funnel Stage', value: 'funnelStage' },
     { label: 'Last Activity', value: 'lastActivityAt' },
+    { label: 'Customer Journey', value: 'customerJourney' },
   ], []);
 
   // Default columns on mode change - removed external campaign
@@ -398,13 +414,13 @@ export default function DownloadCustomersData() {
       availableColumns
         .filter(c => {
           if (['incompletePayments', 'abandonedCart'].includes(specialFilter)) {
-            return ['fullName', 'phoneNumber', 'funnelStage', 'lastActivityAt'].includes(c.value);
+            return ['fullName', 'phoneNumber', 'funnelStage', 'lastActivityAt', 'customerJourney'].includes(c.value);
           } else if (specialFilter === 'subscribersOnly') {
-            return ['fullName', 'phoneNumber', 'isSubscriberOnly'].includes(c.value);
+            return ['fullName', 'phoneNumber', 'isSubscriberOnly', 'customerJourney'].includes(c.value);
           } else if (mode === 'orders') {
-            return ['orderId', 'fullName', 'phoneNumber'].includes(c.value);
+            return ['orderId', 'fullName', 'phoneNumber', 'customerJourney'].includes(c.value);
           } else {
-            return ['fullName', 'phoneNumber', 'orderCount'].includes(c.value);
+            return ['fullName', 'phoneNumber', 'orderCount', 'city', 'totalAmountSpent', 'utmSource', 'specificCategory', 'customerJourney'].includes(c.value);
           }
         })
         .map(c => c.value)
@@ -432,6 +448,43 @@ export default function DownloadCustomersData() {
           specialFilter === 'subscribersOnly' ? 'Subscriber-Only Users' :
           mode === 'orders' ? 'Download Orders Data' : 'Download Users Data'}
       </Typography>
+
+      {/* Date Range Filter - Moved outside drawer */}
+      <Box sx={{ mb: 3 }}>
+        <DateRangeChips
+          activeTag={activeTag}
+          setActiveTag={setActiveTag}
+          setDateRange={({ start, end }) => setDateRange({ start, end })}
+          handleAllTagClick={() => { setActiveTag('all'); setDateRange({ start: null, end: null }); }}
+          handleCustomDayChange={(day) => {
+            setActiveTag('custom');
+            setDateRange({ 
+              start: day.startOf('day').toDate(),
+              end: day.endOf('day').toDate()
+            });
+          }}
+          handleCustomDateChange={(start, end) => {
+            setActiveTag('customRange');
+            setDateRange({
+              start: start.startOf('day').toDate(),
+              end: end.endOf('day').toDate()
+            });
+          }}
+          handleMonthSelection={tag => {
+            let s, e;
+            if (tag === 'thisMonth') { 
+              s = dayjs().startOf('month'); 
+              e = dayjs().endOf('month'); 
+            }
+            else { 
+              s = dayjs().subtract(1, 'month').startOf('month'); 
+              e = dayjs().subtract(1, 'month').endOf('month'); 
+            }
+            setActiveTag(tag);
+            setDateRange({ start: s.toDate(), end: e.toDate() });
+          }}
+        />
+      </Box>
 
       {/* Mode + Filters + Download */}
       <Box sx={{ display: { xs: 'block', md: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -485,6 +538,15 @@ export default function DownloadCustomersData() {
         </Box>
       </Box>
       <Divider sx={{ mb: 3 }} />
+
+      {/* Repeat Orders Graph */}
+      {repeatOrdersData && (
+        <Box sx={{ mb: 4 }}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+            <RepeatOrdersChart data={repeatOrdersData} />
+          </Paper>
+        </Box>
+      )}
 
       {/* Bottom Drawer with Filters - Completely Redesigned */}
       <Drawer
@@ -752,11 +814,151 @@ export default function DownloadCustomersData() {
               <Divider sx={{ my: 1 }} />
             </Grid>
 
-            {/* Quick filters section */}
+            {/* Quick Filters (New Section) */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                <FilterListIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
+                Quick Filters
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Card
+                  elevation={0}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    p: 1.5,
+                    border: '1px solid',
+                    borderColor: (applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2) ? 'primary.main' : 'divider',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { sm: '200px' },
+                    background: (applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2)
+                      ? `linear-gradient(135deg, ${theme.palette.primary.light}40, ${theme.palette.primary.light}80)` 
+                      : 'transparent',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      boxShadow: theme.shadows[2],
+                      borderColor: (applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2) ? 'primary.main' : 'primary.light',
+                    }
+                  }}
+                  onClick={() => {
+                    const isActive = applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2;
+                    if (isActive) {
+                      // Turn off
+                      setLoyaltyFilters(prev => ({
+                        ...prev,
+                        minNumberOfOrders: { checked: false, value: 0 }
+                      }));
+                      // We don't turn off applyLoyaltyFilter here to avoid disabling other loyalty filters if they are active
+                    } else {
+                      // Turn on
+                      setApplyLoyaltyFilter(true);
+                      setLoyaltyFilters(prev => ({
+                        ...prev,
+                        minNumberOfOrders: { checked: true, value: 2 }
+                      }));
+                    }
+                  }}
+                >
+                  <Avatar 
+                    sx={{ 
+                      width: 32, 
+                      height: 32, 
+                      bgcolor: (applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2) ? '#2d2d2d' : 'rgb(200, 200, 200)',
+                      color: (applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2) ? 'white' : '#2d2d2d',
+                      mr: 1.5
+                    }}
+                  >
+                    <AutorenewIcon fontSize="small" />
+                  </Avatar>
+                  <Typography 
+                    variant="body1" 
+                    fontWeight={(applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2) ? 500 : 400}
+                    color={(applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2) ? 'white' : 'rgb(200, 200, 200)'}
+                  >
+                    Repeat Buyers
+                  </Typography>
+                  {(applyLoyaltyFilter && loyaltyFilters.minNumberOfOrders.checked && loyaltyFilters.minNumberOfOrders.value === 2) && (
+                    <CheckCircleIcon color="primary" sx={{ ml: 'auto' }} />
+                  )}
+                </Card>
+
+                {/* High Spenders Filter */}
+                <Card
+                  elevation={0}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    p: 1.5,
+                    border: '1px solid',
+                    borderColor: (applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000) ? 'primary.main' : 'divider',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { sm: '200px' },
+                    background: (applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000)
+                      ? `linear-gradient(135deg, ${theme.palette.primary.light}40, ${theme.palette.primary.light}80)` 
+                      : 'transparent',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      boxShadow: theme.shadows[2],
+                      borderColor: (applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000) ? 'primary.main' : 'primary.light',
+                    }
+                  }}
+                  onClick={() => {
+                    const isActive = applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000;
+                    if (isActive) {
+                      // Turn off
+                      setLoyaltyFilters(prev => ({
+                        ...prev,
+                        minAmountSpent: { checked: false, value: 0 }
+                      }));
+                    } else {
+                      // Turn on
+                      setApplyLoyaltyFilter(true);
+                      setLoyaltyFilters(prev => ({
+                        ...prev,
+                        minAmountSpent: { checked: true, value: 5000 }
+                      }));
+                    }
+                  }}
+                >
+                  <Avatar 
+                    sx={{ 
+                      width: 32, 
+                      height: 32, 
+                      bgcolor: (applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000) ? '#2d2d2d' : 'rgb(200, 200, 200)',
+                      color: (applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000) ? 'white' : '#2d2d2d',
+                      mr: 1.5
+                    }}
+                  >
+                    <LoyaltyIcon fontSize="small" />
+                  </Avatar>
+                  <Typography 
+                    variant="body1" 
+                    fontWeight={(applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000) ? 500 : 400}
+                    color={(applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000) ? 'white' : 'rgb(200, 200, 200)'}
+                  >
+                    High Spenders ({'>'}5k)
+                  </Typography>
+                  {(applyLoyaltyFilter && loyaltyFilters.minAmountSpent.checked && loyaltyFilters.minAmountSpent.value === 5000) && (
+                    <CheckCircleIcon color="primary" sx={{ ml: 'auto' }} />
+                  )}
+                </Card>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
+
+            {/* Search Filters (Renamed from Quick Filters) */}
             <Grid item xs={12}>
               <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
                 <SearchIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
-                Quick Filters
+                Search Filters
               </Typography>
               
               <Grid container spacing={2}>
@@ -875,51 +1077,19 @@ export default function DownloadCustomersData() {
               <Divider sx={{ my: 1 }} />
             </Grid>
 
-            {/* Date Range */}
-            <Grid item xs={12}>
+            {/* Date Range - Removed from here as it is moved to main page */}
+            {/* <Grid item xs={12}>
               <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
                 <CalendarMonthIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
                 Date Range
               </Typography>
               
-              <DateRangeChips
-                activeTag={activeTag}
-                setActiveTag={setActiveTag}
-                setDateRange={({ start, end }) => setDateRange({ start, end })}
-                handleAllTagClick={() => { setActiveTag('all'); setDateRange({ start: null, end: null }); }}
-                handleCustomDayChange={(day) => {
-                  setActiveTag('custom');
-                  setDateRange({ 
-                    start: day.startOf('day').toDate(),
-                    end: day.endOf('day').toDate()
-                  });
-                }}
-                handleCustomDateChange={(start, end) => {
-                  setActiveTag('customRange');
-                  setDateRange({
-                    start: start.startOf('day').toDate(),
-                    end: end.endOf('day').toDate()
-                  });
-                }}
-                handleMonthSelection={tag => {
-                  let s, e;
-                  if (tag === 'thisMonth') { 
-                    s = dayjs().startOf('month'); 
-                    e = dayjs().endOf('month'); 
-                  }
-                  else { 
-                    s = dayjs().subtract(1, 'month').startOf('month'); 
-                    e = dayjs().subtract(1, 'month').endOf('month'); 
-                  }
-                  setActiveTag(tag);
-                  setDateRange({ start: s.toDate(), end: e.toDate() });
-                }}
-              />
+              <DateRangeChips ... />
             </Grid>
 
             <Grid item xs={12}>
               <Divider sx={{ my: 1 }} />
-            </Grid>
+            </Grid> */}
             
             {/* Column Selection */}
             <Grid item xs={12}>
@@ -1217,6 +1387,25 @@ export default function DownloadCustomersData() {
                             variant="outlined"
                             sx={{ minWidth: 60, justifyContent: 'center' }}
                           />
+                        </TableCell>
+                      );
+                    }
+
+                    if (col === 'customerJourney') {
+                      const phoneNumber = row['Phone Number'] || row.phoneNumber;
+                      return (
+                        <TableCell key={col}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="primary"
+                            href={`/admin/analytics/customer-journey?query=${encodeURIComponent(phoneNumber)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{ textTransform: 'none', borderRadius: '8px' }}
+                          >
+                            View Journey
+                          </Button>
                         </TableCell>
                       );
                     }

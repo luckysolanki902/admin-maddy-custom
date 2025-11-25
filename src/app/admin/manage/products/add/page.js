@@ -187,13 +187,11 @@ const AddProductPage = () => {
       setSpecificCategory(categoryData);
 
       // update hidden category fields
-      console.log('Setting category and subCategory from specificCategory:', categoryData);
       setHiddenFields((prev) => ({
         ...prev,
         category: categoryData.category || '',
         subCategory: categoryData.subCategory || '',
       }));
-      console.log('Category fields set:', { category: categoryData.category, subCategory: categoryData.subCategory });
     } catch (err) {
       console.error(err);
       alert('Error fetching category / variant.');
@@ -485,7 +483,6 @@ const AddProductPage = () => {
       }
 
       /* build payload */
-      console.log('Hidden fields before submission:', hiddenFields);
       const productData = {
         name: titleCaseName,
         pageSlug,

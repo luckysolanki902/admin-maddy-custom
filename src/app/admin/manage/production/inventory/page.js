@@ -142,13 +142,11 @@ const InventoryManagementPage = () => {
       }
 
       // DEBUG: Log params
-      console.log('fetchTableData params:', Object.fromEntries(params.entries()));
 
       const res = await fetch(`/api/inventory-management/products?${params}`);
       const data = await res.json();
 
       // DEBUG: Log API response
-      console.log('fetchTableData response:', data);
 
       if (data.success && (data.mode === 'hb-cf' || (allLevelMode === 'option' && data.hbCfInventories))) {
         setInventoryMode('hb-cf');

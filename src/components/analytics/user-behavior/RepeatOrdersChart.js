@@ -1,8 +1,12 @@
 // components/analytics/user-behavior/RepeatOrdersChart.js
 'use client';
 
-import { useMemo } from 'react';
-import { Box, Typography, Grid, Paper, useTheme, alpha, Chip } from '@mui/material';
+import { useMemo, useState } from 'react';
+import { 
+  Box, Typography, Grid, Paper, useTheme, alpha, Chip, 
+  Dialog, DialogTitle, DialogContent, IconButton, List, 
+  ListItem, ListItemText, Button, Divider 
+} from '@mui/material';
 import {
   BarChart,
   Bar,
@@ -17,9 +21,14 @@ import { format } from 'date-fns';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import CloseIcon from '@mui/icons-material/Close';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import Link from 'next/link';
 
 export default function RepeatOrdersChart({ data }) {
   const theme = useTheme();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
 
   const chartData = useMemo(() => {
     if (!data?.repeatOrders?.daily) return [];
@@ -31,6 +40,19 @@ export default function RepeatOrdersChart({ data }) {
   }, [data]);
 
   const summary = data?.repeatOrders?.summary;
+
+  const handleBarClick = (data) => {
+    if (data && data.activePayload && data.activePayload.length > 0) {
+      const payload = data.activePayload[0].payload;
+      setSelectedDay(payload);
+      setDialogOpen(true);
+    }
+  };
+
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
+    setSelectedDay(null);
+  };
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
@@ -87,6 +109,9 @@ export default function RepeatOrdersChart({ data }) {
           <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary', fontSize: '0.65rem' }}>
             Customers ordering 2nd+ time
           </Typography>
+          <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'primary.main', fontSize: '0.65rem', fontWeight: 'bold' }}>
+            Click bar to view details
+          </Typography>
         </Box>
       </Paper>
     );
@@ -126,7 +151,7 @@ export default function RepeatOrdersChart({ data }) {
           />
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', display: 'block' }}>
-          Customers making their 2nd, 3rd, or more purchases
+          Customers making their 2nd, 3rd, or more purchases. Click on a bar to see details.
         </Typography>
       </Box>
 
@@ -196,7 +221,11 @@ export default function RepeatOrdersChart({ data }) {
 
       {/* Chart */}
       <ResponsiveContainer width="100%" height={320}>
-        <BarChart data={chartData}>
+        <BarChart 
+          data={chartData}
+          onClick={handleBarClick}
+          style={{ cursor: 'pointer' }}
+        >
           <CartesianGrid
             strokeDasharray="3 3"
             stroke={alpha(theme.palette.divider, 0.08)}
@@ -243,6 +272,78 @@ export default function RepeatOrdersChart({ data }) {
           💡 Shows customers making <strong>2nd, 3rd, or more</strong> purchases (repeat buyers indicating loyalty)
         </Typography>
       </Box>
+
+      {/* Details Dialog */}
+      <Dialog 
+        open={dialogOpen} 
+        onClose={handleCloseDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">
+            Repeat Orders on {selectedDay?.displayDate}
+          </Typography>
+          <IconButton
+            aria-label="close"
+            onClick={handleCloseDialog}
+            sx={{
+              color: (theme) => theme.palette.grey[500],
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedDay?.users && selectedDay.users.length > 0 ? (
+            <List>
+              {selectedDay.users.map((user, index) => (
+                <div key={index}>
+                  <ListItem 
+                    alignItems="flex-start"
+                    secondaryAction={
+                      <Button 
+                        component={Link}
+                        href={`/admin/analytics/customer-journey?query=${encodeURIComponent(user.phoneNumber)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        variant="outlined" 
+                        size="small"
+                        startIcon={<TimelineIcon />}
+                      >
+                        Journey
+                      </Button>
+                    }
+                  >
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle1" component="span" fontWeight="bold">
+                          {user.name || 'Unknown User'}
+                        </Typography>
+                      }
+                      secondary={
+                        <>
+                          <Typography component="span" variant="body2" color="text.primary" display="block">
+                            {user.phoneNumber}
+                          </Typography>
+                          <Typography component="span" variant="caption" color="text.secondary">
+                            {user.orderCount} Order • ₹{user.currentOrderAmount} • Prev: {user.previousOrderDate ? format(new Date(user.previousOrderDate), 'MMM dd, yyyy') : 'N/A'}
+                          </Typography>
+                        </>
+                      }
+                    />
+                  </ListItem>
+                  {index < selectedDay.users.length - 1 && <Divider variant="inset" component="li" />}
+                </div>
+              ))}
+            </List>
+          ) : (
+            <Typography sx={{ p: 2 }} color="text.secondary">
+              No detailed user data available for this day.
+            </Typography>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

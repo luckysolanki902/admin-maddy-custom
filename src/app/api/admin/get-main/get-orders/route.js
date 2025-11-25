@@ -398,15 +398,60 @@ export async function GET(req) {
     };
 
     /**
+     * Function to calculate loyalty order count per phone number
+     */
+    const calculateLoyaltyOrderCounts = async (orders) => {
+      // Extract unique phone numbers from orders
+      const phoneNumbers = [...new Set(orders.map(order => order.address?.receiverPhoneNumber).filter(Boolean))];
+      
+      if (phoneNumbers.length === 0) {
+        return {};
+      }
+
+      // Aggregate order counts by phone number
+      // Only count successful orders (paidPartially or allPaid)
+      const loyaltyCounts = await Order.aggregate([
+        {
+          $match: {
+            'address.receiverPhoneNumber': { $in: phoneNumbers },
+            paymentStatus: { $in: ['paidPartially', 'allPaid'] },
+            $or: [
+              { orderGroupId: { $exists: false } },
+              { orderGroupId: null },
+              { isMainOrder: true }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: '$address.receiverPhoneNumber',
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+      // Convert to a map for easy lookup
+      const loyaltyMap = {};
+      loyaltyCounts.forEach(item => {
+        loyaltyMap[item._id] = item.count;
+      });
+
+      return loyaltyMap;
+    };
+
+    /**
      * Function to group orders by orderGroupId and merge linked orders
      */
-    const groupAndMergeOrders = (orders) => {
+    const groupAndMergeOrders = (orders, loyaltyMap = {}) => {
       const groupedOrders = new Map();
       const processedIds = new Set();
 
       orders.forEach(order => {
         // Skip if already processed as part of a group
         if (processedIds.has(order._id.toString())) return;
+
+        const phoneNumber = order.address?.receiverPhoneNumber;
+        const loyaltyOrderCount = phoneNumber ? loyaltyMap[phoneNumber] || 1 : 1;
 
         if (order.orderGroupId && order.isMainOrder) {
           // This is a main order with linked orders
@@ -424,6 +469,7 @@ export async function GET(req) {
           // Create grouped order data
           const groupedOrder = {
             ...order.toObject(),
+            loyaltyOrderCount,
             linkedOrders: linkedOrders.map(o => o.toObject()),
             shipmentBreakdown: [
               {
@@ -446,6 +492,7 @@ export async function GET(req) {
           
           const groupedOrder = {
             ...order.toObject(),
+            loyaltyOrderCount,
             linkedOrders: [],
             shipmentBreakdown: [{
               shipmentId: order._id.toString(),
@@ -553,8 +600,11 @@ export async function GET(req) {
       // Combine main orders with their linked orders
       const allOrdersForGrouping = [...mainOrders, ...linkedOrders];
 
-      // Group and merge orders
-      const groupedOrders = groupAndMergeOrders(allOrdersForGrouping);
+      // Calculate loyalty order counts for all orders
+      const loyaltyMap = await calculateLoyaltyOrderCounts(allOrdersForGrouping);
+
+      // Group and merge orders with loyalty counts
+      const groupedOrders = groupAndMergeOrders(allOrdersForGrouping, loyaltyMap);
 
       // Optionally format the oldestOrderDate
       const formattedOldestOrderDate = oldestOrderDate ? dayjs(oldestOrderDate).toISOString() : null;

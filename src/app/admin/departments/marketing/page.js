@@ -13,6 +13,7 @@ export default function Marketing() {
     { text: 'Review Manager', link: '/admin/manage/reviews' },
     { text: 'Download Customer Data', link: '/admin/download/download-customer-data' },
     { text: 'Manage Customer Queries', link: '/admin/manage/customer-support' },
+    { text: 'Customer Journey', link: '/admin/analytics/customer-journey' },
   ];
 
 

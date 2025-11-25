@@ -159,11 +159,6 @@ export default function DesignGroupsPage() {
       const response = await fetch('/api/admin/design-groups/existing-groups');
       if (response.ok) {
         const data = await response.json();
-        console.log('[Frontend] Fetched existing groups:', data.groups?.map(g => ({ 
-          id: g.designGroupId, 
-          name: g.name, 
-          searchKeywords: g.searchKeywords 
-        })));
         setExistingGroups(data.groups || []);
 
         // Update selectedGroup if requested and it exists in the new data
@@ -172,10 +167,6 @@ export default function DesignGroupsPage() {
             if (!prevSelected) return null;
             const updatedGroup = data.groups.find(g => g.designGroupId === prevSelected.designGroupId);
             if (updatedGroup) {
-              console.log('[Frontend] Updating selected group with:', { 
-                name: updatedGroup.name, 
-                searchKeywords: updatedGroup.searchKeywords 
-              });
               return updatedGroup;
             }
             return prevSelected;
@@ -460,7 +451,6 @@ export default function DesignGroupsPage() {
   // Generate AI suggestions for edit dialog using first product's image
   const generateEditAISuggestions = useCallback(async () => {
     if (!selectedGroup || !selectedGroup.products || selectedGroup.products.length === 0) {
-      console.log('[Edit AI] No selected group or products available');
       return;
     }
     
@@ -472,7 +462,6 @@ export default function DesignGroupsPage() {
       const firstProduct = selectedGroup.products[0];
       
       if (!firstProduct) {
-        console.log('[Edit AI] No first product found');
         return;
       }
       
@@ -487,11 +476,6 @@ export default function DesignGroupsPage() {
         }
       }
       
-      console.log('[Edit AI] Generating suggestions for:', { 
-        productName: firstProduct.name, 
-        imageUrl: imageUrl ? 'Image available' : 'No image',
-        groupName: selectedGroup.name 
-      });
       
       const timestamp = Date.now(); // For cache busting
       
@@ -513,7 +497,6 @@ export default function DesignGroupsPage() {
       const data = await response.json();
       
       if (response.ok && data.keywords) {
-        console.log('[Edit AI] Received AI keywords:', data.keywords);
         
         // Filter out keywords that already exist in current keywords
         const newKeywords = data.keywords.filter(keyword => 
@@ -523,7 +506,6 @@ export default function DesignGroupsPage() {
         );
         
         setEditAiSuggestions(newKeywords);
-        console.log('[Edit AI] Set filtered suggestions:', newKeywords);
       } else {
         console.error('[Edit AI] Failed to get suggestions:', data.error || 'Unknown error');
         toast.error(data.error || 'Failed to get AI keyword suggestions');
@@ -578,12 +560,6 @@ export default function DesignGroupsPage() {
     const groupId = generateDesignGroupId();
     setIsCreatingGroup(true);
     
-    console.log('[Frontend] Starting create group process:', {
-      groupId,
-      groupName: newGroupName.trim(),
-      searchKeywords: newGroupSearchKeywords,
-      selectedProducts: selectedProducts.length
-    });
 
     try {
       const requestData = {
@@ -593,7 +569,6 @@ export default function DesignGroupsPage() {
         searchKeywords: newGroupSearchKeywords
       };
       
-      console.log('[Frontend] Sending create group request:', requestData);
       
       const response = await fetch('/api/admin/design-groups/save', {
         method: 'POST',
@@ -602,11 +577,9 @@ export default function DesignGroupsPage() {
       });
 
       const data = await response.json();
-      console.log('[Frontend] Create group response:', { status: response.status, data });
 
       if (response.ok) {
         toast.success(`Design group "${newGroupName}" created! Ready for next group 🎉`);
-        console.log('[Frontend] Design group created successfully:', data);
 
         // Optimistic UI update: Remove products that now have design group IDs from the local state
         const groupedProductIds = selectedProducts.map(p => p.productId);
@@ -1587,11 +1560,7 @@ export default function DesignGroupsPage() {
                       onClick={async () => {
                         if (isUpdatingGroupInfo) return; // Prevent double clicks
                         
-                        console.log('[Frontend] Starting group update:', {
-                          groupId: selectedGroup._id,
-                          name: editingGroupName,
-                          searchKeywords: editingGroupSearchKeywords
-                        });
+   
                         
                         setIsUpdatingGroupInfo(true);
                         
@@ -1618,7 +1587,6 @@ export default function DesignGroupsPage() {
                             searchKeywords: editingGroupSearchKeywords
                           };
                           
-                          console.log('[Frontend] Sending update request:', requestData);
                           
                           const response = await fetch('/api/admin/design-groups/update-info', {
                             method: 'PUT',
@@ -1627,12 +1595,10 @@ export default function DesignGroupsPage() {
                           });
 
                           const data = await response.json();
-                          console.log('[Frontend] Update response:', { status: response.status, data });
 
                           if (response.ok) {
                             toast.success('Group information updated successfully');
                             setIsEditingGroupInfo(false);
-                            console.log('[Frontend] Group updated successfully');
                             // Fetch fresh data to ensure consistency
                             await fetchExistingGroups(true);
                           } else {

@@ -10,7 +10,6 @@ export async function POST(request) {
     await connectToDatabase();
     
     const { groupId, products, name, searchKeywords } = await request.json();
-    console.log('[DesignGroup Save] Request data:', { groupId, products: products?.length, name, searchKeywords: searchKeywords?.length });
     
     // Validate products array
     if (!products || !Array.isArray(products) || products.length < 2) {

@@ -26,10 +26,7 @@ export async function GET(req) {
       );
     }
 
-    if (debug) {
-      console.log('[ReturningMetricsDebug] ---- START DEBUG LOG ----');
-      console.log('[ReturningMetricsDebug] Raw params:', { startDate, endDate, startISO: start.toISOString(), endISO: end.toISOString() });
-    }
+
 
     // 1) Returning visitors + return sessions (window-anchored), end-exclusive
     // Summary (counts + avg)
@@ -114,10 +111,7 @@ export async function GET(req) {
       returningSessionsCount: d.returnSessions
     }));
 
-    if (debug) {
-      console.log('[ReturningMetricsDebug] Returning summary:', returningSummary);
-      console.log('[ReturningMetricsDebug] returningSessionsTimeSeries length:', returningSessionsTimeSeries.length);
-    }
+
 
     // Also compute returningVisitorIds for optional funnel metrics scoping
     const visitorsInWindow = await FunnelSession.distinct('visitorId', { lastActivityAt: { $gte: start, $lt: end } });
@@ -125,10 +119,7 @@ export async function GET(req) {
       ? await FunnelSession.distinct('visitorId', { visitorId: { $in: visitorsInWindow }, lastActivityAt: { $lt: start } })
       : [];
 
-    if (debug) {
-      console.log('[ReturningMetricsDebug] Distinct visitors in window:', visitorsInWindow.length);
-      console.log('[ReturningMetricsDebug] ReturningVisitorIds (intersection) count:', returningVisitorIds.length);
-    }
+
 
     // 2) Repeat Buyers (window-anchored) from events
     const [repeatBuyersSummary = { repeatBuyers: 0, buyersInWindow: 0, repeatBuyerRate: 0 }] = await FunnelEvent.aggregate([
@@ -171,9 +162,7 @@ export async function GET(req) {
       }
     ]);
 
-    if (debug) {
-      console.log('[ReturningMetricsDebug] Repeat buyers summary:', repeatBuyersSummary);
-    }
+
 
     // Optional: daily repeat buyer trend for future charts (not consumed by current UI)
     const repeatBuyersTimeSeries = [];
@@ -306,7 +295,6 @@ export async function GET(req) {
         if (doc.gapBucket) acc.gapBuckets[doc.gapBucket] = (acc.gapBuckets[doc.gapBucket] || 0) + 1;
         return acc;
       }, { totalEvaluated: sessionsGapAgg.length, returning18hSessions: 0, sameDay1hSessions: 0, gapBuckets: {} });
-      console.log('[ReturningMetricsDebug] Gap pipeline stats:', gapDebugStats);
     }
 
     // returningVisitors18hDaily
@@ -326,8 +314,20 @@ export async function GET(req) {
         { $addFields: { day: { $dateTrunc: { date: '$lastActivityAt', unit: 'day' } }, gapHours: { $cond: [{ $and: [{ $ne: ['$prevAt', null] }, { $ne: ['$prevAt', undefined] }] }, { $divide: [{ $subtract: ['$lastActivityAt', '$prevAt'] }, 1000 * 60 * 60] }, null] } } },
         { $match: { gapHours: { $ne: null, $gte: 18 } } },
         { $group: { _id: { day: '$day', personId: '$personId' } } },
-        { $group: { _id: '$_id.day', count: { $sum: 1 } } },
-        { $project: { _id: 0, date: '$_id', count: 1 } },
+        { $group: { _id: '$_id.day', count: { $sum: 1 }, userIds: { $addToSet: '$_id.personId' } } },
+        {
+          $lookup: {
+            from: 'users',
+            let: { uIds: '$userIds' },
+            pipeline: [
+              { $addFields: { strId: { $toString: '$_id' } } },
+              { $match: { $expr: { $in: ['$strId', '$$uIds'] } } },
+              { $project: { phoneNumber: 1, _id: 0 } }
+            ],
+            as: 'users'
+          }
+        },
+        { $project: { _id: 0, date: '$_id', count: 1, phoneNumbers: '$users.phoneNumber' } },
         { $sort: { date: 1 } }
       ]).option({ allowDiskUse: true });
       return res;
@@ -372,7 +372,17 @@ export async function GET(req) {
     // 4c) Reorders based on Orders collection (not funnel events)
     const paymentStatuses = ['allPaid', 'paidPartially', 'allToBePaidCod'];
     const reordersOrdersDaily = await Order.aggregate([
-      { $match: { createdAt: { $lt: end }, paymentStatus: { $in: paymentStatuses }, user: { $ne: null } } },
+      { $match: { 
+        createdAt: { $lt: end }, 
+        paymentStatus: { $in: paymentStatuses }, 
+        user: { $ne: null },
+        // Only main orders or standalone orders (to avoid duplicates from linked orders)
+        $or: [
+          { orderGroupId: { $exists: false } },
+          { orderGroupId: null },
+          { isMainOrder: true }
+        ]
+      } },
       { $sort: { user: 1, createdAt: 1 } },
       { $group: { _id: '$user', orders: { $push: '$createdAt' } } },
       { $project: { reorders: { $map: { input: { $range: [1, { $size: '$orders' }] }, as: 'idx', in: { current: { $arrayElemAt: ['$orders', '$$idx'] }, prev: { $arrayElemAt: ['$orders', { $subtract: ['$$idx', 1] }] } } } } } },
@@ -533,8 +543,6 @@ export async function GET(req) {
           'For repeat buyers, purchasesBeforeWindow must be >0 AND purchasesInWindow >0 for same visitorId.'
         ]
       };
-      console.log('[ReturningMetricsDebug] Summary rawCounts:', debugInfo.rawCounts);
-      console.log('[ReturningMetricsDebug] ---- END DEBUG LOG ----');
     }
 
     return new Response(

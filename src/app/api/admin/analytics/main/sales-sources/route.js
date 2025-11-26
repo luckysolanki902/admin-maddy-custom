@@ -1,6 +1,61 @@
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import mongoose from 'mongoose';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+
+dayjs.extend(utc);
+
+// Meta Ads source patterns - comprehensive list
+const META_ADS_PATTERNS = [
+  // Facebook patterns
+  /^facebook/i,
+  /^fb$/i,
+  /^fb[-_]/i,
+  /facebook_desktop_feed/i,
+  /facebook_instream_video/i,
+  /facebook_marketplace/i,
+  /facebook_mobile_feed/i,
+  /facebook_mobile_reels/i,
+  /facebook_profile_feed/i,
+  /facebook_stories/i,
+  // Instagram patterns
+  /^instagram/i,
+  /^ig$/i,
+  /^ig[-_]/i,
+  /ig_organic/i,
+  /instagram_explore/i,
+  /instagram_feed/i,
+  /instagram_profile/i,
+  /instagram_reels/i,
+  /instagram_stories/i,
+  // Campaign patterns
+  /campaign$/i,
+  /^asc\s/i,
+  /asc\sfuel/i,
+  /asc\swinning/i,
+  /awareness\scampaign/i,
+  /lookalike\scampaign/i,
+  /remarketing\scampaign/i,
+  // Product ad sources
+  /^bonnet/i,
+  /^pillar\s?wrap/i,
+  /^key\s?chain/i,
+  // Engager sales
+  /engager\ssale/i,
+  /^sm\s/i,
+  // Mistake/placeholder patterns from Meta
+  /^\{\{placement\}\}$/i,
+  /^\{\{site_source_name\}\}$/i,
+  /^th$/i,
+];
+
+// Check if source is Meta Ads
+const isMetaAdsSource = (source) => {
+  if (!source) return false;
+  const sourceLower = source.toLowerCase().trim();
+  return META_ADS_PATTERNS.some(pattern => pattern.test(sourceLower));
+};
 
 export async function GET(req) {
   try {
@@ -12,103 +67,88 @@ export async function GET(req) {
 
     // Corrected paymentStatus values based on Order schema
     const paymentStatuses = ['allPaid', 'paidPartially', 'allToBePaidCod'];
+    
+    // Define valid delivery statuses (exclude cancelled, returned, lost, undelivered)
+    const validDeliveryStatuses = [
+      'pending', 'orderCreated', 'processing', 'shipped', 'onTheWay',
+      'partiallyDelivered', 'delivered', 'returnInitiated', 'unknown'
+    ];
 
     let query = {
       paymentStatus: { $in: paymentStatuses },
+      deliveryStatus: { $in: validDeliveryStatuses },
+      isTestingOrder: { $ne: true },
+      // Only count main/standalone orders for order counts to avoid double counting
+      $or: [
+        { orderGroupId: { $exists: false } },
+        { orderGroupId: null },
+        { isMainOrder: true }
+      ]
     };
 
-    // Date Range Filter
+    // Date Range Filter with proper day boundaries
     if (startDate && endDate) {
       query.createdAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
+        $gte: dayjs(startDate).startOf('day').toDate(),
+        $lte: dayjs(endDate).endOf('day').toDate(),
       };
     }
 
-    const aggregationPipeline = [
-      { $match: query },
+    // First, get all orders with their UTM sources
+    const orders = await Order.find(query, { 'utmDetails.source': 1, user: 1 }).lean();
+
+    // Categorize into Meta Ads vs Organic
+    const categorized = {
+      metaAds: { orders: [], users: new Set() },
+      organic: { orders: [], users: new Set() }
+    };
+
+    // Track individual sources for breakdown
+    const sourceBreakdown = {
+      metaAds: {},
+      organic: {}
+    };
+
+    orders.forEach(order => {
+      const source = order.utmDetails?.source || 'Direct';
+      const userId = order.user?.toString();
+      
+      if (isMetaAdsSource(source)) {
+        categorized.metaAds.orders.push(order);
+        if (userId) categorized.metaAds.users.add(userId);
+        sourceBreakdown.metaAds[source] = (sourceBreakdown.metaAds[source] || 0) + 1;
+      } else {
+        categorized.organic.orders.push(order);
+        if (userId) categorized.organic.users.add(userId);
+        sourceBreakdown.organic[source] = (sourceBreakdown.organic[source] || 0) + 1;
+      }
+    });
+
+    const totalOrders = orders.length;
+
+    // Build response with detailed breakdowns
+    const salesSources = [
       {
-        $addFields: {
-          mainSource: {
-            $switch: {
-              branches: [
-                {
-                  case: { $regexMatch: { input: '$utmDetails.source', regex: /^direct$/i } },
-                  then: 'Direct',
-                },
-                {
-                  case: { $regexMatch: { input: '$utmDetails.source', regex: /^Instagram/i } },
-                  then: 'Instagram',
-                },
-                {
-                  case: { $regexMatch: { input: '$utmDetails.source', regex: /^facebook/i } },
-                  then: 'Facebook',
-                },
-              ],
-              default: 'Others',
-            },
-          },
-        },
+        source: 'Meta Ads',
+        orderCount: categorized.metaAds.orders.length,
+        uniqueUsersCount: categorized.metaAds.users.size,
+        percentage: totalOrders > 0 ? (categorized.metaAds.orders.length / totalOrders) * 100 : 0,
+        breakdown: Object.entries(sourceBreakdown.metaAds)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
       },
-      // Separate pipeline to log "Others" sources
       {
-        $facet: {
-          allSources: [
-            {
-              $group: {
-                _id: '$mainSource',
-                totalOrders: { $sum: 1 },
-                uniqueUsers: { $addToSet: '$user' },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalOrdersAllSources: { $sum: '$totalOrders' },
-                sources: {
-                  $push: {
-                    source: '$_id',
-                    orderCount: '$totalOrders',
-                    uniqueUsersCount: { $size: '$uniqueUsers' },
-                  },
-                },
-              },
-            },
-            { $unwind: '$sources' },
-            {
-              $project: {
-                _id: 0,
-                source: '$sources.source',
-                orderCount: '$sources.orderCount',
-                uniqueUsersCount: '$sources.uniqueUsersCount',
-                percentage: {
-                  $multiply: [{ $divide: ['$sources.orderCount', '$totalOrdersAllSources'] }, 100],
-                },
-              },
-            },
-            { $sort: { orderCount: -1 } },
-          ],
-          logOthersSources: [
-            { $match: { mainSource: 'Others' } },
-            {
-              $project: {
-                orderId: '$_id',
-                utmSource: '$utmDetails.source',
-                user: '$user',
-                createdAt: 1,
-              },
-            },
-          ],
-        },
-      },
-    ];
+        source: 'Organic',
+        orderCount: categorized.organic.orders.length,
+        uniqueUsersCount: categorized.organic.users.size,
+        percentage: totalOrders > 0 ? (categorized.organic.orders.length / totalOrders) * 100 : 0,
+        breakdown: Object.entries(sourceBreakdown.organic)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+      }
+    ].filter(s => s.orderCount > 0);
 
-    const [result] = await Order.aggregate(aggregationPipeline);
-    const salesSources = result.allSources;
-    const othersSources = result.logOthersSources;
-
-
-    return new Response(JSON.stringify({ salesSources, othersSources }), {
+    return new Response(JSON.stringify({ salesSources }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

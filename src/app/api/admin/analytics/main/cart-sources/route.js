@@ -10,7 +10,19 @@ export async function GET(req) {
 
     // 1️⃣ Base match: only paid/partially paid/COD orders
     const paymentStatuses = ['allPaid', 'paidPartially', 'allToBePaidCod'];
-    const match = { paymentStatus: { $in: paymentStatuses } };
+    
+    // Define valid delivery statuses (exclude cancelled, returned, lost, undelivered)
+    const validDeliveryStatuses = [
+      'pending', 'orderCreated', 'processing', 'shipped', 'onTheWay',
+      'partiallyDelivered', 'delivered', 'returnInitiated', 'unknown'
+    ];
+    
+    const match = { 
+      paymentStatus: { $in: paymentStatuses },
+      deliveryStatus: { $in: validDeliveryStatuses },
+      isTestingOrder: { $ne: true },
+      // Include ALL orders for cart sources since items are split across shipments
+    };
 
     // 2️⃣ Optional date filter
     const start = searchParams.get('startDate');

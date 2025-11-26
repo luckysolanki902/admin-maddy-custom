@@ -2,7 +2,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     BarChart,
     Bar,
@@ -10,7 +10,8 @@ import {
     YAxis,
     Tooltip,
     Legend,
-    ResponsiveContainer
+    ResponsiveContainer,
+    Rectangle
 } from 'recharts';
 import { Box, Typography, Skeleton, useMediaQuery, alpha } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -18,6 +19,32 @@ import { categorical } from '../common/palette';
 
 // Updated palette for better visual appeal
 const COLORS = categorical;
+
+// Custom bar shape that only rounds top corners for the topmost segment
+const CustomBarShape = (props) => {
+    const { x, y, width, height, fill, isTopSegment } = props;
+    
+    if (!height || height <= 0) return null;
+    
+    const radius = isTopSegment ? 4 : 0;
+    
+    if (radius === 0) {
+        return <Rectangle x={x} y={y} width={width} height={height} fill={fill} />;
+    }
+    
+    // Create path with rounded top corners only
+    const path = `
+        M ${x},${y + radius}
+        Q ${x},${y} ${x + radius},${y}
+        L ${x + width - radius},${y}
+        Q ${x + width},${y} ${x + width},${y + radius}
+        L ${x + width},${y + height}
+        L ${x},${y + height}
+        Z
+    `;
+    
+    return <path d={path} fill={fill} />;
+};
 
 // Custom tooltip renderer
 const CustomTooltip = ({ active, payload, label }) => {
@@ -67,8 +94,6 @@ const CartSourcesChart = ({ data, loading }) => {
     const theme = useTheme();
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
 
-
-
     // Get all unique components across the dataset
     const components = Array.from(
         data.reduce((set, row) => {
@@ -78,6 +103,24 @@ const CartSourcesChart = ({ data, loading }) => {
             return set;
         }, new Set())
     );
+
+    // Calculate which component is the topmost for each pageType
+    const topSegmentMap = useMemo(() => {
+        const map = {};
+        data.forEach(row => {
+            // Find the last component (in render order) that has a value > 0
+            let topComp = null;
+            components.forEach(comp => {
+                if (row[comp] && row[comp] > 0) {
+                    topComp = comp;
+                }
+            });
+            if (topComp) {
+                map[row.pageType] = topComp;
+            }
+        });
+        return map;
+    }, [data, components]);
 
     return (
         <Box sx={{ width: '100%' }}>
@@ -94,7 +137,7 @@ const CartSourcesChart = ({ data, loading }) => {
             </Typography>
 
             <ResponsiveContainer width="100%" height={380}>
-                <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 5 }} barGap={0} barSize={35}>
+                <BarChart data={data} margin={{ top: 10, left: 0, bottom: 5 }} barGap={0} barSize={35}>
                     <XAxis
                         dataKey="pageType"
                         stroke="#AAA"
@@ -102,8 +145,8 @@ const CartSourcesChart = ({ data, loading }) => {
                         tickLine={false}
                         axisLine={{ strokeWidth: 0.5 }}
                         interval={0}
-                        angle={-45}
-                        textAnchor="end"
+                        // angle={-45}
+                        // textAnchor="end"
                     />
                     <YAxis 
                         stroke="#AAA" 
@@ -117,17 +160,32 @@ const CartSourcesChart = ({ data, loading }) => {
                         cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                     />
 
-                    <Legend 
+                    {/* <Legend 
                         wrapperStyle={{
                             color: '#FFF',
                             fontSize: isSmall ? '0.8rem' : '0.9rem',
                             paddingTop: '60px'
                         }}
                         iconType="circle"
-                    />
+                    /> */}
 
                     {components.map((comp, idx) => (
-                        <Bar key={comp} dataKey={comp} stackId="a" name={comp} fill={COLORS[idx % COLORS.length]} radius={[4,4,0,0]} isAnimationActive animationDuration={1200} animationBegin={idx*120} />
+                        <Bar 
+                            key={comp} 
+                            dataKey={comp} 
+                            stackId="a" 
+                            name={comp} 
+                            fill={COLORS[idx % COLORS.length]} 
+                            shape={(props) => (
+                                <CustomBarShape 
+                                    {...props} 
+                                    isTopSegment={topSegmentMap[props.payload?.pageType] === comp}
+                                />
+                            )}
+                            isAnimationActive 
+                            animationDuration={1200} 
+                            animationBegin={idx * 120} 
+                        />
                     ))}
                 </BarChart>
             </ResponsiveContainer>

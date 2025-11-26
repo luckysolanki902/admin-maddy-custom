@@ -10,15 +10,18 @@ export async function GET(req) {
     const startDateParam = searchParams.get('startDate');
     const endDateParam = searchParams.get('endDate');
 
+    // Define valid delivery statuses (exclude cancelled, returned, lost, undelivered)
+    const validDeliveryStatuses = [
+      'pending', 'orderCreated', 'processing', 'shipped', 'onTheWay',
+      'partiallyDelivered', 'delivered', 'returnInitiated', 'unknown'
+    ];
+
     let matchStage = {
       paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
+      deliveryStatus: { $in: validDeliveryStatuses }, // Exclude cancelled/returned/lost orders
       isTestingOrder: { $ne: true },
-      // Only main orders or standalone orders (to avoid duplicates from linked orders)
-      $or: [
-        { orderGroupId: { $exists: false } },
-        { orderGroupId: null },
-        { isMainOrder: true }
-      ]
+      // Include ALL orders (main + linked) for accurate revenue calculation
+      // Each linked order has its own totalAmount that contributes to total revenue
     };
 
     let startDate, endDate;

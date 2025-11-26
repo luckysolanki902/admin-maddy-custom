@@ -96,18 +96,27 @@ export async function GET(req) {
     // Base query initialization
     let baseQuery = {};
 
-    // Apply paymentStatus filter
+    // Define valid delivery statuses for revenue calculation
+    // Exclude: cancelled, returned, lost, undelivered (these orders should not count towards revenue)
+    const validDeliveryStatuses = [
+      'pending', 'orderCreated', 'processing', 'shipped', 'onTheWay', 
+      'partiallyDelivered', 'delivered', 'returnInitiated', 'unknown'
+    ];
+
+    // Apply paymentStatus filter (for backward compatibility with existing filters)
     if (paymentStatusFilter) {
       if (paymentStatusFilter === 'successful') {
-        baseQuery.paymentStatus = { $in: ['paidPartially', 'allPaid'] };
+        baseQuery.paymentStatus = { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] };
       } else if (paymentStatusFilter === 'pending') {
         baseQuery.paymentStatus = 'pending';
       } else if (paymentStatusFilter === 'failed') {
         baseQuery.paymentStatus = 'failed';
       }
     } else {
-      // Default to excluding 'pending' and 'failed' statuses
-      baseQuery.paymentStatus = { $nin: ['pending', 'failed'] };
+      // Default: Filter by delivery status to include valid orders
+      // Include orders that have valid payment status AND valid delivery status
+      baseQuery.paymentStatus = { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] };
+      baseQuery.deliveryStatus = { $in: validDeliveryStatuses };
     }
 
     // Apply date range filter
@@ -263,10 +272,38 @@ export async function GET(req) {
 
     /**
      * Function to calculate aggregates based on the query
+     * @param {Object} revenueQuery - Query for revenue calculation (includes ALL orders - main + linked)
+     * @param {Object} orderCountQuery - Query for order count (only main/standalone orders to avoid double counting)
      */
-    const calculateAggregates = async (query) => {
-      const aggregationResult = await Order.aggregate([
-        { $match: query },
+    const calculateAggregates = async (revenueQuery, orderCountQuery = null) => {
+      // If no separate orderCountQuery provided, use revenueQuery for both
+      const countQuery = orderCountQuery || revenueQuery;
+
+      // Debug: Log all orders that match the revenue query with their amounts
+      const debugOrders = await Order.find(revenueQuery)
+        .select('_id address.receiverName totalAmount itemsTotal totalDiscount paymentStatus deliveryStatus orderGroupId isMainOrder')
+        .lean();
+      
+      console.log('=== DEBUG: Orders included in revenue calculation ===');
+      console.log(`Total orders found (for revenue): ${debugOrders.length}`);
+      let debugTotalAmount = 0;
+      let debugGrossSales = 0;
+      let debugTotalDiscount = 0;
+      debugOrders.forEach((order, index) => {
+        debugTotalAmount += order.totalAmount || 0;
+        debugGrossSales += order.itemsTotal || 0;
+        debugTotalDiscount += order.totalDiscount || 0;
+        const isLinked = order.orderGroupId && !order.isMainOrder ? ' [LINKED]' : '';
+        console.log(`[${index + 1}] OrderId: ${order._id}, Customer: ${order.address?.receiverName || 'N/A'}, TotalAmount: ₹${order.totalAmount}, ItemsTotal: ₹${order.itemsTotal}, Discount: ₹${order.totalDiscount}, PaymentStatus: ${order.paymentStatus}, DeliveryStatus: ${order.deliveryStatus}${isLinked}`);
+      });
+      console.log(`=== DEBUG: Calculated Revenue = Gross Sales (sum of totalAmount): ₹${debugTotalAmount} ===`);
+      console.log(`=== DEBUG: ItemsTotal (for reference only, not used for gross sales): ₹${debugGrossSales} ===`);
+      console.log(`=== DEBUG: Calculated Total Discount: ₹${debugTotalDiscount} ===`);
+      console.log('=== END DEBUG ===');
+
+      // Revenue aggregation - includes ALL orders (main + linked)
+      const revenueAggregationResult = await Order.aggregate([
+        { $match: revenueQuery },
         {
           $lookup: {
             from: 'modeofpayments',
@@ -282,29 +319,30 @@ export async function GET(req) {
           }
         },
         {
-          $facet: {
-            // Existing aggregate metrics with updated gross sales calculation
-            metrics: [
-              {
-                $group: {
-                  _id: null,
-                  sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue)
-                  sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
-                  sumItemsTotal: { $sum: { $add: ["$itemsTotal", "$extraChargesTotal"] } }, // Sum of itemsTotal + extraCharges (Gross Sales)
-                  sumTotalAmountWithoutCod: { 
-                    $sum: {
-                      $cond: [
-                        { $ne: ["$paymentModeName", "cod"] },
-                        "$totalAmount",
-                        0
-                      ]
-                    }
-                  }, // Sum of totalAmount excluding COD orders
-                  oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
-                  count: { $sum: 1 }, // Total number of orders
-                }
+          $group: {
+            _id: null,
+            sumTotalAmount: { $sum: "$totalAmount" }, // Sum of totalAmount (Revenue = Gross Sales, since we don't track list prices)
+            sumTotalDiscount: { $sum: "$totalDiscount" }, // Sum of totalDiscount
+            sumTotalAmountWithoutCod: { 
+              $sum: {
+                $cond: [
+                  { $ne: ["$paymentModeName", "cod"] },
+                  "$totalAmount",
+                  0
+                ]
               }
-            ],
+            }, // Sum of totalAmount excluding COD orders
+            oldestOrderDate: { $min: "$createdAt" }, // Oldest order date
+          }
+        }
+      ]);
+
+      // Order count aggregation - only main/standalone orders
+      const orderCountAggregationResult = await Order.aggregate([
+        { $match: countQuery },
+        {
+          $facet: {
+            count: [{ $count: "total" }],
             // UTM-based order counts
             utmCounts: [
               {
@@ -354,18 +392,19 @@ export async function GET(req) {
         }
       ]);
 
-      // Extract metrics
-      const metrics = aggregationResult[0].metrics[0] || {};
-      const utmCounts = aggregationResult[0].utmCounts[0] || {};
-
+      // Extract revenue metrics
+      const revenueMetrics = revenueAggregationResult[0] || {};
       const {
         sumTotalAmount = 0,
         sumTotalDiscount = 0,
-        sumItemsTotal = 0,
         sumTotalAmountWithoutCod = 0,
         oldestOrderDate = null,
-        count = 0,
-      } = metrics;
+      } = revenueMetrics;
+
+      // Extract order count and UTM metrics
+      const countResult = orderCountAggregationResult[0] || {};
+      const count = countResult.count?.[0]?.total || 0;
+      const utmCounts = countResult.utmCounts?.[0] || {};
 
       const {
         metaOrders = 0,
@@ -373,7 +412,8 @@ export async function GET(req) {
         instagramBioOrders = 0,
       } = utmCounts;
 
-      const grossSales = sumItemsTotal; // Gross Sales: Sum of itemsTotal + extraCharges
+      // Since we don't track list prices, Gross Sales = Revenue = totalAmount (actual amount paid by customer)
+      const grossSales = sumTotalAmount; // Gross Sales = Revenue (no separate list price tracking)
       const revenue = sumTotalAmount; // Revenue: Sum of totalAmount
       const revenueWithoutCod = sumTotalAmountWithoutCod; // Revenue excluding COD orders
       const aov = count > 0 ? revenue / count : 0;
@@ -512,8 +552,8 @@ export async function GET(req) {
      * Function to fetch orders based on a query with pagination and population
      */
     const fetchOrdersFromQuery = async (query, pageNumber = page, limitNumber = limit) => {
-      // Calculate aggregates - ensure we only count main orders or standalone orders to avoid double counting
-      const aggregatesQuery = {
+      // For ORDER COUNT: Only count main orders or standalone orders to avoid double counting
+      const orderCountQuery = {
         ...query,
         $or: [
           { orderGroupId: { $exists: false } }, // Standalone orders
@@ -522,7 +562,11 @@ export async function GET(req) {
         ]
       };
 
-      const aggregates = await calculateAggregates(aggregatesQuery);
+      // For REVENUE/METRICS: Include ALL orders (main + linked) to capture full revenue
+      // Revenue should include linked orders because each shipment has its own totalAmount
+      const revenueQuery = { ...query };
+
+      const aggregates = await calculateAggregates(revenueQuery, orderCountQuery);
       const {
         grossSales,
         revenue,
@@ -539,9 +583,9 @@ export async function GET(req) {
       // Calculate totalPages based on main/standalone orders only
       const totalPages = Math.ceil(totalOrders / limitNumber);
 
-      // Count total items from main/standalone orders only
+      // Count total items from ALL orders (including linked) since items are split across shipments
       const totalItemsAggregation = await Order.aggregate([
-        { $match: aggregatesQuery },
+        { $match: revenueQuery },
         { $unwind: "$items" },
         { $group: { _id: null, total: { $sum: "$items.quantity" } } }
       ]);

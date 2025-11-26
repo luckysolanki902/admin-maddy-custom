@@ -138,11 +138,13 @@ function LazyCard({ children, height = 480, loading = false }) {
     config: { tension: 180, friction: 22 }
   });
 
+  const heightStyle = height === 'auto' ? {} : { minHeight: height };
+
   return (
     <animated.div ref={ref} style={styles}>
       {inView ? (
-        loading ? <MinimalChartSkeleton height={height} /> : <GlassChartCard sx={{ minHeight: height }}>{children}</GlassChartCard>
-      ) : <MinimalChartSkeleton height={height} />}
+        loading ? <MinimalChartSkeleton height={height === 'auto' ? 200 : height} /> : <GlassChartCard sx={heightStyle}>{children}</GlassChartCard>
+      ) : <MinimalChartSkeleton height={height === 'auto' ? 200 : height} />}
     </animated.div>
   );
 }
@@ -642,8 +644,8 @@ export default function AnalyticsDashboard({ admin = false }) {
           onVisible={() => handleSectionVisible('snapshot')}
         >
           <Grid container spacing={4}>
-            <Grid item xs={12} md={6}>
-              <LazyCard loading={sectionLoading.snapshot}>
+            <Grid item xs={12}>
+              <LazyCard height="auto" loading={sectionLoading.snapshot}>
                 <ErrorBoundary
                   resetKeys={[dateRangeKey]}
                   fallbackRender={({ error, resetErrorBoundary }) => (
@@ -658,7 +660,7 @@ export default function AnalyticsDashboard({ admin = false }) {
                 </ErrorBoundary>
               </LazyCard>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12}>
               <LazyCard loading={sectionLoading.snapshot}>
                 <ErrorBoundary
                   resetKeys={[dateRangeKey]}

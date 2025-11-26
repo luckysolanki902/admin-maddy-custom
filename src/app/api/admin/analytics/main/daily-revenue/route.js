@@ -3,6 +3,11 @@
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export async function GET(req) {
   try {
@@ -12,23 +17,28 @@ export async function GET(req) {
     const startDateParam = searchParams.get('startDate');
     const endDateParam = searchParams.get('endDate');
 
+    // Define valid delivery statuses (exclude cancelled, returned, lost, undelivered)
+    const validDeliveryStatuses = [
+      'pending', 'orderCreated', 'processing', 'shipped', 'onTheWay',
+      'partiallyDelivered', 'delivered', 'returnInitiated', 'unknown'
+    ];
+
     let matchStage = {
       paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] }, // Successful payments
+      deliveryStatus: { $in: validDeliveryStatuses }, // Exclude cancelled/returned/lost orders
       isTestingOrder: { $ne: true },
-      // Only main orders or standalone orders (to avoid duplicates from linked orders)
-      $or: [
-        { orderGroupId: { $exists: false } },
-        { orderGroupId: null },
-        { isMainOrder: true }
-      ]
+      // Include ALL orders (main + linked) for accurate revenue calculation
+      // Each linked order has its own totalAmount that contributes to total revenue
     };
 
     let startDate, endDate;
 
     // Apply date range filter if provided
     if (startDateParam && endDateParam) {
-      startDate = dayjs(startDateParam);
-      endDate = dayjs(endDateParam);
+      // Parse dates and ensure we capture the full day range
+      // startOf('day') for start, endOf('day') for end to include all orders on those days
+      startDate = dayjs(startDateParam).startOf('day');
+      endDate = dayjs(endDateParam).endOf('day');
       matchStage.createdAt = {
         $gte: startDate.toDate(),
         $lte: endDate.toDate(),

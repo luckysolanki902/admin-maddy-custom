@@ -17,9 +17,18 @@ export async function GET(req) {
     const categoryFilter = searchParams.get('category'); // Renamed for clarity
 
     const paymentStatuses = ['allPaid', 'paidPartially', 'allToBePaidCod'];
+    
+    // Define valid delivery statuses (exclude cancelled, returned, lost, undelivered)
+    const validDeliveryStatuses = [
+      'pending', 'orderCreated', 'processing', 'shipped', 'onTheWay',
+      'partiallyDelivered', 'delivered', 'returnInitiated', 'unknown'
+    ];
 
     let query = {
       paymentStatus: { $in: paymentStatuses },
+      deliveryStatus: { $in: validDeliveryStatuses },
+      isTestingOrder: { $ne: true },
+      // Include ALL orders (main + linked) for variant sales since items are split across shipments
     };
 
     // Date Range Filter

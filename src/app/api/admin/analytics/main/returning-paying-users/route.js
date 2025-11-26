@@ -12,9 +12,12 @@ export async function GET(req) {
     const endDate = searchParams.get('endDate');
 
     const paymentStatuses = ['allPaid', 'paidPartially', 'allToBePaidCod'];
+    const validDeliveryStatuses = ['pending', 'orderCreated', 'processing', 'shipped', 'onTheWay', 'partiallyDelivered', 'delivered', 'returnInitiated', 'unknown'];
 
     let query = {
       paymentStatus: { $in: paymentStatuses },
+      deliveryStatus: { $in: validDeliveryStatuses },
+      isTestingOrder: { $ne: true },
     };
 
     // Date Range Filter

@@ -98,17 +98,27 @@ export async function GET(req) {
 
 		const buildQuery = (start, end) => {
 			const query = {};
+			
+			// Define valid delivery statuses for revenue calculation
+			// Exclude: cancelled, returned, lost, undelivered (these orders should not count towards revenue)
+			const validDeliveryStatuses = [
+				'pending', 'orderCreated', 'processing', 'shipped', 'onTheWay', 
+				'partiallyDelivered', 'delivered', 'returnInitiated', 'unknown'
+			];
+
 			const paymentStatusFilter = searchParams.get('paymentStatusFilter') || '';
 			if (paymentStatusFilter) {
 				if (paymentStatusFilter === 'successful') {
-					query.paymentStatus = { $in: ['paidPartially', 'allPaid'] };
+					query.paymentStatus = { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] };
 				} else if (paymentStatusFilter === 'pending') {
 					query.paymentStatus = 'pending';
 				} else if (paymentStatusFilter === 'failed') {
 					query.paymentStatus = 'failed';
 				}
 			} else {
-				query.paymentStatus = { $nin: ['pending', 'failed'] };
+				// Default: Filter by payment status AND valid delivery status
+				query.paymentStatus = { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] };
+				query.deliveryStatus = { $in: validDeliveryStatuses };
 			}
 			query.createdAt = { $gte: dayjs(start).toDate(), $lte: dayjs(end).toDate() };
 
@@ -165,7 +175,8 @@ export async function GET(req) {
 		};
 
 		const calculateMetrics = async (query) => {
-			const aggregatesQuery = {
+			// For ORDER COUNT: Only count main orders or standalone orders to avoid double counting
+			const orderCountQuery = {
 				...query,
 				$or: [
 					{ orderGroupId: { $exists: false } },
@@ -173,8 +184,13 @@ export async function GET(req) {
 					{ isMainOrder: true }
 				]
 			};
-			const aggregationResult = await Order.aggregate([
-				{ $match: aggregatesQuery },
+
+			// For REVENUE/METRICS: Include ALL orders (main + linked) to capture full revenue
+			const revenueQuery = { ...query };
+
+			// Revenue aggregation - includes ALL orders (main + linked)
+			const revenueAggregationResult = await Order.aggregate([
+				{ $match: revenueQuery },
 				{
 					$lookup: {
 						from: 'modeofpayments',
@@ -191,7 +207,6 @@ export async function GET(req) {
 				},
 				{ $group: {
 					_id: null,
-					totalOrders: { $sum: 1 },
 					revenue: { $sum: '$totalAmount' },
 					revenueWithoutCod: { 
 						$sum: {
@@ -202,7 +217,6 @@ export async function GET(req) {
 							]
 						}
 					},
-					grossSales: { $sum: { $add: ['$itemsTotal', '$extraChargesTotal'] } },
 					totalDiscount: { $sum: '$totalDiscount' },
 					totalItems: { $sum: '$itemsCount' },
 					totalShippingCost: { $sum: '$shippingCost' },
@@ -210,8 +224,14 @@ export async function GET(req) {
 				}}
 			]);
 
+			// Order count aggregation - only main/standalone orders
+			const orderCountResult = await Order.aggregate([
+				{ $match: orderCountQuery },
+				{ $count: 'totalOrders' }
+			]);
+
 			const utmStatsResult = await Order.aggregate([
-				{ $match: aggregatesQuery },
+				{ $match: orderCountQuery },
 				{ $group: {
 					_id: null,
 					totalOrdersWithUTM: { $sum: { $cond: [ { $and: [ { $ne: ['$utmDetails.source', null] }, { $ne: ['$utmDetails.source', ''] }, { $ne: ['$utmDetails.source', 'direct'] } ] }, 1, 0 ] } },
@@ -219,9 +239,12 @@ export async function GET(req) {
 				}}
 			]);
 
-			const metrics = aggregationResult[0] || {};
+			const revenueMetrics = revenueAggregationResult[0] || {};
 			const utmStats = utmStatsResult[0] || {};
-			const { totalOrders = 0, revenue = 0, revenueWithoutCod = 0, grossSales = 0, totalDiscount = 0, totalItems = 0, totalShippingCost = 0, totalExtraCharges = 0 } = metrics;
+			const totalOrders = orderCountResult[0]?.totalOrders || 0;
+			const { revenue = 0, revenueWithoutCod = 0, totalDiscount = 0, totalItems = 0, totalShippingCost = 0, totalExtraCharges = 0 } = revenueMetrics;
+			// Since we don't track list prices, Gross Sales = Revenue = totalAmount
+			const grossSales = revenue;
 			const { totalOrdersWithUTM = 0, totalRevenueWithUTM = 0 } = utmStats;
 			const aov = totalOrders > 0 ? revenue / totalOrders : 0;
 			const discountRate = grossSales > 0 ? (totalDiscount / grossSales) * 100 : 0;

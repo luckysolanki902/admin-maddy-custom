@@ -697,23 +697,22 @@ const OrdersList = ({
   }, []);
 
   const derivedC2PRatio = useMemo(() => {
+    // C2P = Form (Order Form Opened) to Purchase ratio
     const formToPurchase = parseRatioValue(funnel?.ratios?.form_to_purchase);
-    const checkoutFallback = parseRatioValue(funnel?.ratios?.checkout_to_purchase);
-    const legacyFirstParty = parseRatioValue(funnel?.ratios?.c2p);
+    const legacyC2P = parseRatioValue(funnel?.ratios?.c2p);
     const metaC2P = parseRatioValue(cacData?.checkoutToPurchaseRatio);
 
+    // Primary: form_to_purchase (order form opened → purchase)
     if (formToPurchase !== null) {
       return { value: formToPurchase, source: 'form_to_purchase' };
     }
 
-    if (checkoutFallback !== null) {
-      return { value: checkoutFallback, source: 'checkout_to_purchase' };
+    // Fallback to legacy c2p field
+    if (legacyC2P !== null) {
+      return { value: legacyC2P, source: 'first_party' };
     }
 
-    if (legacyFirstParty !== null) {
-      return { value: legacyFirstParty, source: 'first_party' };
-    }
-
+    // Last resort: Meta Ads data
     if (metaC2P !== null) {
       return { value: metaC2P, source: 'meta_ads' };
     }
@@ -732,7 +731,6 @@ const OrdersList = ({
   const c2pSourceDescriptor = useMemo(() => {
     if (c2pSource === 'meta_ads') return 'Meta Ads';
     if (c2pSource === 'form_to_purchase') return 'Form → Purchase conversion';
-    if (c2pSource === 'checkout_to_purchase') return 'Checkout → Purchase conversion';
     if (c2pSource === 'first_party') return 'First-party funnel events';
     if (c2pSource === 'unknown') return 'Unknown';
     if (!c2pSource) return 'Unknown';
@@ -1295,6 +1293,12 @@ const OrdersList = ({
       previous: getFunnelCountPrevious('reachedAddressTab')
     },
     { 
+      key: 'Reached Payment Tab', 
+      value: funnel?.counts?.reachedPaymentTab || 0,
+      change: formatFunnelPercentageChange(getFunnelCountChange('reachedPaymentTab')),
+      previous: getFunnelCountPrevious('reachedPaymentTab')
+    },
+    { 
       key: 'Started Payment', 
       value: funnel?.counts?.startedPayment || 0,
       change: formatFunnelPercentageChange(getFunnelCountChange('startedPayment')),
@@ -1334,10 +1338,16 @@ const OrdersList = ({
       previous: getFunnelRatioPrevious('form_to_address')
     },
     { 
-      label: 'Address → Pay Now', 
-      value: funnel?.ratios?.address_to_payment || 0,
-      change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_payment')),
-      previous: getFunnelRatioPrevious('address_to_payment')
+      label: 'Address → Payment Tab', 
+      value: funnel?.ratios?.address_to_payment_tab || 0,
+      change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_payment_tab')),
+      previous: getFunnelRatioPrevious('address_to_payment_tab')
+    },
+    { 
+      label: 'Payment Tab → Pay Now', 
+      value: funnel?.ratios?.payment_tab_to_payment || 0,
+      change: formatFunnelPercentageChange(getFunnelRatioChange('payment_tab_to_payment')),
+      previous: getFunnelRatioPrevious('payment_tab_to_payment')
     },
     { 
       label: 'Pay Now → Purchase', 
@@ -1391,6 +1401,15 @@ const OrdersList = ({
         previous: getFunnelRatioPrevious('applied_offer_to_purchase')
       },
       {
+        label: 'No Offer → Purchase',
+        value: ratios.view_cart_no_offer_to_purchase ?? 0,
+        baseCount: Math.max(0, (counts.viewedCart || 0) - (counts.appliedOffers || 0)),
+        purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('view_cart_no_offer_to_purchase')),
+        previous: getFunnelRatioPrevious('view_cart_no_offer_to_purchase'),
+        tooltip: 'Viewers who did NOT apply an offer but still purchased'
+      },
+      {
         label: 'Form → Purchase',
         value: ratios.form_to_purchase ?? 0,
         baseCount: counts.openedOrderForm || 0,
@@ -1405,6 +1424,14 @@ const OrdersList = ({
         purchases,
         change: formatFunnelPercentageChange(getFunnelRatioChange('address_to_purchase')),
         previous: getFunnelRatioPrevious('address_to_purchase')
+      },
+      {
+        label: 'Payment Tab → Purchase',
+        value: ratios.payment_tab_to_purchase ?? 0,
+        baseCount: counts.reachedPaymentTab || 0,
+        purchases,
+        change: formatFunnelPercentageChange(getFunnelRatioChange('payment_tab_to_purchase')),
+        previous: getFunnelRatioPrevious('payment_tab_to_purchase')
       },
       {
         label: 'Pay Now → Purchase',
@@ -2029,8 +2056,10 @@ const OrdersList = ({
                                   'AddToCart → Purchase': 'cart_to_purchase',
                                   'View Cart → Purchase': 'view_cart_to_purchase',
                                   'Offer Applied → Purchase': 'applied_offer_to_purchase',
+                                  'No Offer → Purchase': 'view_cart_no_offer_to_purchase',
                                   'Form → Purchase': 'form_to_purchase',
                                   'Address → Purchase': 'address_to_purchase',
+                                  'Payment Tab → Purchase': 'payment_tab_to_purchase',
                                   'Pay Now → Purchase': 'payment_to_purchase',
                                 };
                                 const k = keyMap[label];

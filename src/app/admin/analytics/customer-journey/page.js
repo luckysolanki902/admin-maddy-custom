@@ -8,7 +8,8 @@ import {
   Payment, LocalShipping, CheckCircle,
   Home, Category, Description, Info,
   Phone, Email, LocationOn, Person,
-  AccessTime, FlightTakeoff
+  AccessTime, FlightTakeoff, RemoveShoppingCart,
+  CreditCard
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import Image from 'next/image';
@@ -346,9 +347,10 @@ export default function CustomerJourneyPage() {
                   case 'visit': Icon = Home; dotClass = `${styles.eventDot} ${styles.visit}`; title = 'Site Visit'; break;
                   case 'view_product': Icon = Visibility; title = 'Viewed Product'; break;
                   case 'add_to_cart': Icon = ShoppingCart; dotClass = `${styles.eventDot} ${styles.cart}`; title = 'Added to Cart'; break;
-                  case 'initiate_checkout': Icon = Payment; title = 'Checkout Started'; break;
+                  case 'remove_from_cart': Icon = RemoveShoppingCart; title = 'Removed from Cart'; break;
                   case 'contact_info': Icon = Person; title = 'Entered Contact Info'; break;
                   case 'shipping_info': Icon = LocalShipping; title = 'Shipping Details'; break;
+                  case 'reach_payment_tab': Icon = CreditCard; title = 'Reached Payment Tab'; break;
                   case 'payment_initiated': Icon = Payment; title = 'Payment Initiated'; break;
                   case 'apply_offer': Icon = Description; title = 'Applied Offer'; break;
                   default: Icon = Visibility; title = step.replace(/_/g, ' ').toUpperCase();

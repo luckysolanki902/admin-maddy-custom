@@ -155,6 +155,10 @@ const OrderListFull = ({ isAdmin }) => {
   const hasFetchedVariants = useRef(false);
   const hasFetchedUTM = useRef(false);
   const hasFetchedSpecCategories = useRef(false);
+  
+  // Request sequence counter to prevent race conditions when rapidly clicking date chips
+  const requestSequenceRef = useRef(0);
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     hydrateClientCache(ORDERS_CACHE_NS);
@@ -661,19 +665,31 @@ const OrderListFull = ({ isAdmin }) => {
 
   const handleClearCaches = useCallback(async () => {
     setCacheClearing(true);
+    
+    // Clear all client-side caches synchronously first
     try {
       clearClientCache(ORDERS_CACHE_NS);
       clearClientCache(FUNNEL_CACHE_NS);
-      comparisonCache.clear?.();
+      if (typeof comparisonCache.clear === 'function') {
+        comparisonCache.clear();
+      }
+      if (typeof comparisonCache.clearFunnel === 'function') {
+        comparisonCache.clearFunnel();
+      }
     } catch (err) {
       console.warn('Failed to clear client caches', err);
     }
 
+    // Clear server-side caches and wait for confirmation
     try {
-      await fetch('/api/admin/cache/purge', { method: 'POST' });
+      const purgeRes = await fetch('/api/admin/cache/purge', { method: 'POST' });
+      if (!purgeRes.ok) {
+        console.warn('Server cache purge failed with status:', purgeRes.status);
+      }
     } catch (err) {
       console.warn('Failed to clear server caches', err);
     }
+
     // For 'today' ensure we advance the end timestamp to "now" so refreshed comparisons show latest window
     if (activeTag === 'today') {
       const now = dayjs();
@@ -681,38 +697,85 @@ const OrderListFull = ({ isAdmin }) => {
         if (!prev.start) {
           return { start: dayjs().startOf('day'), end: now };
         }
-        // If end already within last 30s keep it; else bump
-        if (prev.end && now.diff(prev.end, 'second') < 30) return prev;
+        // Always bump to current time for refresh
         return { ...prev, end: now };
       });
-      // allow state to commit before fetching (next microtask)
-      await new Promise(r => setTimeout(r, 0));
+    }
+    
+    // Small delay to ensure state updates have propagated
+    await new Promise(r => setTimeout(r, 100));
+
+    // Force refresh all data sources in parallel with skipCache=true
+    try {
+      await Promise.all([
+        fetchOrders({ forceRefresh: true }),
+        fetchFunnelMetrics({ forceRefresh: true }),
+        fetchCacData(),
+      ]);
+      // After primary data loads, fetch comparison data
+      await Promise.all([
+        fetchComparisonData(),
+        fetchFunnelComparisonData(),
+      ]);
+    } catch (err) {
+      console.warn('Error during refresh', err);
     }
 
-    await Promise.allSettled([
-      fetchOrders({ forceRefresh: true }),
-      fetchFunnelMetrics({ forceRefresh: true }),
-      fetchComparisonData(),
-      fetchFunnelComparisonData(),
-    ]);
-
     setCacheClearing(false);
-  }, [fetchOrders, fetchFunnelMetrics, fetchComparisonData, fetchFunnelComparisonData, activeTag]);
+  }, [fetchOrders, fetchFunnelMetrics, fetchComparisonData, fetchFunnelComparisonData, fetchCacData, activeTag]);
 
   /*****************************************************
    * Trigger Fetches on Dependency Changes
+   * Uses sequence counter to prevent race conditions
    *****************************************************/
   useEffect(() => {
-    (async () => {
-      await Promise.allSettled([
-        fetchOrders(),
-        fetchFunnelMetrics(),
-      ]);
-    })();
-    fetchCacData();
-    fetchProblematicOrders();
-    fetchComparisonData();
-    fetchFunnelComparisonData();
+    // Increment sequence counter to track this fetch cycle
+    const currentSequence = ++requestSequenceRef.current;
+    
+    // Abort any in-flight requests from previous cycles
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
+    // Set loading states immediately
+    setLoading(true);
+    setFunnelLoading(true);
+    
+    const fetchData = async () => {
+      try {
+        // Fetch primary data
+        await Promise.allSettled([
+          fetchOrders(),
+          fetchFunnelMetrics(),
+        ]);
+        
+        // Bail if a newer request has started
+        if (currentSequence !== requestSequenceRef.current) return;
+        
+        // Fetch secondary data in parallel
+        await Promise.allSettled([
+          fetchCacData(),
+          fetchProblematicOrders(),
+          fetchComparisonData(),
+          fetchFunnelComparisonData(),
+        ]);
+      } catch (err) {
+        // Ignore aborted requests
+        if (err.name !== 'AbortError') {
+          console.warn('Error fetching data:', err);
+        }
+      }
+    };
+    
+    fetchData();
+    
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [
     fetchOrders,
     fetchCacData,

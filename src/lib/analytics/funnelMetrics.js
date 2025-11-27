@@ -9,14 +9,16 @@ const CORE_STEP_CONFIG = [
   { event: 'apply_offer', key: 'appliedOffers' },
   { event: 'open_order_form', key: 'openedOrderForm' },
   { event: 'address_tab_open', key: 'reachedAddressTab' },
+  { event: 'reach_payment_tab', key: 'reachedPaymentTab' },
   { event: 'payment_initiated', key: 'startedPayment' },
   { event: 'purchase', key: 'purchased' },
 ];
 
 const SUPPORTED_EVENT_STEPS = [
   ...CORE_STEP_CONFIG.map((item) => item.event),
-  'initiate_checkout',
+  'initiate_checkout', // Keep for backward compatibility with existing data
   'contact_info',
+  'remove_from_cart',
 ];
 
 const CORE_STEP_KEYS = CORE_STEP_CONFIG.map((item) => item.key);
@@ -26,8 +28,8 @@ const buildDefaultCounts = () => {
   CORE_STEP_KEYS.forEach((key) => {
     defaults[key] = 0;
   });
-  defaults.initiatedCheckout = 0;
   defaults.contactInfo = 0;
+  defaults.removedFromCart = 0;
   defaults.uniqueSessions = 0;
   defaults.appliedOffers = 0;
   return defaults;
@@ -43,6 +45,8 @@ const buildDefaultRatios = (counts) => {
   const cartToForm = pct(counts.openedOrderForm, counts.addedToCart);
   const visitToForm = pct(counts.openedOrderForm, counts.visited);
   const formToAddress = pct(counts.reachedAddressTab, counts.openedOrderForm);
+  const addressToPaymentTab = pct(counts.reachedPaymentTab, counts.reachedAddressTab);
+  const paymentTabToPayment = pct(counts.startedPayment, counts.reachedPaymentTab);
   const addressToPayment = pct(counts.startedPayment, counts.reachedAddressTab);
   const paymentToPurchase = pct(counts.purchased, counts.startedPayment);
   const visitToPurchase = pct(counts.purchased, counts.visited);
@@ -51,7 +55,10 @@ const buildDefaultRatios = (counts) => {
   const appliedOfferToPurchase = pct(counts.purchased, counts.appliedOffers);
   const formToPurchase = pct(counts.purchased, counts.openedOrderForm);
   const addressToPurchase = pct(counts.purchased, counts.reachedAddressTab);
-  const checkoutToPurchase = pct(counts.purchased, counts.initiatedCheckout || counts.startedPayment);
+  const paymentTabToPurchase = pct(counts.purchased, counts.reachedPaymentTab);
+  // ViewCart but no offer applied → Purchase (for analyzing offer impact)
+  const viewCartNoOffer = Math.max(0, (counts.viewedCart || 0) - (counts.appliedOffers || 0));
+  const viewCartNoOfferToPurchase = pct(counts.purchased, viewCartNoOffer);
 
   return {
     visit_to_cart: visitToCart,
@@ -60,16 +67,19 @@ const buildDefaultRatios = (counts) => {
     cart_to_form: cartToForm,
     visit_to_form: visitToForm,
     form_to_address: formToAddress,
+    address_to_payment_tab: addressToPaymentTab,
+    payment_tab_to_payment: paymentTabToPayment,
     address_to_payment: addressToPayment,
     payment_to_purchase: paymentToPurchase,
     visit_to_purchase: visitToPurchase,
     cart_to_purchase: cartToPurchase,
     view_cart_to_purchase: viewCartToPurchase,
     applied_offer_to_purchase: appliedOfferToPurchase,
+    view_cart_no_offer_to_purchase: viewCartNoOfferToPurchase,
     form_to_purchase: formToPurchase,
     address_to_purchase: addressToPurchase,
-    c2p: cartToPurchase,
-    checkout_to_purchase: checkoutToPurchase,
+    payment_tab_to_purchase: paymentTabToPurchase,
+    c2p: formToPurchase, // C2P now uses Form → Purchase (order form opened to purchase)
   };
 };
 
@@ -87,8 +97,8 @@ const buildDefaultDropoffs = () => ({
 const mapEventToKey = (event) => {
   const config = CORE_STEP_CONFIG.find((item) => item.event === event);
   if (config) return config.key;
-  if (event === 'initiate_checkout') return 'initiatedCheckout';
   if (event === 'contact_info') return 'contactInfo';
+  if (event === 'remove_from_cart') return 'removedFromCart';
   return null;
 };
 
@@ -396,6 +406,7 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
     'viewedCart',
     'openedOrderForm',
     'reachedAddressTab',
+    'reachedPaymentTab',
     'startedPayment',
     'purchased'
   ];
@@ -415,6 +426,7 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
     viewedCart: soft.viewedCart,
     openedOrderForm: soft.openedOrderForm,
     reachedAddressTab: soft.reachedAddressTab,
+    reachedPaymentTab: soft.reachedPaymentTab,
     startedPayment: originalCounts.startedPayment, // keep genuine for payment_to_purchase
     purchased: originalCounts.purchased,
     appliedOffers: soft.appliedOffers,
@@ -436,6 +448,8 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
   addBase('cart_to_form', originalCounts.openedOrderForm, originalCounts.addedToCart, safePctRaw(originalCounts.openedOrderForm, originalCounts.addedToCart));
   addBase('visit_to_form', originalCounts.openedOrderForm, originalCounts.visited, safePctRaw(originalCounts.openedOrderForm, originalCounts.visited));
   addBase('form_to_address', originalCounts.reachedAddressTab, originalCounts.openedOrderForm, safePctRaw(originalCounts.reachedAddressTab, originalCounts.openedOrderForm));
+  addBase('address_to_payment_tab', originalCounts.reachedPaymentTab, originalCounts.reachedAddressTab, safePctRaw(originalCounts.reachedPaymentTab, originalCounts.reachedAddressTab));
+  addBase('payment_tab_to_payment', originalCounts.startedPayment, originalCounts.reachedPaymentTab, safePctRaw(originalCounts.startedPayment, originalCounts.reachedPaymentTab));
   addBase('address_to_payment', originalCounts.startedPayment, originalCounts.reachedAddressTab, safePctRaw(originalCounts.startedPayment, originalCounts.reachedAddressTab));
   
   // Payment to purchase: direct ratio using accurate aggregated counts
@@ -450,6 +464,10 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
   addBase('applied_offer_to_purchase', originalCounts.purchased, originalCounts.appliedOffers, safePctRaw(originalCounts.purchased, originalCounts.appliedOffers));
   addBase('form_to_purchase', originalCounts.purchased, originalCounts.openedOrderForm, safePctRaw(originalCounts.purchased, originalCounts.openedOrderForm));
   addBase('address_to_purchase', originalCounts.purchased, originalCounts.reachedAddressTab, safePctRaw(originalCounts.purchased, originalCounts.reachedAddressTab));
+  addBase('payment_tab_to_purchase', originalCounts.purchased, originalCounts.reachedPaymentTab, safePctRaw(originalCounts.purchased, originalCounts.reachedPaymentTab));
+  // ViewCart but no offer applied → Purchase base
+  const viewCartNoOfferBase = Math.max(0, (originalCounts.viewedCart || 0) - (originalCounts.appliedOffers || 0));
+  addBase('view_cart_no_offer_to_purchase', originalCounts.purchased, viewCartNoOfferBase, safePctRaw(originalCounts.purchased, viewCartNoOfferBase));
   addBase('checkout_to_purchase', originalCounts.purchased, (originalCounts.initiatedCheckout || originalCounts.startedPayment || 0), safePctRaw(originalCounts.purchased, (originalCounts.initiatedCheckout || originalCounts.startedPayment || 0)));
   addBase('c2p', originalCounts.purchased, originalCounts.addedToCart, safePctRaw(originalCounts.purchased, originalCounts.addedToCart));
 

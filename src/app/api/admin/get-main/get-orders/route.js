@@ -438,7 +438,8 @@ export async function GET(req) {
     };
 
     /**
-     * Function to calculate loyalty order count per phone number
+     * Function to calculate loyalty order sequence number for each order
+     * Returns a map of orderId -> sequence number (1st, 2nd, 3rd order for that customer)
      */
     const calculateLoyaltyOrderCounts = async (orders) => {
       // Extract unique phone numbers from orders
@@ -448,9 +449,9 @@ export async function GET(req) {
         return {};
       }
 
-      // Aggregate order counts by phone number
+      // Get all orders for these phone numbers, sorted by creation date
       // Only count successful orders (paidPartially or allPaid)
-      const loyaltyCounts = await Order.aggregate([
+      const allOrdersForPhones = await Order.aggregate([
         {
           $match: {
             'address.receiverPhoneNumber': { $in: phoneNumbers },
@@ -463,17 +464,30 @@ export async function GET(req) {
           }
         },
         {
-          $group: {
-            _id: '$address.receiverPhoneNumber',
-            count: { $sum: 1 }
+          $sort: { createdAt: 1 } // Sort by oldest first to assign sequence numbers
+        },
+        {
+          $project: {
+            _id: 1,
+            phoneNumber: '$address.receiverPhoneNumber',
+            createdAt: 1
           }
         }
       ]);
 
-      // Convert to a map for easy lookup
+      // Build a map of orderId -> sequence number for each customer
       const loyaltyMap = {};
-      loyaltyCounts.forEach(item => {
-        loyaltyMap[item._id] = item.count;
+      const phoneOrderCounts = {}; // Track running count per phone
+
+      allOrdersForPhones.forEach(order => {
+        const phone = order.phoneNumber;
+        if (!phone) return;
+        
+        // Increment the count for this phone number
+        phoneOrderCounts[phone] = (phoneOrderCounts[phone] || 0) + 1;
+        
+        // Map orderId to its sequence number
+        loyaltyMap[order._id.toString()] = phoneOrderCounts[phone];
       });
 
       return loyaltyMap;
@@ -490,8 +504,9 @@ export async function GET(req) {
         // Skip if already processed as part of a group
         if (processedIds.has(order._id.toString())) return;
 
-        const phoneNumber = order.address?.receiverPhoneNumber;
-        const loyaltyOrderCount = phoneNumber ? loyaltyMap[phoneNumber] || 1 : 1;
+        // Look up loyalty count by orderId (not phone number anymore)
+        const orderId = order._id.toString();
+        const loyaltyOrderCount = loyaltyMap[orderId] || 1;
 
         if (order.orderGroupId && order.isMainOrder) {
           // This is a main order with linked orders

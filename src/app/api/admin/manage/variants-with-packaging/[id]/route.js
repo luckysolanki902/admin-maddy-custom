@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import SpecificCategoryVariant from '@/models/SpecificCategoryVariant';
+import SpecificCategory from '@/models/SpecificCategory';
 import PackagingBox from '@/models/PackagingBox';
 
 export async function PATCH(request, { params }) {

@@ -357,7 +357,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                     <ContentCopyIcon fontSize="small" sx={{ color: '#4f86f7' }} />
                   }
                 </Box>
-                {/* Minimal Customer Journey Button */}
+                {/* Customer Journey Link */}
                 <Tooltip title="View Customer Journey" arrow>
                   <Box
                     component={Link}
@@ -373,17 +373,12 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                       width: 28,
                       height: 28,
                       borderRadius: '50%',
-                      backgroundColor: 'rgba(168, 85, 247, 0.15)',
-                      border: '1px solid rgba(168, 85, 247, 0.3)',
-                      transition: 'all 0.2s ease',
                       '&:hover': {
-                        backgroundColor: 'rgba(168, 85, 247, 0.25)',
-                        borderColor: 'rgba(168, 85, 247, 0.5)',
-                        transform: 'scale(1.05)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
                       }
                     }}
                   >
-                    <TimelineIcon sx={{ fontSize: '16px', color: '#a855f7' }} />
+                    <TimelineIcon sx={{ fontSize: '16px', color: 'rgba(255, 255, 255, 0.6)' }} />
                   </Box>
                 </Tooltip>
               </Box>

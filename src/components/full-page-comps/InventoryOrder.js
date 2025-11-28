@@ -211,7 +211,7 @@ const DownloadInventoryOrders = () => {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 8, px: { xs: 2, sm: 3 } }}>
       <Typography variant="h4" align="center" gutterBottom>
         
-        d Product Orders
+        Download Inventory Orders Data
       </Typography>
 
       {/* Summary Section */}
@@ -312,7 +312,7 @@ const DownloadInventoryOrders = () => {
                     <strong>Order Count</strong>
                   </TableCell>
                   <TableCell align="right">
-                    <strong>Total Quantity</strong>
+                    <strong>Total Quantity (Final)</strong>
                   </TableCell>
                   <TableCell align="center">
                     <strong>Image</strong>

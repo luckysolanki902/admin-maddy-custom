@@ -9,21 +9,48 @@ class ComparisonCache {
 		this.FUNNEL_PREFIX = 'funnel_comparison_cache_';
 	}
 
+	// Normalize timestamps to minute precision to improve cache hits
+	// This prevents cache misses when "today" generates slightly different timestamps
+	normalizeTimestamp(isoString) {
+		if (!isoString) return isoString;
+		try {
+			const d = dayjs(isoString);
+			// Round to nearest minute
+			return d.startOf('minute').toISOString();
+		} catch {
+			return isoString;
+		}
+	}
+
+	// Normalize params for consistent cache keys
+	normalizeParams(params) {
+		const normalized = { ...params };
+		if (normalized.startDate) {
+			normalized.startDate = this.normalizeTimestamp(normalized.startDate);
+		}
+		if (normalized.endDate) {
+			normalized.endDate = this.normalizeTimestamp(normalized.endDate);
+		}
+		return normalized;
+	}
+
 	generateKey(params) {
-		const sortedParams = Object.keys(params)
+		const normalized = this.normalizeParams(params);
+		const sortedParams = Object.keys(normalized)
 			.sort()
 			.reduce((acc, key) => {
-				acc[key] = params[key];
+				acc[key] = normalized[key];
 				return acc;
 			}, {});
 		return this.PREFIX + JSON.stringify(sortedParams);
 	}
 
 	generateFunnelKey(params) {
-		const sortedParams = Object.keys(params)
+		const normalized = this.normalizeParams(params);
+		const sortedParams = Object.keys(normalized)
 			.sort()
 			.reduce((acc, key) => {
-				acc[key] = params[key];
+				acc[key] = normalized[key];
 				return acc;
 			}, {});
 		return this.FUNNEL_PREFIX + JSON.stringify(sortedParams);
@@ -172,6 +199,30 @@ class ComparisonCache {
 				}
 		} catch (err) {
 			console.warn('comparisonCache: clear error', err);
+		}
+	}
+
+	clearFunnel() {
+		try {
+			// Clear only funnel entries from memory cache
+			for (const [k] of this.cache.entries()) {
+				if (k.startsWith(this.FUNNEL_PREFIX)) {
+					this.cache.delete(k);
+				}
+			}
+			// Clear funnel entries from localStorage
+			try {
+				const keys = [];
+				for (let i = 0; i < localStorage.length; i++) {
+					const k = localStorage.key(i);
+					if (k && k.startsWith(this.FUNNEL_PREFIX)) keys.push(k);
+				}
+				keys.forEach(k => localStorage.removeItem(k));
+			} catch (e) {
+				// ignore localStorage errors
+			}
+		} catch (err) {
+			console.warn('comparisonCache: clearFunnel error', err);
 		}
 	}
 

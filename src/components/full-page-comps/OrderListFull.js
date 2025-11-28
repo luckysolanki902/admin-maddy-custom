@@ -221,8 +221,8 @@ const OrderListFull = ({ isAdmin }) => {
   );
 
   const funnelCacheKey = useMemo(
-    () => JSON.stringify({ startDate: startIso, endDate: endIso, landingPageFilter }),
-    [startIso, endIso, landingPageFilter]
+    () => JSON.stringify({ startDate: startIso, endDate: endIso, landingPageFilter, activeTag }),
+    [startIso, endIso, landingPageFilter, activeTag]
   );
 
   /*****************************************************
@@ -294,11 +294,17 @@ const OrderListFull = ({ isAdmin }) => {
    * Fetch Main Orders
    *****************************************************/
   const fetchOrders = useCallback(async ({ forceRefresh = false } = {}) => {
+    // Capture current sequence at start of this fetch
+    const fetchSequence = requestSequenceRef.current;
+    
     if (!forceRefresh) {
       const cached = getClientCache(ORDERS_CACHE_NS, ordersCacheKey);
       if (cached) {
-        setOrderData(cached);
-        setLoading(false);
+        // Check if still the current request before updating state
+        if (fetchSequence === requestSequenceRef.current) {
+          setOrderData(cached);
+          setLoading(false);
+        }
         return;
       }
     }
@@ -326,7 +332,15 @@ const OrderListFull = ({ isAdmin }) => {
     if (forceRefresh) qp.push('skipCache=true');
 
     try {
-      const res = await fetch(`/api/admin/get-main/get-orders?${qp.join('&')}`);
+      const res = await fetch(`/api/admin/get-main/get-orders?${qp.join('&')}`, {
+        signal: abortControllerRef.current?.signal,
+      });
+      
+      // Check if this request is still current before processing response
+      if (fetchSequence !== requestSequenceRef.current) {
+        return; // Stale request, discard result
+      }
+      
       const data = await res.json();
       if (res.ok) {
         const nextData = {
@@ -347,9 +361,13 @@ const OrderListFull = ({ isAdmin }) => {
         setClientCache(ORDERS_CACHE_NS, ordersCacheKey, nextData, CACHE_TTL);
       }
     } catch (error) {
+      // Ignore abort errors - they're expected when switching chips quickly
+      if (error.name === 'AbortError') return;
       console.error('Error fetching orders:', error);
     } finally {
-      setLoading(false);
+      if (fetchSequence === requestSequenceRef.current) {
+        setLoading(false);
+      }
     }
   }, [
     currentPage,
@@ -468,6 +486,9 @@ const OrderListFull = ({ isAdmin }) => {
    * Fetch Comparison Data
    *****************************************************/
   const fetchComparisonData = useCallback(async () => {
+    // Capture current sequence at start of this fetch
+    const fetchSequence = requestSequenceRef.current;
+    
     if (!dateRange.start || !dateRange.end) {
       setComparisonData(null);
       return;
@@ -500,8 +521,11 @@ const OrderListFull = ({ isAdmin }) => {
       // Try to get from cache first
       const cachedData = comparisonCache.get(cacheParams);
       if (cachedData) {
-        setComparisonData(cachedData);
-        setComparisonLoading(false);
+        // Check if still the current request before updating state
+        if (fetchSequence === requestSequenceRef.current) {
+          setComparisonData(cachedData);
+          setComparisonLoading(false);
+        }
         return;
       }
 
@@ -528,7 +552,15 @@ const OrderListFull = ({ isAdmin }) => {
       if (singleVariantOnly) qp.push('singleVariantOnly=true');
       if (singleItemCountOnly) qp.push('singleItemCountOnly=true');
 
-      const res = await fetch(`/api/admin/get-main/get-orders-comparison?${qp.join('&')}`);
+      const res = await fetch(`/api/admin/get-main/get-orders-comparison?${qp.join('&')}`, {
+        signal: abortControllerRef.current?.signal,
+      });
+      
+      // Check if this request is still current before processing response
+      if (fetchSequence !== requestSequenceRef.current) {
+        return; // Stale request, discard result
+      }
+      
       const data = await res.json();
 
       if (res.ok) {
@@ -540,10 +572,16 @@ const OrderListFull = ({ isAdmin }) => {
         setComparisonData(null);
       }
     } catch (error) {
+      // Ignore abort errors - they're expected when switching chips quickly
+      if (error.name === 'AbortError') return;
       console.error('Error fetching comparison data:', error);
-      setComparisonData(null);
+      if (fetchSequence === requestSequenceRef.current) {
+        setComparisonData(null);
+      }
     } finally {
-      setComparisonLoading(false);
+      if (fetchSequence === requestSequenceRef.current) {
+        setComparisonLoading(false);
+      }
     }
   }, [
     dateRange,
@@ -564,6 +602,9 @@ const OrderListFull = ({ isAdmin }) => {
    * Fetch Funnel Comparison Data
    *****************************************************/
   const fetchFunnelComparisonData = useCallback(async () => {
+    // Capture current sequence at start of this fetch
+    const fetchSequence = requestSequenceRef.current;
+    
     if (!dateRange.start || !dateRange.end) {
       setFunnelComparisonData(null);
       return;
@@ -572,7 +613,7 @@ const OrderListFull = ({ isAdmin }) => {
     setFunnelComparisonLoading(true);
     
     try {
-      // Build cache key parameters
+      // Build cache key parameters - include all params that affect the data
       const cacheParams = {
         startDate: dateRange.start.toISOString(),
         endDate: dateRange.end.toISOString(),
@@ -583,8 +624,11 @@ const OrderListFull = ({ isAdmin }) => {
       // Try to get from cache first
       const cachedData = comparisonCache.getFunnel(cacheParams);
       if (cachedData) {
-        setFunnelComparisonData(cachedData);
-        setFunnelComparisonLoading(false);
+        // Check if still the current request before updating state
+        if (fetchSequence === requestSequenceRef.current) {
+          setFunnelComparisonData(cachedData);
+          setFunnelComparisonLoading(false);
+        }
         return;
       }
 
@@ -598,8 +642,14 @@ const OrderListFull = ({ isAdmin }) => {
           activeTag,
           landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
           skipCache: false,
-        })
+        }),
+        signal: abortControllerRef.current?.signal,
       });
+
+      // Check if this request is still current before processing response
+      if (fetchSequence !== requestSequenceRef.current) {
+        return; // Stale request, discard result
+      }
 
       const data = await res.json();
 
@@ -611,10 +661,16 @@ const OrderListFull = ({ isAdmin }) => {
         setFunnelComparisonData(null);
       }
     } catch (error) {
+      // Ignore abort errors - they're expected when switching chips quickly
+      if (error.name === 'AbortError') return;
       console.error('Error fetching funnel comparison data:', error);
-      setFunnelComparisonData(null);
+      if (fetchSequence === requestSequenceRef.current) {
+        setFunnelComparisonData(null);
+      }
     } finally {
-      setFunnelComparisonLoading(false);
+      if (fetchSequence === requestSequenceRef.current) {
+        setFunnelComparisonLoading(false);
+      }
     }
   }, [
     dateRange,
@@ -626,14 +682,20 @@ const OrderListFull = ({ isAdmin }) => {
    * Fetch Funnel Metrics
    *****************************************************/
   const fetchFunnelMetrics = useCallback(async ({ forceRefresh = false } = {}) => {
+    // Capture current sequence at start of this fetch
+    const fetchSequence = requestSequenceRef.current;
+    
     if (!dateRange.start || !dateRange.end) return;
 
     if (!forceRefresh) {
       const cached = getClientCache(FUNNEL_CACHE_NS, funnelCacheKey);
       if (cached) {
-        setFunnelMetrics(cached);
-        console.log('Purchased funnel counts', cached?.counts?.purchased);
-        setFunnelLoading(false);
+        // Check if still the current request before updating state
+        if (fetchSequence === requestSequenceRef.current) {
+          setFunnelMetrics(cached);
+          console.log('Purchased funnel counts', cached?.counts?.purchased);
+          setFunnelLoading(false);
+        }
         return;
       }
     }
@@ -649,17 +711,28 @@ const OrderListFull = ({ isAdmin }) => {
           endDate: dateRange.end.toISOString(),
           landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
           skipCache: forceRefresh,
-        })
+        }),
+        signal: abortControllerRef.current?.signal,
       });
+      
+      // Check if this request is still current before processing response
+      if (fetchSequence !== requestSequenceRef.current) {
+        return; // Stale request, discard result
+      }
+      
       const data = await res.json();
       if (res.ok) {
         setFunnelMetrics(data);
         setClientCache(FUNNEL_CACHE_NS, funnelCacheKey, data, CACHE_TTL);
       }
     } catch (e) {
+      // Ignore abort errors - they're expected when switching chips quickly
+      if (e.name === 'AbortError') return;
       console.error('Error fetching funnel metrics:', e);
     } finally {
-      setFunnelLoading(false);
+      if (fetchSequence === requestSequenceRef.current) {
+        setFunnelLoading(false);
+      }
     }
   }, [dateRange, funnelCacheKey, landingPageFilter]);
 
@@ -723,6 +796,28 @@ const OrderListFull = ({ isAdmin }) => {
 
     setCacheClearing(false);
   }, [fetchOrders, fetchFunnelMetrics, fetchComparisonData, fetchFunnelComparisonData, fetchCacData, activeTag]);
+
+  /*****************************************************
+   * Clear stale funnel data immediately when landing page filter changes
+   * This prevents showing wrong data during the loading period
+   *****************************************************/
+  useEffect(() => {
+    // Set loading states immediately to prevent stale data from showing
+    setFunnelLoading(true);
+    setFunnelComparisonLoading(true);
+  }, [landingPageFilter]);
+
+  /*****************************************************
+   * Clear stale data immediately when date chip (activeTag) changes
+   * This prevents showing data from previous chip during loading
+   *****************************************************/
+  useEffect(() => {
+    // Set loading states immediately
+    setLoading(true);
+    setFunnelLoading(true);
+    setFunnelComparisonLoading(true);
+    setComparisonLoading(true);
+  }, [activeTag]);
 
   /*****************************************************
    * Trigger Fetches on Dependency Changes

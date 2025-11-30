@@ -33,6 +33,7 @@ import OrdersList from '@/components/page-sections/OrdersList';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import FiltersDrawer from '@/components/page-sections/FiltersDrawer';
 import CustomerCard from '@/components/cards/CustomerCard';
+import MilestoneCelebrationCard from '@/components/cards/MilestoneCelebrationCard';
 import { formatDate } from '@/utils/dateUtils';
 
 const ITEMS_PER_PAGE = 30;
@@ -993,6 +994,9 @@ const OrderListFull = ({ isAdmin }) => {
       <Typography variant="h4" color="primary" align="center" sx={{ mb: 3 }}>
         Orders Dashboard
       </Typography>
+
+      {/* Milestone Celebration Card */}
+      <MilestoneCelebrationCard />
 
       {/* Date Range Chips */}
       <DateRangeChips

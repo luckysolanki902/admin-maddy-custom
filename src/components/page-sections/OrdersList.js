@@ -26,6 +26,7 @@ import CachedIcon from '@mui/icons-material/Cached';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CustomerCard from '../cards/CustomerCard';
+import RecordCelebrationCard from '../cards/RecordCelebrationCard';
 import { fetchSiteUpdates } from '@/redux/slices/siteUpdatesSlice';
 
 // Minimal styled components for compact design
@@ -597,8 +598,29 @@ const OrdersList = ({
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
   const [aiCacheInfo, setAiCacheInfo] = useState(null);
+  const [dailyRecords, setDailyRecords] = useState([]);
+  const [nearRecords, setNearRecords] = useState([]);
+  const [timeRemaining, setTimeRemaining] = useState({});
   const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes, must mirror server TTL
   const dispatch = useDispatch();
+
+  // Fetch daily records on mount
+  useEffect(() => {
+    const fetchDailyRecords = async () => {
+      try {
+        const res = await fetch('/api/admin/get-main/get-daily-records');
+        if (res.ok) {
+          const data = await res.json();
+          setDailyRecords(data.records || []);
+          setNearRecords(data.nearRecords || []);
+          setTimeRemaining(data.timeRemaining || {});
+        }
+      } catch (error) {
+        console.error('Error fetching daily records:', error);
+      }
+    };
+    fetchDailyRecords();
+  }, []);
 
   const { items: siteUpdateItems, status: siteUpdateStatus } = useSelector((state) => state.siteUpdates);
 
@@ -1574,6 +1596,15 @@ const OrdersList = ({
 
   return (
     <Box>
+      {/* Daily Records Celebration */}
+      {(dailyRecords.length > 0 || nearRecords.length > 0) && (
+        <RecordCelebrationCard 
+          records={dailyRecords} 
+          nearRecords={nearRecords}
+          timeRemaining={timeRemaining}
+        />
+      )}
+      
       {/* Compare Mode Toggle & Cache Controls */}
       <Box
         sx={{

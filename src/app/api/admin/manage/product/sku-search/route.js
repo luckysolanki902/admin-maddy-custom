@@ -29,15 +29,23 @@ export async function GET(req) {
     const skuQuery = searchParams.get('sku') || '';
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = Math.min(parseInt(searchParams.get('limit') || '30', 10), 30);
+    const exactMatch = searchParams.get('exactMatch') === 'true';
     const skip = (page - 1) * limit;
 
     // Build the SKU search filter
     let filter = {};
     if (skuQuery) {
-      // Use case-insensitive partial matching for SKU
-      filter = {
-        sku: { $regex: skuQuery, $options: 'i' },
-      };
+      if (exactMatch) {
+        // Exact match (case-insensitive)
+        filter = {
+          sku: { $regex: `^${skuQuery}$`, $options: 'i' },
+        };
+      } else {
+        // Partial matching for SKU
+        filter = {
+          sku: { $regex: skuQuery, $options: 'i' },
+        };
+      }
     }
 
   const ifNoneMatch = req.headers.get('if-none-match');

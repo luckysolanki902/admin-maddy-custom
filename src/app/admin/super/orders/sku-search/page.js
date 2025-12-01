@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Container, TextField, Grid, Typography, Pagination } from '@mui/material';
+import { Container, TextField, Grid, Typography, Pagination, Chip, Box } from '@mui/material';
 import Skeleton from '@mui/material/Skeleton';
 
 import debounce from 'lodash.debounce';
@@ -15,6 +15,7 @@ const SKUSearchPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [exactMatch, setExactMatch] = useState(false);
 
   // Pagination states
   const [page, setPage] = useState(1);
@@ -23,14 +24,14 @@ const SKUSearchPage = () => {
   // Simple in-memory client cache across navigations (lives while page remains mounted)
   const cacheRef = useRef(new Map()); // key -> { timestamp, data, etag }
 
-  const fetchProducts = useCallback(async (skuQuery, pageNumber = 1) => {
+  const fetchProducts = useCallback(async (skuQuery, pageNumber = 1, isExactMatch = false) => {
     if (!skuQuery.trim()) {
       setProducts([]);
       setTotalPages(1);
       setPage(1);
       return;
     }
-    const key = JSON.stringify({ skuQuery, pageNumber });
+    const key = JSON.stringify({ skuQuery, pageNumber, isExactMatch });
     const now = Date.now();
     const cached = cacheRef.current.get(key);
     if (cached && now - cached.timestamp < CACHE_MS) {
@@ -45,7 +46,7 @@ const SKUSearchPage = () => {
       const headers = {};
       if (cached?.etag) headers['If-None-Match'] = cached.etag;
       const response = await axios.get('/api/admin/manage/product/sku-search', {
-        params: { sku: skuQuery, page: pageNumber, limit: 30 },
+        params: { sku: skuQuery, page: pageNumber, limit: 30, exactMatch: isExactMatch },
         headers,
         validateStatus: status => (status >= 200 && status < 300) || status === 304,
       });
@@ -73,23 +74,23 @@ const SKUSearchPage = () => {
   // Debounced search function
   // Wrap fetch in a stable debounced function; recreate only if fetchProducts changes
   useEffect(() => {
-    const handler = debounce((term) => {
+    const handler = debounce((term, isExactMatch) => {
       if (term.trim()) {
-        fetchProducts(term, 1);
+        fetchProducts(term, 1, isExactMatch);
       } else {
         setProducts([]);
         setTotalPages(1);
         setPage(1);
       }
     }, 400);
-    handler(sku);
+    handler(sku, exactMatch);
     return () => handler.cancel();
-  }, [sku, fetchProducts]);
+  }, [sku, exactMatch, fetchProducts]);
 
   // Handle pagination change
   const handlePageChange = (event, value) => {
     setPage(value);
-    fetchProducts(sku, value);
+    fetchProducts(sku, value, exactMatch);
   };
 
   // Generate skeletons based on expected number of products
@@ -110,21 +111,29 @@ const SKUSearchPage = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         SKU Product Search
       </Typography>
-      <TextField
-        fullWidth
-        label="Search by SKU"
-        variant="outlined"
-        value={sku}
-        onChange={(e) => setSku(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            // Force immediate fetch bypassing debounce
-            fetchProducts(sku, 1);
-          }
-        }}
-        placeholder="Enter complete or partial SKU"
-        sx={{ marginBottom: 4 }}
-      />
+      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', marginBottom: 4 }}>
+        <TextField
+          fullWidth
+          label="Search by SKU"
+          variant="outlined"
+          value={sku}
+          onChange={(e) => setSku(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              // Force immediate fetch bypassing debounce
+              fetchProducts(sku, 1, exactMatch);
+            }
+          }}
+          placeholder={exactMatch ? "Enter exact SKU" : "Enter complete or partial SKU"}
+        />
+        <Chip
+          label="Exact Match"
+          color={exactMatch ? 'primary' : 'default'}
+          variant={exactMatch ? 'filled' : 'outlined'}
+          onClick={() => setExactMatch(!exactMatch)}
+          sx={{ minWidth: 110, cursor: 'pointer' }}
+        />
+      </Box>
       {error && (
         <Typography color="error" sx={{ marginBottom: 2 }}>
           {error}

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, TextField, Grid, CircularProgress, Typography, Pagination } from '@mui/material';
+import { Container, TextField, Grid, CircularProgress, Typography, Pagination, Chip, Box } from '@mui/material';
 import debounce from 'lodash.debounce';
 import axios from 'axios';
 import ProductCard from '@/components/page-sections/sku-search/ProductCard';
@@ -12,12 +12,13 @@ const SKUSearchPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [exactMatch, setExactMatch] = useState(false);
 
   // Pagination states
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const fetchProducts = async (skuQuery, pageNumber = 1) => {
+  const fetchProducts = async (skuQuery, pageNumber = 1, isExactMatch = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -26,6 +27,7 @@ const SKUSearchPage = () => {
           sku: skuQuery,
           page: pageNumber,
           limit: 30,
+          exactMatch: isExactMatch,
         },
       });
       setProducts(response.data.products);
@@ -41,9 +43,9 @@ const SKUSearchPage = () => {
 
   // Debounced search function
   const debouncedSearch = useCallback(
-    debounce((skuTerm) => {
+    debounce((skuTerm, isExactMatch) => {
       if (skuTerm.trim() !== '') {
-        fetchProducts(skuTerm);
+        fetchProducts(skuTerm, 1, isExactMatch);
       } else {
         setProducts([]);
         setTotalPages(1);
@@ -54,15 +56,15 @@ const SKUSearchPage = () => {
   );
 
   useEffect(() => {
-    debouncedSearch(sku);
+    debouncedSearch(sku, exactMatch);
     // Cleanup debounce on unmount
     return debouncedSearch.cancel;
-  }, [sku, debouncedSearch]);
+  }, [sku, exactMatch, debouncedSearch]);
 
   // Handle pagination change
   const handlePageChange = (event, value) => {
     setPage(value);
-    fetchProducts(sku, value);
+    fetchProducts(sku, value, exactMatch);
   };
 
   return (
@@ -70,15 +72,23 @@ const SKUSearchPage = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         SKU Product Search
       </Typography>
-      <TextField
-        fullWidth
-        label="Search by SKU"
-        variant="outlined"
-        value={sku}
-        onChange={(e) => setSku(e.target.value)}
-        placeholder="Enter complete or partial SKU"
-        sx={{ marginBottom: 4 }}
-      />
+      <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', marginBottom: 4, flexDirection: 'column' }}>
+        <TextField
+          fullWidth
+          label="Search by SKU"
+          variant="outlined"
+          value={sku}
+          onChange={(e) => setSku(e.target.value)}
+          placeholder={exactMatch ? "Enter exact SKU" : "Enter complete or partial SKU"}
+        />
+        <Chip
+          label="Exact"
+          color={exactMatch ? 'primary' : 'default'}
+          variant={exactMatch ? 'filled' : 'outlined'}
+          onClick={() => setExactMatch(!exactMatch)}
+          sx={{ minWidth: 110, cursor: 'pointer' }}
+        />
+      </Box>
       {loading ? (
         <Grid container justifyContent="center">
           <CircularProgress />

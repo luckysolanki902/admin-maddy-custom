@@ -26,9 +26,17 @@ export async function GET(request) {
     const filter = searchParams.get('filter') || 'all';
     const customValue = parseInt(searchParams.get('customValue') || '10');
     const skuSearch = searchParams.get('skuSearch') || '';
+    const productAvailability = searchParams.get('productAvailability') || 'all'; // 'all', 'available', 'unavailable'
     
     // Build base query for products - include all products, not just those with inventory data
     let productQuery = {};
+    
+    // Add product availability filter
+    if (productAvailability === 'available') {
+      productQuery.available = true;
+    } else if (productAvailability === 'unavailable') {
+      productQuery.available = { $ne: true }; // false, null, or undefined
+    }
     
     // Add variant filter
     if (variantId !== 'all') {
@@ -151,6 +159,9 @@ export async function GET(request) {
       },
       { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
       { $match: { 'category.inventoryMode': 'inventory', 'category.available': true } },
+      // Add product availability filter for options
+      ...(productAvailability === 'available' ? [{ $match: { 'product.available': true } }] : []),
+      ...(productAvailability === 'unavailable' ? [{ $match: { 'product.available': { $ne: true } } }] : []),
       {
         $lookup: {
           from: 'inventories',

@@ -61,6 +61,7 @@ const InventoryManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState('all'); // 'all', 'outOfStock', 'needsReorder', 'custom'
   const [customFilterValue, setCustomFilterValue] = useState(10);
+  const [productAvailabilityFilter, setProductAvailabilityFilter] = useState('all'); // 'all', 'available', 'unavailable'
   const [viewMode, setViewMode] = useState(true); // true = view, false = edit
   // Quantity update mode: 'add' (default additive) or 'overwrite'
   const [qtyUpdateMode, setQtyUpdateMode] = useState('add');
@@ -134,7 +135,8 @@ const InventoryManagementPage = () => {
         filter: filterMode,
         customValue: customFilterValue.toString(),
         skuSearch: skuSearch.trim(),
-        allLevelMode: allLevelMode // pass mode to backend for all-level chips
+        allLevelMode: allLevelMode, // pass mode to backend for all-level chips
+        productAvailability: productAvailabilityFilter // 'all', 'available', 'unavailable'
       });
       // For hb-cf, add specificCategoryVariantCode param
       if (variants.find(v => v.variantCode === 'hb-cf') && (selectedVariantId === 'hb-cf' || variants.find(v => v._id === selectedVariantId)?.variantCode === 'hb-cf')) {
@@ -193,7 +195,7 @@ const InventoryManagementPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, selectedVariantId, filterMode, customFilterValue, skuSearch, variants, allLevelMode]);
+  }, [page, rowsPerPage, selectedVariantId, filterMode, customFilterValue, skuSearch, variants, allLevelMode, productAvailabilityFilter]);
 
   useEffect(() => {
     fetchTableData();
@@ -661,6 +663,33 @@ const InventoryManagementPage = () => {
                 }}
               />
             )}
+
+            {/* Product Availability Filter */}
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ borderLeft: '1px solid', borderColor: 'divider', pl: 2 }}>
+              <Typography variant="subtitle2" fontWeight={600}>Product Status:</Typography>
+              <Stack direction="row" spacing={1}>
+                {[
+                  { value: 'all', label: 'All' },
+                  { value: 'available', label: 'Available' },
+                  { value: 'unavailable', label: 'Unavailable' }
+                ].map(filter => (
+                  <Chip
+                    key={filter.value}
+                    label={filter.label}
+                    onClick={() => attemptChange(() => setProductAvailabilityFilter(filter.value))}
+                    color={productAvailabilityFilter === filter.value ? 'secondary' : 'default'}
+                    variant={productAvailabilityFilter === filter.value ? 'filled' : 'outlined'}
+                    size="small"
+                    sx={{ 
+                      borderRadius: 2,
+                      fontWeight: 500,
+                      '&:hover': { transform: 'scale(1.05)' },
+                      transition: 'all 0.2s'
+                    }}
+                  />
+                ))}
+              </Stack>
+            </Stack>
 
             <TextField
               size="small"

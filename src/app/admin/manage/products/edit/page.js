@@ -69,6 +69,7 @@ const EditProductPage = () => {
   // Sorting and Filtering states
   const [sortOption, setSortOption] = useState("");
   const [filterAvailable, setFilterAvailable] = useState(true);
+  const [availabilityFilter, setAvailabilityFilter] = useState('all'); // 'all', 'available', 'unavailable'
 
   // Dialog for uniqueness conflicts
   const [openConflictDialog, setOpenConflictDialog] = useState(false);
@@ -360,10 +361,13 @@ const EditProductPage = () => {
   const getProcessedProducts = () => {
     let processedProducts = [...products];
 
-    // Apply Filtering
-    if (filterAvailable) {
+    // Apply Availability Filtering (new 3-way filter)
+    if (availabilityFilter === 'available') {
       processedProducts = processedProducts.filter(product => product.available);
+    } else if (availabilityFilter === 'unavailable') {
+      processedProducts = processedProducts.filter(product => !product.available);
     }
+    // 'all' shows everything - no filter applied
 
     // Apply Sorting
     if (sortOption === "dateCreated") {
@@ -987,6 +991,8 @@ const EditProductPage = () => {
           onSortChange={handleSortChange}
           filterAvailable={filterAvailable}
           onFilterChange={handleFilterChange}
+          availabilityFilter={availabilityFilter}
+          onAvailabilityFilterChange={setAvailabilityFilter}
         />
       </Drawer>
 

@@ -10,13 +10,17 @@ import {
   Box,
   Dialog,
   IconButton,
+  Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import CloseIcon from '@mui/icons-material/Close';
+import DownloadIcon from '@mui/icons-material/Download';
 import Image from 'next/image';
 
 const ProductCard = ({ product }) => {
   const [open, setOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const imageBaseUrl = process.env.NEXT_PUBLIC_CLOUDFRONT_BASEURL || '';
   const normalize = (p) => {
     if (!p) return '/images/dark-circular-logo.png';
@@ -27,6 +31,47 @@ const ProductCard = ({ product }) => {
 
   const primary = product.effectiveImage || (product.images && product.images[0]);
   const productImage = normalize(primary);
+
+  // Get design template URL
+  const getDesignTemplateUrl = () => {
+    // Check for new designTemplates array first
+    if (product.designTemplates && product.designTemplates.length > 0) {
+      return normalize(product.designTemplates[0].imageUrl || product.designTemplates[0]);
+    }
+    // Fallback to legacy designTemplate
+    if (product.designTemplate?.imageUrl) {
+      return normalize(product.designTemplate.imageUrl);
+    }
+    return null;
+  };
+
+  const designTemplateUrl = getDesignTemplateUrl();
+
+  // Download design template
+  const handleDownloadTemplate = async (e) => {
+    e.stopPropagation();
+    if (!designTemplateUrl) return;
+
+    setDownloading(true);
+    try {
+      const response = await fetch(designTemplateUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      // Generate filename from SKU
+      const extension = designTemplateUrl.split('.').pop()?.split('?')[0] || 'png';
+      link.download = `${product.sku}-template.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Handle opening the modal and pushing a new state
   const handleOpen = () => {
@@ -163,6 +208,36 @@ const ProductCard = ({ product }) => {
           >
             Out of Stock
           </Box>
+        )}
+
+        {/* Download Template Button */}
+        {designTemplateUrl && (
+          <Tooltip title="Download Design Template" arrow>
+            <IconButton
+              onClick={handleDownloadTemplate}
+              disabled={downloading}
+              sx={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                color: 'common.white',
+                '&:hover': {
+                  backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                  transform: 'scale(1.1)',
+                },
+                transition: 'all 0.2s ease',
+                zIndex: 10,
+              }}
+              size="small"
+            >
+              {downloading ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                <DownloadIcon fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
         )}
       </Card>
 

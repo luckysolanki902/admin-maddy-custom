@@ -46,7 +46,7 @@ export async function GET(req) {
     const totalPages = Math.ceil(total / limit) || 1;
 
     const productsRaw = await Product.find(filter)
-      .select('sku images optionsAvailable name category subCategory specificCategory specificCategoryVariant available updatedAt')
+      .select('sku images optionsAvailable name category subCategory specificCategory specificCategoryVariant available updatedAt designTemplates designTemplate')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

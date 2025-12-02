@@ -33,6 +33,7 @@ import TimeToPurchaseChart from '@/components/analytics/user-behavior/TimeToPurc
 import RepeatOrdersChart from '@/components/analytics/user-behavior/RepeatOrdersChart';
 import RevisitTimingChart from '@/components/analytics/user-behavior/RevisitTimingChart';
 import FunnelTimingChart from '@/components/analytics/user-behavior/FunnelTimingChart';
+import FirstCategoryRepeatChart from '@/components/analytics/user-behavior/FirstCategoryRepeatChart';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import MinimalChartSkeleton from '@/components/analytics/common/MinimalChartSkeleton';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
@@ -289,6 +290,7 @@ export default function AnalyticsDashboard({ admin = false }) {
   const [monthlyRev, setMonthlyRev] = useState([]);
   const [abandonedCarts, setAbandonedCarts] = useState([]);
   const [retargetedCustomers, setRetargetedCustomers] = useState([]);
+  const [firstCategoryRepeat, setFirstCategoryRepeat] = useState(null);
   const [isUpdatingData, setIsUpdatingData] = useState(false);
 
   /* ------------ FETCH HELPERS ------------ */
@@ -384,7 +386,7 @@ export default function AnalyticsDashboard({ admin = false }) {
           case 'traffic': {
             // Fetch user behavior timing and cart analytics
             // Also fetch repeat orders with user details for the dialog functionality
-            const [userBehavior, abandonedCartsData, retargetedData, repeatOrdersWithUsers] = await Promise.all([
+            const [userBehavior, abandonedCartsData, retargetedData, repeatOrdersWithUsers, firstCategoryRepeatData] = await Promise.all([
               ranged('/api/admin/analytics/main/user-behavior-timing'),
               ranged('/api/admin/analytics/main/abandoned-carts-funnel'),
               ranged('/api/admin/analytics/main/retargeted-customers'),
@@ -403,6 +405,22 @@ export default function AnalyticsDashboard({ admin = false }) {
                   console.error('Repeat orders fetch error:', e);
                   return null;
                 }
+              })(),
+              // Fetch first category repeat data
+              (async () => {
+                try {
+                  const startDate = dateRange.start instanceof Date ? dateRange.start : dateRange.start?.toDate?.();
+                  const endDate = dateRange.end instanceof Date ? dateRange.end : dateRange.end?.toDate?.();
+                  if (startDate && endDate) {
+                    const url = `/api/admin/download/first-category-repeat?start=${startDate.toISOString()}&end=${endDate.toISOString()}`;
+                    const res = await fetch(url);
+                    return res.json();
+                  }
+                  return null;
+                } catch (e) {
+                  console.error('First category repeat fetch error:', e);
+                  return null;
+                }
               })()
             ]);
             // Merge the repeat orders data with user details into userBehavior
@@ -413,6 +431,7 @@ export default function AnalyticsDashboard({ admin = false }) {
             setUserBehaviorTiming(mergedUserBehavior);
             setAbandonedCarts(abandonedCartsData?.abandonedCarts || []);
             setRetargetedCustomers(retargetedData?.retargetedCustomers || []);
+            setFirstCategoryRepeat(firstCategoryRepeatData);
             break;
           }
           case 'revenue': {
@@ -726,6 +745,24 @@ export default function AnalyticsDashboard({ admin = false }) {
                   )}
                 >
                   <RepeatOrdersChart data={userBehaviorTiming} loading={sectionLoading.traffic} />
+                </ErrorBoundary>
+              </LazyCard>
+            </Grid>
+
+            {/* First Category Repeat Analysis - Which category drives loyalty */}
+            <Grid item xs={12} >
+              <LazyCard height={580} loading={sectionLoading.traffic}>
+                <ErrorBoundary
+                  resetKeys={[dateRangeKey]}
+                  fallbackRender={({ error, resetErrorBoundary }) => (
+                    <GlassChartCard>
+                      <Typography variant="subtitle1" color="error" sx={{ mb: 1 }}>First Category Repeat failed to load</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{String(error?.message || 'Unknown error')}</Typography>
+                      <Button variant="outlined" size="small" onClick={resetErrorBoundary}>Retry</Button>
+                    </GlassChartCard>
+                  )}
+                >
+                  <FirstCategoryRepeatChart data={firstCategoryRepeat} />
                 </ErrorBoundary>
               </LazyCard>
             </Grid>

@@ -35,6 +35,20 @@ export default function FirstCategoryRepeatChart({ data }) {
   const chartData = useMemo(() => {
     if (!data?.firstCategoryRepeat?.categories) return [];
     
+    // Define color palette matching pie chart
+    const colorPalette = [
+      theme.palette.warning.main,    // Gold/Orange for #1
+      theme.palette.primary.main,    // Blue for #2
+      theme.palette.secondary.main,  // Purple for #3
+      theme.palette.info.main,       // Light blue for #4
+      theme.palette.success.main,    // Green for #5
+      '#FF6B6B',                     // Coral
+      '#4ECDC4',                     // Teal
+      '#45B7D1',                     // Sky blue
+      '#96CEB4',                     // Sage
+      '#FFEAA7',                     // Pale yellow
+    ];
+    
     // Get top 10 categories for the chart
     return data.firstCategoryRepeat.categories
       .slice(0, 10)
@@ -43,11 +57,7 @@ export default function FirstCategoryRepeatChart({ data }) {
         shortName: cat.categoryName.length > 18 
           ? cat.categoryName.substring(0, 18) + '...' 
           : cat.categoryName,
-        fill: idx === 0 
-          ? theme.palette.warning.main 
-          : idx < 3 
-            ? theme.palette.primary.main 
-            : alpha(theme.palette.primary.main, 0.7)
+        fill: colorPalette[idx] || alpha(theme.palette.primary.main, 0.6)
       }));
   }, [data, theme]);
 
@@ -98,7 +108,7 @@ export default function FirstCategoryRepeatChart({ data }) {
         elevation={6}
         sx={{
           p: 2,
-          minWidth: 220,
+          minWidth: 240,
           background: alpha(theme.palette.background.paper, 0.98),
           backdropFilter: 'blur(20px)',
           border: `1px solid ${alpha(theme.palette.warning.main, 0.3)}`,
@@ -110,12 +120,26 @@ export default function FirstCategoryRepeatChart({ data }) {
         </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="caption" color="text.secondary">Repeat Customers:</Typography>
-            <Typography variant="body2" fontWeight="bold" color="warning.main">
-              {item.repeatCustomerCount || item.value}
+            <Typography variant="caption" color="text.secondary">First-Time Buyers:</Typography>
+            <Typography variant="body2" fontWeight="bold">
+              {item.totalFirstTimeBuyers || item.value}
             </Typography>
           </Box>
-          {item.avgSubsequentOrders && (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" color="text.secondary">Became Repeat:</Typography>
+            <Typography variant="body2" fontWeight="bold" color="warning.main">
+              {item.repeatCustomerCount}
+            </Typography>
+          </Box>
+          {item.conversionRate !== undefined && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">Conversion Rate:</Typography>
+              <Typography variant="body2" fontWeight="bold" color="info.main">
+                {item.conversionRate}%
+              </Typography>
+            </Box>
+          )}
+          {item.avgSubsequentOrders !== undefined && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="caption" color="text.secondary">Avg Orders After:</Typography>
               <Typography variant="body2" fontWeight="bold" color="success.main">
@@ -181,7 +205,28 @@ export default function FirstCategoryRepeatChart({ data }) {
 
       {/* Summary Stats */}
       <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
-        <Grid item xs={4}>
+        <Grid item xs={3}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 1.5,
+              background: alpha(theme.palette.info.main, 0.08),
+              border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+              borderRadius: 1.5
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+              <PeopleIcon sx={{ fontSize: 14, color: theme.palette.info.main }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', fontWeight: 600 }}>
+                First-Time Buyers
+              </Typography>
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.info.main, fontSize: '1.2rem' }}>
+              {summary.totalFirstTimeBuyers}
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={3}>
           <Paper
             elevation={0}
             sx={{
@@ -193,16 +238,37 @@ export default function FirstCategoryRepeatChart({ data }) {
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
               <PeopleIcon sx={{ fontSize: 14, color: theme.palette.warning.main }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600 }}>
-                Repeat Customers
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', fontWeight: 600 }}>
+                Became Repeat
               </Typography>
             </Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.warning.main, fontSize: '1.3rem' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.warning.main, fontSize: '1.2rem' }}>
               {summary.totalRepeatCustomers}
             </Typography>
           </Paper>
         </Grid>
-        <Grid item xs={4}>
+        <Grid item xs={3}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 1.5,
+              background: alpha(theme.palette.success.main, 0.08),
+              border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
+              borderRadius: 1.5
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+              <TrendingUpIcon sx={{ fontSize: 14, color: theme.palette.success.main }} />
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', fontWeight: 600 }}>
+                Conversion Rate
+              </Typography>
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.success.main, fontSize: '1.2rem' }}>
+              {summary.overallConversionRate}%
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={3}>
           <Paper
             elevation={0}
             sx={{
@@ -214,33 +280,12 @@ export default function FirstCategoryRepeatChart({ data }) {
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
               <CategoryIcon sx={{ fontSize: 14, color: theme.palette.primary.main }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', fontWeight: 600 }}>
                 Categories
               </Typography>
             </Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.primary.main, fontSize: '1.3rem' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.primary.main, fontSize: '1.2rem' }}>
               {summary.totalCategories}
-            </Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={4}>
-          <Paper
-            elevation={0}
-            sx={{
-              p: 1.5,
-              background: alpha(theme.palette.success.main, 0.08),
-              border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
-              borderRadius: 1.5
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-              <EmojiEventsIcon sx={{ fontSize: 14, color: theme.palette.success.main }} />
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600 }}>
-                Top Category Share
-              </Typography>
-            </Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.success.main, fontSize: '1.3rem' }}>
-              {summary.topCategoryShare}%
             </Typography>
           </Paper>
         </Grid>
@@ -268,8 +313,8 @@ export default function FirstCategoryRepeatChart({ data }) {
             {summary.topCategory.categoryName}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {summary.topCategory.repeatCustomerCount} customers who first bought this category came back to purchase again, 
-            averaging {summary.topCategory.avgSubsequentOrders} additional orders each.
+            {summary.topCategory.totalFirstTimeBuyers} first-time buyers → {summary.topCategory.repeatCustomerCount} became repeat ({summary.topCategory.conversionRate}% conversion). 
+            Avg {summary.topCategory.avgSubsequentOrders} orders after first purchase.
           </Typography>
         </Paper>
       )}
@@ -379,8 +424,10 @@ export default function FirstCategoryRepeatChart({ data }) {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem' }}>#</TableCell>
                   <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem' }}>Category</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.7rem' }}>Repeat Customers</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.7rem' }}>Avg Orders After</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.7rem' }}>First-Timers</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.7rem' }}>Repeat</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.7rem' }}>Conv. %</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.7rem' }}>Avg After</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -394,8 +441,14 @@ export default function FirstCategoryRepeatChart({ data }) {
                         <span>{cat.categoryName}</span>
                       </Tooltip>
                     </TableCell>
-                    <TableCell align="right" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                    <TableCell align="right" sx={{ fontSize: '0.7rem' }}>
+                      {cat.totalFirstTimeBuyers}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontSize: '0.7rem', fontWeight: 600, color: theme.palette.warning.main }}>
                       {cat.repeatCustomerCount}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontSize: '0.7rem', color: theme.palette.info.main }}>
+                      {cat.conversionRate}%
                     </TableCell>
                     <TableCell align="right" sx={{ fontSize: '0.7rem', color: theme.palette.success.main }}>
                       {cat.avgSubsequentOrders}
@@ -417,9 +470,9 @@ export default function FirstCategoryRepeatChart({ data }) {
         border: `1px solid ${alpha(theme.palette.info.main, 0.15)}` 
       }}>
         <Typography variant="caption" sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
-          💡 <strong>How to read:</strong> This shows which product category, when purchased first by a customer, 
-          led to the highest number of repeat purchases. Categories at the top are your &quot;gateway products&quot; that 
-          build customer loyalty and drive return visits.
+          💡 <strong>How to read:</strong> Shows all first-time buyers by category and how many became repeat customers. 
+          <strong> Avg After</strong> is across ALL first-timers (can be &lt;1 if most don&apos;t return). 
+          Higher <strong>Conversion %</strong> = better at turning first-timers into loyal customers.
         </Typography>
       </Box>
     </Box>

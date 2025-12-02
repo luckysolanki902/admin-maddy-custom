@@ -81,7 +81,7 @@ export async function GET(req) {
 
     console.log(`[FirstCategoryRepeat] Fetched ${allUserOrders.length} total historical orders for these users`);
 
-    // Step 3: Group orders by user and identify repeat customers
+    // Step 3: Group orders by user
     const userOrdersMap = {};
     allUserOrders.forEach(order => {
       if (!order.user) return;
@@ -90,61 +90,56 @@ export async function GET(req) {
       userOrdersMap[uid].push(order);
     });
 
-    // Step 4: Find repeat customers (users with 2+ orders)
-    // AND who have at least one order in the selected date range (not their first)
-    const repeatCustomerFirstCategories = [];
+    // Step 4: For ALL users, extract their first order's category and track if they became repeat customers
+    // This gives us the conversion rate from first-time buyers to repeat customers per category
+    const firstOrderCategoryData = [];
 
     for (const [userId, orders] of Object.entries(userOrdersMap)) {
-      if (orders.length < 2) continue; // Not a repeat customer
-
       const firstOrder = orders[0]; // First order ever (sorted by createdAt asc)
-      const firstOrderDate = new Date(firstOrder.createdAt);
-
-      // Check if this user has orders in range that are NOT their first order
-      // (i.e., they made a repeat purchase in the selected range)
-      const hasRepeatInRange = orders.some((order, idx) => {
-        if (idx === 0) return false; // Skip first order
-        const orderDate = new Date(order.createdAt);
-        return orderDate >= startDate && orderDate <= endDate;
-      });
-
-      if (!hasRepeatInRange) continue; // No repeat purchase in range
+      const totalOrders = orders.length;
+      const isRepeatCustomer = totalOrders >= 2;
+      const subsequentOrders = totalOrders - 1; // 0 if not repeat, 1+ if repeat
 
       // Extract specific categories from the first order
       if (firstOrder.items && firstOrder.items.length > 0) {
         firstOrder.items.forEach(item => {
           if (item.product?.specificCategory) {
-            repeatCustomerFirstCategories.push({
+            firstOrderCategoryData.push({
               userId,
               specificCategoryId: item.product.specificCategory.toString(),
               productName: item.product.name,
               productSku: item.product.sku,
               firstOrderDate: firstOrder.createdAt,
-              totalOrders: orders.length
+              totalOrders,
+              isRepeatCustomer,
+              subsequentOrders
             });
           }
         });
       }
     }
 
-    console.log(`[FirstCategoryRepeat] Found ${repeatCustomerFirstCategories.length} first-order items from repeat customers`);
+    console.log(`[FirstCategoryRepeat] Found ${firstOrderCategoryData.length} first-order items from all customers`);
 
-    // Step 5: Aggregate by specific category
+    // Step 5: Aggregate by specific category - including ALL first-time buyers
     const categoryAggregation = {};
-    repeatCustomerFirstCategories.forEach(item => {
+    firstOrderCategoryData.forEach(item => {
       const catId = item.specificCategoryId;
       if (!categoryAggregation[catId]) {
         categoryAggregation[catId] = {
           specificCategoryId: catId,
-          repeatCustomerCount: 0,
-          uniqueUsers: new Set(),
+          totalFirstTimeBuyers: new Set(),
+          repeatCustomers: new Set(),
           totalSubsequentOrders: 0,
           sampleProducts: []
         };
       }
       
-      categoryAggregation[catId].uniqueUsers.add(item.userId);
-      categoryAggregation[catId].totalSubsequentOrders += (item.totalOrders - 1);
+      categoryAggregation[catId].totalFirstTimeBuyers.add(item.userId);
+      if (item.isRepeatCustomer) {
+        categoryAggregation[catId].repeatCustomers.add(item.userId);
+      }
+      categoryAggregation[catId].totalSubsequentOrders += item.subsequentOrders;
       
       // Keep some sample products (max 3)
       if (categoryAggregation[catId].sampleProducts.length < 3 && item.productName) {
@@ -158,13 +153,21 @@ export async function GET(req) {
       }
     });
 
-    // Convert Set to count
+    // Convert Sets to counts and calculate averages
     Object.values(categoryAggregation).forEach(cat => {
-      cat.repeatCustomerCount = cat.uniqueUsers.size;
-      cat.avgSubsequentOrders = cat.repeatCustomerCount > 0 
-        ? (cat.totalSubsequentOrders / cat.repeatCustomerCount).toFixed(1)
+      cat.totalFirstTimeBuyersCount = cat.totalFirstTimeBuyers.size;
+      cat.repeatCustomerCount = cat.repeatCustomers.size;
+      // Average subsequent orders across ALL first-time buyers (not just repeat customers)
+      // This can be < 1 if most first-time buyers don't return
+      cat.avgSubsequentOrders = cat.totalFirstTimeBuyersCount > 0 
+        ? (cat.totalSubsequentOrders / cat.totalFirstTimeBuyersCount).toFixed(2)
         : 0;
-      delete cat.uniqueUsers;
+      // Conversion rate: what % of first-time buyers became repeat customers
+      cat.conversionRate = cat.totalFirstTimeBuyersCount > 0
+        ? ((cat.repeatCustomerCount / cat.totalFirstTimeBuyersCount) * 100).toFixed(1)
+        : 0;
+      delete cat.totalFirstTimeBuyers;
+      delete cat.repeatCustomers;
     });
 
     // Step 6: Fetch category names
@@ -187,18 +190,31 @@ export async function GET(req) {
         categoryId: cat.specificCategoryId,
         categoryName: categoryNameMap[cat.specificCategoryId]?.name || 'Unknown',
         categoryCode: categoryNameMap[cat.specificCategoryId]?.code || '',
+        totalFirstTimeBuyers: cat.totalFirstTimeBuyersCount,
         repeatCustomerCount: cat.repeatCustomerCount,
         avgSubsequentOrders: parseFloat(cat.avgSubsequentOrders),
+        conversionRate: parseFloat(cat.conversionRate),
         sampleProducts: cat.sampleProducts
       }))
       .sort((a, b) => b.repeatCustomerCount - a.repeatCustomerCount);
 
+    // Calculate totals across all categories
+    const totalFirstTimeBuyers = new Set(
+      firstOrderCategoryData.map(item => item.userId)
+    ).size;
+    
     const totalRepeatCustomers = new Set(
-      repeatCustomerFirstCategories.map(item => item.userId)
+      firstOrderCategoryData.filter(item => item.isRepeatCustomer).map(item => item.userId)
     ).size;
 
+    const overallConversionRate = totalFirstTimeBuyers > 0
+      ? ((totalRepeatCustomers / totalFirstTimeBuyers) * 100).toFixed(1)
+      : 0;
+
     const summary = {
+      totalFirstTimeBuyers,
       totalRepeatCustomers,
+      overallConversionRate: parseFloat(overallConversionRate),
       totalCategories: categoryResults.length,
       topCategory: categoryResults[0] || null,
       // Insight: percentage of repeat customers whose first purchase was the top category

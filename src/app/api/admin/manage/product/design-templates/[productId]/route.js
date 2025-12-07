@@ -47,7 +47,13 @@ export async function PUT(request, { params }) {
       );
     }
     
-    const product = await Product.findById(productId);
+    // Use findByIdAndUpdate to avoid full document validation
+    // This prevents validation errors on unrelated required fields
+    const product = await Product.findByIdAndUpdate(
+      productId,
+      { $set: { designTemplates } },
+      { new: true, runValidators: false }
+    ).select('designTemplates');
     
     if (!product) {
       return NextResponse.json(
@@ -55,9 +61,6 @@ export async function PUT(request, { params }) {
         { status: 404 }
       );
     }
-    
-    product.designTemplates = designTemplates;
-    await product.save();
     
     return NextResponse.json({
       message: 'Design templates updated successfully',
@@ -88,7 +91,8 @@ export async function DELETE(request, { params }) {
       );
     }
     
-    const product = await Product.findById(productId);
+    // First fetch to get current templates and validate index
+    const product = await Product.findById(productId).select('designTemplates');
     
     if (!product) {
       return NextResponse.json(
@@ -105,13 +109,20 @@ export async function DELETE(request, { params }) {
     }
     
     const removedTemplate = product.designTemplates[templateIndex];
-    product.designTemplates.splice(templateIndex, 1);
-    await product.save();
+    const updatedTemplates = [...product.designTemplates];
+    updatedTemplates.splice(templateIndex, 1);
+    
+    // Use findByIdAndUpdate to avoid full document validation
+    await Product.findByIdAndUpdate(
+      productId,
+      { $set: { designTemplates: updatedTemplates } },
+      { runValidators: false }
+    );
     
     return NextResponse.json({
       message: 'Template removed successfully',
       removedTemplate,
-      designTemplates: product.designTemplates
+      designTemplates: updatedTemplates
     });
   } catch (error) {
     console.error('Error removing design template:', error);

@@ -765,60 +765,7 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                         </Box>
                                       )}
                                     </Box>
-                                  </Box>
-
-                                  {/* Insertion Details - Separate Row */}
-                                  {(item.insertionDetails?.component || item.insertionDetails?.pageType) && (
-                                    <Box sx={{ 
-                                      borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
-                                      pt: 1.5,
-                                      mt: 'auto'
-                                    }}>
-                                      <Typography variant="caption" sx={{ 
-                                        color: 'rgba(255, 255, 255, 0.5)', 
-                                        fontSize: '0.7rem',
-                                        mb: 0.5,
-                                        display: 'block',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px'
-                                      }}>
-                                        Insertion Details
-                                      </Typography>
-                                      <Box sx={{
-                                        display: 'flex',
-                                        flexWrap: 'wrap',
-                                        gap: 0.5
-                                      }}>
-                                        {item.insertionDetails?.component && (
-                                          <Typography variant="caption" sx={{
-                                            color: 'rgba(255, 255, 255, 0.8)',
-                                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                            borderRadius: '4px',
-                                            px: 0.75,
-                                            py: 0.25,
-                                            fontSize: '0.7rem',
-                                            border: '1px solid rgba(255, 255, 255, 0.08)'
-                                          }}>
-                                            component: {item.insertionDetails.component}
-                                          </Typography>
-                                        )}
-
-                                        {item.insertionDetails?.pageType && (
-                                          <Typography variant="caption" sx={{
-                                            color: 'rgba(255, 255, 255, 0.8)',
-                                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                            borderRadius: '4px',
-                                            px: 0.75,
-                                            py: 0.25,
-                                            fontSize: '0.7rem',
-                                            border: '1px solid rgba(255, 255, 255, 0.08)'
-                                          }}>
-                                            pageType: {item.insertionDetails.pageType}
-                                          </Typography>
-                                        )}
-                                      </Box>
-                                    </Box>
-                                  )}
+                                  </Box>                         
                                 </Box>
                               </Box>
                             </Card>
@@ -970,58 +917,6 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                 </Box>
                               </Box>
 
-                              {/* Insertion Details - Separate Row */}
-                              {(item.insertionDetails?.component || item.insertionDetails?.pageType) && (
-                                <Box sx={{ 
-                                  borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
-                                  pt: 1.5,
-                                  mt: 'auto'
-                                }}>
-                                  <Typography variant="caption" sx={{ 
-                                    color: 'rgba(255, 255, 255, 0.5)', 
-                                    fontSize: '0.7rem',
-                                    mb: 0.5,
-                                    display: 'block',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.5px'
-                                  }}>
-                                    Insertion Details
-                                  </Typography>
-                                  <Box sx={{
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: 0.5
-                                  }}>
-                                    {item.insertionDetails?.component && (
-                                      <Typography variant="caption" sx={{
-                                        color: 'rgba(255, 255, 255, 0.8)',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                        borderRadius: '4px',
-                                        px: 0.75,
-                                        py: 0.25,
-                                        fontSize: '0.7rem',
-                                        border: '1px solid rgba(255, 255, 255, 0.08)'
-                                      }}>
-                                        component: {item.insertionDetails.component}
-                                      </Typography>
-                                    )}
-
-                                    {item.insertionDetails?.pageType && (
-                                      <Typography variant="caption" sx={{
-                                        color: 'rgba(255, 255, 255, 0.8)',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                        borderRadius: '4px',
-                                        px: 0.75,
-                                        py: 0.25,
-                                        fontSize: '0.7rem',
-                                        border: '1px solid rgba(255, 255, 255, 0.08)'
-                                      }}>
-                                        pageType: {item.insertionDetails.pageType}
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                </Box>
-                              )}
                             </Box>
                           </Box>
                         </Card>
@@ -1743,59 +1638,6 @@ const CustomerCard = ({ order, expanded, handleChange, isAdmin }) => {
                                         </Typography>
                                       </Box>
                                     </Box>
-                                    
-                                    {/* Insertion Details - Separate Row */}
-                                    {(item.insertionDetails?.component || item.insertionDetails?.pageType) && (
-                                      <Box sx={{ 
-                                        borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
-                                        pt: 0.75,
-                                        mt: 'auto'
-                                      }}>
-                                        <Typography variant="caption" sx={{ 
-                                          color: 'rgba(255, 255, 255, 0.5)', 
-                                          fontSize: '0.65rem',
-                                          mb: 0.25,
-                                          display: 'block',
-                                          textTransform: 'uppercase',
-                                          letterSpacing: '0.5px'
-                                        }}>
-                                          Insertion Details
-                                        </Typography>
-                                        <Box sx={{
-                                          display: 'flex',
-                                          flexWrap: 'wrap',
-                                          gap: 0.25
-                                        }}>
-                                          {item.insertionDetails?.component && (
-                                            <Typography variant="caption" sx={{
-                                              color: 'rgba(255, 255, 255, 0.8)',
-                                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                              borderRadius: '3px',
-                                              px: 0.5,
-                                              py: 0.125,
-                                              fontSize: '0.65rem',
-                                              border: '1px solid rgba(255, 255, 255, 0.08)'
-                                            }}>
-                                              Component: {item.insertionDetails.component}
-                                            </Typography>
-                                          )}
-
-                                          {item.insertionDetails?.pageType && (
-                                            <Typography variant="caption" sx={{
-                                              color: 'rgba(255, 255, 255, 0.8)',
-                                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                              borderRadius: '3px',
-                                              px: 0.5,
-                                              py: 0.125,
-                                              fontSize: '0.65rem',
-                                              border: '1px solid rgba(255, 255, 255, 0.08)'
-                                            }}>
-                                              PageType: {item.insertionDetails.pageType}
-                                            </Typography>
-                                          )}
-                                        </Box>
-                                      </Box>
-                                    )}
                                   </Box>
                                 </Box>
                               </Card>

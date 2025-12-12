@@ -2,6 +2,15 @@
 
 import { connectToDatabase } from '@/lib/db';
 import CampaignLog from '@/models/CampaignLog';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
 
 export async function GET(req) {
   try {
@@ -132,7 +141,7 @@ export async function GET(req) {
       JSON.stringify({ retargetedCustomers: data }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: NO_CACHE_HEADERS
       }
     );
   } catch (error) {
@@ -141,7 +150,7 @@ export async function GET(req) {
       JSON.stringify({ message: 'Internal Server Error' }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: NO_CACHE_HEADERS
       }
     );
   }

@@ -37,6 +37,7 @@ import FirstCategoryRepeatChart from '@/components/analytics/user-behavior/First
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
 import MinimalChartSkeleton from '@/components/analytics/common/MinimalChartSkeleton';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
+import noCacheFetch from '@/lib/http/noCacheFetch';
 
 /* ---------- 1.  Minimal sticky navbar (theme-aligned) ---------- */
 const GlassAppBar = styled(Box)(({ theme }) => ({
@@ -201,12 +202,14 @@ function Section({ id, title, children, onVisible, subtitle }) {
 export default function AnalyticsDashboard({ admin = false }) {
   const theme = useTheme();
   const router = useRouter();
-  
-  // Cache mechanism to prevent redundant API calls
-  const dataCache = useRef({}); // { key: { data, ts } }
-  const sectionLastFetched = useRef({});
-  const fetchDebounceTimers = useRef({});
-  const activeRequest = useRef(false);
+
+  // No-cache, latest-request-wins loaders (per section)
+  const sectionControllersRef = useRef({});
+  const sectionRequestSeqRef = useRef({});
+  const sectionDebounceTimersRef = useRef({});
+  const sectionLastKeyRef = useRef({});
+  const visibleSectionsRef = useRef({});
+  const dashboardDebounceTimerRef = useRef(null);
 
   /* ------------ NAV TABS ------------ */
   const tabs = useMemo(() => [
@@ -272,6 +275,10 @@ export default function AnalyticsDashboard({ admin = false }) {
     tools: false
   });
 
+  useEffect(() => {
+    visibleSectionsRef.current = visibleSections;
+  }, [visibleSections]);
+
   /* ------------ DATA STATE ------------ */
   const [loading, setLoading] = useState(true);
   const [sectionLoading, setSectionLoading] = useState({
@@ -294,140 +301,118 @@ export default function AnalyticsDashboard({ admin = false }) {
   const [isUpdatingData, setIsUpdatingData] = useState(false);
 
   /* ------------ FETCH HELPERS ------------ */
-  const FIVE_MIN = 5 * 60 * 1000;
-
-  const ranged = useCallback(async (url) => {
-    const q = new URLSearchParams();
-    
-    // Ensure dates are properly converted to ISO strings
-    const startDate = dateRange.start instanceof Date 
-      ? dateRange.start 
+  const getIsoDateRange = useCallback(() => {
+    const startDate = dateRange.start instanceof Date
+      ? dateRange.start
       : dateRange.start?.toDate?.() || null;
-    const endDate = dateRange.end instanceof Date 
-      ? dateRange.end 
+    const endDate = dateRange.end instanceof Date
+      ? dateRange.end
       : dateRange.end?.toDate?.() || null;
-    
-    if (startDate) q.append('startDate', startDate.toISOString());
-    if (endDate) q.append('endDate', endDate.toISOString());
-    
-    const queryString = q.toString();
-    const fullUrl = queryString ? `${url}?${queryString}` : url;
-    const cacheKey = `${url}_${dateRangeKey}_${queryString}`;
-    const now = Date.now();
-    const cached = dataCache.current[cacheKey];
-    if (cached && (now - cached.ts) < FIVE_MIN) return cached.data;
-    
-    const res = await fetch(fullUrl);
-    if (!res.ok) throw new Error(url);
-    const data = await res.json();
-    
-    dataCache.current[cacheKey] = { data, ts: now };
-    return data;
-  }, [dateRange, dateRangeKey, FIVE_MIN]);
+    return {
+      startIso: startDate ? startDate.toISOString() : null,
+      endIso: endDate ? endDate.toISOString() : null,
+    };
+  }, [dateRange]);
 
-  // Non-date range fetch with caching
-  const fetchCached = useCallback(async (url) => {
-    const now = Date.now();
-    const cached = dataCache.current[url];
-    if (cached && (now - cached.ts) < FIVE_MIN) return cached.data;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(url);
-    const data = await res.json();
-    dataCache.current[url] = { data, ts: now };
-    return data;
-  }, [FIVE_MIN]);
-
-  // Helper to check if a section needs updating
-  const shouldUpdateSection = useCallback((section) => {
-    // If never fetched before, should update
-    if (!sectionLastFetched.current[section]) return true;
-    
-    const lastFetchDateKey = sectionLastFetched.current[section];
-    // If date range changed since last fetch, should update
-    if (lastFetchDateKey !== dateRangeKey) return true;
-    
-    // Otherwise, no need to update
-    return false;
-  }, [dateRangeKey]);
-
-  // Load data for a specific section
-  const loadSection = useCallback(async (section) => {
-    // Skip if section is already loaded for current date range
-    if (!shouldUpdateSection(section)) {
-      return;
+  const fetchJson = useCallback(async (url, { signal } = {}) => {
+    const res = await noCacheFetch(url, { signal });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${res.status} ${url} ${text.slice(0, 160)}`);
     }
-    
-    // Clear any pending debounce timer for this section
-    if (fetchDebounceTimers.current[section]) {
-      clearTimeout(fetchDebounceTimers.current[section]);
+    return res.json();
+  }, []);
+
+  const rangedUrl = useCallback((baseUrl) => {
+    const { startIso, endIso } = getIsoDateRange();
+    const q = new URLSearchParams();
+    if (startIso) q.set('startDate', startIso);
+    if (endIso) q.set('endDate', endIso);
+    q.set('_ts', String(Date.now()));
+    const qs = q.toString();
+    return qs ? `${baseUrl}?${qs}` : baseUrl;
+  }, [getIsoDateRange]);
+
+  const downloadUrl = useCallback((baseUrl) => {
+    const { startIso, endIso } = getIsoDateRange();
+    const q = new URLSearchParams();
+    if (startIso) q.set('start', startIso);
+    if (endIso) q.set('end', endIso);
+    q.set('_ts', String(Date.now()));
+    return `${baseUrl}?${q.toString()}`;
+  }, [getIsoDateRange]);
+
+  const FETCHABLE_SECTIONS = useMemo(() => new Set(['snapshot', 'products', 'traffic', 'revenue']), []);
+
+  const abortSection = useCallback((section) => {
+    const existing = sectionControllersRef.current[section];
+    if (existing) {
+      try { existing.abort(); } catch (_) { /* ignore */ }
     }
-    
-    // Set a debounce timer to prevent rapid consecutive calls
-    fetchDebounceTimers.current[section] = setTimeout(async () => {
-      setSectionLoading(prev => ({ ...prev, [section]: true }));
-      
+    delete sectionControllersRef.current[section];
+  }, []);
+
+  const loadSection = useCallback((section, { force = false } = {}) => {
+    if (!FETCHABLE_SECTIONS.has(section)) return;
+
+    const key = `${section}:${dateRangeKey}`;
+    if (!force && sectionLastKeyRef.current[section] === key) return;
+
+    if (sectionDebounceTimersRef.current[section]) {
+      clearTimeout(sectionDebounceTimersRef.current[section]);
+    }
+
+    const seq = (sectionRequestSeqRef.current[section] || 0) + 1;
+    sectionRequestSeqRef.current[section] = seq;
+
+    abortSection(section);
+    const controller = new AbortController();
+    sectionControllersRef.current[section] = controller;
+    const { signal } = controller;
+
+    setSectionLoading((prev) => ({ ...prev, [section]: true }));
+
+    sectionDebounceTimersRef.current[section] = setTimeout(async () => {
       try {
-        switch(section) {
+        switch (section) {
           case 'snapshot': {
             const [src, cs] = await Promise.all([
-              ranged('/api/admin/analytics/main/sales-sources'),
-              ranged('/api/admin/analytics/main/cart-sources')
+              fetchJson(rangedUrl('/api/admin/analytics/main/sales-sources'), { signal }),
+              fetchJson(rangedUrl('/api/admin/analytics/main/cart-sources'), { signal })
             ]);
+            if (sectionRequestSeqRef.current[section] !== seq) return;
             setSalesSources(src.salesSources);
             setCartSources(cs.cartSources);
-            // journeyTree removed
             break;
           }
           case 'products': {
-            const vs = await ranged('/api/admin/analytics/main/variant-sales');
+            const vs = await fetchJson(rangedUrl('/api/admin/analytics/main/variant-sales'), { signal });
+            if (sectionRequestSeqRef.current[section] !== seq) return;
             setVariantSales(vs.variantSales);
             break;
           }
           case 'traffic': {
-            // Fetch user behavior timing and cart analytics
-            // Also fetch repeat orders with user details for the dialog functionality
             const [userBehavior, abandonedCartsData, retargetedData, repeatOrdersWithUsers, firstCategoryRepeatData] = await Promise.all([
-              ranged('/api/admin/analytics/main/user-behavior-timing'),
-              ranged('/api/admin/analytics/main/abandoned-carts-funnel'),
-              ranged('/api/admin/analytics/main/retargeted-customers'),
-              // Fetch repeat orders graph data which includes user details
-              (async () => {
-                try {
-                  const startDate = dateRange.start instanceof Date ? dateRange.start : dateRange.start?.toDate?.();
-                  const endDate = dateRange.end instanceof Date ? dateRange.end : dateRange.end?.toDate?.();
-                  if (startDate && endDate) {
-                    const url = `/api/admin/download/repeat-orders-graph?start=${startDate.toISOString()}&end=${endDate.toISOString()}`;
-                    const res = await fetch(url);
-                    return res.json();
-                  }
-                  return null;
-                } catch (e) {
-                  console.error('Repeat orders fetch error:', e);
-                  return null;
-                }
-              })(),
-              // Fetch first category repeat data
-              (async () => {
-                try {
-                  const startDate = dateRange.start instanceof Date ? dateRange.start : dateRange.start?.toDate?.();
-                  const endDate = dateRange.end instanceof Date ? dateRange.end : dateRange.end?.toDate?.();
-                  if (startDate && endDate) {
-                    const url = `/api/admin/download/first-category-repeat?start=${startDate.toISOString()}&end=${endDate.toISOString()}`;
-                    const res = await fetch(url);
-                    return res.json();
-                  }
-                  return null;
-                } catch (e) {
-                  console.error('First category repeat fetch error:', e);
-                  return null;
-                }
-              })()
+              fetchJson(rangedUrl('/api/admin/analytics/main/user-behavior-timing'), { signal }),
+              fetchJson(rangedUrl('/api/admin/analytics/main/abandoned-carts-funnel'), { signal }),
+              fetchJson(rangedUrl('/api/admin/analytics/main/retargeted-customers'), { signal }),
+              fetchJson(downloadUrl('/api/admin/download/repeat-orders-graph'), { signal }).catch((e) => {
+                console.error('Repeat orders fetch error:', e);
+                return null;
+              }),
+              fetchJson(downloadUrl('/api/admin/download/first-category-repeat'), { signal }).catch((e) => {
+                console.error('First category repeat fetch error:', e);
+                return null;
+              })
             ]);
-            // Merge the repeat orders data with user details into userBehavior
+
+            if (sectionRequestSeqRef.current[section] !== seq) return;
+
             const mergedUserBehavior = userBehavior ? {
               ...userBehavior,
               repeatOrders: repeatOrdersWithUsers?.repeatOrders || userBehavior.repeatOrders
             } : null;
+
             setUserBehaviorTiming(mergedUserBehavior);
             setAbandonedCarts(abandonedCartsData?.abandonedCarts || []);
             setRetargetedCustomers(retargetedData?.retargetedCustomers || []);
@@ -436,88 +421,84 @@ export default function AnalyticsDashboard({ admin = false }) {
           }
           case 'revenue': {
             const [tot, mon, daily] = await Promise.all([
-              fetchCached('/api/admin/analytics/main/total-revenue'),
-              fetchCached('/api/admin/analytics/main/monthly-revenue'),
-              ranged('/api/admin/analytics/main/daily-revenue')
+              fetchJson(rangedUrl('/api/admin/analytics/main/total-revenue'), { signal }),
+              fetchJson(rangedUrl('/api/admin/analytics/main/monthly-revenue'), { signal }),
+              fetchJson(rangedUrl('/api/admin/analytics/main/daily-revenue'), { signal })
             ]);
+            if (sectionRequestSeqRef.current[section] !== seq) return;
             setTotalRev(tot.totalRevenue);
             setMonthlyRev(mon.monthlyRevenue);
             setDailyRev(daily.dailyRevenue);
             break;
           }
+          default:
+            break;
         }
-        // Mark this section as fetched with current date range
-        sectionLastFetched.current[section] = dateRangeKey;
+
+        sectionLastKeyRef.current[section] = key;
       } catch (e) {
+        if (e?.name === 'AbortError') return;
         console.error(`Failed loading ${section}:`, e);
         setError(`Failed loading ${section} charts`);
       } finally {
-        setSectionLoading(prev => ({ ...prev, [section]: false }));
+        if (sectionRequestSeqRef.current[section] === seq) {
+          setSectionLoading((prev) => ({ ...prev, [section]: false }));
+        }
       }
-    }, 300); // 300ms debounce
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ranged, fetchCached, dateRangeKey, shouldUpdateSection]);
+    }, 200);
+  }, [FETCHABLE_SECTIONS, abortSection, dateRangeKey, fetchJson, rangedUrl, downloadUrl]);
 
-  // Load all visible sections
-  const loadVisibleSections = useCallback(async () => {
-    if (isUpdatingData || activeRequest.current) return; // Prevent multiple concurrent updates
-    
-    activeRequest.current = true;
+  const loadVisibleSections = useCallback(({ forceActive = false } = {}) => {
+    const activeSection = tabs[tabIdx].key;
+    const currentlyVisible = visibleSectionsRef.current || {};
+    const visibleKeys = Object.entries(currentlyVisible)
+      .filter(([_, isVisible]) => Boolean(isVisible))
+      .map(([key]) => key);
+
     setIsUpdatingData(true);
     setLoading(true);
     setError('');
-    
-    try {
-      // Initial load of active tab section
-      const activeSection = tabs[tabIdx].key;
-      if (shouldUpdateSection(activeSection)) {
-        await loadSection(activeSection);
-      }
-      
-      // Also load any sections that are visible through scrolling
-      const visibleSectionKeys = Object.entries(visibleSections)
-        .filter(([_, isVisible]) => isVisible)
-        .map(([key]) => key);
-        
-      await Promise.all(
-        visibleSectionKeys
-          .filter(section => section !== activeSection && shouldUpdateSection(section))
-          .map(section => loadSection(section))
-      );
-    } catch (e) { 
-      console.error(e); 
-      setError('Failed loading charts'); 
-    } finally {
-      setLoading(false);
+
+    loadSection(activeSection, { force: forceActive });
+    visibleKeys
+      .filter((k) => k !== activeSection)
+      .forEach((k) => loadSection(k));
+
+    // UI badge only; actual section loaders manage their own completion.
+    window.setTimeout(() => {
       setIsUpdatingData(false);
-      activeRequest.current = false;
-    }
-  }, [tabs, tabIdx, visibleSections, loadSection, shouldUpdateSection, isUpdatingData]);
+      setLoading(false);
+    }, 250);
+  }, [loadSection, tabIdx, tabs]);
 
   // When date range changes, reload data with debounce
   useEffect(() => {
-    const timer = setTimeout(() => {
-      // Clear all section caches when date range changes
-      Object.keys(sectionLastFetched.current).forEach(key => {
-        if (sectionLastFetched.current[key] !== dateRangeKey) {
-          // Mark sections as needing refresh but don't immediately fetch
-          sectionLastFetched.current[key] = null;
-        }
-      });
-      
-      loadVisibleSections();
-    }, 500); // 500ms debounce on date range change
-    
-    return () => clearTimeout(timer);
-  }, [dateRangeKey, loadVisibleSections]);
+    // Abort all in-flight section requests on date change
+    Object.keys(sectionControllersRef.current).forEach((section) => abortSection(section));
+
+    // Clear per-section "loaded" markers so sections will refetch for new range
+    sectionLastKeyRef.current = {};
+
+    if (dashboardDebounceTimerRef.current) {
+      clearTimeout(dashboardDebounceTimerRef.current);
+    }
+
+    dashboardDebounceTimerRef.current = setTimeout(() => {
+      loadVisibleSections({ forceActive: true });
+    }, 250);
+
+    return () => {
+      if (dashboardDebounceTimerRef.current) {
+        clearTimeout(dashboardDebounceTimerRef.current);
+      }
+    };
+  }, [dateRangeKey, loadVisibleSections, abortSection]);
   
   // When tab changes, make sure the section is loaded (only if not already loaded)
   useEffect(() => {
     const currentSection = tabs[tabIdx].key;
-    if (shouldUpdateSection(currentSection) && !isUpdatingData && !activeRequest.current) {
-      loadSection(currentSection);
-    }
-  }, [tabIdx, tabs, loadSection, shouldUpdateSection, isUpdatingData]);
+    loadSection(currentSection);
+  }, [tabIdx, tabs, loadSection]);
 
   // Load data when a section comes into view (with better debounce handling)
   const handleSectionVisible = useCallback((section) => {
@@ -526,23 +507,21 @@ export default function AnalyticsDashboard({ admin = false }) {
       if (prev[section] === true) return prev;
       return { ...prev, [section]: true };
     });
-    
-    if (shouldUpdateSection(section) && !isUpdatingData && !activeRequest.current) {
-      loadSection(section);
-    }
-  }, [shouldUpdateSection, loadSection, isUpdatingData]);
+
+    loadSection(section);
+  }, [loadSection]);
 
   // Clear cache when component unmounts
   useEffect(() => {
-    // Snapshot the current timers object reference; it's mutated but not replaced
-    const timersRef = fetchDebounceTimers.current;
+    const timersRef = sectionDebounceTimersRef.current;
+    const controllersRef = sectionControllersRef.current;
     return () => {
-      // Clear all debounce timers on unmount
-      Object.values(timersRef).forEach(timer => {
+      Object.values(timersRef).forEach((timer) => {
         if (timer) clearTimeout(timer);
       });
+      Object.keys(controllersRef).forEach((section) => abortSection(section));
     };
-  }, []);
+  }, [abortSection]);
 
   // Handle month selection for DateRangeChips
   const handleMonthSelection = useCallback((monthType) => {

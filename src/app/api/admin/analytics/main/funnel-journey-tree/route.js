@@ -3,10 +3,15 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import FunnelEvent from '@/models/analytics/FunnelEvent';
-import { getCachedValue, setCachedValue } from '@/lib/cache/serverCache';
 
-const CACHE_NAMESPACE = 'analytics:funnelJourneyTree';
-const CACHE_TTL = 5 * 60 * 1000;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
 
 const RELEVANT_STEPS = [
   'visit',
@@ -143,27 +148,19 @@ export async function GET(req) {
     const startDateStr = searchParams.get('startDate');
     const endDateStr = searchParams.get('endDate');
     const utmCampaign = searchParams.get('utmCampaign');
-    const skipCache = searchParams.get('skipCache') === 'true';
-
-    const cacheKey = buildCacheKey(searchParams);
-    if (!skipCache) {
-      const cached = getCachedValue(CACHE_NAMESPACE, cacheKey);
-      if (cached) {
-        return NextResponse.json({ ...cached, cache: 'hit' });
-      }
-    }
+    // No server-side caching (always compute fresh)
 
     const startDate = normaliseDate(startDateStr);
     const endDate = normaliseDate(endDateStr);
 
     if (startDateStr && !startDate) {
-      return NextResponse.json({ message: 'Invalid startDate supplied' }, { status: 400 });
+      return NextResponse.json({ message: 'Invalid startDate supplied' }, { status: 400, headers: NO_CACHE_HEADERS });
     }
     if (endDateStr && !endDate) {
-      return NextResponse.json({ message: 'Invalid endDate supplied' }, { status: 400 });
+      return NextResponse.json({ message: 'Invalid endDate supplied' }, { status: 400, headers: NO_CACHE_HEADERS });
     }
     if (startDate && endDate && startDate > endDate) {
-      return NextResponse.json({ message: 'startDate must be before endDate' }, { status: 400 });
+      return NextResponse.json({ message: 'startDate must be before endDate' }, { status: 400, headers: NO_CACHE_HEADERS });
     }
 
     await connectToDatabase();
@@ -264,11 +261,9 @@ export async function GET(req) {
       },
     };
 
-    setCachedValue(CACHE_NAMESPACE, cacheKey, payload, CACHE_TTL);
-
-    return NextResponse.json({ ...payload, cache: skipCache ? 'skip' : 'miss' }, { status: 200 });
+    return NextResponse.json(payload, { status: 200, headers: NO_CACHE_HEADERS });
   } catch (error) {
     console.error('[analytics:funnel-journey-tree] failed', error);
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500, headers: NO_CACHE_HEADERS });
   }
 }

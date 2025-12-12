@@ -3,6 +3,15 @@ import {connectToDatabase} from '@/lib/db';
 import Order from '@/models/Order';
 import dayjs from 'dayjs';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
+
 export async function GET(req) {
   try {
     await connectToDatabase();
@@ -11,7 +20,7 @@ export async function GET(req) {
     const end = searchParams.get('end');
 
     if (!start || !end) {
-      return NextResponse.json({ error: 'Start and end dates are required' }, { status: 400 });
+      return NextResponse.json({ error: 'Start and end dates are required' }, { status: 400, headers: NO_CACHE_HEADERS });
     }
 
     const startDate = new Date(start);
@@ -38,7 +47,7 @@ export async function GET(req) {
                 daily: [],
                 summary: { repeatOrders: 0, uniqueCustomers: 0, avgOrdersPerDay: 0 }
             }
-        });
+      }, { headers: NO_CACHE_HEADERS });
     }
 
     // Get unique user IDs
@@ -143,10 +152,10 @@ export async function GET(req) {
         daily: resultDaily,
         summary
       }
-    });
+    }, { headers: NO_CACHE_HEADERS });
 
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: NO_CACHE_HEADERS });
   }
 }

@@ -4,6 +4,16 @@
 import { connectToDatabase } from '@/lib/db';
 import FunnelEvent from '@/models/analytics/FunnelEvent';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
+
 export async function GET(req) {
   try {
     await connectToDatabase();
@@ -15,7 +25,7 @@ export async function GET(req) {
     if (!startDate || !endDate) {
       return new Response(
         JSON.stringify({ message: 'Missing startDate or endDate' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: NO_CACHE_HEADERS }
       );
     }
 
@@ -116,13 +126,13 @@ export async function GET(req) {
 
     return new Response(JSON.stringify({ abandonedCarts }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: NO_CACHE_HEADERS,
     });
   } catch (error) {
     console.error('Error fetching abandoned carts from funnel:', error);
     return new Response(JSON.stringify({ message: 'Internal Server Error', error: error.message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: NO_CACHE_HEADERS,
     });
   }
 }

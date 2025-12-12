@@ -1,6 +1,5 @@
 // /app/api/admin/get-main/get-funnel-comparison/route.js
 
-import { getCachedValue, setCachedValue } from '@/lib/cache/serverCache';
 import { connectToDatabase } from '@/lib/db';
 import computeFunnelSnapshot from '@/lib/analytics/funnelMetrics';
 import fetchMetaFunnelSnapshot from '@/lib/analytics/metaFunnel';
@@ -11,8 +10,15 @@ import timezone from 'dayjs/plugin/timezone';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const CACHE_NAMESPACE = 'funnelComparison';
-const CACHE_TTL = 5 * 60 * 1000;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+	'Content-Type': 'application/json',
+	'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+	Pragma: 'no-cache',
+	Expires: '0',
+};
 const FIRST_PARTY_CUTOVER = new Date('2025-09-30T10:30:00.000Z');
 
 export async function POST(req) {
@@ -28,7 +34,7 @@ export async function POST(req) {
 		if (!startDate || !endDate) {
 			return new Response(
 				JSON.stringify({ message: 'startDate and endDate are required' }), 
-				{ status: 400 }
+				{ status: 400, headers: NO_CACHE_HEADERS }
 			);
 		}
 
@@ -107,29 +113,8 @@ export async function POST(req) {
 			}
 		}
 
-		// Build cache key including all parameters
-		const cacheKey = JSON.stringify({
-			startDate: currentStart.toISOString(),
-			endDate: currentEnd.toISOString(),
-			activeTag,
-			landingPageFilter,
-		});
-
-		if (!skipCache) {
-			const cached = getCachedValue(CACHE_NAMESPACE, cacheKey);
-			if (cached) {
-				return new Response(
-					JSON.stringify(cached),
-					{ 
-						status: 200, 
-						headers: { 
-							'Content-Type': 'application/json', 
-							'X-Cache': 'HIT' 
-						} 
-					}
-				);
-			}
-		}
+		// skipCache is accepted for backward compatibility; caching is disabled.
+		void skipCache;
 
 		// Fetch funnel metrics for both periods
 		const fetchFunnelForPeriod = async (start, end) => {
@@ -266,30 +251,18 @@ export async function POST(req) {
 			},
 		};
 
-		// Cache the result
-		setCachedValue(CACHE_NAMESPACE, cacheKey, response, CACHE_TTL);
-
-		// Determine cache header based on whether current period includes today
-		const cacheControl = currentEnd.isSame(dayjs(), 'day') || currentEnd.isAfter(dayjs())
-			? 'max-age=60'
-			: 'max-age=300';
-
 		return new Response(
 			JSON.stringify(response),
 			{ 
 				status: 200, 
-				headers: { 
-					'Content-Type': 'application/json',
-					'Cache-Control': cacheControl,
-					'X-Cache': skipCache ? 'SKIP' : 'MISS'
-				} 
+				headers: NO_CACHE_HEADERS
 			}
 		);
 	} catch (error) {
 		console.error('Error in get-funnel-comparison API:', error);
 		return new Response(
 			JSON.stringify({ message: 'Internal Server Error', error: error.message }), 
-			{ status: 500, headers: { 'Content-Type': 'application/json' } }
+			{ status: 500, headers: NO_CACHE_HEADERS }
 		);
 	}
 }

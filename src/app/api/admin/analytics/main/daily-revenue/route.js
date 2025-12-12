@@ -9,6 +9,16 @@ import timezone from 'dayjs/plugin/timezone';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
+
 export async function GET(req) {
   try {
     await connectToDatabase();
@@ -60,7 +70,7 @@ export async function GET(req) {
         // No data available
         return new Response(JSON.stringify({ dailyRevenue: [] }), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: NO_CACHE_HEADERS,
         });
       }
 
@@ -130,13 +140,13 @@ export async function GET(req) {
 
     return new Response(JSON.stringify({ dailyRevenue: completeDailyRevenueData }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: NO_CACHE_HEADERS,
     });
   } catch (error) {
     console.error('Error fetching daily revenue:', error);
     return new Response(JSON.stringify({ message: 'Internal Server Error' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: NO_CACHE_HEADERS,
     });
   }
 }

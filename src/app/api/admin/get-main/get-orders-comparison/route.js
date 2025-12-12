@@ -8,6 +8,16 @@ import mongoose from 'mongoose';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+	'Content-Type': 'application/json',
+	'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+	Pragma: 'no-cache',
+	Expires: '0',
+};
+
 export async function GET(req) {
 	try {
 		await connectToDatabase();
@@ -16,7 +26,7 @@ export async function GET(req) {
 		const endDate = searchParams.get('endDate');
 		const activeTag = searchParams.get('activeTag') || '';
 		if (!startDate || !endDate) {
-			return new Response(JSON.stringify({ message: 'startDate and endDate are required' }), { status: 400 });
+			return new Response(JSON.stringify({ message: 'startDate and endDate are required' }), { status: 400, headers: NO_CACHE_HEADERS });
 		}
 
 		const currentStart = dayjs(startDate);
@@ -280,9 +290,16 @@ export async function GET(req) {
 			c2p: { current: currentMetrics.c2p, previous: previousMetrics.c2p, change: change(currentMetrics.c2p, previousMetrics.c2p) }
 		};
 
-		return new Response(JSON.stringify({ comparison, currentPeriod: { start: currentStart.toISOString(), end: currentEnd.toISOString() }, previousPeriod: { start: previousStart.toISOString(), end: previousEnd.toISOString() } }), { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': currentEnd.isSame(dayjs(), 'day') || currentEnd.isAfter(dayjs()) ? 'max-age=60' : 'max-age=86400' } });
+		return new Response(
+			JSON.stringify({
+				comparison,
+				currentPeriod: { start: currentStart.toISOString(), end: currentEnd.toISOString() },
+				previousPeriod: { start: previousStart.toISOString(), end: previousEnd.toISOString() },
+			}),
+			{ status: 200, headers: NO_CACHE_HEADERS }
+		);
 	} catch (error) {
 		console.error('Error in get-orders-comparison API:', error);
-		return new Response(JSON.stringify({ message: 'Internal Server Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+		return new Response(JSON.stringify({ message: 'Internal Server Error' }), { status: 500, headers: NO_CACHE_HEADERS });
 	}
 }

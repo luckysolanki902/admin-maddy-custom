@@ -9,6 +9,15 @@ import Order from '@/models/Order';
 import Product from '@/models/Product';
 import SpecificCategory from '@/models/SpecificCategory';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
+
 export async function GET(req) {
   try {
     await connectToDatabase();
@@ -17,7 +26,7 @@ export async function GET(req) {
     const end = searchParams.get('end');
 
     if (!start || !end) {
-      return NextResponse.json({ error: 'Start and end dates are required' }, { status: 400 });
+      return NextResponse.json({ error: 'Start and end dates are required' }, { status: 400, headers: NO_CACHE_HEADERS });
     }
 
     const startDate = new Date(start);
@@ -54,7 +63,7 @@ export async function GET(req) {
             topCategory: null
           }
         }
-      });
+      }, { headers: NO_CACHE_HEADERS });
     }
 
     // Get unique user IDs from orders in range
@@ -230,10 +239,10 @@ export async function GET(req) {
         categories: categoryResults,
         summary
       }
-    });
+    }, { headers: NO_CACHE_HEADERS });
 
   } catch (error) {
     console.error('[FirstCategoryRepeat] Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: NO_CACHE_HEADERS });
   }
 }

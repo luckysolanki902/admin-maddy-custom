@@ -1,5 +1,15 @@
 import { connectToDatabase } from '@/lib/db';
 import Order from '@/models/Order';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
 import mongoose from 'mongoose';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -150,13 +160,13 @@ export async function GET(req) {
 
     return new Response(JSON.stringify({ salesSources }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: NO_CACHE_HEADERS,
     });
   } catch (error) {
     console.error('Error fetching sales sources:', error);
     return new Response(JSON.stringify({ message: 'Internal Server Error' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: NO_CACHE_HEADERS,
     });
   }
 }

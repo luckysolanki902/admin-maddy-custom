@@ -1,39 +1,31 @@
 // /app/api/admin/get-main/get-funnel-metrics/route.js
-
-import { getCachedValue, setCachedValue } from '@/lib/cache/serverCache';
 import { connectToDatabase } from '@/lib/db';
 import computeFunnelSnapshot from '@/lib/analytics/funnelMetrics';
 import fetchMetaFunnelSnapshot from '@/lib/analytics/metaFunnel';
 
-const CACHE_NAMESPACE = 'funnelMetrics';
-const CACHE_TTL = 5 * 60 * 1000;
-// Include landingPageFilter separately when building the final key to avoid collisions across filters
-const buildCacheKey = (startDate, endDate) => JSON.stringify({ startDate, endDate });
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
 const FIRST_PARTY_CUTOVER = new Date('2025-09-30T10:30:00.000Z');
 
 export async function POST(req) {
   try {
-    const { startDate, endDate, skipCache = false, landingPageFilter = null } = await req.json();
+    const { startDate, endDate, landingPageFilter = null } = await req.json();
     if (!startDate || !endDate) {
-      return new Response(JSON.stringify({ message: 'startDate and endDate are required' }), { status: 400 });
+      return new Response(JSON.stringify({ message: 'startDate and endDate are required' }), { status: 400, headers: NO_CACHE_HEADERS });
     }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return new Response(JSON.stringify({ message: 'Invalid date range provided' }), { status: 400 });
-    }
-
-    const cacheKey = buildCacheKey(startDate, endDate) + (landingPageFilter ? `_${landingPageFilter}` : '');
-    if (!skipCache) {
-      const cached = getCachedValue(CACHE_NAMESPACE, cacheKey);
-      if (cached) {
-        return new Response(
-          JSON.stringify(cached),
-          { status: 200, headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' } }
-        );
-      }
+      return new Response(JSON.stringify({ message: 'Invalid date range provided' }), { status: 400, headers: NO_CACHE_HEADERS });
     }
 
     // Debug: log input range
@@ -132,14 +124,12 @@ export async function POST(req) {
       payload.meta.sourceNotes = sourceReasons;
     }
 
-    setCachedValue(CACHE_NAMESPACE, cacheKey, payload, CACHE_TTL);
-
     return new Response(
       JSON.stringify(payload),
-      { status: 200, headers: { 'Content-Type': 'application/json', 'X-Cache': skipCache ? 'SKIP' : 'MISS' } }
+      { status: 200, headers: NO_CACHE_HEADERS }
     );
   } catch (e) {
     console.error('get-funnel-metrics error', e);
-    return new Response(JSON.stringify({ message: 'Internal Server Error' }), { status: 500 });
+    return new Response(JSON.stringify({ message: 'Internal Server Error' }), { status: 500, headers: NO_CACHE_HEADERS });
   }
 }

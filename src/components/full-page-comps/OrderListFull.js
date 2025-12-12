@@ -26,8 +26,8 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
-import { comparisonCache } from '@/lib/comparisonCache';
-import { getClientCache, setClientCache, clearClientCache, hydrateClientCache } from '@/lib/cache/clientCache';
+import useDebouncedValue from '@/hooks/useDebouncedValue';
+import noCacheFetch from '@/lib/http/noCacheFetch';
 
 import OrdersList from '@/components/page-sections/OrdersList';
 import DateRangeChips from '@/components/page-sections/common-utils/DateRangeChips';
@@ -37,9 +37,6 @@ import MilestoneCelebrationCard from '@/components/cards/MilestoneCelebrationCar
 import { formatDate } from '@/utils/dateUtils';
 
 const ITEMS_PER_PAGE = 30;
-const CACHE_TTL = 5 * 60 * 1000;
-const ORDERS_CACHE_NS = 'ordersClient';
-const FUNNEL_CACHE_NS = 'funnelClient';
 
 const OrderListFull = ({ isAdmin }) => {
   // Date range
@@ -75,6 +72,9 @@ const OrderListFull = ({ isAdmin }) => {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [cacheClearing, setCacheClearing] = useState(false);
+
+  // Manual refresh trigger (keeps UI the same; no caches are cleared)
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   // Search & pagination
   const [searchInput, setSearchInput] = useState('');
@@ -160,11 +160,7 @@ const OrderListFull = ({ isAdmin }) => {
   // Request sequence counter to prevent race conditions when rapidly clicking date chips
   const requestSequenceRef = useRef(0);
   const abortControllerRef = useRef(null);
-
-  useEffect(() => {
-    hydrateClientCache(ORDERS_CACHE_NS);
-    hydrateClientCache(FUNNEL_CACHE_NS);
-  }, []);
+  const fetchDebounceTimerRef = useRef(null);
 
   const startDateValue = dateRange.start;
   const endDateValue = dateRange.end;
@@ -177,6 +173,8 @@ const OrderListFull = ({ isAdmin }) => {
     () => (endDateValue ? endDateValue.toISOString() : null),
     [endDateValue]
   );
+
+  const debouncedSearchInput = useDebouncedValue(searchInput, 250);
   const utmKey = useMemo(() => JSON.stringify(selectedUTMFilters), [selectedUTMFilters]);
   const variantsKey = useMemo(
     () => [...selectedVariants].sort().join('|'),
@@ -185,45 +183,6 @@ const OrderListFull = ({ isAdmin }) => {
   const specKey = useMemo(
     () => [...selectedSpecificCategories].sort().join('|'),
     [selectedSpecificCategories]
-  );
-
-  const ordersCacheKey = useMemo(
-    () => JSON.stringify({
-      page: currentPage,
-      limit: ITEMS_PER_PAGE,
-      searchInput,
-      searchField,
-      startDate: startIso,
-      endDate: endIso,
-      shiprocketFilter,
-      paymentStatusFilter,
-      utmKey,
-      variantsKey,
-      specKey,
-      onlyIncludeSelectedVariants,
-      singleVariantOnly,
-      singleItemCountOnly,
-    }),
-    [
-      currentPage,
-      searchInput,
-      searchField,
-      startIso,
-      endIso,
-      shiprocketFilter,
-      paymentStatusFilter,
-      utmKey,
-      variantsKey,
-      specKey,
-      onlyIncludeSelectedVariants,
-      singleVariantOnly,
-      singleItemCountOnly,
-    ]
-  );
-
-  const funnelCacheKey = useMemo(
-    () => JSON.stringify({ startDate: startIso, endDate: endIso, landingPageFilter, activeTag }),
-    [startIso, endIso, landingPageFilter, activeTag]
   );
 
   /*****************************************************
@@ -297,25 +256,13 @@ const OrderListFull = ({ isAdmin }) => {
   const fetchOrders = useCallback(async ({ forceRefresh = false } = {}) => {
     // Capture current sequence at start of this fetch
     const fetchSequence = requestSequenceRef.current;
-    
-    if (!forceRefresh) {
-      const cached = getClientCache(ORDERS_CACHE_NS, ordersCacheKey);
-      if (cached) {
-        // Check if still the current request before updating state
-        if (fetchSequence === requestSequenceRef.current) {
-          setOrderData(cached);
-          setLoading(false);
-        }
-        return;
-      }
-    }
 
     setLoading(true);
 
     const qp = [
       `page=${currentPage}`,
       `limit=${ITEMS_PER_PAGE}`,
-      `searchInput=${encodeURIComponent(searchInput)}`,
+      `searchInput=${encodeURIComponent(debouncedSearchInput)}`,
       `searchField=${encodeURIComponent(searchField)}`,
     ];
     if (dateRange.start) qp.push(`startDate=${encodeURIComponent(dateRange.start.toISOString())}`);
@@ -330,10 +277,10 @@ const OrderListFull = ({ isAdmin }) => {
     if (onlyIncludeSelectedVariants) qp.push('onlyIncludeSelectedVariants=true');
     if (singleVariantOnly) qp.push('singleVariantOnly=true');
     if (singleItemCountOnly) qp.push('singleItemCountOnly=true');
-    if (forceRefresh) qp.push('skipCache=true');
+    if (forceRefresh) qp.push(`_ts=${Date.now()}`);
 
     try {
-      const res = await fetch(`/api/admin/get-main/get-orders?${qp.join('&')}`, {
+      const res = await noCacheFetch(`/api/admin/get-main/get-orders?${qp.join('&')}`, {
         signal: abortControllerRef.current?.signal,
       });
       
@@ -359,7 +306,6 @@ const OrderListFull = ({ isAdmin }) => {
           utmCounts: data.utmCounts || {},
         };
         setOrderData(nextData);
-        setClientCache(ORDERS_CACHE_NS, ordersCacheKey, nextData, CACHE_TTL);
       }
     } catch (error) {
       // Ignore abort errors - they're expected when switching chips quickly
@@ -372,7 +318,6 @@ const OrderListFull = ({ isAdmin }) => {
     }
   }, [
     currentPage,
-    searchInput,
     searchField,
     dateRange,
     shiprocketFilter,
@@ -384,13 +329,15 @@ const OrderListFull = ({ isAdmin }) => {
     singleVariantOnly,
     singleItemCountOnly,
     isAdmin,
-    ordersCacheKey,
+    debouncedSearchInput,
   ]);
 
   /*****************************************************
    * Fetch Problematic Orders
    *****************************************************/
   const fetchProblematicOrders = useCallback(async () => {
+    const fetchSequence = requestSequenceRef.current;
+
     if (!selectedProblematicFilter) {
       setProblematicOrderData({ orders: [], totalOrders: 0, totalPages: 1, totalItems: 0 });
       return;
@@ -400,7 +347,7 @@ const OrderListFull = ({ isAdmin }) => {
     const qp = [
       `page=${problematicCurrentPage}`,
       `limit=${ITEMS_PER_PAGE}`,
-      `searchInput=${encodeURIComponent(searchInput)}`,
+      `searchInput=${encodeURIComponent(debouncedSearchInput)}`,
       `searchField=${encodeURIComponent(searchField)}`,
       `problematicFilter=${encodeURIComponent(selectedProblematicFilter)}`,
     ];
@@ -418,7 +365,12 @@ const OrderListFull = ({ isAdmin }) => {
     if (singleItemCountOnly) qp.push('singleItemCountOnly=true');
 
     try {
-      const res = await fetch(`/api/admin/get-main/get-orders?${qp.join('&')}`);
+      const res = await noCacheFetch(`/api/admin/get-main/get-orders?${qp.join('&')}`, {
+        signal: abortControllerRef.current?.signal,
+      });
+
+      if (fetchSequence !== requestSequenceRef.current) return;
+
       const data = await res.json();
       if (res.ok) {
         setProblematicOrderData({
@@ -431,11 +383,13 @@ const OrderListFull = ({ isAdmin }) => {
     } catch (error) {
       console.error('Error fetching problematic orders:', error);
     } finally {
-      setProblematicLoading(false);
+      if (fetchSequence === requestSequenceRef.current) {
+        setProblematicLoading(false);
+      }
     }
   }, [
     problematicCurrentPage,
-    searchInput,
+    debouncedSearchInput,
     searchField,
     dateRange,
     shiprocketFilter,
@@ -453,17 +407,23 @@ const OrderListFull = ({ isAdmin }) => {
    * Fetch CAC Data
    *****************************************************/
   const fetchCacData = useCallback(async () => {
+    const fetchSequence = requestSequenceRef.current;
     setCacLoading(true);
     setCacError(null);
     try {
-      const res = await fetch('/api/admin/get-main/get-facebook-cac', {
+      const res = await noCacheFetch('/api/admin/get-main/get-facebook-cac', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startDate: dateRange.start?.toISOString() || null,
           endDate: dateRange.end?.toISOString() || null,
         }),
-      });      const data = await res.json();
+        signal: abortControllerRef.current?.signal,
+      });
+
+      if (fetchSequence !== requestSequenceRef.current) return;
+
+      const data = await res.json();
       if (res.ok) {
         setCacData({ 
           spend: data.spend, 
@@ -477,9 +437,13 @@ const OrderListFull = ({ isAdmin }) => {
       }
     } catch (error) {
       console.error('Error fetching CAC data:', error);
-      setCacError('Error fetching CAC');
+      if (error.name !== 'AbortError' && fetchSequence === requestSequenceRef.current) {
+        setCacError('Error fetching CAC');
+      }
     } finally {
-      setCacLoading(false);
+      if (fetchSequence === requestSequenceRef.current) {
+        setCacLoading(false);
+      }
     }
   }, [dateRange]);
 
@@ -498,44 +462,12 @@ const OrderListFull = ({ isAdmin }) => {
     setComparisonLoading(true);
     
     try {
-      // Build cache key parameters
-      const cacheParams = {
-        startDate: dateRange.start.toISOString(),
-        endDate: dateRange.end.toISOString(),
-        activeTag,
-        searchInput,
-        searchField,
-        shiprocketFilter,
-        paymentStatusFilter,
-        utmSource: selectedUTMFilters.source,
-        utmMedium: selectedUTMFilters.medium,
-        utmCampaign: selectedUTMFilters.campaign,
-        utmTerm: selectedUTMFilters.term,
-        utmContent: selectedUTMFilters.content,
-        variants: selectedVariants.join(','),
-        specificCategories: selectedSpecificCategories.join(','),
-        onlyIncludeSelectedVariants,
-        singleVariantOnly,
-        singleItemCountOnly,
-      };
-
-      // Try to get from cache first
-      const cachedData = comparisonCache.get(cacheParams);
-      if (cachedData) {
-        // Check if still the current request before updating state
-        if (fetchSequence === requestSequenceRef.current) {
-          setComparisonData(cachedData);
-          setComparisonLoading(false);
-        }
-        return;
-      }
-
       // Build query parameters
       const qp = [
         `startDate=${encodeURIComponent(dateRange.start.toISOString())}`,
         `endDate=${encodeURIComponent(dateRange.end.toISOString())}`,
         `activeTag=${encodeURIComponent(activeTag)}`,
-        `searchInput=${encodeURIComponent(searchInput)}`,
+        `searchInput=${encodeURIComponent(debouncedSearchInput)}`,
         `searchField=${encodeURIComponent(searchField)}`,
         `shiprocketFilter=${encodeURIComponent(shiprocketFilter)}`,
         `paymentStatusFilter=${encodeURIComponent(paymentStatusFilter)}`,
@@ -553,7 +485,9 @@ const OrderListFull = ({ isAdmin }) => {
       if (singleVariantOnly) qp.push('singleVariantOnly=true');
       if (singleItemCountOnly) qp.push('singleItemCountOnly=true');
 
-      const res = await fetch(`/api/admin/get-main/get-orders-comparison?${qp.join('&')}`, {
+      qp.push(`_ts=${Date.now()}`);
+
+      const res = await noCacheFetch(`/api/admin/get-main/get-orders-comparison?${qp.join('&')}`, {
         signal: abortControllerRef.current?.signal,
       });
       
@@ -566,8 +500,6 @@ const OrderListFull = ({ isAdmin }) => {
 
       if (res.ok) {
         setComparisonData(data);
-        // Cache the result
-        comparisonCache.set(cacheParams, data);
       } else {
         console.error('Error fetching comparison data:', data.message);
         setComparisonData(null);
@@ -587,7 +519,7 @@ const OrderListFull = ({ isAdmin }) => {
   }, [
     dateRange,
     activeTag,
-    searchInput,
+    debouncedSearchInput,
     searchField,
     shiprocketFilter,
     paymentStatusFilter,
@@ -614,27 +546,8 @@ const OrderListFull = ({ isAdmin }) => {
     setFunnelComparisonLoading(true);
     
     try {
-      // Build cache key parameters - include all params that affect the data
-      const cacheParams = {
-        startDate: dateRange.start.toISOString(),
-        endDate: dateRange.end.toISOString(),
-        activeTag,
-        landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
-      };
-
-      // Try to get from cache first
-      const cachedData = comparisonCache.getFunnel(cacheParams);
-      if (cachedData) {
-        // Check if still the current request before updating state
-        if (fetchSequence === requestSequenceRef.current) {
-          setFunnelComparisonData(cachedData);
-          setFunnelComparisonLoading(false);
-        }
-        return;
-      }
-
       // Fetch from API
-      const res = await fetch('/api/admin/get-main/get-funnel-comparison', {
+      const res = await noCacheFetch('/api/admin/get-main/get-funnel-comparison', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -642,7 +555,6 @@ const OrderListFull = ({ isAdmin }) => {
           endDate: dateRange.end.toISOString(),
           activeTag,
           landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
-          skipCache: false,
         }),
         signal: abortControllerRef.current?.signal,
       });
@@ -656,7 +568,6 @@ const OrderListFull = ({ isAdmin }) => {
 
       if (res.ok) {
         setFunnelComparisonData(data);
-        comparisonCache.setFunnel(cacheParams, data);
       } else {
         console.error('Failed to fetch funnel comparison data:', data.message);
         setFunnelComparisonData(null);
@@ -688,30 +599,16 @@ const OrderListFull = ({ isAdmin }) => {
     
     if (!dateRange.start || !dateRange.end) return;
 
-    if (!forceRefresh) {
-      const cached = getClientCache(FUNNEL_CACHE_NS, funnelCacheKey);
-      if (cached) {
-        // Check if still the current request before updating state
-        if (fetchSequence === requestSequenceRef.current) {
-          setFunnelMetrics(cached);
-          console.log('Purchased funnel counts', cached?.counts?.purchased);
-          setFunnelLoading(false);
-        }
-        return;
-      }
-    }
-
     setFunnelLoading(true);
 
     try {
-      const res = await fetch('/api/admin/get-main/get-funnel-metrics', {
+      const res = await noCacheFetch('/api/admin/get-main/get-funnel-metrics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startDate: dateRange.start.toISOString(),
           endDate: dateRange.end.toISOString(),
           landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
-          skipCache: forceRefresh,
         }),
         signal: abortControllerRef.current?.signal,
       });
@@ -724,7 +621,6 @@ const OrderListFull = ({ isAdmin }) => {
       const data = await res.json();
       if (res.ok) {
         setFunnelMetrics(data);
-        setClientCache(FUNNEL_CACHE_NS, funnelCacheKey, data, CACHE_TTL);
       }
     } catch (e) {
       // Ignore abort errors - they're expected when switching chips quickly
@@ -735,34 +631,10 @@ const OrderListFull = ({ isAdmin }) => {
         setFunnelLoading(false);
       }
     }
-  }, [dateRange, funnelCacheKey, landingPageFilter]);
+  }, [dateRange, landingPageFilter]);
 
   const handleClearCaches = useCallback(async () => {
     setCacheClearing(true);
-    
-    // Clear all client-side caches synchronously first
-    try {
-      clearClientCache(ORDERS_CACHE_NS);
-      clearClientCache(FUNNEL_CACHE_NS);
-      if (typeof comparisonCache.clear === 'function') {
-        comparisonCache.clear();
-      }
-      if (typeof comparisonCache.clearFunnel === 'function') {
-        comparisonCache.clearFunnel();
-      }
-    } catch (err) {
-      console.warn('Failed to clear client caches', err);
-    }
-
-    // Clear server-side caches and wait for confirmation
-    try {
-      const purgeRes = await fetch('/api/admin/cache/purge', { method: 'POST' });
-      if (!purgeRes.ok) {
-        console.warn('Server cache purge failed with status:', purgeRes.status);
-      }
-    } catch (err) {
-      console.warn('Failed to clear server caches', err);
-    }
 
     // For 'today' ensure we advance the end timestamp to "now" so refreshed comparisons show latest window
     if (activeTag === 'today') {
@@ -779,7 +651,7 @@ const OrderListFull = ({ isAdmin }) => {
     // Small delay to ensure state updates have propagated
     await new Promise(r => setTimeout(r, 100));
 
-    // Force refresh all data sources in parallel with skipCache=true
+    // Force re-fetch all data sources (no cache exists; this just triggers network refresh)
     try {
       await Promise.all([
         fetchOrders({ forceRefresh: true }),
@@ -795,6 +667,7 @@ const OrderListFull = ({ isAdmin }) => {
       console.warn('Error during refresh', err);
     }
 
+    setRefreshNonce((n) => n + 1);
     setCacheClearing(false);
   }, [fetchOrders, fetchFunnelMetrics, fetchComparisonData, fetchFunnelComparisonData, fetchCacData, activeTag]);
 
@@ -825,49 +698,51 @@ const OrderListFull = ({ isAdmin }) => {
    * Uses sequence counter to prevent race conditions
    *****************************************************/
   useEffect(() => {
-    // Increment sequence counter to track this fetch cycle
-    const currentSequence = ++requestSequenceRef.current;
-    
-    // Abort any in-flight requests from previous cycles
+    // Cancel any pending fetch and abort in-flight requests
+    if (fetchDebounceTimerRef.current) {
+      clearTimeout(fetchDebounceTimerRef.current);
+    }
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+
+    // Track this fetch cycle
+    const currentSequence = ++requestSequenceRef.current;
     abortControllerRef.current = new AbortController();
-    
-    // Set loading states immediately
+
+    // Prevent stale UI by immediately moving to loading state
     setLoading(true);
     setFunnelLoading(true);
-    
-    const fetchData = async () => {
-      try {
-        // Fetch primary data
-        await Promise.allSettled([
-          fetchOrders(),
-          fetchFunnelMetrics(),
-        ]);
-        
-        // Bail if a newer request has started
-        if (currentSequence !== requestSequenceRef.current) return;
-        
-        // Fetch secondary data in parallel
-        await Promise.allSettled([
-          fetchCacData(),
-          fetchProblematicOrders(),
-          fetchComparisonData(),
-          fetchFunnelComparisonData(),
-        ]);
-      } catch (err) {
-        // Ignore aborted requests
-        if (err.name !== 'AbortError') {
-          console.warn('Error fetching data:', err);
+
+    fetchDebounceTimerRef.current = setTimeout(() => {
+      const run = async () => {
+        try {
+          // Primary (big) data first
+          await Promise.allSettled([fetchOrders(), fetchFunnelMetrics()]);
+
+          if (currentSequence !== requestSequenceRef.current) return;
+
+          // Secondary data in parallel
+          await Promise.allSettled([
+            fetchCacData(),
+            fetchProblematicOrders(),
+            fetchComparisonData(),
+            fetchFunnelComparisonData(),
+          ]);
+        } catch (err) {
+          if (err?.name !== 'AbortError') {
+            console.warn('Error fetching data:', err);
+          }
         }
-      }
-    };
-    
-    fetchData();
-    
-    // Cleanup function
+      };
+
+      run();
+    }, 150);
+
     return () => {
+      if (fetchDebounceTimerRef.current) {
+        clearTimeout(fetchDebounceTimerRef.current);
+      }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -880,6 +755,7 @@ const OrderListFull = ({ isAdmin }) => {
     fetchFunnelMetrics,
     fetchFunnelComparisonData,
     selectedProblematicFilter,
+    refreshNonce,
   ]);
 
   /*****************************************************

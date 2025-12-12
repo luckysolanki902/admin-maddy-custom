@@ -6,8 +6,15 @@ import FunnelEvent from '@/models/analytics/FunnelEvent';
 import FunnelSession from '@/models/analytics/FunnelSession';
 import Order from '@/models/Order';
 
-const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
 
 const HOURLY_BUCKETS = [
   '0-5min',
@@ -34,8 +41,6 @@ const OVERVIEW_BUCKETS = [
   '1-7days',
   '7+days'
 ];
-
-const getCacheKey = (start, end) => `${start.toISOString()}_${end.toISOString()}`;
 
 const createZeroedBuckets = (bucketList) => bucketList.reduce((acc, bucket) => {
   acc[bucket] = 0;
@@ -101,8 +106,13 @@ const buildBucketSummary = (bucketTotals, total) => Object.entries(bucketTotals)
 const convertDailyMapToArray = (map) => Array.from(map.values())
   .sort((a, b) => a.date.localeCompare(b.date));
 
+async function runAggregate(Model, pipeline) {
+  // Use the native driver to guarantee allowDiskUse is applied.
+  return Model.collection.aggregate(pipeline, { allowDiskUse: true }).toArray();
+}
+
 async function fetchTimeToPurchaseEvents(start, end) {
-  return FunnelEvent.aggregate([
+  return runAggregate(FunnelEvent, [
     {
       $match: {
         timestamp: { $gte: start, $lte: end },
@@ -166,11 +176,11 @@ async function fetchTimeToPurchaseEvents(start, end) {
         diffMinutes: 1
       }
     }
-  ]).option({ allowDiskUse: true });
+  ]);
 }
 
 async function fetchDailyVisitorsData(start, end) {
-  return FunnelSession.aggregate([
+  return runAggregate(FunnelSession, [
     {
       $match: {
         firstActivityAt: { $gte: start, $lte: end }
@@ -230,11 +240,11 @@ async function fetchDailyVisitorsData(start, end) {
         returningVisitors: 1
       }
     }
-  ]).option({ allowDiskUse: true });
+  ]);
 }
 
 async function fetchRepeatOrdersData(start, end) {
-  return Order.aggregate([
+  return runAggregate(Order, [
     {
       $match: {
         createdAt: { $gte: start, $lte: end },
@@ -277,11 +287,11 @@ async function fetchRepeatOrdersData(start, end) {
       }
     },
     { $sort: { date: 1 } }
-  ]).option({ allowDiskUse: true });
+  ]);
 }
 
 async function fetchRevisitTimingData(start, end) {
-  return FunnelSession.aggregate([
+  return runAggregate(FunnelSession, [
     {
       $match: {
         firstActivityAt: { $gte: start, $lte: end }
@@ -365,11 +375,11 @@ async function fetchRevisitTimingData(start, end) {
       }
     },
     { $sort: { '_id.date': 1, '_id.bucket': 1 } }
-  ]).option({ allowDiskUse: true });
+  ]);
 }
 
 async function fetchFunnelTimingData(start, end) {
-  return FunnelEvent.aggregate([
+  return runAggregate(FunnelEvent, [
     {
       $match: {
         timestamp: { $gte: start, $lte: end },
@@ -596,7 +606,7 @@ async function fetchFunnelTimingData(start, end) {
         sessionsWithPurchase: 1
       }
     }
-  ]).option({ allowDiskUse: true });
+  ]);
 }
 
 function buildTimeToPurchasePayload(records) {
@@ -778,7 +788,7 @@ export async function GET(req) {
     if (!startDateParam || !endDateParam) {
       return new Response(JSON.stringify({ success: false, message: 'Missing startDate or endDate' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: NO_CACHE_HEADERS
       });
     }
 
@@ -788,19 +798,7 @@ export async function GET(req) {
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return new Response(JSON.stringify({ success: false, message: 'Invalid date range supplied' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const cacheKey = getCacheKey(start, end);
-    const cached = cache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      return new Response(JSON.stringify(cached.payload), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Cache': 'HIT'
-        }
+        headers: NO_CACHE_HEADERS
       });
     }
 
@@ -817,11 +815,26 @@ export async function GET(req) {
       revisitTimingRows,
       funnelTimingRows
     ] = await Promise.all([
-      fetchTimeToPurchaseEvents(start, end),
-      fetchDailyVisitorsData(start, end),
-      fetchRepeatOrdersData(start, end),
-      fetchRevisitTimingData(start, end),
-      fetchFunnelTimingData(start, end)
+      fetchTimeToPurchaseEvents(start, end).catch((error) => {
+        error.stage = 'fetchTimeToPurchaseEvents';
+        throw error;
+      }),
+      fetchDailyVisitorsData(start, end).catch((error) => {
+        error.stage = 'fetchDailyVisitorsData';
+        throw error;
+      }),
+      fetchRepeatOrdersData(start, end).catch((error) => {
+        error.stage = 'fetchRepeatOrdersData';
+        throw error;
+      }),
+      fetchRevisitTimingData(start, end).catch((error) => {
+        error.stage = 'fetchRevisitTimingData';
+        throw error;
+      }),
+      fetchFunnelTimingData(start, end).catch((error) => {
+        error.stage = 'fetchFunnelTimingData';
+        throw error;
+      })
     ]);
 
     const payload = {
@@ -838,22 +851,9 @@ export async function GET(req) {
       funnelTiming: buildFunnelTimingPayload(funnelTimingRows[0])
     };
 
-    cache.set(cacheKey, {
-      payload,
-      timestamp: Date.now()
-    });
-
-    if (cache.size > 60) {
-      const oldestKey = cache.keys().next().value;
-      cache.delete(oldestKey);
-    }
-
     return new Response(JSON.stringify(payload), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Cache': 'MISS'
-      }
+      headers: NO_CACHE_HEADERS
     });
   } catch (error) {
     console.error('[UserBehaviorTiming] GET failed:', error);
@@ -863,7 +863,7 @@ export async function GET(req) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: NO_CACHE_HEADERS
     });
   }
 }

@@ -9,20 +9,19 @@ import mongoose from 'mongoose';
 import SpecificCategory from '@/models/SpecificCategory';
 import User from '@/models/User';
 import ModeOfPayment from '@/models/ModeOfPayment';
-import { getCachedValue, setCachedValue } from '@/lib/cache/serverCache';
 
 // Extend dayjs with plugins
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const CACHE_NAMESPACE = 'ordersRoute';
-const CACHE_TTL = 5 * 60 * 1000;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-const buildCacheKey = (searchParams) => {
-  const entries = Array.from(searchParams.entries())
-    .filter(([key]) => key !== 'skipCache')
-    .sort(([aKey], [bKey]) => aKey.localeCompare(bKey));
-  return JSON.stringify(entries);
+const NO_CACHE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+  Pragma: 'no-cache',
+  Expires: '0',
 };
 
 /**
@@ -55,18 +54,9 @@ const buildCacheKey = (searchParams) => {
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const skipCache = searchParams.get('skipCache') === 'true';
-    const cacheKey = buildCacheKey(searchParams);
 
-    if (!skipCache) {
-      const cached = getCachedValue(CACHE_NAMESPACE, cacheKey);
-      if (cached) {
-        return new Response(
-          JSON.stringify(cached),
-          { status: 200, headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT' } }
-        );
-      }
-    }
+    // skipCache is accepted for backward compatibility; caching is disabled.
+    void (searchParams.get('skipCache'));
 
     await connectToDatabase();
 
@@ -757,11 +747,9 @@ export async function GET(req) {
         utmCounts, // Include the new UTM counts
       };
 
-      setCachedValue(CACHE_NAMESPACE, cacheKey, responsePayload, CACHE_TTL);
-
       return new Response(
         JSON.stringify(responsePayload),
-        { status: 200, headers: { 'Content-Type': 'application/json', 'X-Cache': skipCache ? 'SKIP' : 'MISS' } }
+        { status: 200, headers: NO_CACHE_HEADERS }
       );
     } else {
       // No problematic filter, proceed with base query
@@ -802,18 +790,16 @@ export async function GET(req) {
         utmCounts, // Include the new UTM counts
       };
 
-      setCachedValue(CACHE_NAMESPACE, cacheKey, responsePayload, CACHE_TTL);
-
       return new Response(
         JSON.stringify(responsePayload),
-        { status: 200, headers: { 'Content-Type': 'application/json', 'X-Cache': skipCache ? 'SKIP' : 'MISS' } }
+        { status: 200, headers: NO_CACHE_HEADERS }
       );
     }
   } catch (error) {
     console.error("Error in get-orders API:", error);
     return new Response(
       JSON.stringify({ message: 'Internal Server Error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }

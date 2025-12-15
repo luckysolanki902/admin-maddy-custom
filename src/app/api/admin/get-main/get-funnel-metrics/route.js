@@ -14,6 +14,12 @@ const NO_CACHE_HEADERS = {
 };
 const FIRST_PARTY_CUTOVER = new Date('2025-09-30T10:30:00.000Z');
 
+const isFunnelDebugEnabled = () => {
+  const raw = process.env.DEBUG_ANALYTICS_FUNNEL;
+  if (!raw) return false;
+  return raw === '1' || raw.toLowerCase() === 'true' || raw.toLowerCase() === 'yes';
+};
+
 export async function POST(req) {
   try {
     const { startDate, endDate, landingPageFilter = null } = await req.json();
@@ -30,25 +36,70 @@ export async function POST(req) {
 
     // Debug: log input range
     console.info('[funnel-metrics] range', { startDate, endDate, landingPageFilter });
+    const debug = isFunnelDebugEnabled();
+    if (debug) {
+      console.info('[funnel-metrics][debug] parsed range', {
+        startIso: start.toISOString(),
+        endIso: end.toISOString(),
+        isFirstPartyWindow: start.getTime() >= FIRST_PARTY_CUTOVER.getTime(),
+        cutoverIso: FIRST_PARTY_CUTOVER.toISOString(),
+      });
+    }
 
     const isFirstPartyWindow = start.getTime() >= FIRST_PARTY_CUTOVER.getTime();
     let snapshot;
     let sourceUsed = 'first_party';
     const sourceReasons = [];
 
-    if (isFirstPartyWindow) {
+    // Always *try* first-party first when possible. This avoids showing tiny Meta-only counts
+    // if first-party tracking data exists for the window.
+    let firstPartySnapshot = null;
+    let firstPartyError = null;
+    try {
       await connectToDatabase();
-      snapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
+      firstPartySnapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
+    } catch (err) {
+      firstPartyError = err;
+      console.error('[funnel-metrics] first-party snapshot failed', err);
+    }
+
+    if (isFirstPartyWindow) {
+      // Post-cutover: first-party is authoritative.
+      if (!firstPartySnapshot) {
+        throw firstPartyError || new Error('First-party funnel snapshot unavailable');
+      }
+      snapshot = firstPartySnapshot;
+      sourceUsed = 'first_party';
     } else {
+      // Pre-cutover: prefer first-party if it has meaningful data, otherwise fall back to Meta.
+      const firstPartyVisited = firstPartySnapshot?.counts?.visited ?? 0;
+      const firstPartyHasData = firstPartyVisited > 0;
+
       try {
-        snapshot = await fetchMetaFunnelSnapshot({ startDate, endDate });
-        sourceUsed = 'meta_ads';
-        sourceReasons.push({ reason: 'pre_cutover_window', cutoverIso: FIRST_PARTY_CUTOVER.toISOString() });
+        const metaSnapshot = await fetchMetaFunnelSnapshot({ startDate, endDate });
+
+        if (!firstPartyHasData) {
+          snapshot = metaSnapshot;
+          sourceUsed = 'meta_ads';
+          sourceReasons.push({ reason: 'pre_cutover_window_meta_used', cutoverIso: FIRST_PARTY_CUTOVER.toISOString() });
+          if (firstPartyError) {
+            sourceReasons.push({ reason: 'first_party_failed', message: firstPartyError.message });
+          } else {
+            sourceReasons.push({ reason: 'first_party_empty', firstPartyVisited });
+          }
+        } else {
+          snapshot = firstPartySnapshot;
+          sourceUsed = 'first_party';
+          sourceReasons.push({ reason: 'pre_cutover_but_first_party_available', firstPartyVisited });
+        }
       } catch (metaError) {
-        console.error('[funnel-metrics] Meta fallback failed, reverting to first-party data', metaError);
+        // Meta failed; use first-party if available.
         sourceReasons.push({ reason: 'meta_fetch_failed', message: metaError.message });
-        await connectToDatabase();
-        snapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
+        if (!firstPartySnapshot) {
+          throw metaError;
+        }
+        snapshot = firstPartySnapshot;
+        sourceUsed = 'first_party';
       }
     }
 
@@ -115,6 +166,17 @@ export async function POST(req) {
         },
       },
     };
+
+    if (debug) {
+      console.info('[funnel-metrics][debug] response counts', {
+        visited: payload.counts?.visited,
+        uniqueSessions: payload.counts?.uniqueSessions,
+        addedToCart: payload.counts?.addedToCart,
+        openedOrderForm: payload.counts?.openedOrderForm,
+        purchased: payload.counts?.purchased,
+        source: payload.meta?.source,
+      });
+    }
 
     if (rawSnapshot) {
       payload.meta.raw = rawSnapshot;

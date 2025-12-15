@@ -102,6 +102,23 @@ const mapEventToKey = (event) => {
   return null;
 };
 
+const isFunnelDebugEnabled = () => {
+  const raw = process.env.DEBUG_ANALYTICS_FUNNEL;
+  if (!raw) return false;
+  return raw === '1' || raw.toLowerCase() === 'true' || raw.toLowerCase() === 'yes';
+};
+
+const safeIso = (d) => {
+  try {
+    if (!d) return null;
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.toISOString();
+  } catch {
+    return null;
+  }
+};
+
 async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
   // Find sessions that visited but never added to cart
   const visitMatchStage = {
@@ -266,6 +283,19 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
     throw new Error('Invalid date range provided to computeFunnelSnapshot');
   }
 
+  const debug = isFunnelDebugEnabled();
+  if (debug) {
+    console.info('[funnelMetrics][debug] computeFunnelSnapshot input', {
+      startDate,
+      endDate,
+      startIso: safeIso(start),
+      endIso: safeIso(end),
+      landingPageFilter: landingPageFilter || 'all',
+      tzOffsetMinutes: new Date().getTimezoneOffset(),
+      nodeEnv: process.env.NODE_ENV,
+    });
+  }
+
   // First, filter sessions by landing page if specified
   let filteredSessionIds = null;
   if (landingPageFilter && landingPageFilter !== 'all') {
@@ -283,6 +313,13 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
     
     const sessions = await FunnelSession.aggregate(sessionPipeline);
     filteredSessionIds = sessions.map(s => s.sessionId);
+
+    if (debug) {
+      console.info('[funnelMetrics][debug] landingPageFilter session prefilter', {
+        landingPageFilter,
+        filteredSessionIds: filteredSessionIds.length,
+      });
+    }
     
     // If no sessions match the landing page filter, return empty counts
     if (filteredSessionIds.length === 0) {
@@ -309,6 +346,15 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
   // Add sessionId filter if landing page filter is active
   if (filteredSessionIds) {
     matchStage.sessionId = { $in: filteredSessionIds };
+  }
+
+  if (debug) {
+    console.info('[funnelMetrics][debug] matchStage', {
+      hasSessionFilter: Boolean(filteredSessionIds),
+      steps: SUPPORTED_EVENT_STEPS,
+      startIso: safeIso(start),
+      endIso: safeIso(end),
+    });
   }
 
   const sessionCountsPipeline = [
@@ -341,6 +387,38 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
     stepSessionsPromise,
   ]);
 
+  if (debug) {
+    try {
+      const byStep = await FunnelEvent.aggregate([
+        { $match: { timestamp: { $gte: start, $lte: end } } },
+        { $group: { _id: '$step', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 20 },
+      ]);
+
+      const totalEventsInWindow = await FunnelEvent.countDocuments({
+        timestamp: { $gte: start, $lte: end },
+      });
+
+      const distinctSessionsInWindow = await FunnelEvent.distinct('sessionId', {
+        timestamp: { $gte: start, $lte: end },
+      });
+
+      const distinctVisitorsInWindow = await FunnelEvent.distinct('visitorId', {
+        timestamp: { $gte: start, $lte: end },
+      });
+
+      console.info('[funnelMetrics][debug] window sanity', {
+        totalEventsInWindow,
+        distinctSessionsInWindow: distinctSessionsInWindow.length,
+        distinctVisitorsInWindow: distinctVisitorsInWindow.length,
+        topSteps: byStep,
+      });
+    } catch (sanityErr) {
+      console.warn('[funnelMetrics][debug] window sanity failed', sanityErr?.message);
+    }
+  }
+
   const counts = buildDefaultCounts();
 
   stepSessions.forEach((entry) => {
@@ -355,6 +433,20 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
 
   counts.uniqueSessions = uniqueSessions;
 
+  if (debug) {
+    console.info('[funnelMetrics][debug] computed counts (pre-alignment)', {
+      visited: counts.visited,
+      addedToCart: counts.addedToCart,
+      viewedCart: counts.viewedCart,
+      openedOrderForm: counts.openedOrderForm,
+      reachedAddressTab: counts.reachedAddressTab,
+      reachedPaymentTab: counts.reachedPaymentTab,
+      startedPayment: counts.startedPayment,
+      purchased: counts.purchased,
+      uniqueSessions: counts.uniqueSessions,
+    });
+  }
+
   // Compute dropoffs
   const dropoffs = await computeDropoffs({
     start,
@@ -367,12 +459,27 @@ export async function computeFunnelSnapshot({ startDate, endDate, landingPageFil
   // Only apply this alignment when not filtering by landing page (i.e., global view)
   try {
     if (!landingPageFilter || landingPageFilter === 'all') {
+      // Keep this in sync with Orders Dashboard defaults in /api/admin/get-main/get-orders
+      // - paymentStatus: paidPartially/allPaid/allToBePaidCod
+      // - deliveryStatus: exclude cancelled/returned/lost/undelivered
+      const validDeliveryStatuses = [
+        'pending',
+        'orderCreated',
+        'processing',
+        'shipped',
+        'onTheWay',
+        'partiallyDelivered',
+        'delivered',
+        'returnInitiated',
+        'unknown',
+      ];
+
       const purchaseAgg = await Order.aggregate([
         {
           $match: {
             createdAt: { $gte: start, $lte: end },
-            // Match get-orders default: exclude only 'pending' and 'failed'
-            paymentStatus: { $nin: ['pending', 'failed'] },
+            paymentStatus: { $in: ['paidPartially', 'allPaid', 'allToBePaidCod'] },
+            deliveryStatus: { $in: validDeliveryStatuses },
           },
         },
         // Count only standalone or main orders to avoid double counting grouped shipments

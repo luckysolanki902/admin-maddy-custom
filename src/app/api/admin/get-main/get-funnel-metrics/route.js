@@ -20,8 +20,24 @@ const isFunnelDebugEnabled = () => {
   return raw === '1' || raw.toLowerCase() === 'true' || raw.toLowerCase() === 'yes';
 };
 
+const getRuntimeContext = (req) => {
+  return {
+    nodeEnv: process.env.NODE_ENV,
+    vercel: {
+      env: process.env.VERCEL_ENV,
+      region: process.env.VERCEL_REGION,
+      url: process.env.VERCEL_URL,
+      gitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA,
+    },
+    request: {
+      vercelId: req?.headers?.get?.('x-vercel-id') || undefined,
+    },
+  };
+};
+
 export async function POST(req) {
   try {
+    const debug = isFunnelDebugEnabled();
     const { startDate, endDate, landingPageFilter = null } = await req.json();
     if (!startDate || !endDate) {
       return new Response(JSON.stringify({ message: 'startDate and endDate are required' }), { status: 400, headers: NO_CACHE_HEADERS });
@@ -36,13 +52,16 @@ export async function POST(req) {
 
     // Debug: log input range
     console.info('[funnel-metrics] range', { startDate, endDate, landingPageFilter });
-    const debug = isFunnelDebugEnabled();
     if (debug) {
+      console.info('[funnel-metrics][debug] runtime', getRuntimeContext(req));
       console.info('[funnel-metrics][debug] parsed range', {
         startIso: start.toISOString(),
         endIso: end.toISOString(),
+        startMs: start.getTime(),
+        endMs: end.getTime(),
         isFirstPartyWindow: start.getTime() >= FIRST_PARTY_CUTOVER.getTime(),
         cutoverIso: FIRST_PARTY_CUTOVER.toISOString(),
+        cutoverMs: FIRST_PARTY_CUTOVER.getTime(),
       });
     }
 
@@ -61,6 +80,13 @@ export async function POST(req) {
     } catch (err) {
       firstPartyError = err;
       console.error('[funnel-metrics] first-party snapshot failed', err);
+      if (debug) {
+        console.error('[funnel-metrics][debug] first-party error details', {
+          message: err?.message,
+          name: err?.name,
+          stack: err?.stack,
+        });
+      }
     }
 
     if (isFirstPartyWindow) {
@@ -166,6 +192,15 @@ export async function POST(req) {
         },
       },
     };
+
+    if (debug) {
+      payload.meta.debug = {
+        runtime: getRuntimeContext(req),
+        sourceNotes: sourceReasons,
+        firstPartyVisited: firstPartySnapshot?.counts?.visited ?? null,
+        firstPartyUniqueSessions: firstPartySnapshot?.counts?.uniqueSessions ?? null,
+      };
+    }
 
     if (debug) {
       console.info('[funnel-metrics][debug] response counts', {

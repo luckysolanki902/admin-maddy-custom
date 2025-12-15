@@ -21,8 +21,33 @@ const NO_CACHE_HEADERS = {
 };
 const FIRST_PARTY_CUTOVER = new Date('2025-09-30T10:30:00.000Z');
 
+const isFunnelDebugEnabled = () => {
+	const raw = process.env.DEBUG_ANALYTICS_FUNNEL;
+	if (!raw) return false;
+	return raw === '1' || raw.toLowerCase() === 'true' || raw.toLowerCase() === 'yes';
+};
+
+const getRuntimeContext = (req) => {
+	return {
+		nodeEnv: process.env.NODE_ENV,
+		vercel: {
+			env: process.env.VERCEL_ENV,
+			region: process.env.VERCEL_REGION,
+			url: process.env.VERCEL_URL,
+			gitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA,
+		},
+		request: {
+			vercelId: req?.headers?.get?.('x-vercel-id') || undefined,
+		},
+	};
+};
+
 export async function POST(req) {
 	try {
+		const debug = isFunnelDebugEnabled();
+		if (debug) {
+			console.info('[funnel-comparison][debug] runtime', getRuntimeContext(req));
+		}
 		const { 
 			startDate, 
 			endDate, 
@@ -30,6 +55,16 @@ export async function POST(req) {
 			landingPageFilter = null,
 			skipCache = false 
 		} = await req.json();
+
+		if (debug) {
+			console.info('[funnel-comparison][debug] input', {
+				startDate,
+				endDate,
+				activeTag,
+				landingPageFilter: landingPageFilter || 'all',
+				cutoverIso: FIRST_PARTY_CUTOVER.toISOString(),
+			});
+		}
 
 		if (!startDate || !endDate) {
 			return new Response(
@@ -116,34 +151,81 @@ export async function POST(req) {
 		// skipCache is accepted for backward compatibility; caching is disabled.
 		void skipCache;
 
-		// Fetch funnel metrics for both periods
+		// Fetch funnel metrics for a period
+		// Prefer first-party when it has data; fall back to Meta only when first-party is empty/unavailable.
 		const fetchFunnelForPeriod = async (start, end) => {
 			const startDate = start.toISOString();
 			const endDate = end.toISOString();
 			const startTime = new Date(startDate);
 			const isFirstPartyWindow = startTime.getTime() >= FIRST_PARTY_CUTOVER.getTime();
-			
-			let snapshot;
-			let sourceUsed = 'first_party';
 
-			if (isFirstPartyWindow) {
+			let sourceUsed = 'first_party';
+			let snapshot;
+			let firstPartySnapshot = null;
+			let firstPartyError = null;
+
+			try {
 				await connectToDatabase();
-				snapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
-			} else {
-				try {
-					snapshot = await fetchMetaFunnelSnapshot({ startDate, endDate });
-					sourceUsed = 'meta_ads';
-				} catch (metaError) {
-					console.error('[funnel-comparison] Meta fallback failed, using first-party', metaError);
-					await connectToDatabase();
-					snapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
+				firstPartySnapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
+			} catch (err) {
+				firstPartyError = err;
+				if (debug) {
+					console.error('[funnel-comparison][debug] first-party snapshot failed', {
+						message: err?.message,
+						startDate,
+						endDate,
+					});
 				}
 			}
 
+			if (isFirstPartyWindow) {
+				// Post-cutover: first-party is authoritative.
+				if (!firstPartySnapshot) {
+					throw firstPartyError || new Error('First-party funnel snapshot unavailable');
+				}
+				snapshot = firstPartySnapshot;
+				sourceUsed = 'first_party';
+			} else {
+				const firstPartyVisited = firstPartySnapshot?.counts?.visited ?? 0;
+				const firstPartyHasData = firstPartyVisited > 0;
+
+				try {
+					const metaSnapshot = await fetchMetaFunnelSnapshot({ startDate, endDate });
+
+					if (!firstPartyHasData) {
+						snapshot = metaSnapshot;
+						sourceUsed = 'meta_ads';
+					} else {
+						snapshot = firstPartySnapshot;
+						sourceUsed = 'first_party';
+					}
+				} catch (metaError) {
+					// Meta failed; use first-party if available.
+					if (!firstPartySnapshot) {
+						throw metaError;
+					}
+					snapshot = firstPartySnapshot;
+					sourceUsed = 'first_party';
+				}
+			}
+
+			if (debug) {
+				console.info('[funnel-comparison][debug] period resolved', {
+					startDate,
+					endDate,
+					landingPageFilter: landingPageFilter || 'all',
+					isFirstPartyWindow,
+					sourceUsed,
+					visited: snapshot?.counts?.visited ?? 0,
+					uniqueSessions: snapshot?.counts?.uniqueSessions ?? 0,
+				});
+			}
+
 			return {
-				counts: snapshot.counts || {},
-				ratios: snapshot.ratios || {},
-				dropoffs: snapshot.dropoffs || {},
+				counts: snapshot?.counts || {},
+				ratios: snapshot?.ratios || {},
+				dropoffs: snapshot?.dropoffs || {},
+				ratioBases: snapshot?.ratioBases || {},
 				sourceUsed,
 			};
 		};

@@ -134,7 +134,7 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
   const visitedSessions = await FunnelEvent.aggregate([
     { $match: visitMatchStage },
     { $group: { _id: '$sessionId' } },
-  ]);
+  ]).allowDiskUse(true);
   
   const visitedSessionIds = visitedSessions.map(s => s._id);
 
@@ -148,7 +148,7 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
   const cartedSessions = await FunnelEvent.aggregate([
     { $match: cartMatchStage },
     { $group: { _id: '$sessionId' } },
-  ]);
+  ]).allowDiskUse(true);
   
   const cartedSessionIds = new Set(cartedSessions.map(s => s._id));
   
@@ -177,7 +177,7 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
         visitCount: { $gt: 1 },
       },
     },
-  ]);
+  ]).allowDiskUse(true);
 
   const visitedOtherPages = multiPageVisits.length;
 
@@ -211,7 +211,7 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
           count: { $sum: 1 },
         },
       },
-    ]);
+    ]).allowDiskUse(true);
 
     landingPageData.forEach(item => {
       const category = item._id || 'other';
@@ -236,7 +236,7 @@ async function computeDropoffs({ start, end, filteredSessionIds, counts }) {
         count: { $sum: 1 },
       },
     },
-  ]);
+  ]).allowDiskUse(true);
 
   landingTotalsAgg.forEach((item) => {
     const category = item._id || 'other';

@@ -12,6 +12,8 @@ dayjs.extend(timezone);
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const runtime = 'nodejs';
+export const maxDuration = 300;
 
 const NO_CACHE_HEADERS = {
 	'Content-Type': 'application/json',
@@ -45,6 +47,15 @@ const getRuntimeContext = (req) => {
 export async function POST(req) {
 	try {
 		const debug = isFunnelDebugEnabled();
+		const t0 = Date.now();
+		const logPerf = (label, extra = undefined) => {
+			if (!debug) return;
+			console.info('[funnel-comparison][debug] perf', {
+				label,
+				ms: Date.now() - t0,
+				...(extra ? { extra } : {}),
+			});
+		};
 		if (debug) {
 			console.info('[funnel-comparison][debug] runtime', getRuntimeContext(req));
 		}
@@ -65,6 +76,7 @@ export async function POST(req) {
 				cutoverIso: FIRST_PARTY_CUTOVER.toISOString(),
 			});
 		}
+		logPerf('parsed_request');
 
 		if (!startDate || !endDate) {
 			return new Response(
@@ -234,6 +246,11 @@ export async function POST(req) {
 			fetchFunnelForPeriod(currentStart, currentEnd),
 			fetchFunnelForPeriod(previousStart, previousEnd),
 		]);
+		logPerf('fetched_periods', {
+			currentSource: currentFunnel.sourceUsed,
+			previousSource: previousFunnel.sourceUsed,
+			currentVisited: currentFunnel.counts?.visited ?? 0,
+		});
 
 		// Calculate percentage changes
 		const calculateChange = (current, previous) => {

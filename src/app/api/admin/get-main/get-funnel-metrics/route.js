@@ -5,6 +5,8 @@ import fetchMetaFunnelSnapshot from '@/lib/analytics/metaFunnel';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const runtime = 'nodejs';
+export const maxDuration = 300;
 
 const NO_CACHE_HEADERS = {
   'Content-Type': 'application/json',
@@ -38,6 +40,16 @@ const getRuntimeContext = (req) => {
 export async function POST(req) {
   try {
     const debug = isFunnelDebugEnabled();
+    const t0 = Date.now();
+    const logPerf = (label, extra = undefined) => {
+      if (!debug) return;
+      console.info('[funnel-metrics][debug] perf', {
+        label,
+        ms: Date.now() - t0,
+        ...(extra ? { extra } : {}),
+      });
+    };
+
     const { startDate, endDate, landingPageFilter = null } = await req.json();
     if (!startDate || !endDate) {
       return new Response(JSON.stringify({ message: 'startDate and endDate are required' }), { status: 400, headers: NO_CACHE_HEADERS });
@@ -65,6 +77,8 @@ export async function POST(req) {
       });
     }
 
+    logPerf('parsed_request');
+
     const isFirstPartyWindow = start.getTime() >= FIRST_PARTY_CUTOVER.getTime();
     let snapshot;
     let sourceUsed = 'first_party';
@@ -75,8 +89,16 @@ export async function POST(req) {
     let firstPartySnapshot = null;
     let firstPartyError = null;
     try {
+      logPerf('connect_db_start');
       await connectToDatabase();
+      logPerf('connect_db_done');
+
+      logPerf('compute_first_party_start');
       firstPartySnapshot = await computeFunnelSnapshot({ startDate, endDate, landingPageFilter });
+      logPerf('compute_first_party_done', {
+        visited: firstPartySnapshot?.counts?.visited,
+        uniqueSessions: firstPartySnapshot?.counts?.uniqueSessions,
+      });
     } catch (err) {
       firstPartyError = err;
       console.error('[funnel-metrics] first-party snapshot failed', err);
@@ -102,7 +124,9 @@ export async function POST(req) {
       const firstPartyHasData = firstPartyVisited > 0;
 
       try {
+        logPerf('meta_fetch_start');
         const metaSnapshot = await fetchMetaFunnelSnapshot({ startDate, endDate });
+        logPerf('meta_fetch_done');
 
         if (!firstPartyHasData) {
           snapshot = metaSnapshot;
@@ -128,6 +152,8 @@ export async function POST(req) {
         sourceUsed = 'first_party';
       }
     }
+
+    logPerf('source_selected', { sourceUsed });
 
     const {
       counts,

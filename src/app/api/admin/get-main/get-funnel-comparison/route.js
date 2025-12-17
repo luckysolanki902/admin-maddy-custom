@@ -62,6 +62,8 @@ export async function POST(req) {
 		const { 
 			startDate, 
 			endDate, 
+			comparisonStartDate,
+			comparisonEndDate,
 			activeTag = '', 
 			landingPageFilter = null,
 			skipCache = false 
@@ -71,6 +73,8 @@ export async function POST(req) {
 			console.info('[funnel-comparison][debug] input', {
 				startDate,
 				endDate,
+				comparisonStartDate,
+				comparisonEndDate,
 				activeTag,
 				landingPageFilter: landingPageFilter || 'all',
 				cutoverIso: FIRST_PARTY_CUTOVER.toISOString(),
@@ -98,7 +102,12 @@ export async function POST(req) {
 
 		// Calculate previous period based on activeTag (same logic as orders comparison)
 		let previousStart, previousEnd;
-		switch (activeTag) {
+
+		if (comparisonStartDate && comparisonEndDate) {
+			previousStart = dayjs(comparisonStartDate);
+			previousEnd = dayjs(comparisonEndDate);
+		} else {
+			switch (activeTag) {
 			case 'today': {
 				const duration = currentEnd.diff(currentStart);
 				previousStart = currentStart.subtract(1, 'day');
@@ -159,6 +168,7 @@ export async function POST(req) {
 				previousEnd = currentStart.subtract(1, 'milliseconds');
 			}
 		}
+	}
 
 		// skipCache is accepted for backward compatibility; caching is disabled.
 		void skipCache;

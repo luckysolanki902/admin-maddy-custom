@@ -17,7 +17,15 @@ import {
   ToggleButtonGroup,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -25,6 +33,8 @@ import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import CachedIcon from '@mui/icons-material/Cached';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import CustomerCard from '../cards/CustomerCard';
 import RecordCelebrationCard from '../cards/RecordCelebrationCard';
 import { fetchSiteUpdates } from '@/redux/slices/siteUpdatesSlice';
@@ -587,6 +597,12 @@ const OrdersList = ({
   funnelLoading = false,
   funnelComparisonData = null, // New prop for funnel comparison data
   funnelComparisonLoading = false,
+  comparisonMode = 'auto',
+  setComparisonMode = () => {},
+  comparisonShift = 1,
+  setComparisonShift = () => {},
+  customComparisonRange = { start: null, end: null },
+  setCustomComparisonRange = () => {},
   landingPageFilter = 'all',
   setLandingPageFilter = () => {},
   onClearCache = () => {},
@@ -598,6 +614,58 @@ const OrdersList = ({
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
   const [aiCacheInfo, setAiCacheInfo] = useState(null);
+
+  // Custom Comparison Picker State
+  const [customPickerOpen, setCustomPickerOpen] = useState(false);
+  const [tempCustomRange, setTempCustomRange] = useState({ start: null, end: null });
+
+  const handleOpenCustomPicker = () => {
+    setTempCustomRange(customComparisonRange.start ? customComparisonRange : { start: dayjs().subtract(7, 'day'), end: dayjs() });
+    setCustomPickerOpen(true);
+  };
+
+  const handleSaveCustomPicker = () => {
+    if (tempCustomRange.start && tempCustomRange.end) {
+      setCustomComparisonRange(tempCustomRange);
+      setComparisonMode('custom');
+      setCustomPickerOpen(false);
+    }
+  };
+
+  const funnelComparisonLabel = useMemo(() => {
+    if (!comparisonData?.currentPeriod) return '';
+    
+    let start, end;
+    
+    if (comparisonMode === 'custom') {
+       if (!customComparisonRange.start || !customComparisonRange.end) return '';
+       start = dayjs(customComparisonRange.start);
+       end = dayjs(customComparisonRange.end);
+    } else {
+       // Auto mode
+       const currentStart = dayjs(comparisonData.currentPeriod.start);
+       const currentEnd = dayjs(comparisonData.currentPeriod.end);
+       
+       let unit = 'millisecond';
+       let amount = currentEnd.diff(currentStart);
+       
+       if (activeTag === 'last7days') { unit = 'day'; amount = 7; }
+       else if (activeTag === 'last30days') { unit = 'day'; amount = 30; }
+       else if (activeTag === 'thisMonth' || activeTag === 'lastMonth') { unit = 'month'; amount = 1; }
+       else if (activeTag === 'today' || activeTag === 'yesterday') { unit = 'day'; amount = 1; }
+       
+       if (unit === 'month' || unit === 'day') {
+           start = currentStart.subtract(amount * comparisonShift, unit);
+           end = currentEnd.subtract(amount * comparisonShift, unit);
+       } else {
+           const duration = amount;
+           end = currentStart.subtract((comparisonShift - 1) * duration, 'ms');
+           start = end.subtract(duration, 'ms');
+       }
+    }
+    
+    return `${start.format('MMM D, HH:mm')} - ${end.format('MMM D, HH:mm')}`;
+  }, [comparisonData, activeTag, comparisonMode, comparisonShift, customComparisonRange]);
   const [dailyRecords, setDailyRecords] = useState([]);
   const [nearRecords, setNearRecords] = useState([]);
   const [timeRemaining, setTimeRemaining] = useState({});
@@ -1749,40 +1817,8 @@ const OrdersList = ({
         <StatsAccordionDetails>
           {!loading ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {formattedLatestUpdate ? (
-                <LatestUpdateCard>
-                  <LatestUpdateHeader>
-                    <LatestUpdateLabel>
-                      <Box
-                        sx={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          backgroundColor: '#10b981',
-                        }}
-                      />
-                      Latest Update on D2C site
-                    </LatestUpdateLabel>
-                    <LatestUpdateTimestamp>{formattedLatestUpdate.formattedTimestamp}</LatestUpdateTimestamp>
-                  </LatestUpdateHeader>
-                  <LatestUpdateTitle>{formattedLatestUpdate.title}</LatestUpdateTitle>
-                  <LatestUpdateDescription>
-                    {formattedLatestUpdate.description}
-                  </LatestUpdateDescription>
-                </LatestUpdateCard>
-              ) : siteUpdateStatus === 'loading' ? (
-                <Skeleton
-                  variant="rectangular"
-                  height={80}
-                  sx={{
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(255,255,255,0.04)'
-                  }}
-                />
-              ) : null}
-
               {/* Comparison Period Descriptor */}
-              {comparisonData?.currentPeriod && comparisonData?.previousPeriod && (
+              {/* {comparisonData?.currentPeriod && comparisonData?.previousPeriod && (
                 <Box
                   sx={{
                     display: 'flex',
@@ -1805,7 +1841,7 @@ const OrdersList = ({
                       fontWeight: 600
                     }}
                   >
-                    Comparison Window
+                    Orders & Revenue Comparison
                   </Typography>
                   {(() => {
                     const curStart = dayjs(comparisonData.currentPeriod.start);
@@ -1857,7 +1893,39 @@ const OrdersList = ({
                     );
                   })()}
                 </Box>
-              )}
+              )} */}
+
+              {formattedLatestUpdate ? (
+                <LatestUpdateCard>
+                  <LatestUpdateHeader>
+                    <LatestUpdateLabel>
+                      <Box
+                        sx={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          backgroundColor: '#10b981',
+                        }}
+                      />
+                      Latest Update on D2C site
+                    </LatestUpdateLabel>
+                    <LatestUpdateTimestamp>{formattedLatestUpdate.formattedTimestamp}</LatestUpdateTimestamp>
+                  </LatestUpdateHeader>
+                  <LatestUpdateTitle>{formattedLatestUpdate.title}</LatestUpdateTitle>
+                  <LatestUpdateDescription>
+                    {formattedLatestUpdate.description}
+                  </LatestUpdateDescription>
+                </LatestUpdateCard>
+              ) : siteUpdateStatus === 'loading' ? (
+                <Skeleton
+                  variant="rectangular"
+                  height={80}
+                  sx={{
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(255,255,255,0.04)'
+                  }}
+                />
+              ) : null}
               {isFirstPartyActive ? (
                 <InsightsWrapper>
                   <MinimalSection>
@@ -1906,6 +1974,173 @@ const OrdersList = ({
                         />
                       </Box>
                     </SectionHeader>
+                    
+                    {/* Comparison Controls */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, px: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                                Compare:
+                            </Typography>
+                            <ToggleButtonGroup
+                                value={comparisonMode}
+                                exclusive
+                                onChange={(_, val) => val && setComparisonMode(val)}
+                                size="small"
+                                sx={{ 
+                                    height: 24,
+                                    '& .MuiToggleButton-root': {
+                                        px: 1,
+                                        py: 0,
+                                        fontSize: '0.7rem',
+                                        color: 'rgba(255,255,255,0.6)',
+                                        borderColor: 'rgba(255,255,255,0.1)',
+                                        '&.Mui-selected': {
+                                            color: '#fff',
+                                            backgroundColor: 'rgba(255,255,255,0.1)'
+                                        }
+                                    }
+                                }}
+                            >
+                                <ToggleButton value="auto">Auto</ToggleButton>
+                                <ToggleButton value="custom">Custom</ToggleButton>
+                            </ToggleButtonGroup>
+                        </Box>
+                        
+                        {comparisonMode === 'auto' && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 1, pr: 1 }}>
+                                    <IconButton 
+                                        size="small" 
+                                        onClick={() => setComparisonShift(prev => prev + 1)}
+                                        sx={{ color: 'rgba(255,255,255,0.7)', p: 0.5 }}
+                                    >
+                                        <NavigateBeforeIcon fontSize="small" />
+                                    </IconButton>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)', minWidth: 80, textAlign: 'center' }}>
+                                        {comparisonShift === 1 ? 'Prev Period' : `${comparisonShift} Periods Ago`}
+                                    </Typography>
+                                    <IconButton 
+                                        size="small" 
+                                        onClick={() => setComparisonShift(prev => Math.max(1, prev - 1))}
+                                        disabled={comparisonShift <= 1}
+                                        sx={{ color: 'rgba(255,255,255,0.7)', p: 0.5, opacity: comparisonShift <= 1 ? 0.3 : 1 }}
+                                    >
+                                        <NavigateNextIcon fontSize="small" />
+                                    </IconButton>
+                                </Box>
+                                
+                                {funnelComparisonLabel && (
+                                    <Box sx={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: 1,
+                                        bgcolor: 'rgba(16, 185, 129, 0.1)', 
+                                        border: '1px solid rgba(16, 185, 129, 0.2)',
+                                        borderRadius: '6px',
+                                        px: 1.5,
+                                        py: 0.5
+                                    }}>
+                                        <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 600, fontSize: '0.7rem' }}>
+                                            vs
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ color: '#fff', fontSize: '0.7rem', fontWeight: 500 }}>
+                                            {funnelComparisonLabel}
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+                        
+                        {comparisonMode === 'custom' && (
+                            <Button 
+                                size="small" 
+                                onClick={handleOpenCustomPicker}
+                                sx={{ 
+                                    color: 'rgba(255,255,255,0.8)', 
+                                    borderColor: 'rgba(255,255,255,0.2)',
+                                    fontSize: '0.7rem',
+                                    py: 0.25,
+                                    textTransform: 'none'
+                                }}
+                                variant="outlined"
+                            >
+                                {customComparisonRange.start && customComparisonRange.end 
+                                    ? `${dayjs(customComparisonRange.start).format('MMM D')} - ${dayjs(customComparisonRange.end).format('MMM D')}`
+                                    : 'Select Range'}
+                            </Button>
+                        )}
+
+                        {/* Comparison Label - Removed from here as it's now integrated above */}
+                    </Box>
+
+                    {/* Custom Range Picker Dialog */}
+                    <Dialog 
+                        open={customPickerOpen} 
+                        onClose={() => setCustomPickerOpen(false)}
+                        PaperProps={{
+                            sx: {
+                                bgcolor: '#1e1e1e',
+                                color: '#fff',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                minWidth: 320
+                            }
+                        }}
+                    >
+                        <DialogTitle sx={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                            Select Comparison Range
+                        </DialogTitle>
+                        <DialogContent sx={{ pt: 3 }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
+                                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                    <DatePicker
+                                        label="Start Date"
+                                        value={tempCustomRange.start}
+                                        onChange={(newValue) => setTempCustomRange(prev => ({ ...prev, start: newValue }))}
+                                        slotProps={{
+                                            textField: {
+                                                size: 'small',
+                                                fullWidth: true,
+                                                sx: {
+                                                    '& .MuiInputBase-root': { color: '#fff' },
+                                                    '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.7)' },
+                                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' }
+                                                }
+                                            }
+                                        }}
+                                    />
+                                    <DatePicker
+                                        label="End Date"
+                                        value={tempCustomRange.end}
+                                        onChange={(newValue) => setTempCustomRange(prev => ({ ...prev, end: newValue }))}
+                                        slotProps={{
+                                            textField: {
+                                                size: 'small',
+                                                fullWidth: true,
+                                                sx: {
+                                                    '& .MuiInputBase-root': { color: '#fff' },
+                                                    '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.7)' },
+                                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' }
+                                                }
+                                            }
+                                        }}
+                                    />
+                                </LocalizationProvider>
+                            </Box>
+                        </DialogContent>
+                        <DialogActions sx={{ borderTop: '1px solid rgba(255,255,255,0.1)', p: 2 }}>
+                            <Button onClick={() => setCustomPickerOpen(false)} sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                                Cancel
+                            </Button>
+                            <Button 
+                                onClick={handleSaveCustomPicker} 
+                                variant="contained"
+                                disabled={!tempCustomRange.start || !tempCustomRange.end}
+                            >
+                                Apply Comparison
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+
                     {funnelLoading ? (
                       <StepList>
                         {Array.from({ length: funnelSteps.length || 7 }).map((_, idx) => (

@@ -129,6 +129,11 @@ const OrderListFull = ({ isAdmin }) => {
   // Funnel comparison data state
   const [funnelComparisonData, setFunnelComparisonData] = useState(null);
   const [funnelComparisonLoading, setFunnelComparisonLoading] = useState(false);
+  
+  // Funnel comparison controls
+  const [comparisonMode, setComparisonMode] = useState('auto'); // 'auto' | 'custom'
+  const [comparisonShift, setComparisonShift] = useState(1); // 1 = previous period
+  const [customComparisonRange, setCustomComparisonRange] = useState({ start: null, end: null });
 
   // Funnel metrics: visits -> cart -> view cart -> form -> address -> payment -> purchase
   const [funnelMetrics, setFunnelMetrics] = useState({
@@ -546,6 +551,50 @@ const OrderListFull = ({ isAdmin }) => {
     setFunnelComparisonLoading(true);
     
     try {
+      let comparisonStartDate = null;
+      let comparisonEndDate = null;
+
+      if (comparisonMode === 'custom' && customComparisonRange.start && customComparisonRange.end) {
+          comparisonStartDate = customComparisonRange.start.toISOString();
+          comparisonEndDate = customComparisonRange.end.toISOString();
+      } else if (comparisonMode === 'auto' && comparisonShift > 1) {
+          const start = dayjs(dateRange.start);
+          const end = dayjs(dateRange.end);
+          
+          // Determine shift unit and amount
+          let unit = 'millisecond';
+          let amount = end.diff(start);
+          
+          if (activeTag === 'last7days') {
+              unit = 'day';
+              amount = 7;
+          } else if (activeTag === 'last30days') {
+              unit = 'day';
+              amount = 30;
+          } else if (activeTag === 'thisMonth' || activeTag === 'lastMonth') {
+              unit = 'month';
+              amount = 1;
+          } else if (activeTag === 'today' || activeTag === 'yesterday') {
+              unit = 'day';
+              amount = 1;
+          }
+          
+          if (unit === 'month' || unit === 'day') {
+               const compStart = start.subtract(amount * comparisonShift, unit);
+               const compEnd = end.subtract(amount * comparisonShift, unit);
+               comparisonStartDate = compStart.toISOString();
+               comparisonEndDate = compEnd.toISOString();
+          } else {
+               // Custom range fallback
+               const duration = amount;
+               const compEnd = start.subtract((comparisonShift - 1) * duration, 'ms');
+               const compStart = compEnd.subtract(duration, 'ms');
+               
+               comparisonStartDate = compStart.toISOString();
+               comparisonEndDate = compEnd.toISOString();
+          }
+      }
+
       // Fetch from API
       const res = await noCacheFetch('/api/admin/get-main/get-funnel-comparison', {
         method: 'POST',
@@ -553,6 +602,8 @@ const OrderListFull = ({ isAdmin }) => {
         body: JSON.stringify({
           startDate: dateRange.start.toISOString(),
           endDate: dateRange.end.toISOString(),
+          comparisonStartDate,
+          comparisonEndDate,
           activeTag,
           landingPageFilter: landingPageFilter === 'all' ? null : landingPageFilter,
         }),
@@ -588,6 +639,9 @@ const OrderListFull = ({ isAdmin }) => {
     dateRange,
     activeTag,
     landingPageFilter,
+    comparisonMode,
+    comparisonShift,
+    customComparisonRange
   ]);
 
   /*****************************************************
@@ -1026,6 +1080,12 @@ const OrderListFull = ({ isAdmin }) => {
         funnelLoading={funnelLoading}
         funnelComparisonData={funnelComparisonData}
         funnelComparisonLoading={funnelComparisonLoading}
+        comparisonMode={comparisonMode}
+        setComparisonMode={setComparisonMode}
+        comparisonShift={comparisonShift}
+        setComparisonShift={setComparisonShift}
+        customComparisonRange={customComparisonRange}
+        setCustomComparisonRange={setCustomComparisonRange}
         landingPageFilter={landingPageFilter}
         setLandingPageFilter={setLandingPageFilter}
         onClearCache={handleClearCaches}

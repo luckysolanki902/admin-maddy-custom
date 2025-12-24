@@ -1468,11 +1468,11 @@ const OrdersList = ({
       },
       {
         label: 'AddToCart → Purchase',
-        value: (ratios.cart_to_purchase ?? ratios.c2p) ?? 0,
+        value: ratios.cart_to_purchase ?? 0,
         baseCount: counts.addedToCart || 0,
         purchases,
-        change: formatFunnelPercentageChange(getFunnelRatioChange('c2p')),
-        previous: getFunnelRatioPrevious('c2p')
+        change: formatFunnelPercentageChange(getFunnelRatioChange('cart_to_purchase')),
+        previous: getFunnelRatioPrevious('cart_to_purchase')
       },
       {
         label: 'View Cart → Purchase',
@@ -2182,12 +2182,20 @@ const OrdersList = ({
                                     <Typography variant="body2" sx={{ color: 'rgba(250,250,250,0.9)', fontWeight: 600 }}>
                                       {step.value?.toLocaleString('en-IN')}
                                     </Typography>
-                                    {step.change}
+                                    {funnelComparisonLoading ? (
+                                      <Skeleton variant="rounded" width={40} height={20} sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
+                                    ) : (
+                                      step.change
+                                    )}
                                   </Box>
-                                  {typeof step.previous === 'number' && (
-                                    <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
-                                      Prev {step.previous.toLocaleString('en-IN')}
-                                    </Typography>
+                                  {funnelComparisonLoading ? (
+                                    <Skeleton variant="text" width={60} height={12} sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
+                                  ) : (
+                                    typeof step.previous === 'number' && (
+                                      <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
+                                        Prev {step.previous.toLocaleString('en-IN')}
+                                      </Typography>
+                                    )
                                   )}
                                 </Box>
                               </FunnelStep>
@@ -2262,12 +2270,20 @@ const OrdersList = ({
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
-                                    {change}
+                                    {funnelComparisonLoading ? (
+                                      <Skeleton variant="rounded" width={40} height={20} sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
+                                    ) : (
+                                      change
+                                    )}
                                   </Box>
-                                  {typeof previous === 'number' && (
-                                    <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
-                                      Prev {previous.toFixed(1)}%
-                                    </Typography>
+                                  {funnelComparisonLoading ? (
+                                    <Skeleton variant="text" width={60} height={12} sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
+                                  ) : (
+                                    typeof previous === 'number' && (
+                                      <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
+                                        Prev {previous.toFixed(1)}%
+                                      </Typography>
+                                    )
                                   )}
                                 </Box>
                                 <ConversionProgress percent={safeValue} />
@@ -2354,12 +2370,20 @@ const OrdersList = ({
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     <ConversionValue>{safeValue.toFixed(1)}%</ConversionValue>
-                                    {change}
+                                    {funnelComparisonLoading ? (
+                                      <Skeleton variant="rounded" width={40} height={20} sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
+                                    ) : (
+                                      change
+                                    )}
                                   </Box>
-                                  {typeof previous === 'number' && (
-                                    <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
-                                      Prev {previous.toFixed(1)}%
-                                    </Typography>
+                                  {funnelComparisonLoading ? (
+                                    <Skeleton variant="text" width={60} height={12} sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
+                                  ) : (
+                                    typeof previous === 'number' && (
+                                      <Typography variant="caption" sx={{ fontSize: '0.55rem', color: 'rgba(235,235,235,0.55)', letterSpacing: '0.05em' }}>
+                                        Prev {previous.toFixed(1)}%
+                                      </Typography>
+                                    )
                                   )}
                                 </Box>
                                 <ConversionProgress percent={safeValue} />

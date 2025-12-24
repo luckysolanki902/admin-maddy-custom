@@ -274,8 +274,6 @@ export async function GET(req) {
         .select('_id address.receiverName totalAmount itemsTotal totalDiscount paymentStatus deliveryStatus orderGroupId isMainOrder')
         .lean();
       
-      console.log('=== DEBUG: Orders included in revenue calculation ===');
-      console.log(`Total orders found (for revenue): ${debugOrders.length}`);
       let debugTotalAmount = 0;
       let debugGrossSales = 0;
       let debugTotalDiscount = 0;
@@ -284,12 +282,7 @@ export async function GET(req) {
         debugGrossSales += order.itemsTotal || 0;
         debugTotalDiscount += order.totalDiscount || 0;
         const isLinked = order.orderGroupId && !order.isMainOrder ? ' [LINKED]' : '';
-        console.log(`[${index + 1}] OrderId: ${order._id}, Customer: ${order.address?.receiverName || 'N/A'}, TotalAmount: ₹${order.totalAmount}, ItemsTotal: ₹${order.itemsTotal}, Discount: ₹${order.totalDiscount}, PaymentStatus: ${order.paymentStatus}, DeliveryStatus: ${order.deliveryStatus}${isLinked}`);
       });
-      console.log(`=== DEBUG: Calculated Revenue = Gross Sales (sum of totalAmount): ₹${debugTotalAmount} ===`);
-      console.log(`=== DEBUG: ItemsTotal (for reference only, not used for gross sales): ₹${debugGrossSales} ===`);
-      console.log(`=== DEBUG: Calculated Total Discount: ₹${debugTotalDiscount} ===`);
-      console.log('=== END DEBUG ===');
 
       // Revenue aggregation - includes ALL orders (main + linked)
       const revenueAggregationResult = await Order.aggregate([

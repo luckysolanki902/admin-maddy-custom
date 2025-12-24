@@ -781,7 +781,6 @@ const OrderListFull = ({ isAdmin }) => {
             fetchCacData(),
             fetchProblematicOrders(),
             fetchComparisonData(),
-            fetchFunnelComparisonData(),
           ]);
         } catch (err) {
           if (err?.name !== 'AbortError') {
@@ -807,10 +806,16 @@ const OrderListFull = ({ isAdmin }) => {
     fetchProblematicOrders,
     fetchComparisonData,
     fetchFunnelMetrics,
-    fetchFunnelComparisonData,
     selectedProblematicFilter,
     refreshNonce,
   ]);
+
+  /*****************************************************
+   * Fetch Funnel Comparison Data on Change
+   *****************************************************/
+  useEffect(() => {
+    fetchFunnelComparisonData();
+  }, [fetchFunnelComparisonData]);
 
   /*****************************************************
    * Compute RAT & ROAS

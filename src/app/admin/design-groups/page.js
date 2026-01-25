@@ -1701,7 +1701,25 @@ export default function DesignGroupsPage() {
           )}
 
           {selectedGroup && selectedGroup.products && (
-            <Box>
+            <Box sx={{ 
+              maxHeight: '60vh', 
+              overflowY: 'auto',
+              pr: 1,
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: 'rgba(255, 255, 255, 0.2)',
+                borderRadius: '4px',
+                '&:hover': {
+                  background: 'rgba(255, 255, 255, 0.3)',
+                },
+              },
+            }}>
               <Grid container spacing={2}>
                 {/* Add Products Card */}
                 <Grid item xs={12} sm={6} md={4}>

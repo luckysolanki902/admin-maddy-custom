@@ -22,6 +22,14 @@ export async function PUT(request, { params }) {
 
         if ('_id' in data) delete data._id;
 
+        // Filter out empty string values for ObjectId fields to prevent cast errors
+        const objectIdFields = ['product', 'specificCategoryVariant', 'specificCategory', 'order', 'user'];
+        objectIdFields.forEach(field => {
+            if (data[field] === '' || data[field] === null || data[field] === undefined) {
+                delete data[field];
+            }
+        });
+
         const updatedReview = await Review.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
 
         if (!updatedReview) {

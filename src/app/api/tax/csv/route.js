@@ -20,9 +20,6 @@ export async function GET(request) {
       : new Date('2025-03-31T23:59:59.999Z');
 
     const orders = await Order.find({
-      deliveryStatus: {
-        $in: ['delivered'],
-      },
       paymentStatus: { $in: ['allPaid', 'paidPartially', 'allToBePaidCod'] },
       createdAt: { $gte: startDate, $lte: endDate },
     }).sort({ createdAt: 1 });
